@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Check, Eye, Route } from 'lucide-react';
+import { Check, CheckSquare, Eye, Square } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
 import { DataTable, type ColumnDef } from '@/components/ui/data-table';
 import {
   Dialog,
@@ -27,9 +28,11 @@ import {
   type SolicitudBandeja,
 } from '../../types/aprobaciones.types';
 import type { Solicitud } from '../../types/solicitud.types';
-import { filaConcentrado } from '../aprobaciones/ConcentradoViaticosView';
+import type { PropuestaRuta } from '../../types/solicitud.types';
+import { esEstadoConcentrado, filaConcentrado } from '../aprobaciones/ConcentradoViaticosView';
 import { VistaDetalle } from '../mis-viajes/MisViajesPage';
 import { ConcentradoDocumentoPreview } from './ConcentradoDocumentoPreview';
+import { ConcentradoViaticosPrint } from '../costos/ConcentradoViaticosPrint';
 import { CalculosViajeModal } from '../../components/CalculosViajeModal';
 import { GRUPO_LABELS, type GrupoConcentrado } from '../../constants/grupos';
 import { gerenciaVisible } from '../../constants/gerencias';
@@ -119,9 +122,10 @@ export function ConcentradoPage() {
   const [comentario, setComentario] = useState('');
   const [accionando, setAccionando] = useState(false);
   const [documentoAbierto, setDocumentoAbierto] = useState(false);
-  const [seleccionadas, setSeleccionadas] = useState<SolicitudBandeja[]>([]);
-  const [autorizandoLote, setAutorizandoLote] = useState(false);
+  const [seleccionadasIds, setSeleccionadasIds] = useState<Set<number>>(() => new Set());
   const [calculoAbierto, setCalculoAbierto] = useState(false);
+  /** Última propuesta calculada en esta revisión; no se persiste hasta autorizar. */
+  const [propuesta, setPropuesta] = useState<(PropuestaRuta & { id_solicitud: number }) | null>(null);
 
   const cargar = useCallback(async () => {
     setCargando(true);
@@ -199,6 +203,7 @@ export function ConcentradoPage() {
     setRevisandoId(id);
     setDetalle(null);
     setComentario('');
+    setPropuesta(null);
     setCargandoDetalle(true);
     try {
       const res = await solicitudesApi.detalle(id);
@@ -212,26 +217,34 @@ export function ConcentradoPage() {
   }, []);
 
   const cerrarRevision = useCallback(() => {
-    setRevisandoId(null);    setDetalle(null);
+    setRevisandoId(null);
+    setDetalle(null);
     setCalculoAbierto(false);
+    setPropuesta(null);
   }, []);
-
-  /** El revisor autorizó una ruta recalculada: se recarga la bandeja. */
-  const alAutorizarRutaNueva = useCallback(async () => {
-    setCalculoAbierto(false);
-    cerrarRevision();
-    await cargar();
-  }, [cargar, cerrarRevision]);
 
   async function aprobar() {
     if (revisandoId === null || accionando) return;
     setAccionando(true);
     try {
-      const res = await aprobacionesApi.autorizar(revisandoId);
+      // La autorización usa la última propuesta calculada. Si el revisor no
+      // recalculó nada, se autoriza la ruta que eligió la persona viajera.
+      const res = propuesta?.id_solicitud === revisandoId
+        ? await aprobacionesApi.autorizar(revisandoId, {
+            calculo: propuesta.calculo,
+            opciones: propuesta.opciones,
+          })
+        : await aprobacionesApi.autorizar(revisandoId);
       if (res.data.success) {
-        toast.success(res.data.message ?? `Solicitud ${revisandoId} autorizada.`);
+        toast.success(
+          res.data.message
+            ?? (propuesta?.id_solicitud === revisandoId
+              ? `Ruta recalculada de la solicitud ${revisandoId} autorizada.`
+              : `Solicitud ${revisandoId} autorizada.`),
+        );
         setFilas((fs) => fs.map((f) => (f.id_solicitud === revisandoId ? { ...f, estado: 'autorizada' } : f)));
         cerrarRevision();
+        await cargar();
       } else toast.error(res.data.message ?? 'No se pudo autorizar.');
     } catch (falla: unknown) {
       toast.error(toApiError(falla).message || 'No se pudo autorizar.');
@@ -258,49 +271,103 @@ export function ConcentradoPage() {
 
   const filaRevisada = revisandoId !== null ? filas.find((f) => f.id_solicitud === revisandoId) ?? null : null;
   const esAutorizable = filaRevisada?.estado === ESTADO_ENVIADA && puedeAutorizar;
+  const propuestaRevisada =
+    propuesta !== null && propuesta.id_solicitud === revisandoId ? propuesta : null;
 
-  /**
-   * Autoriza en conjunto lo seleccionado en la tabla. Va una por una contra el
-   * endpoint que ya valida permiso y estado; si alguna falla se dice cuál, sin
-   * perder las que sí pasaron.
-   */
-  async function autorizarSeleccionadas() {
-    const autorizables = seleccionadas.filter((f) => f.estado === ESTADO_ENVIADA);
-    if (autorizables.length === 0 || autorizandoLote) return;
-    setAutorizandoLote(true);
-    let autorizadas = 0;
-    const fallas: string[] = [];
-    try {
-      for (const fila of autorizables) {
-        const etiqueta = fila.folio ?? `#${fila.id_solicitud}`;
-        try {
-          const res = await aprobacionesApi.autorizar(fila.id_solicitud);
-          if (res.data.success) autorizadas += 1;
-          else fallas.push(`${etiqueta}: ${res.data.message ?? 'no se pudo autorizar'}`);
-        } catch (falla: unknown) {
-          fallas.push(`${etiqueta}: ${toApiError(falla).message}`);
-        }
+  const alRecibirPropuesta = useCallback(
+    (nueva: PropuestaRuta) => {
+      if (revisandoId === null) return;
+      setPropuesta({ ...nueva, id_solicitud: revisandoId });
+      setCalculoAbierto(false);
+    },
+    [revisandoId],
+  );
+
+  // La selección de la tabla significa «incluir en el concentrado». Solo las
+  // autorizadas son elegibles: una enviada todavía no tiene ruta definitiva.
+  const seleccionables = filasOrdenadas.filter((fila) => esEstadoConcentrado(fila.estado));
+  const seleccionadas = filas.filter(
+    (fila) => seleccionadasIds.has(fila.id_solicitud) && esEstadoConcentrado(fila.estado),
+  );
+  const importesSeleccionados = seleccionadas
+    .map((fila) => fila.total)
+    .filter((total): total is number => total !== null && total !== undefined);
+  const totalSeleccionado = importesSeleccionados.length > 0
+    ? importesSeleccionados.reduce((suma, total) => suma + total, 0)
+    : null;
+  const todasSeleccionadas =
+    seleccionables.length > 0 && seleccionables.every((fila) => seleccionadasIds.has(fila.id_solicitud));
+
+  const alternarSeleccion = useCallback((id: number) => {
+    setSeleccionadasIds((previas) => {
+      const siguientes = new Set(previas);
+      if (siguientes.has(id)) siguientes.delete(id);
+      else siguientes.add(id);
+      return siguientes;
+    });
+  }, []);
+
+  const alternarTodas = useCallback(() => {
+    setSeleccionadasIds((previas) => {
+      const siguientes = new Set(previas);
+      if (todasSeleccionadas) {
+        for (const fila of seleccionables) siguientes.delete(fila.id_solicitud);
+      } else {
+        for (const fila of seleccionables) siguientes.add(fila.id_solicitud);
       }
-      if (autorizadas > 0) toast.success(`${autorizadas} solicitud(es) autorizadas.`);
-      if (fallas.length > 0) toast.error(fallas.slice(0, 3).join(' · '));
-      setSeleccionadas([]);
-      await cargar();
-    } finally {
-      setAutorizandoLote(false);
-    }
-  }
+      return siguientes;
+    });
+  }, [seleccionables, todasSeleccionadas]);
 
   // Encabezado del documento: el filtro activo y cuántas filas lo componen.
-  // La gerencia se toma de las filas visibles solo cuando todas coinciden; si
-  // hay varias se declara "VARIAS" en vez de elegir una al azar.
-  const gerencias = Array.from(new Set(visibles.map((v) => gerenciaVisible(v.gerencia))));
+  // La gerencia se toma de las filas seleccionadas (o, sin selección, de las
+  // visibles) solo cuando todas coinciden; si hay varias se declara "VARIAS".
+  const filasDelDocumento = seleccionadas.length > 0 ? seleccionadas : visibles;
+  const gerencias = Array.from(new Set(filasDelDocumento.map((v) => gerenciaVisible(v.gerencia))));
   const gerenciaDocumento = gerencias.length === 1 ? gerencias[0] : gerencias.length > 1 ? 'VARIAS' : undefined;
-  const tituloDocumento = `${ETIQUETA_FILTRO_FECHA[filtroFecha]} · ${visibles.length} ${
-    visibles.length === 1 ? 'solicitud' : 'solicitudes'
+  const tituloDocumento = `${ETIQUETA_FILTRO_FECHA[filtroFecha]} · ${seleccionadas.length} ${
+    seleccionadas.length === 1 ? 'solicitud' : 'solicitudes'
   }${agruparPor === 'ninguna' ? '' : ` · agrupado por ${GRUPO_LABELS[agruparPor].toLowerCase()}`}`;
 
   const columnas = useMemo<ColumnDef<SolicitudBandeja>[]>(
     () => [
+      {
+        id: 'seleccion',
+        header: () => (
+          <button
+            type="button"
+            className="flex items-center justify-center"
+            aria-label={todasSeleccionadas ? 'Deseleccionar todas las autorizadas' : 'Seleccionar todas las autorizadas'}
+            title={todasSeleccionadas ? 'Deseleccionar todas las autorizadas' : 'Seleccionar todas las autorizadas'}
+            disabled={seleccionables.length === 0}
+            onClick={alternarTodas}
+          >
+            {todasSeleccionadas ? (
+              <CheckSquare className="h-4 w-4 text-primary" aria-hidden />
+            ) : (
+              <Square className="h-4 w-4 text-muted-foreground" aria-hidden />
+            )}
+          </button>
+        ),
+        enableSorting: false,
+        cell: ({ row }) => {
+          const habilitada = esEstadoConcentrado(row.original.estado);
+          return (
+            <div onClick={(evento) => evento.stopPropagation()}>
+              <Checkbox
+                checked={seleccionadasIds.has(row.original.id_solicitud) && habilitada}
+                disabled={!habilitada}
+                aria-label={
+                  habilitada
+                    ? `Incluir ${row.original.folio ?? `#${row.original.id_solicitud}`} en el concentrado`
+                    : `La solicitud ${row.original.folio ?? `#${row.original.id_solicitud}`} aún no está autorizada`
+                }
+                onCheckedChange={() => alternarSeleccion(row.original.id_solicitud)}
+              />
+            </div>
+          );
+        },
+      },
       {
         id: 'solicitud',
         header: 'Folio',
@@ -382,21 +449,6 @@ export function ConcentradoPage() {
         },
       },
       {
-        id: 'calculo',
-        header: 'Cálculo',
-        accessorFn: (fila) => (fila.recalculada ? 'Con cálculo' : 'Sin cálculo'),
-        cell: ({ row }) =>
-          row.original.recalculada ? (
-            <Badge variant="outline" className="border-emerald-200 bg-emerald-50 font-normal text-emerald-700">
-              Con cálculo
-            </Badge>
-          ) : (
-            <Badge variant="outline" className="font-normal text-muted-foreground">
-              Sin cálculo
-            </Badge>
-          ),
-      },
-      {
         id: 'acciones',
         header: () => <div className="text-right">Acción</div>,
         enableSorting: false,
@@ -420,11 +472,25 @@ export function ConcentradoPage() {
         ),
       },
     ],
-    [revisar],
+    [
+      revisar,
+      seleccionadasIds,
+      todasSeleccionadas,
+      seleccionables,
+      alternarSeleccion,
+      alternarTodas,
+    ],
   );
 
   return (
     <div className="space-y-4">
+      <div>
+        <h1 className="text-xl font-semibold tracking-tight">Concentrado de viáticos</h1>
+        <p className="mt-0.5 text-sm text-muted-foreground">
+          Revisa y autoriza la última ruta calculada de cada viaje. Después selecciona las
+          autorizadas para generar el FOR-008.
+        </p>
+      </div>
       <Card>
         <CardContent className="space-y-3 pt-6">
           <div className="grid gap-3 md:grid-cols-4">
@@ -560,78 +626,143 @@ export function ConcentradoPage() {
 
       {error ? <p role="alert" className="text-sm text-destructive">{error}</p> : null}
 
-      {seleccionadas.length > 0 ? (
-        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-muted/30 px-3 py-2">
-          <span className="text-sm">
-            {seleccionadas.length} seleccionada{seleccionadas.length === 1 ? '' : 's'}
-          </span>
-          <div className="flex items-center gap-2">
-            <Button type="button" variant="ghost" size="sm" onClick={() => setSeleccionadas([])}>
-              Limpiar
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              disabled={autorizandoLote || !puedeAutorizar}
-              onClick={() => { void autorizarSeleccionadas(); }}
-            >
-              {autorizandoLote ? 'Autorizando…' : 'Autorizar seleccionadas'}
-            </Button>
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
+        <div className="flex min-w-0 flex-col gap-3">
+          <DataTable
+            columns={columnas}
+            data={filasOrdenadas}
+            title="Solicitudes para el concentrado"
+            subtitle={
+              `${seleccionables.length} autorizada${seleccionables.length === 1 ? '' : 's'} · ` +
+              `${visibles.length} visibles`
+            }
+            pagination
+            pageSize={10}
+            height={520}
+            loading={cargando}
+            showRefreshButton
+            onRefresh={() => { void cargar(); }}
+            filterConfig={{
+              // v2: agrega la columna Gerencia; el id nuevo evita que una
+              // configuración guardada (sin esa columna) la oculte.
+              tableId: 'viaticos-concentrado-v2',
+              searchableColumns: ['destino', 'solicitante', 'estado', 'gerencia'],
+              defaultSearchColumns: ['destino'],
+              defaultVisibleColumns: [
+                'seleccion',
+                'solicitud',
+                'destino',
+                'fechas',
+                'costo',
+                'solicitante',
+                'gerencia',
+                'estado',
+                'acciones',
+              ],
+            }}
+            rowTestId={(fila) => `concentrado-${fila.id_solicitud}`}
+            onRowClick={(fila) => { void revisar(fila.id_solicitud); }}
+          />
+
+          <div
+            data-testid="seleccion-concentrado"
+            className={
+              seleccionadas.length > 0
+                ? 'flex items-center justify-between rounded-lg border border-primary/20 bg-primary/5 px-4 py-2.5'
+                : 'flex items-center justify-between rounded-lg border px-4 py-2.5 text-muted-foreground'
+            }
+          >
+            <div className="text-sm">
+              <span className={seleccionadas.length > 0 ? 'font-semibold text-primary' : 'font-semibold'}>
+                {seleccionadas.length}
+              </span>{' '}
+              {seleccionadas.length === 1 ? 'solicitud seleccionada' : 'solicitudes seleccionadas'}
+              {seleccionadas.length === 0 ? ' · marca solicitudes autorizadas' : ''}
+            </div>
+            <div className="flex items-center gap-3">
+              {seleccionadas.length > 0 && totalSeleccionado !== null ? (
+                <span className="text-sm font-bold tabular-nums">
+                  {importeFormateado(totalSeleccionado, 'MXN')}
+                </span>
+              ) : null}
+              {seleccionadas.length > 0 ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setSeleccionadasIds(new Set())}
+                >
+                  Limpiar
+                </Button>
+              ) : null}
+            </div>
           </div>
         </div>
-      ) : null}
 
-      <DataTable
-        columns={columnas}
-        data={filasOrdenadas}
-        title="Concentrado de viáticos"
-        subtitle={
-          agruparPor === 'ninguna'
-            ? `Total: ${visibles.length}`
-            : `Total: ${visibles.length} · ${GRUPO_LABELS[agruparPor]}`
-        }
-        pagination
-        pageSize={10}
-        height={460}
-        loading={cargando}
-        showRefreshButton
-        onRefresh={() => { void cargar(); }}
-        showExportButton
-        exportLabel="Generar documento"
-        onExport={() => setDocumentoAbierto(true)}
-        filterConfig={{
-          // v2: agrega la columna Gerencia; el id nuevo evita que una
-          // configuración guardada (sin esa columna) la oculte.
-          tableId: 'viaticos-concentrado-v2',
-          searchableColumns: ['destino', 'solicitante', 'estado', 'gerencia'],
-          defaultSearchColumns: ['destino'],
-          defaultVisibleColumns: [
-            'solicitud',
-            'periodo',
-            'destino',
-            'fechas',
-            'transporte',
-            'costo',
-            'solicitante',
-            'gerencia',
-            'estado',
-            'calculo',
-            'acciones',
-          ],
-        }}
-        rowTestId={(fila) => `concentrado-${fila.id_solicitud}`}
-        onRowClick={(fila) => { void revisar(fila.id_solicitud); }}
-        enableRowSelection
-        getRowId={(fila) => String(fila.id_solicitud)}
-        onSelectionChange={setSeleccionadas}
-      />
+        <section className="flex min-w-0 flex-col gap-3" aria-label="Vista previa del concentrado">
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-muted/40 px-3 py-2">
+            <span className="text-sm font-medium text-muted-foreground">
+              Vista previa del FOR-008
+            </span>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="gap-1.5"
+                onClick={() => setDocumentoAbierto(true)}
+                disabled={seleccionadas.length === 0}
+              >
+                Vista previa
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                className="gap-1.5"
+                onClick={() => setDocumentoAbierto(true)}
+                disabled={seleccionadas.length === 0}
+              >
+                <Check className="h-3.5 w-3.5" aria-hidden />
+                Generar concentrado ({seleccionadas.length})
+              </Button>
+            </div>
+          </div>
+
+          <div className="min-h-[420px] flex-1 overflow-auto rounded-lg border bg-zinc-100 p-3 dark:bg-zinc-900">
+            {seleccionadas.length === 0 ? (
+              <div
+                data-testid="concentrado-vacio"
+                className="flex h-full min-h-[400px] flex-col items-center justify-center gap-2 text-center text-muted-foreground"
+              >
+                <div className="text-4xl opacity-30">📄</div>
+                <span className="text-sm">
+                  Selecciona solicitudes autorizadas para ver el concentrado
+                </span>
+                <span className="max-w-sm text-xs opacity-70">
+                  La ruta autorizada que se imprime es la última que revisó y confirmó el concentrado.
+                </span>
+              </div>
+            ) : (
+              <div className="min-w-[820px] bg-white shadow-sm">
+                <ConcentradoViaticosPrint
+                  solicitudes={seleccionadas.map(filaConcentrado)}
+                  gerencia={gerenciaDocumento}
+                  grupoPor={agruparPor}
+                  soloAutorizadas
+                />
+              </div>
+            )}
+          </div>
+        </section>
+      </div>
 
       <ConcentradoDocumentoPreview
         abierto={documentoAbierto}
-        solicitudes={filasOrdenadas.map(filaConcentrado)}
+        solicitudes={seleccionadas.map(filaConcentrado)}
         titulo={tituloDocumento}
         gerencia={gerenciaDocumento}
         grupoPor={agruparPor}
+        soloAutorizadas
         onCerrar={() => setDocumentoAbierto(false)}
       />
 
@@ -645,8 +776,8 @@ export function ConcentradoPage() {
           <DialogHeader>
             <DialogTitle>Revisión de la solicitud {detalle?.folio ?? (revisandoId !== null ? `#${revisandoId}` : '')}</DialogTitle>
             <DialogDescription>
-              Mismo detalle que ve la persona viajera. Autoriza la ruta que eligió o genera una nueva
-              versión para autorizarla.
+              Revisa la última ruta propuesta. Puedes recalcularla cuantas veces necesites; solo
+              se guarda cuando autorizas.
             </DialogDescription>
           </DialogHeader>
 
@@ -655,33 +786,35 @@ export function ConcentradoPage() {
             <div className="space-y-3">
               <VistaDetalle
                 solicitud={detalle}
+                modoRevision
+                pestanaInicial="autorizada"
+                propuesta={propuestaRevisada}
+                onRecalcular={
+                  filaRevisada?.estado === ESTADO_ENVIADA && puedeAutorizar
+                    ? () => setCalculoAbierto(true)
+                    : undefined
+                }
                 acciones={
                   filaRevisada?.estado === ESTADO_ENVIADA && puedeAutorizar ? (
-                    <>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="gap-1.5"
-                        onClick={() => setCalculoAbierto(true)}
-                      >
-                        <Route className="h-4 w-4" aria-hidden />
-                        Generar nueva ruta
-                      </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        className="gap-1.5"
-                        disabled={accionando}
-                        onClick={() => { void aprobar(); }}
-                      >
-                        <Check className="h-4 w-4" aria-hidden />
-                        Autorizar esta ruta
-                      </Button>
-                    </>
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="gap-1.5"
+                      disabled={accionando}
+                      onClick={() => { void aprobar(); }}
+                    >
+                      <Check className="h-4 w-4" aria-hidden />
+                      {propuestaRevisada ? 'Autorizar ruta recalculada' : 'Autorizar esta ruta'}
+                    </Button>
                   ) : undefined
                 }
               />
+              {propuestaRevisada ? (
+                <p className="text-xs text-muted-foreground">
+                  Se autorizará la última propuesta visible en «Ruta autorizada». Los recálculos
+                  no confirmados no se guardan.
+                </p>
+              ) : null}
               <div className="space-y-1">
                 <Label htmlFor="comentario-revision">Comentario de revisión</Label>
                 <Input
@@ -728,7 +861,7 @@ export function ConcentradoPage() {
           onOpenChange={setCalculoAbierto}
           onEnviado={() => undefined}
           modo="autorizar"
-          onAutorizado={() => { void alAutorizarRutaNueva(); }}
+          onPropuesta={alRecibirPropuesta}
         />
       ) : null}
     </div>

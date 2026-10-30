@@ -21,6 +21,9 @@ import type { GrupoConcentrado } from '../../constants/grupos';
  * `concentrado-viaticos-print`, aislado con `body.concentrado-print-active`).
  */
 
+/** Mismos estados que imprime el documento oficial (ver ConcentradoViaticosPrint). */
+const ESTADOS_AUTORIZADOS = ['autorizada', 'autorizada_con_ajustes'] as const;
+
 const SCREEN_CSS = `
 #concentrado-viaticos-print { display: none; }
 #concentrado-viaticos-print.concentrado-print-preview {
@@ -49,12 +52,29 @@ interface Props {
   gerencia?: string;
   /** Criterio con el que se parten los bloques del FOR-008. */
   grupoPor?: GrupoConcentrado;
+  /**
+   * Imprimir solo las solicitudes autorizadas. Activo por defecto porque el
+   * FOR-008 es el documento oficial; se apaga para previsualizar tal cual una
+   * selección explícita del usuario.
+   */
+  soloAutorizadas?: boolean;
   onCerrar: () => void;
 }
 
-export function ConcentradoDocumentoPreview({ abierto, solicitudes, titulo, gerencia, grupoPor = 'ninguna', onCerrar }: Props) {
+export function ConcentradoDocumentoPreview({
+  abierto,
+  solicitudes,
+  titulo,
+  gerencia,
+  grupoPor = 'ninguna',
+  soloAutorizadas = true,
+  onCerrar,
+}: Props) {
   const [imprimiendo, setImprimiendo] = useState(false);
   const mounted = useRef(true);
+  const filasImprimibles = soloAutorizadas
+    ? solicitudes.filter(s => (ESTADOS_AUTORIZADOS as readonly string[]).includes(s.estado))
+    : solicitudes;
 
   useEffect(() => {
     mounted.current = true;
@@ -65,7 +85,7 @@ export function ConcentradoDocumentoPreview({ abierto, solicitudes, titulo, gere
   }, []);
 
   const imprimir = useCallback(async () => {
-    if (imprimiendo || solicitudes.length === 0) return;
+    if (imprimiendo || filasImprimibles.length === 0) return;
     setImprimiendo(true);
     const quitar = () => document.body.classList.remove('concentrado-print-active');
     try {
@@ -81,7 +101,7 @@ export function ConcentradoDocumentoPreview({ abierto, solicitudes, titulo, gere
       window.removeEventListener('afterprint', quitar);
       if (mounted.current) setImprimiendo(false);
     }
-  }, [imprimiendo, solicitudes.length]);
+  }, [imprimiendo, filasImprimibles.length]);
 
   if (!abierto) return null;
 
@@ -91,7 +111,7 @@ export function ConcentradoDocumentoPreview({ abierto, solicitudes, titulo, gere
         <span className="concentrado-toolbar-title">Concentrado de viáticos FOR-008 · {titulo}</span>
         <Button
           size="sm"
-          disabled={solicitudes.length === 0 || imprimiendo}
+          disabled={filasImprimibles.length === 0 || imprimiendo}
           onClick={() => void imprimir()}
         >
           {imprimiendo ? (
@@ -115,7 +135,7 @@ export function ConcentradoDocumentoPreview({ abierto, solicitudes, titulo, gere
         aria-label="Concentrado de viáticos"
       >
         <style>{SCREEN_CSS}</style>
-        {solicitudes.length === 0 ? (
+        {filasImprimibles.length === 0 ? (
           <p className="mx-auto max-w-lg rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
             No hay solicitudes con los filtros actuales. Elige otro periodo o definición de «activo»
             para generar el documento.
@@ -125,7 +145,7 @@ export function ConcentradoDocumentoPreview({ abierto, solicitudes, titulo, gere
             solicitudes={solicitudes}
             gerencia={gerencia}
             grupoPor={grupoPor}
-            soloAutorizadas={false}
+            soloAutorizadas={soloAutorizadas}
           />
         )}
       </div>
