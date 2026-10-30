@@ -31,7 +31,8 @@ public class CrearSolicitudRequest
 /// <summary>
 /// Body de PUT /api/viaticos/solicitudes/{id}/opciones.
 /// <c>Cotizacion</c> es un JSON con forma <c>{ "opciones": [...] }</c> en
-/// el que cada elemento requiere <c>url_compra</c> y <c>fuente</c>.
+/// el que cada elemento requiere <c>fuente</c>; <c>url_compra</c> es
+/// opcional (ausente, null o vacia se guarda como null).
 /// <c>precio</c> puede ser <c>null</c> únicamente cuando <c>fuente</c>
 /// indica que es un estimado.
 /// </summary>
@@ -152,6 +153,16 @@ public class SolicitudOpcionDto
 
     [JsonPropertyName("ruta_captura")]
     public string? RutaCaptura { get; set; }
+
+    /// <summary>
+    /// Metadatos de la opcion guardados en <c>solicitud_opciones.datos_json</c>
+    /// (<c>tramo</c>, <c>de</c>, <c>a</c>, ...). El concentrado los usa para
+    /// comparar la cotizacion original contra una ruta recalculada sin depender
+    /// del orden del arreglo. <c>null</c> cuando la fila no tiene datos o no son
+    /// un JSON valido.
+    /// </summary>
+    [JsonPropertyName("datos")]
+    public JsonElement? Datos { get; set; }
 }
 
 /// <summary>

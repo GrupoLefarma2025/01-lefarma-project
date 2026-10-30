@@ -363,7 +363,7 @@ public class SolicitudesController : ControllerBase
     [SwaggerOperation(
         Summary = "Persistir cotización (vuelo/hotel) y enviar la solicitud",
         Description = "Recibe { cotizacion: { opciones: [...] } }. " +
-                      "Cada opción requiere url_compra y fuente. " +
+                      "Cada opción requiere fuente; url_compra es opcional (sin enlace se guarda null). " +
                       "precio solo puede ser null si fuente contiene 'estimado'. " +
                       "Si la solicitud ya tenía opciones del mismo tipo, se reemplazan. " +
                       "Si la solicitud estaba en 'borrador', la misma transacción la pasa a 'enviada' " +
@@ -782,6 +782,7 @@ public class SolicitudesController : ControllerBase
                         Fuente = o.Fuente,
                         FueElegida = o.FueElegida,
                         RutaCaptura = o.RutaCaptura,
+                        Datos = ParsearJsonTolerante(o.DatosJson),
                     }).ToList()
                 : new List<SolicitudOpcionDto>(),
             Eventos = eventos
