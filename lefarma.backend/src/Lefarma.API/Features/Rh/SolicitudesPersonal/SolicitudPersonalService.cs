@@ -916,9 +916,9 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                 if (soli.Estado?.Codigo != "CREADA")
                     return CommonErrors.Conflict("SolicitudPersonal", "Solo se pueden editar solicitudes en estado Creada.");
 
-                var ahora = DateTime.Now;
-                if (soli.FechaCreacion.Year != ahora.Year || soli.FechaCreacion.Month != ahora.Month)
-                    return CommonErrors.Conflict("SolicitudPersonal", "Solo se pueden editar solicitudes creadas en el mes actual.");
+                //var ahora = DateTime.Now;
+                //if (soli.FechaCreacion.Year != ahora.Year || soli.FechaCreacion.Month != ahora.Month)
+                //    return CommonErrors.Conflict("SolicitudPersonal", "Solo se pueden editar solicitudes creadas en el mes actual.");
 
                 //No se podra cambiar el tipo de solicitud si ya tiene detalle, para evitar inconsistencias en el workflow y en la validación de fechas y saldos
                 if (soli.IdTipoSolicitud != request.IdTipoSolicitud)

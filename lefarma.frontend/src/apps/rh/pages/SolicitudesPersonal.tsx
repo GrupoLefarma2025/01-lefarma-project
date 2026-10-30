@@ -60,7 +60,6 @@ export default function SolicitudesPersonal() {
     'Solicitudes de Personal',
     'Solicitudes de personal para autorización y seguimiento'
   );
-  const puedeEditar = usePermission({ require: 'solicitud_personal.puede_ver_todas' });
   const { hasFirma, firmaEnComprobacion, fetchProfileSignature } = useAuthStore();
 
   const {
@@ -519,7 +518,6 @@ export default function SolicitudesPersonal() {
             {...accionesBoton}
             showImprimir={false}
             onRefresh={() => fetchTabData('pendientes', appliedFiltersByTab.pendientes)}
-            puedeEditar={puedeEditar}
             globalFilter={true}
           />
         </TabsContent>
@@ -535,7 +533,6 @@ export default function SolicitudesPersonal() {
             onRefresh={() => fetchTabData('mias', appliedFiltersByTab.mias)}
             showFirma={false}
             showEditar={false}
-            puedeEditar={puedeEditar}
             globalFilter={true}
           />
         </TabsContent>
