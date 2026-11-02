@@ -1,0 +1,20 @@
+﻿tipo,objeto,filas_origen,detalle
+ESQUEMA,viaticos,,El esquema no existe en el destino
+FUNCION,app.fn_Capitaliza,,No existe en el destino
+PROCEDIMIENTO,app.sp_enviar_correo,,No existe en el destino
+PROCEDIMIENTO,app.sp_sincroniza_empleados_usuarios,,No existe en el destino
+PROCEDIMIENTO,dbo.SP_Reportes_Almacen_GuiasDHL,,No existe en el destino
+PROCEDIMIENTO,dbo.SP_Reportes_Almacen_GuiasTresGuerras,,No existe en el destino
+PROCEDIMIENTO,dbo.SP_Reportes_Almacen_Mermas,,No existe en el destino
+PROCEDIMIENTO,dbo.SP_Reportes_Almacen_Traslados,,No existe en el destino
+PROCEDIMIENTO,viaticos.sp_actualiza_municipios,,No existe en el destino
+PROCEDIMIENTO,viaticos.sp_carga_municipios_osm,,No existe en el destino
+TABLA,app.ConcentradoRespuestaLog,0,No existe en el destino
+TABLA,app.ConcentradoRespuestaOCLog,16,No existe en el destino
+TABLA,app.correo_cuentas,1,No existe en el destino
+TABLA,dbo.envioEmailsCopia,13790,No existe en el destino
+TABLA,dbo.ligasConferencia,6,No existe en el destino
+TABLA,dbo.test,217,No existe en el destino
+TABLA,viaticos.municipios_cat,2478,No existe en el destino
+TABLA,viaticos.municipios_osm_staging,0,No existe en el destino
+VISTA,dbo.vwMermas,,No existe en el destino

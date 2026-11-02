@@ -1,0 +1,13 @@
+﻿tipo,objeto,detalle
+PROCEDIMIENTO,config.sp_ClonarWorkflow,"Definición distinta (se comparó el texto normalizado, sin distinguir mayúsculas/espacios)"
+PROCEDIMIENTO,config.sp_ClonarWorkflow_v2,"Definición distinta (se comparó el texto normalizado, sin distinguir mayúsculas/espacios)"
+PROCEDIMIENTO,viaticos.sp_actualiza_municipios,"Definición distinta (se comparó el texto normalizado, sin distinguir mayúsculas/espacios)"
+PROCEDIMIENTO,viaticos.sp_carga_municipios_osm,"Definición distinta (se comparó el texto normalizado, sin distinguir mayúsculas/espacios)"
+TABLA,educacion_medica.hospital_extension,columna extra en destino es_almacen (bit)
+TABLA,educacion_medica.hospital_extension,columna extra en destino es_farmacia (bit)
+TABLA,educacion_medica.hospital_extension,columna extra en destino es_sede_taller (bit)
+TABLA,educacion_medica.hospital_extension,columna extra en destino es_zona_metropolitana (bit)
+TABLA,educacion_medica.hospital_extension,columna extra en destino id_region (int)
+TABLA,educacion_medica.hospital_extension,columna fecha: not null→null
+TABLA,educacion_medica.hospital_extension,FK extra en destino ['id_region']→educacion_medica.regiones_cat['id_region']
+TABLA,educacion_medica.programas_anuales,CHECK extra en destino ([periodo_inicio]>=(1) and [periodo_inicio]<=(12) and ([periodo_fin]>=(1) and [periodo_fin]<=(12)))
