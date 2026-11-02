@@ -12,6 +12,7 @@ using Lefarma.API.Shared.Constants;
 using Lefarma.API.Shared.Errors;
 using Lefarma.API.Shared.Logging;
 using Lefarma.API.Shared.Services;
+using Lefarma.API.Services.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using System.Collections.Generic;
@@ -30,6 +31,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
         private readonly ILogger<OrdenCompraService> _logger;
         private readonly IJefeInmediatoResolver _jefeInmediatoResolver;
         private readonly IProfileService _profileService;
+        private readonly UserPermissionService _permissionService;
         protected override string EntityName => "OrdenCompra";
 
         internal record UsuarioInfo(string Nombre, string? Puesto, string? Correo = null);
@@ -43,6 +45,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
             AsistenciasDbContext asistenciasContext,
             IJefeInmediatoResolver jefeInmediatoResolver,
             IProfileService profileService,
+            UserPermissionService permissionService,
             IWideEventAccessor wideEventAccessor,
             ILogger<OrdenCompraService> logger)
             : base(wideEventAccessor)
@@ -56,6 +59,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
             _logger = logger;
             _jefeInmediatoResolver = jefeInmediatoResolver;
             _profileService = profileService;
+            _permissionService = permissionService;
         }
 
         public async Task<ErrorOr<IEnumerable<OrdenCompraResponse>>> GetAllAsync(OrdenCompraRequest query, int idUsuario, IEnumerable<int> rolesUsuario, bool puedeVerTodas)
@@ -366,6 +370,11 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                 if (firmaValidacion.IsError)
                     return firmaValidacion.Errors;
 
+                var contextoValidacion = await ValidarContextoEmpresaSucursalAsync(
+                    idUsuario, request.IdEmpresa, request.IdSucursal, request.IdArea, ct);
+                if (contextoValidacion.IsError)
+                    return contextoValidacion.Errors;
+
                 var folio = await _repo.GenerarFolioAsync();
 
                 var tipoImpuestoIds = request.Partidas
@@ -563,6 +572,11 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                 if (firmaValidacion.IsError)
                     return firmaValidacion.Errors;
 
+                var contextoValidacion = await ValidarContextoEmpresaSucursalAsync(
+                    idUsuario, request.IdEmpresa, request.IdSucursal, request.IdArea, ct);
+                if (contextoValidacion.IsError)
+                    return contextoValidacion.Errors;
+
                 var orden = await _repo.GetWithPartidasAsync(id);
                 if (orden == null)
                     return CommonErrors.NotFound("OrdenCompra", id.ToString());
@@ -720,6 +734,53 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                 EnrichWideEvent("Update", exception: ex);
                 return CommonErrors.InternalServerError("Error inesperado al actualizar la orden de compra.");
             }
+        }
+
+        /// <summary>
+        /// El contexto de una orden debe pertenecer a la empresa seleccionada. Cambiar
+        /// a una empresa distinta a la asignada al usuario exige el permiso explícito.
+        /// Los usuarios sin detalle (flujos externos) conservan la validación de sucursal/área.
+        /// </summary>
+        private async Task<ErrorOr<Success>> ValidarContextoEmpresaSucursalAsync(
+            int idUsuario,
+            int idEmpresa,
+            int idSucursal,
+            int idArea,
+            CancellationToken ct)
+        {
+            var detalle = await _context.UsuariosDetalle.AsNoTracking()
+                .FirstOrDefaultAsync(d => d.IdUsuario == idUsuario, ct);
+
+            if (detalle is not null && detalle.IdEmpresa != idEmpresa)
+            {
+                var permisos = await _permissionService.GetPermissionsAsync(idUsuario);
+                if (!permisos.Contains(Permissions.OrdenesCompra.CambiarEmpresa))
+                {
+                    return CommonErrors.Validation(
+                        "IdEmpresa",
+                        "No tienes permiso para crear o editar órdenes con otra empresa.");
+                }
+            }
+
+            var sucursalValida = await _context.Sucursales.AsNoTracking()
+                .AnyAsync(s => s.IdSucursal == idSucursal && s.IdEmpresa == idEmpresa, ct);
+            if (!sucursalValida)
+            {
+                return CommonErrors.Validation(
+                    "IdSucursal",
+                    "La sucursal seleccionada no pertenece a la empresa de la orden.");
+            }
+
+            var areaValida = await _context.Areas.AsNoTracking()
+                .AnyAsync(a => a.IdArea == idArea && a.IdEmpresa == idEmpresa, ct);
+            if (!areaValida)
+            {
+                return CommonErrors.Validation(
+                    "IdArea",
+                    "El área seleccionada no pertenece a la empresa de la orden.");
+            }
+
+            return Result.Success;
         }
 
         private async Task<ErrorOr<Success>> ValidarFirmaUsuarioAsync(int idUsuario)

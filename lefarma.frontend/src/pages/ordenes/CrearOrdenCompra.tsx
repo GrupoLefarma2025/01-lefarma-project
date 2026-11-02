@@ -468,13 +468,14 @@ export default function CrearOrdenCompra() {
     usuarioDetalle,
     resolveArea,
     hasFirma,
+    puedeSeleccionarEmpresas,
   } = useAuthStore();
   const [isSaving, setIsSaving] = useState(false);
   const [datosGeneralesOpen, setDatosGeneralesOpen] = useState(false);
   const datosGeneralesRef = useRef<HTMLDivElement>(null);
   const [empresas, setEmpresas] = useState<Empresa[]>([]);
-  const [, setSucursales] = useState<Sucursal[]>([]);
-  const [, setAreas] = useState<Area[]>([]);
+  const [sucursales, setSucursales] = useState<Sucursal[]>([]);
+  const [areas, setAreas] = useState<Area[]>([]);
   const [monedas, setMonedas] = useState<Moneda[]>([]);
   const [unidadesMedida, setUnidadesMedida] = useState<UnidadMedida[]>([]);
   const [medidas, setMedidas] = useState<Medida[]>([]);
@@ -521,14 +522,37 @@ export default function CrearOrdenCompra() {
   });
   const [partidaResaltadaIndex, setPartidaResaltadaIndex] = useState<number | null>(null);
 
-  const isGrupoLefarma = /grupolefarma/i.test(empresaSession?.nombre ?? '');
   const empresasSeleccionables = useMemo(() => {
-    if (!isGrupoLefarma) return empresas;
-    const filtradas = empresas.filter((e) => !/grupolefarma/i.test(e.nombre));
-    return empresaSession
-      ? [empresaSession, ...filtradas.filter((e) => e.idEmpresa !== empresaSession.idEmpresa)]
-      : filtradas;
-  }, [empresas, isGrupoLefarma, empresaSession]);
+    const lista = puedeSeleccionarEmpresas
+      ? empresas
+      : empresas.filter(
+          (e) => String(e.idEmpresa) === String(empresaSession?.idEmpresa)
+        );
+
+    // Grupo Lefarma (12) es contexto corporativo, no una empresa emisora de OC.
+    return lista.filter(
+      (e) =>
+        Number(e.idEmpresa) !== ID_EMPRESA_GRUPO_LEFARMA ||
+        String(e.idEmpresa) === String(empresaSession?.idEmpresa)
+    );
+  }, [empresas, empresaSession, puedeSeleccionarEmpresas]);
+
+  const idEmpresaSeleccionada = form.watch('idEmpresa');
+  const sucursalesEmpresa = useMemo(() => {
+    return sucursales.filter(
+      (s) =>
+        String(s.idEmpresa) === String(idEmpresaSeleccionada) &&
+        s.activo !== false
+    );
+  }, [sucursales, idEmpresaSeleccionada]);
+
+  const areasEmpresa = useMemo(() => {
+    return areas.filter(
+      (a) =>
+        String(a.idEmpresa) === String(idEmpresaSeleccionada) &&
+        a.activo !== false
+    );
+  }, [areas, idEmpresaSeleccionada]);
 
   const sinDatosFiscales = form.watch('sinDatosFiscales');
   const agregarProveedorPorPartida = form.watch('agregarProveedorPorPartida');
@@ -1197,9 +1221,36 @@ export default function CrearOrdenCompra() {
                           <FormItem>
                             <FormLabel>Empresa *</FormLabel>
                             <Select
-                              disabled={!isGrupoLefarma && field.value !== ID_EMPRESA_GRUPO_LEFARMA}
+                              disabled={!puedeSeleccionarEmpresas}
                               onValueChange={(val) => {
-                                field.onChange(Number(val));
+                                const idEmpresa = Number(val);
+                                field.onChange(idEmpresa);
+
+                                const sucursalesDeEmpresa = sucursales.filter(
+                                  (s) =>
+                                    String(s.idEmpresa) === val && s.activo !== false
+                                );
+                                form.setValue(
+                                  'idSucursal',
+                                  sucursalesDeEmpresa.length === 1
+                                    ? Number(sucursalesDeEmpresa[0].idSucursal)
+                                    : 0
+                                );
+
+                                const areasDeEmpresa = areas.filter(
+                                  (a) =>
+                                    String(a.idEmpresa) === val &&
+                                    a.activo !== false
+                                );
+                                const areaResuelta =
+                                  resolveArea(idEmpresa) ??
+                                  (areasDeEmpresa.length === 1
+                                    ? areasDeEmpresa[0]
+                                    : null);
+                                form.setValue(
+                                  'idArea',
+                                  areaResuelta?.idArea ?? 0
+                                );
                               }}
                               value={field.value ? String(field.value) : ''}
                             >
@@ -1219,9 +1270,87 @@ export default function CrearOrdenCompra() {
                                 ))}
                               </SelectContent>
                             </Select>
-                            {!isGrupoLefarma && field.value !== ID_EMPRESA_GRUPO_LEFARMA && (
+                            {!puedeSeleccionarEmpresas && (
                               <FormDescription className="text-xs text-muted-foreground">
-                                La empresa no se puede cambiar
+                                No tienes permiso para cambiar de empresa
+                              </FormDescription>
+                            )}
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="idSucursal"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Sucursal *</FormLabel>
+                            <Select
+                              disabled={
+                                !puedeSeleccionarEmpresas ||
+                                sucursalesEmpresa.length === 0
+                              }
+                              onValueChange={(val) => field.onChange(Number(val))}
+                              value={field.value ? String(field.value) : ''}
+                            >
+                              <FormControl>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Selecciona sucursal..." />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                {sucursalesEmpresa.map((s) => (
+                                  <SelectItem
+                                    key={s.idSucursal}
+                                    value={String(s.idSucursal)}
+                                  >
+                                    {s.nombre}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            {sucursalesEmpresa.length === 0 && (
+                              <FormDescription className="text-xs text-muted-foreground">
+                                No hay sucursales disponibles para esta empresa.
+                              </FormDescription>
+                            )}
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="idArea"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Área *</FormLabel>
+                            <Select
+                              disabled={
+                                !puedeSeleccionarEmpresas ||
+                                areasEmpresa.length === 0
+                              }
+                              onValueChange={(val) => field.onChange(Number(val))}
+                              value={field.value ? String(field.value) : ''}
+                            >
+                              <FormControl>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Selecciona área..." />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                {areasEmpresa.map((a) => (
+                                  <SelectItem
+                                    key={a.idArea}
+                                    value={String(a.idArea)}
+                                  >
+                                    {a.nombre}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            {areasEmpresa.length === 0 && (
+                              <FormDescription className="text-xs text-muted-foreground">
+                                No hay áreas disponibles para esta empresa.
                               </FormDescription>
                             )}
                             <FormMessage />

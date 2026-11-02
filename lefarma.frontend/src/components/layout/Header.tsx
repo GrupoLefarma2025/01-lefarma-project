@@ -36,14 +36,22 @@ export interface HeaderProps {
 }
 
 export const Header = ({ showContext = false, configPath, showHelp = false, onOpenHelp }: HeaderProps = {}) => {
-  const { user, empresa, sucursal, area, hasFirma, hasFirmaLegacy, logout } = useAuthStore();
+  const {
+    user,
+    empresa,
+    sucursal,
+    area,
+    hasFirma,
+    hasFirmaLegacy,
+    puedeSeleccionarEmpresas,
+    logout,
+  } = useAuthStore();
   const { title, subtitle } = usePageStore();
   const { ui, setTema } = useConfigStore();
   const navigate = useNavigate();
   const [modalOpen, setModalOpen] = useState(false);
 
-  // Solo el personal de Grupo Lefarma (empresa 12) puede cambiar de empresa/sucursal
-  const isGrupoLefarma = /grupolefarma/i.test(empresa?.nombre ?? '');
+  const puedeCambiarUbicacion = showContext && puedeSeleccionarEmpresas;
 
   const handleThemeChange = (tema: string) => {
     if (tema === 'light' || tema === 'dark' || tema === 'system') {
@@ -230,14 +238,14 @@ export const Header = ({ showContext = false, configPath, showHelp = false, onOp
                 <span>Configuración</span>
               </DropdownMenuItem>
             )}
-            {showContext && (
+            {puedeCambiarUbicacion && (
               <DropdownMenuItem onClick={() => setModalOpen(true)}>
                 <Building2 className="mr-2 h-4 w-4" />
                 <span>Cambiar Ubicación</span>
               </DropdownMenuItem>
             )}
 
-            {(configPath || showContext) && <DropdownMenuSeparator />}
+            {(configPath || puedeCambiarUbicacion) && <DropdownMenuSeparator />}
             <DropdownMenuItem onClick={handleLogout} className="text-destructive">
               <LogOut className="mr-2 h-4 w-4" />
               <span>Cerrar Sesión</span>
@@ -246,7 +254,9 @@ export const Header = ({ showContext = false, configPath, showHelp = false, onOp
         </DropdownMenu>
       </div>
 
-       {showContext && <CambiarUbicacionModal open={modalOpen} onOpenChange={setModalOpen} />}
+       {puedeCambiarUbicacion && (
+         <CambiarUbicacionModal open={modalOpen} onOpenChange={setModalOpen} />
+       )}
     </header>
   );
 };
