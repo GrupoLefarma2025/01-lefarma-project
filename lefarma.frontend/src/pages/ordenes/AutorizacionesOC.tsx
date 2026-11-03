@@ -442,7 +442,8 @@ export default function AutorizacionesOC() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const idOrdenParam = searchParams.get('idOrden') ? Number(searchParams.get('idOrden')) : null;
-  const { hasFirma, fetchProfileSignature } = useAuthStore();
+  const { hasFirma, hasFirmaLegacy, fetchProfileSignature } = useAuthStore();
+  const sinFirma = hasFirma === false && hasFirmaLegacy === false;
 
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [ordenes, setOrdenes] = useState<OrdenCompraResponse[]>([]);
@@ -922,7 +923,7 @@ export default function AutorizacionesOC() {
     : null;
 
   const abrirModalFirma = async (accion: AccionDisponibleResponse) => {
-    if (hasFirma === false) {
+    if (sinFirma) {
       toast.warning('No has cargado tu firma digital', {
         description: 'Ve a Configuración {'>'} Perfil para subir tu firma y poder firmar órdenes.',
         duration: 6000,
@@ -1189,7 +1190,7 @@ export default function AutorizacionesOC() {
 
   const enviarFirma = async () => {
     if (!selectedOrden || !accionSeleccionada) return;
-    if (hasFirma === false) {
+    if (sinFirma) {
       toast.warning('No has cargado tu firma digital', {
         description: 'Ve a Configuración {'>'} Perfil para subir tu firma y poder firmar órdenes.',
         duration: 6000,
@@ -1590,7 +1591,7 @@ export default function AutorizacionesOC() {
 
   return (
     <div className="space-y-6">
-      {hasFirma === false && <SignatureAlert />}
+      {sinFirma && <SignatureAlert />}
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
         <div className="space-y-4 xl:col-span-12">
