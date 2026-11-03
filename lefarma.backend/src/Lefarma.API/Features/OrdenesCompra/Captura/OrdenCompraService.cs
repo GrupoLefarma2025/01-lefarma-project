@@ -785,6 +785,14 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
 
         private async Task<ErrorOr<Success>> ValidarFirmaUsuarioAsync(int idUsuario)
         {
+            // CxP conserva la firma legacy (firma_path) para crear y editar órdenes.
+            var tieneFirmaLegacy = await _profileService.HasFirmaLegacyAsync(idUsuario);
+            if (tieneFirmaLegacy.IsError)
+                return tieneFirmaLegacy.Errors;
+
+            if (tieneFirmaLegacy.Value)
+                return Result.Success;
+
             var tieneFirma = await _profileService.HasFirmaAsync(idUsuario);
             if (tieneFirma.IsError)
                 return tieneFirma.Errors;
