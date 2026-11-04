@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   calcularDiff,
   construirClave,
@@ -41,9 +41,19 @@ describe('configuracion utils', () => {
   });
 
   it('genera idOperacion UUID aun cuando randomUUID no está disponible', () => {
-    expect(nuevoIdOperacion()).toMatch(
-      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
-    );
+    const original = globalThis.crypto;
+    vi.stubGlobal('crypto', {
+      getRandomValues: (bytes: Uint8Array) => {
+        for (let i = 0; i < bytes.length; i += 1) bytes[i] = i;
+        return bytes;
+      },
+    });
+
+    try {
+      expect(nuevoIdOperacion()).toBe('00010203-0405-4607-8809-0a0b0c0d0e0f');
+    } finally {
+      vi.stubGlobal('crypto', original);
+    }
   });
 
   it('no inventa valores de negocio al elegir un tipo', () => {
