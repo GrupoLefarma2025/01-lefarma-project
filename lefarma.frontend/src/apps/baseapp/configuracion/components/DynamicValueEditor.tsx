@@ -289,7 +289,7 @@ export function DynamicValueEditor({
           disabled={disabled}
           profundidad={profundidad}
           mostrarValidacion={validar}
-          onChange={actualizar}
+          onChange={onChange}
         />
       );
       break;

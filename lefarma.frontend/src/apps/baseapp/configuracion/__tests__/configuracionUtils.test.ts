@@ -6,6 +6,7 @@ import {
   depurarValorSegunEsquema,
   esquemaACampos,
   normalizarTipoDato,
+  nuevoIdOperacion,
   tipoDatoBackend,
   validarValorVariable,
   valorInicialFormulario,
@@ -37,6 +38,12 @@ describe('configuracion utils', () => {
   it('genera claves namespace.clave', () => {
     expect(construirClave('viaticos', 'Días límite')).toBe('viaticos.diasLimite');
     expect(construirClave('', 'Días límite')).toBe('');
+  });
+
+  it('genera idOperacion UUID aun cuando randomUUID no está disponible', () => {
+    expect(nuevoIdOperacion()).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+    );
   });
 
   it('no inventa valores de negocio al elegir un tipo', () => {

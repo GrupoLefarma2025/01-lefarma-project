@@ -370,8 +370,30 @@ export function aHoraInput(valor: unknown): string {
 /* Constructor visual ⇄ JSON Schema                                    */
 /* ------------------------------------------------------------------ */
 
+/**
+ * UUID v4 compatible con contextos HTTP no seguros. `crypto.randomUUID()`
+ * no existe en todos los navegadores cuando la aplicación se sirve por HTTP;
+ * `crypto.getRandomValues` sí está disponible y permite generar la operación
+ * idempotente sin dejar el formulario bloqueado.
+ */
+function uuidV4(): string {
+  const cryptoApi = globalThis.crypto;
+
+  if (typeof cryptoApi?.randomUUID === 'function') {
+    return cryptoApi.randomUUID();
+  }
+
+  const bytes = new Uint8Array(16);
+  cryptoApi.getRandomValues(bytes);
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+
+  const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
 export function nuevoIdCampo(): string {
-  return crypto.randomUUID();
+  return uuidV4();
 }
 
 export function campoVacio(): SchemaField {
@@ -987,7 +1009,7 @@ export function esConflicto(error: unknown): boolean {
 }
 
 export function nuevoIdOperacion(): string {
-  return crypto.randomUUID();
+  return uuidV4();
 }
 
 /** Clave estable para rastrear el idOperacion de una acción. */

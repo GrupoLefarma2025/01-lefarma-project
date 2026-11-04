@@ -4,6 +4,7 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
+  KeyRound,
   List,
   Loader2,
   Lock,
@@ -396,22 +397,24 @@ export function VariableEditorDialog({
     const controller = new AbortController();
     abortRef.current = controller;
 
-    // Un idOperacion por intento lógico: se conserva si hay timeout y se reintenta.
-    const idOperacion = idOperacionRef.current ?? nuevoIdOperacion();
-    idOperacionRef.current = idOperacion;
-
-    const comun = {
-      nombre: nombre.trim(),
-      descripcion: descripcion.trim() || null,
-      valor: valorParaGuardar,
-      esquema: esquemaActual,
-      disponibleBackend: destinos.disponibleBackend,
-      disponibleFrontend: destinos.disponibleFrontend,
-      disponibleSql: destinos.disponibleSql,
-      disponibleIntegraciones: destinos.disponibleIntegraciones,
-    };
-
     try {
+      // La generación del identificador también va protegida: cualquier
+      // excepción debe liberar el estado "Guardando…".
+      // Un idOperacion por intento lógico: se conserva si hay timeout.
+      const idOperacion = idOperacionRef.current ?? nuevoIdOperacion();
+      idOperacionRef.current = idOperacion;
+
+      const comun = {
+        nombre: nombre.trim(),
+        descripcion: descripcion.trim() || null,
+        valor: valorParaGuardar,
+        esquema: esquemaActual,
+        disponibleBackend: destinos.disponibleBackend,
+        disponibleFrontend: destinos.disponibleFrontend,
+        disponibleSql: destinos.disponibleSql,
+        disponibleIntegraciones: destinos.disponibleIntegraciones,
+      };
+
       if (variable) {
         await actualizarVariable(
           variable.idVariable,
@@ -686,9 +689,12 @@ export function VariableEditorDialog({
               </p>
             </div>
 
-            <div className="grid gap-4 lg:grid-cols-2">
+            <div className="grid items-start gap-4 lg:grid-cols-2">
               <div className="space-y-1.5">
-                <Label htmlFor="variable-nombre">
+                <Label
+                  htmlFor="variable-nombre"
+                  className="flex min-h-5 items-center gap-1"
+                >
                   Nombre <span className="text-destructive">*</span>
                 </Label>
                 <Input
@@ -699,6 +705,7 @@ export function VariableEditorDialog({
                   maxLength={200}
                   aria-invalid={Boolean(erroresPaso2.nombre)}
                   className={cn(
+                    'h-10',
                     erroresPaso2.nombre &&
                       'border-destructive focus-visible:ring-destructive/30',
                   )}
@@ -712,16 +719,21 @@ export function VariableEditorDialog({
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="variable-descripcion">Descripción</Label>
+                <Label htmlFor="variable-descripcion" className="flex min-h-5 items-center">
+                  Descripción
+                </Label>
                 <Textarea
                   id="variable-descripcion"
                   value={descripcion}
                   onChange={(e) => setDescripcion(e.target.value)}
                   placeholder="Para qué sirve y qué impacto tiene cambiarla"
-                  className="min-h-[42px]"
-                  rows={2}
+                  className="min-h-[100px] resize-y bg-background text-sm leading-relaxed"
+                  rows={4}
                   maxLength={1000}
                 />
+                <p className="text-[10px] text-muted-foreground">
+                  Opcional. Ayuda a que otras personas entiendan el impacto de cambiarla.
+                </p>
               </div>
             </div>
 
@@ -807,11 +819,17 @@ export function VariableEditorDialog({
                     </div>
                   </div>
 
-                  <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2">
-                    <span className="text-[11px] text-muted-foreground">Clave final</span>
-                    <code className="font-mono text-xs font-medium text-foreground">
-                      {claveEfectiva || 'namespace.clave'}
-                    </code>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-[11px] text-muted-foreground">Clave final:</span>
+                    <Badge
+                      variant="outline"
+                      className="max-w-full gap-1.5 border-primary/25 bg-primary/5 px-2 py-0.5 font-mono text-[11px] font-medium text-foreground"
+                    >
+                      <KeyRound className="h-3 w-3 shrink-0 text-primary" />
+                      <span className="truncate">
+                        {claveEfectiva || 'namespace.clave'}
+                      </span>
+                    </Badge>
                   </div>
 
                   <p className="text-[11px] text-muted-foreground">
