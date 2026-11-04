@@ -697,9 +697,17 @@ export function VariableEditorDialog({
                   onChange={(e) => setNombre(e.target.value)}
                   placeholder="Ej. Días límite de viáticos"
                   maxLength={200}
+                  aria-invalid={Boolean(erroresPaso2.nombre)}
+                  className={cn(
+                    erroresPaso2.nombre &&
+                      'border-destructive focus-visible:ring-destructive/30',
+                  )}
                 />
                 {erroresPaso2.nombre && (
-                  <p className="text-xs text-destructive">{erroresPaso2.nombre}</p>
+                  <p className="flex items-center gap-1.5 text-xs text-destructive">
+                    <AlertCircle className="h-3.5 w-3.5" />
+                    {erroresPaso2.nombre}
+                  </p>
                 )}
               </div>
 
