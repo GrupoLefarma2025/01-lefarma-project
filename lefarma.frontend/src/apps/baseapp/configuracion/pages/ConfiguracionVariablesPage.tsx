@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   AlertTriangle,
+  Code2,
+  Copy,
+  Database,
   History,
   KeyRound,
   MoreHorizontal,
@@ -10,8 +13,10 @@ import {
   PowerOff,
   RefreshCw,
   Search,
+  Server,
   Settings2,
   SlidersHorizontal,
+  Terminal,
   X,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -84,8 +89,21 @@ import {
 import { VariableEditorDialog } from '../components/VariableEditorDialog';
 import { HistoryDialog } from '../components/HistoryDialog';
 import { IntegracionesPanel } from '../components/IntegracionesPanel';
+import {
+  copiarAlPortapapeles,
+  generarSnippet,
+  opcionesSnippet,
+  type SnippetCodigo,
+} from '../snippets';
 
 type FiltroActivo = 'todos' | 'activas' | 'inactivas';
+
+const ICONO_SNIPPET: Record<SnippetCodigo, typeof Code2> = {
+  frontend: Code2,
+  backend: Server,
+  sql: Database,
+  curl: Terminal,
+};
 
 export function ConfiguracionVariablesPage() {
   usePageTitle('Configuración', 'Variables globales, historial e integraciones');
@@ -177,6 +195,21 @@ export function ConfiguracionVariablesPage() {
     setHistorialVariable(variable);
   };
 
+  const copiarCodigo = async (variable: VariableConfiguracion, tipo: SnippetCodigo) => {
+    const codigo = generarSnippet(variable, tipo);
+    const copiado = await copiarAlPortapapeles(codigo);
+
+    if (copiado) {
+      toast.success(`Código ${tipo === 'curl' ? 'cURL' : tipo} copiado.`, {
+        description: variable.clave,
+      });
+    } else {
+      toast.error('No se pudo copiar automáticamente.', {
+        description: 'Revisa los permisos del portapapeles e inténtalo de nuevo.',
+      });
+    }
+  };
+
   const cerrarPorConflicto = () => {
     setEditor(null);
     setHistorialVariable(null);
@@ -246,14 +279,7 @@ export function ConfiguracionVariablesPage() {
 
   const contenidoVariables = (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h3 className="text-base font-semibold">Variables globales</h3>
-          <p className="max-w-3xl text-sm text-muted-foreground">
-            Valores tipados que comparten las aplicaciones. Cada cambio genera una versión
-            restaurable en el historial.
-          </p>
-        </div>
+      <div className="flex justify-end">
         <Button
           type="button"
           onClick={abrirCrear}
@@ -264,6 +290,60 @@ export function ConfiguracionVariablesPage() {
           Crear variable
         </Button>
       </div>
+
+      <details className="group rounded-xl border border-border bg-card">
+        <summary className="cursor-pointer list-none px-4 py-3 text-sm font-medium">
+          <span className="inline-flex items-center gap-2">
+            <Code2 className="h-4 w-4 text-primary" />
+            ¿Cómo usar una variable?
+            <span className="text-[11px] font-normal text-muted-foreground">
+              Frontend, Backend, SQL e integraciones
+            </span>
+          </span>
+        </summary>
+        <div className="grid gap-3 border-t border-border p-4 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="rounded-lg border border-sky-200 bg-sky-50/40 p-3">
+            <p className="text-xs font-semibold text-sky-800">Frontend</p>
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              Consume el valor con el hook y se actualiza por SSE.
+            </p>
+            <code className="mt-2 block break-words rounded bg-white/70 p-2 font-mono text-[10px] text-sky-900">
+              useConfig&lt;T&gt;('modulo.clave')
+            </code>
+          </div>
+          <div className="rounded-lg border border-violet-200 bg-violet-50/40 p-3">
+            <p className="text-xs font-semibold text-violet-800">Backend</p>
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              Inyecta el servicio y obtén el valor tipado.
+            </p>
+            <code className="mt-2 block break-words rounded bg-white/70 p-2 font-mono text-[10px] text-violet-900">
+              GetAsync&lt;T&gt;("modulo.clave", ct)
+            </code>
+          </div>
+          <div className="rounded-lg border border-emerald-200 bg-emerald-50/40 p-3">
+            <p className="text-xs font-semibold text-emerald-800">SQL Server</p>
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              Léela desde procedimientos, jobs o vistas.
+            </p>
+            <code className="mt-2 block break-words rounded bg-white/70 p-2 font-mono text-[10px] text-emerald-900">
+              config.fn_obtener_variable(N'modulo.clave')
+            </code>
+          </div>
+          <div className="rounded-lg border border-indigo-200 bg-indigo-50/40 p-3">
+            <p className="text-xs font-semibold text-indigo-800">Otro sistema</p>
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              Usa una API Key y el endpoint de integraciones.
+            </p>
+            <code className="mt-2 block break-words rounded bg-white/70 p-2 font-mono text-[10px] text-indigo-900">
+              GET /api/configuracion/integraciones/…
+            </code>
+          </div>
+        </div>
+        <p className="border-t border-border px-4 py-2 text-[11px] text-muted-foreground">
+          El botón <Copy className="inline h-3 w-3" /> de cada fila copia el ejemplo exacto con
+          la clave y el tipo de esa variable.
+        </p>
+      </details>
 
       <div className="rounded-lg border border-border bg-card">
         {/* Filtros */}
@@ -379,7 +459,7 @@ export function ConfiguracionVariablesPage() {
                   <TableHead>Estado</TableHead>
                   <TableHead>Versión</TableHead>
                   <TableHead>Actualizado</TableHead>
-                  <TableHead className="w-[60px] text-right">Acciones</TableHead>
+                  <TableHead className="w-[100px] text-right">Acciones</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -454,7 +534,7 @@ export function ConfiguracionVariablesPage() {
                         {formatearFecha(variable.fechaModificacion, true)}
                       </TableCell>
                       <TableCell className="text-right">
-                        {accionesDisponibles ? (
+                        <div className="flex items-center justify-end gap-1">
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <Button
@@ -462,51 +542,112 @@ export function ConfiguracionVariablesPage() {
                                 variant="ghost"
                                 size="icon"
                                 className="h-8 w-8"
-                                aria-label={`Acciones para ${variable.nombre}`}
+                                aria-label={`Copiar código de uso de ${variable.nombre}`}
+                                title="Copiar código de uso"
                               >
-                                <MoreHorizontal className="h-4 w-4" />
+                                <Copy className="h-4 w-4" />
                               </Button>
                             </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="w-48">
-                              <DropdownMenuLabel className="truncate text-[11px] font-normal text-muted-foreground">
-                                {variable.clave}
+                            <DropdownMenuContent align="end" className="w-64">
+                              <DropdownMenuLabel className="space-y-0.5">
+                                <span className="block text-xs font-medium">
+                                  Copiar código de uso
+                                </span>
+                                <span className="block truncate font-mono text-[10px] font-normal text-muted-foreground">
+                                  {variable.clave}
+                                </span>
                               </DropdownMenuLabel>
                               <DropdownMenuSeparator />
-                              {puedeActualizar && (
-                                <DropdownMenuItem onSelect={() => abrirEditar(variable)}>
-                                  <Pencil className="mr-2 h-3.5 w-3.5" />
-                                  Editar
-                                </DropdownMenuItem>
-                              )}
-                              {puedeHistorial && (
-                                <DropdownMenuItem onSelect={() => abrirHistorial(variable)}>
-                                  <History className="mr-2 h-3.5 w-3.5" />
-                                  Historial
-                                </DropdownMenuItem>
-                              )}
-                              {puedeActualizar && (
-                                <>
-                                  <DropdownMenuSeparator />
+                              {opcionesSnippet(variable).map((opcion) => {
+                                const Icono = ICONO_SNIPPET[opcion.tipo];
+                                return (
                                   <DropdownMenuItem
-                                    onSelect={() => setEstadoPendiente(variable)}
-                                    className={
-                                      variable.activo ? 'text-destructive focus:text-destructive' : ''
+                                    key={opcion.tipo}
+                                    disabled={!opcion.disponible}
+                                    onSelect={() => {
+                                      if (opcion.disponible) {
+                                        void copiarCodigo(variable, opcion.tipo);
+                                      }
+                                    }}
+                                    title={
+                                      opcion.disponible
+                                        ? `Copiar ejemplo para ${opcion.etiqueta}`
+                                        : `La variable no tiene activo el destino ${opcion.etiqueta}`
                                     }
                                   >
-                                    {variable.activo ? (
-                                      <PowerOff className="mr-2 h-3.5 w-3.5" />
-                                    ) : (
-                                      <Power className="mr-2 h-3.5 w-3.5" />
-                                    )}
-                                    {variable.activo ? 'Desactivar' : 'Reactivar'}
+                                    <Icono className="mr-2 h-4 w-4 shrink-0" />
+                                    <span className="flex min-w-0 flex-col">
+                                      <span className="text-xs font-medium">
+                                        {opcion.etiqueta}
+                                      </span>
+                                      <span className="truncate font-mono text-[10px] font-normal text-muted-foreground">
+                                        {opcion.disponible
+                                          ? opcion.descripcion
+                                          : 'Destino no habilitado'}
+                                      </span>
+                                    </span>
                                   </DropdownMenuItem>
-                                </>
-                              )}
+                                );
+                              })}
                             </DropdownMenuContent>
                           </DropdownMenu>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">—</span>
-                        )}
+
+                          {accionesDisponibles ? (
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8"
+                                  aria-label={`Acciones para ${variable.nombre}`}
+                                >
+                                  <MoreHorizontal className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className="w-48">
+                                <DropdownMenuLabel className="truncate text-[11px] font-normal text-muted-foreground">
+                                  {variable.clave}
+                                </DropdownMenuLabel>
+                                <DropdownMenuSeparator />
+                                {puedeActualizar && (
+                                  <DropdownMenuItem onSelect={() => abrirEditar(variable)}>
+                                    <Pencil className="mr-2 h-3.5 w-3.5" />
+                                    Editar
+                                  </DropdownMenuItem>
+                                )}
+                                {puedeHistorial && (
+                                  <DropdownMenuItem onSelect={() => abrirHistorial(variable)}>
+                                    <History className="mr-2 h-3.5 w-3.5" />
+                                    Historial
+                                  </DropdownMenuItem>
+                                )}
+                                {puedeActualizar && (
+                                  <>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem
+                                      onSelect={() => setEstadoPendiente(variable)}
+                                      className={
+                                        variable.activo
+                                          ? 'text-destructive focus:text-destructive'
+                                          : ''
+                                      }
+                                    >
+                                      {variable.activo ? (
+                                        <PowerOff className="mr-2 h-3.5 w-3.5" />
+                                      ) : (
+                                        <Power className="mr-2 h-3.5 w-3.5" />
+                                      )}
+                                      {variable.activo ? 'Desactivar' : 'Reactivar'}
+                                    </DropdownMenuItem>
+                                  </>
+                                )}
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          ) : (
+                            <span className="w-8 text-center text-xs text-muted-foreground">—</span>
+                          )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   );

@@ -3,7 +3,7 @@ import { RequireAuth } from '@/shared/auth/RequireAuth';
 import { useAuthStore } from '@/shared/auth/authStore';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { PermissionGuard } from '@/components/auth/PermissionGuard';
-import { shellMenuItems } from './menuItems';
+import { configuracionMenuItems, shellMenuItems } from './menuItems';
 import { Home } from './Home';
 import { Profile } from './Profile';
 import { ConfiguracionVariablesPage } from './configuracion/pages/ConfiguracionVariablesPage';
@@ -78,6 +78,20 @@ export function BaseAppRoutes() {
         <Route path="/hub" element={<Home />} />
         <Route path="/perfil" element={<Profile />} />
         <Route path="/perfil/configuracion" element={<PerfilConfig />} />
+      </Route>
+
+      {/* Configuración tiene su propio layout: no muestra el acceso a Perfil. */}
+      <Route
+        element={
+          <RequireAuth loginPath="/login">
+            <MainLayout
+              items={configuracionMenuItems}
+              brandTitle="Grupo Lefarma"
+              brandPath="/hub"
+            />
+          </RequireAuth>
+        }
+      >
         <Route
           path="/configuracion"
           element={

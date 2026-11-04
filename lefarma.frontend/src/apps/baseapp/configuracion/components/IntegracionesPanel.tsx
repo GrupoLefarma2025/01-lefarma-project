@@ -41,6 +41,7 @@ import {
   revocarIntegracion,
 } from '../services/configuracionAdminApi';
 import type { IntegracionCliente, IntegracionCreada } from '../types';
+import { copiarAlPortapapeles } from '../snippets';
 import {
   desdeDatetimeLocal,
   esCancelado,
@@ -194,11 +195,11 @@ export function IntegracionesPanel({ puedeGestionar }: IntegracionesPanelProps) 
 
   const copiarLlave = async () => {
     if (!creada) return;
-    try {
-      await navigator.clipboard.writeText(creada.llave);
+    const copiado = await copiarAlPortapapeles(creada.llave);
+    if (copiado) {
       setCopiada(true);
       toast.success('Llave copiada al portapapeles.');
-    } catch {
+    } else {
       toast.error('No se pudo copiar automáticamente. Selecciona el texto y cópialo.');
     }
   };
@@ -254,6 +255,47 @@ export function IntegracionesPanel({ puedeGestionar }: IntegracionesPanelProps) 
           </Button>
         </div>
       </div>
+
+      <details open className="rounded-xl border border-indigo-200 bg-indigo-50/30">
+        <summary className="cursor-pointer list-none px-4 py-3 text-sm font-semibold text-indigo-950">
+          Cómo usar una integración
+        </summary>
+        <div className="grid gap-4 border-t border-indigo-200/70 p-4 lg:grid-cols-[1.1fr_0.9fr]">
+          <div className="space-y-2">
+            <p className="text-xs leading-relaxed text-muted-foreground">
+              Una integración permite que un sistema externo lea variables globales sin usar el
+              frontend de Lefarma. Solo se entregan las variables activas que tengan marcado el
+              destino <strong>Integraciones</strong>.
+            </p>
+            <ol className="ml-4 list-decimal space-y-1 text-xs text-muted-foreground">
+              <li>Crea o edita una variable y activa el destino Integraciones.</li>
+              <li>Crea un cliente aquí y guarda la llave completa; se muestra una sola vez.</li>
+              <li>Envía la llave en el encabezado <code className="font-mono">X-API-Key</code>.</li>
+              <li>Si la llave se compromete, revócala: deja de funcionar de inmediato.</li>
+            </ol>
+            <div className="flex flex-wrap gap-1.5 pt-1">
+              <Badge variant="outline" className="font-mono text-[10px]">
+                GET /api/configuracion/integraciones/variables/&#123;clave&#125;
+              </Badge>
+              <Badge variant="outline" className="font-mono text-[10px]">
+                POST /api/configuracion/integraciones/variables/consultar
+              </Badge>
+            </div>
+          </div>
+          <div className="space-y-1">
+            <p className="text-[11px] font-medium text-indigo-900">Ejemplo cURL</p>
+            <pre className="overflow-x-auto rounded-lg bg-slate-950 p-3 font-mono text-[10px] leading-relaxed text-slate-100">
+{`curl --request GET \\
+  --url "${typeof window === 'undefined' ? 'https://tu-servidor' : window.location.origin}/api/configuracion/integraciones/variables/pagos.terminal" \\
+  --header "X-API-Key: $LEFARMA_CONFIG_API_KEY"`}
+            </pre>
+            <p className="text-[10px] text-muted-foreground">
+              Respuesta: <code>{`{ clave, tipoDato, valor, revision }`}</code>. El ejemplo cURL de
+              cada variable está disponible en el botón Copiar de la pestaña Variables.
+            </p>
+          </div>
+        </div>
+      </details>
 
       <div className="rounded-lg border border-border bg-card">
         {cargando && integraciones.length === 0 ? (

@@ -24,3 +24,11 @@ export const shellMenuItems: SidebarMenuItemConfig[] = [
     permission: { require: 'configuracion.view' },
   },
 ];
+
+/**
+ * El módulo Configuración usa su propio layout para no mezclar la navegación
+ * del administrador de variables con el acceso de perfil del shell.
+ */
+export const configuracionMenuItems: SidebarMenuItemConfig[] = shellMenuItems.filter(
+  (item) => !('path' in item) || item.path !== '/perfil',
+);
