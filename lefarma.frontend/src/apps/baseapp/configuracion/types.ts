@@ -28,26 +28,148 @@ export type TipoDatoConfig =
   | 'lista'
   | 'json';
 
+export type TonoTipo =
+  | 'sky'
+  | 'cyan'
+  | 'amber'
+  | 'orange'
+  | 'emerald'
+  | 'rose'
+  | 'pink'
+  | 'violet'
+  | 'indigo'
+  | 'blue'
+  | 'teal'
+  | 'slate';
+
 export interface TipoDatoDefinicion {
   valor: TipoDatoConfig;
   etiqueta: string;
   descripcion: string;
+  /** Explicación funcional para elegir el tipo correcto. */
+  explicacion: string;
+  /** Valor de referencia mostrado como ayuda, nunca como valor inicial. */
+  ejemplo: string;
+  /** Control que verá el usuario al capturar el valor. */
+  editor: string;
+  tono: TonoTipo;
 }
 
 export const TIPOS_DATO: TipoDatoDefinicion[] = [
-  { valor: 'texto_corto', etiqueta: 'Texto corto', descripcion: 'Una línea de texto' },
-  { valor: 'texto_largo', etiqueta: 'Texto largo', descripcion: 'Párrafo o descripción' },
-  { valor: 'entero', etiqueta: 'Entero', descripcion: 'Número sin decimales' },
-  { valor: 'decimal', etiqueta: 'Decimal', descripcion: 'Número con decimales' },
-  { valor: 'booleano', etiqueta: 'Booleano', descripcion: 'Sí o no' },
-  { valor: 'fecha', etiqueta: 'Fecha', descripcion: 'Día, mes y año' },
-  { valor: 'hora', etiqueta: 'Hora', descripcion: 'Hora del día' },
-  { valor: 'fecha_hora', etiqueta: 'Fecha y hora', descripcion: 'Fecha con hora' },
-  { valor: 'seleccion', etiqueta: 'Selección', descripcion: 'Una opción de una lista' },
-  { valor: 'objeto', etiqueta: 'Objeto', descripcion: 'Estructura con campos' },
-  { valor: 'lista', etiqueta: 'Lista', descripcion: 'Colección de elementos' },
-  { valor: 'json', etiqueta: 'JSON', descripcion: 'JSON libre validado' },
+  {
+    valor: 'texto_corto',
+    etiqueta: 'Texto corto',
+    descripcion: 'Una línea de texto',
+    explicacion: 'Nombres, correos, códigos o frases breves.',
+    ejemplo: 'avisos@grupolefarma.com',
+    editor: 'Campo de una línea',
+    tono: 'sky',
+  },
+  {
+    valor: 'texto_largo',
+    etiqueta: 'Texto largo',
+    descripcion: 'Párrafo o descripción',
+    explicacion: 'Instrucciones, mensajes legales o explicaciones extensas.',
+    ejemplo: 'Cuando el importe supere el límite autorizado…',
+    editor: 'Área de texto',
+    tono: 'cyan',
+  },
+  {
+    valor: 'entero',
+    etiqueta: 'Entero',
+    descripcion: 'Número sin decimales',
+    explicacion: 'Cantidades, días, límites o contadores.',
+    ejemplo: '45',
+    editor: 'Número entero',
+    tono: 'amber',
+  },
+  {
+    valor: 'decimal',
+    etiqueta: 'Decimal',
+    descripcion: 'Número con decimales',
+    explicacion: 'Montos, porcentajes, tasas o medidas.',
+    ejemplo: '19.99',
+    editor: 'Número decimal',
+    tono: 'orange',
+  },
+  {
+    valor: 'booleano',
+    etiqueta: 'Booleano',
+    descripcion: 'Sí o no',
+    explicacion: 'Activa o desactiva una regla o comportamiento.',
+    ejemplo: 'Sí',
+    editor: 'Selección Sí / No',
+    tono: 'emerald',
+  },
+  {
+    valor: 'fecha',
+    etiqueta: 'Fecha',
+    descripcion: 'Día, mes y año',
+    explicacion: 'Un día sin hora ni zona horaria.',
+    ejemplo: '2026-11-04',
+    editor: 'Calendario',
+    tono: 'rose',
+  },
+  {
+    valor: 'hora',
+    etiqueta: 'Hora',
+    descripcion: 'Hora del día',
+    explicacion: 'Una hora sin fecha, por ejemplo, un horario límite.',
+    ejemplo: '18:30',
+    editor: 'Selector de hora',
+    tono: 'pink',
+  },
+  {
+    valor: 'fecha_hora',
+    etiqueta: 'Fecha y hora',
+    descripcion: 'Fecha con hora',
+    explicacion: 'Un momento exacto para vigencias, cierres o eventos.',
+    ejemplo: '2026-11-04 18:30',
+    editor: 'Calendario y hora',
+    tono: 'violet',
+  },
+  {
+    valor: 'seleccion',
+    etiqueta: 'Selección',
+    descripcion: 'Una opción de una lista',
+    explicacion: 'Obliga a elegir entre opciones previamente definidas.',
+    ejemplo: 'quincenal',
+    editor: 'Lista de opciones',
+    tono: 'indigo',
+  },
+  {
+    valor: 'objeto',
+    etiqueta: 'Objeto',
+    descripcion: 'Estructura con campos',
+    explicacion: 'Agrupa varios datos relacionados con nombre, tipo y valor.',
+    ejemplo: '{ moneda, habilitado, tasas }',
+    editor: 'Constructor de campos',
+    tono: 'blue',
+  },
+  {
+    valor: 'lista',
+    etiqueta: 'Lista',
+    descripcion: 'Colección de elementos',
+    explicacion: 'Varios elementos del mismo tipo; se activa con la casilla de lista.',
+    ejemplo: '[45, 60, 90]',
+    editor: 'Elementos repetibles',
+    tono: 'teal',
+  },
+  {
+    valor: 'json',
+    etiqueta: 'JSON',
+    descripcion: 'JSON libre validado',
+    explicacion: 'Datos avanzados que no encajan en un tipo estructurado.',
+    ejemplo: '{ "pagos": [{ "monto": 100 }] }',
+    editor: 'Editor de código JSON',
+    tono: 'slate',
+  },
 ];
+
+/** Tipos que se eligen como base; la lista se activa con una casilla. */
+export const TIPOS_DATO_SELECCIONABLES = TIPOS_DATO.filter(
+  (tipo) => tipo.valor !== 'lista',
+);
 
 export const ETIQUETA_TIPO: Record<string, string> = Object.fromEntries(
   TIPOS_DATO.map((t) => [t.valor, t.etiqueta]),
@@ -274,9 +396,12 @@ export interface SchemaField {
   id: string;
   nombre: string;
   tipo: TipoCampoConstructor;
+  /** Convierte el campo en una lista del tipo seleccionado. */
+  esLista?: boolean;
   obligatorio: boolean;
   descripcion?: string;
   opciones?: string[];
+  /** Compatibilidad con el modelo anterior de listas. */
   itemTipo?: TipoCampoConstructor;
   campos?: SchemaField[];
   clavesAdicionales?: boolean;

@@ -8,6 +8,7 @@ import {
   normalizarTipoDato,
   tipoDatoBackend,
   validarValorVariable,
+  valorInicialFormulario,
 } from '../utils';
 import type { SchemaField } from '../types';
 
@@ -35,7 +36,62 @@ describe('configuracion utils', () => {
 
   it('genera claves namespace.clave', () => {
     expect(construirClave('viaticos', 'Días límite')).toBe('viaticos.diasLimite');
-    expect(construirClave('', 'Días límite')).toBe('general.diasLimite');
+    expect(construirClave('', 'Días límite')).toBe('');
+  });
+
+  it('no inventa valores de negocio al elegir un tipo', () => {
+    expect(valorInicialFormulario('texto_corto')).toBe('');
+    expect(valorInicialFormulario('entero')).toBeNull();
+    expect(valorInicialFormulario('decimal')).toBeNull();
+    expect(valorInicialFormulario('booleano')).toBeNull();
+    expect(valorInicialFormulario('json')).toBe('');
+    expect(valorInicialFormulario('entero', true)).toEqual([]);
+  });
+
+  it('convierte un tipo simple en lista mediante la casilla', () => {
+    const esquema = construirEsquema({
+      tipo: 'entero',
+      esLista: true,
+      campos: [],
+      opciones: [],
+      clavesAdicionales: false,
+    });
+
+    expect(esquema).toEqual({ type: 'array', items: { type: 'integer' } });
+  });
+
+  it('convierte un objeto en lista de objetos sin cambiar el backend', () => {
+    const esquema = construirEsquema({
+      tipo: 'objeto',
+      esLista: true,
+      clavesAdicionales: false,
+      opciones: [],
+      campos: [campo({ nombre: 'moneda', tipo: 'texto_corto', obligatorio: true })],
+    });
+
+    expect(esquema).toMatchObject({
+      type: 'array',
+      items: {
+        type: 'object',
+        required: ['moneda'],
+        properties: { moneda: { type: 'string' } },
+      },
+    });
+  });
+
+  it('reconstruye la casilla lista desde un array existente', () => {
+    const campos = esquemaACampos({
+      type: 'object',
+      properties: {
+        dias: { type: 'array', items: { type: 'integer' } },
+      },
+    });
+
+    expect(campos[0]).toMatchObject({
+      nombre: 'dias',
+      tipo: 'entero',
+      esLista: true,
+    });
   });
 
   it('genera un JSON Schema compatible con opciones {value}', () => {

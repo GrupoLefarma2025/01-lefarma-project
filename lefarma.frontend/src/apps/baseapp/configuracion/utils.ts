@@ -51,11 +51,11 @@ export function aCamelCase(texto: string): string {
     : `v${resultado.charAt(0).toUpperCase()}${resultado.slice(1)}`;
 }
 
-/** namespace + nombre → "viaticos.diasLimite". */
+/** namespace + nombre → "viaticos.diasLimite". Sin namespace no inventa uno. */
 export function construirClave(namespace: string, nombre: string): string {
-  const ns = aCamelCase(namespace) || 'general';
+  const ns = aCamelCase(namespace);
   const clave = aCamelCase(nombre);
-  return clave ? `${ns}.${clave}` : `${ns}.`;
+  return ns && clave ? `${ns}.${clave}` : '';
 }
 
 export function validarClave(clave: string): string | null {
@@ -184,7 +184,11 @@ export function parsearJson(texto: string): ResultadoJson {
   }
 }
 
-/** Valor por defecto al elegir un tipo en creación. */
+/**
+ * Valor inicial de un campo agregado a una lista. Es un valor estructural para
+ * que el editor pueda abrir una fila nueva; la validación seguirá exigiendo que
+ * el usuario lo complete cuando corresponda.
+ */
 export function valorPorDefecto(tipo: string, esquema?: JsonSchemaNodo | null): unknown {
   const t = tipoEfectivo(tipo);
   switch (t) {
@@ -210,6 +214,27 @@ export function valorPorDefecto(tipo: string, esquema?: JsonSchemaNodo | null): 
     case 'json':
     default:
       return {};
+  }
+}
+
+/**
+ * Valor inicial al seleccionar un tipo en el formulario principal.
+ * No inventa un dato de negocio: textos vacíos, números/booleanos sin elegir.
+ */
+export function valorInicialFormulario(tipo: string, esLista = false): unknown {
+  if (esLista) return [];
+  const t = tipoEfectivo(tipo);
+  switch (t) {
+    case 'booleano':
+    case 'entero':
+    case 'decimal':
+      return null;
+    case 'objeto':
+      return {};
+    case 'json':
+      return '';
+    default:
+      return '';
   }
 }
 
@@ -354,6 +379,7 @@ export function campoVacio(): SchemaField {
     id: nuevoIdCampo(),
     nombre: '',
     tipo: 'texto_corto',
+    esLista: false,
     obligatorio: true,
     clavesAdicionales: false,
   };
@@ -379,9 +405,19 @@ function esquemaDeTipo(tipo: TipoCampoConstructor): JsonSchemaNodo {
       return { type: 'string', format: 'date-time' };
     case 'json':
       return {};
+    case 'objeto':
+      return { type: 'object', properties: {}, additionalProperties: false };
+    case 'seleccion':
+      return { type: 'string', enum: [] };
+    case 'lista':
     default:
       return { type: 'string' };
   }
+}
+
+/** Esquema de un tipo simple, sin objetos ni selecciones configuradas. */
+export function esquemaBaseDeTipo(tipo: TipoCampoConstructor): JsonSchemaNodo {
+  return esquemaDeTipo(tipo);
 }
 
 function esquemaOpciones(opciones: string[]): Array<{ value: string }> {
@@ -393,19 +429,8 @@ export function esquemaDeCampo(campo: SchemaField): JsonSchemaNodo {
   const descripcion = campo.descripcion?.trim();
   if (descripcion) base.description = descripcion;
 
-  if (campo.tipo === 'objeto') {
-    return {
-      ...base,
-      type: 'object',
-      properties: Object.fromEntries(
-        (campo.campos ?? []).map((hijo) => [hijo.nombre.trim(), esquemaDeCampo(hijo)]),
-      ),
-      required: (campo.campos ?? []).filter((hijo) => hijo.obligatorio).map((h) => h.nombre.trim()),
-      additionalProperties: campo.clavesAdicionales ?? false,
-    };
-  }
-
-  if (campo.tipo === 'lista') {
+  // Compatibilidad con el modelo anterior de "Lista" como tipo.
+  if (campo.tipo === 'lista' && !campo.esLista) {
     return {
       ...base,
       type: 'array',
@@ -413,12 +438,33 @@ export function esquemaDeCampo(campo: SchemaField): JsonSchemaNodo {
     };
   }
 
-  if (campo.tipo === 'seleccion') {
+  let esquemaBase: JsonSchemaNodo;
+
+  if (campo.tipo === 'objeto') {
+    esquemaBase = {
+      type: 'object',
+      properties: Object.fromEntries(
+        (campo.campos ?? []).map((hijo) => [hijo.nombre.trim(), esquemaDeCampo(hijo)]),
+      ),
+      required: (campo.campos ?? []).filter((hijo) => hijo.obligatorio).map((h) => h.nombre.trim()),
+      additionalProperties: campo.clavesAdicionales ?? false,
+    };
+  } else if (campo.tipo === 'seleccion') {
     const opciones = (campo.opciones ?? []).map((o) => o.trim()).filter(Boolean);
-    return { ...base, type: 'string', enum: opciones, opciones: esquemaOpciones(opciones) };
+    esquemaBase = { type: 'string', enum: opciones, opciones: esquemaOpciones(opciones) };
+  } else {
+    esquemaBase = esquemaDeTipo(campo.tipo);
   }
 
-  return { ...base, ...esquemaDeTipo(campo.tipo) };
+  if (campo.esLista) {
+    return {
+      ...base,
+      type: 'array',
+      items: esquemaBase,
+    };
+  }
+
+  return { ...base, ...esquemaBase };
 }
 
 function esquemaDeItemLista(campo: SchemaField): JsonSchemaNodo {
@@ -446,6 +492,8 @@ function esquemaDeItemLista(campo: SchemaField): JsonSchemaNodo {
 /** Configuración editable de una variable para construir su JSON Schema. */
 export interface ConfiguracionEsquema {
   tipo: string;
+  /** Convierte la configuración base en un arreglo de ese tipo. */
+  esLista?: boolean;
   campos: SchemaField[];
   opciones: string[];
   clavesAdicionales: boolean;
@@ -459,11 +507,8 @@ export interface ConfiguracionEsquema {
 export function construirEsquema(config: ConfiguracionEsquema): JsonSchemaNodo | null {
   const t = tipoEfectivo(config.tipo);
 
-  if (t === 'objeto') {
-    return esquemaObjetoDesdeCampos(config.campos, config.clavesAdicionales);
-  }
-
-  if (t === 'lista') {
+  // Compatibilidad con el modelo anterior de listas con itemTipo.
+  if (t === 'lista' && !config.esLista) {
     const itemTipo = config.itemTipo ?? 'texto_corto';
     if (itemTipo === 'objeto') {
       return {
@@ -481,12 +526,25 @@ export function construirEsquema(config: ConfiguracionEsquema): JsonSchemaNodo |
     return { type: 'array', items: esquemaDeTipo(itemTipo) };
   }
 
-  if (t === 'seleccion') {
+  let base: JsonSchemaNodo | null = null;
+
+  if (t === 'objeto') {
+    base = esquemaObjetoDesdeCampos(config.campos, config.clavesAdicionales);
+  } else if (t === 'seleccion') {
     const limpias = config.opciones.map((o) => o.trim()).filter(Boolean);
-    return { type: 'string', enum: limpias, opciones: esquemaOpciones(limpias) };
+    base = { type: 'string', enum: limpias, opciones: esquemaOpciones(limpias) };
+  } else if (config.esLista) {
+    base = esquemaDeTipo(t);
   }
 
-  return null;
+  if (config.esLista) {
+    return {
+      type: 'array',
+      items: base ?? esquemaDeTipo(t),
+    };
+  }
+
+  return base;
 }
 
 function esquemaObjetoDesdeCampos(
@@ -570,26 +628,43 @@ export function esquemaACampos(esquema: unknown): SchemaField[] {
   if (nodo.type !== 'object' || !nodo.properties) return [];
   return Object.entries(nodo.properties).map(([nombre, propiedad]) => {
     const hijo = esObjetoPlano(propiedad) ? (propiedad as JsonSchemaNodo) : {};
-    const tipo = tipoDeNodo(hijo);
+    const obligatorio = (nodo.required ?? []).includes(nombre);
+    const descripcion =
+      typeof hijo.description === 'string' ? hijo.description : undefined;
+    const esArray = hijo.type === 'array';
+    const nodoBase = esArray && esObjetoPlano(hijo.items)
+      ? (hijo.items as JsonSchemaNodo)
+      : hijo;
+    const tipoOriginal = tipoDeNodo(nodoBase);
+
+    // El editor actual modela una lista como tipo base + casilla "Lista".
+    // El único caso que conserva el tipo Lista es una lista de listas.
+    if (esArray && tipoOriginal === 'lista') {
+      return {
+        id: nuevoIdCampo(),
+        nombre,
+        tipo: 'lista',
+        esLista: false,
+        obligatorio,
+        descripcion,
+        itemTipo: 'lista',
+        campos: [],
+        clavesAdicionales: false,
+      } satisfies SchemaField;
+    }
+
     const campo: SchemaField = {
       id: nuevoIdCampo(),
       nombre,
-      tipo,
-      obligatorio: (nodo.required ?? []).includes(nombre),
-      descripcion: typeof hijo.description === 'string' ? hijo.description : undefined,
-      clavesAdicionales: hijo.additionalProperties === true,
+      tipo: tipoOriginal,
+      esLista: esArray,
+      obligatorio,
+      descripcion,
+      clavesAdicionales: nodoBase.additionalProperties === true,
     };
-    if (tipo === 'seleccion') campo.opciones = opcionesDeNodo(hijo);
-    if (tipo === 'objeto') campo.campos = esquemaACampos(hijo);
-    if (tipo === 'lista') {
-      const items = esObjetoPlano(hijo.items) ? (hijo.items as JsonSchemaNodo) : { type: 'string' };
-      campo.itemTipo = tipoDeNodo(items);
-      if (campo.itemTipo === 'objeto') {
-        campo.campos = esquemaACampos(items);
-        campo.clavesAdicionales = items.additionalProperties === true;
-      }
-      if (campo.itemTipo === 'seleccion') campo.opciones = opcionesDeNodo(items);
-    }
+
+    if (tipoOriginal === 'seleccion') campo.opciones = opcionesDeNodo(nodoBase);
+    if (tipoOriginal === 'objeto') campo.campos = esquemaACampos(nodoBase);
     return campo;
   });
 }
@@ -802,7 +877,7 @@ export function validarValorVariable(
       }
       break;
     case 'booleano':
-      if (typeof valor !== 'boolean') errores.push('El valor debe ser verdadero o falso.');
+      if (typeof valor !== 'boolean') errores.push('Selecciona Sí o No.');
       break;
     case 'fecha':
       if (typeof valor !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(valor)) {

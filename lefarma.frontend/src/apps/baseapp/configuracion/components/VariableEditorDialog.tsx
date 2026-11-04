@@ -4,6 +4,7 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
+  List,
   Loader2,
   Lock,
   Save,
@@ -16,13 +17,6 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 import {
@@ -35,7 +29,6 @@ import {
   type CampoDestino,
   type JsonSchemaNodo,
   type SchemaField,
-  type TipoCampoConstructor,
   type TipoDatoConfig,
   type VariableConfiguracion,
 } from '../types';
@@ -43,7 +36,6 @@ import {
   CLAVE_REGEX,
   aCamelCase,
   clavesAdicionalesDeEsquema,
-  construirClave,
   construirEsquema,
   depurarValorSegunEsquema,
   esCancelado,
@@ -64,7 +56,7 @@ import {
   validarConstructor,
   validarValorVariable,
   valorDesdeServidor,
-  valorPorDefecto,
+  valorInicialFormulario,
 } from '../utils';
 import { TypeSelector } from './TypeSelector';
 import {
@@ -72,6 +64,7 @@ import {
   OpcionesSeleccionEditor,
 } from './FieldSchemaBuilder';
 import { DynamicValueEditor } from './DynamicValueEditor';
+import { ICONOS_TIPO, TONOS_TIPO } from './typeVisuals';
 
 interface VariableEditorDialogProps {
   /** `null` = creación. */
@@ -85,19 +78,15 @@ type DestinosEstado = Record<CampoDestino, boolean>;
 
 interface EstadoInicial {
   tipo: TipoDatoConfig | '';
+  esLista: boolean;
   nombre: string;
   descripcion: string;
   clave: string;
   namespace: string;
-  claveManual: boolean;
   destinos: DestinosEstado;
   campos: SchemaField[];
   opciones: string[];
   clavesAdicionales: boolean;
-  itemTipo: TipoCampoConstructor;
-  itemCampos: SchemaField[];
-  itemOpciones: string[];
-  itemClavesAdicionales: boolean;
   valor: unknown;
 }
 
@@ -111,55 +100,75 @@ function estadoInicial(variable: VariableConfiguracion | null): EstadoInicial {
   if (!variable) {
     return {
       tipo: '',
+      esLista: false,
       nombre: '',
       descripcion: '',
       clave: '',
-      namespace: 'general',
-      claveManual: false,
+      namespace: '',
       destinos: {
-        disponibleBackend: true,
-        disponibleFrontend: true,
+        disponibleBackend: false,
+        disponibleFrontend: false,
         disponibleSql: false,
         disponibleIntegraciones: false,
       },
       campos: [],
       opciones: [],
       clavesAdicionales: false,
-      itemTipo: 'texto_corto',
-      itemCampos: [],
-      itemOpciones: [],
-      itemClavesAdicionales: false,
       valor: '',
     };
   }
 
-  const tipo = tipoEfectivo(variable.tipoDato);
+  const tipoGuardado = normalizarTipoDato(variable.tipoDato);
   const esquema = esObjetoPlano(variable.esquema)
     ? (variable.esquema as JsonSchemaNodo)
     : null;
-  const item = itemListaDeEsquema(esquema);
+  const esLista =
+    tipoGuardado === 'lista' ||
+    esquema?.type === 'array';
+
+  let tipoBase: TipoDatoConfig = tipoGuardado ?? 'json';
+  let campos: SchemaField[] = [];
+  let opciones: string[] = [];
+  let clavesAdicionales = false;
+
+  if (esLista) {
+    const item = itemListaDeEsquema(esquema);
+    tipoBase = item.tipo === 'lista' ? 'json' : item.tipo;
+    campos = item.campos;
+    opciones = item.opciones;
+    clavesAdicionales = item.clavesAdicionales;
+  } else {
+    campos = tipoBase === 'objeto' ? esquemaACampos(esquema) : [];
+    opciones = tipoBase === 'seleccion' ? opcionesDeEsquema(esquema) : [];
+    clavesAdicionales =
+      tipoBase === 'objeto' ? clavesAdicionalesDeEsquema(esquema) : false;
+  }
+
+  if (tipoBase === 'lista') {
+    tipoBase = 'json';
+  }
+
+  const [namespace, ...restoClave] = variable.clave.split('.');
 
   return {
-    tipo,
+    tipo: tipoBase,
+    esLista,
     nombre: variable.nombre,
     descripcion: variable.descripcion ?? '',
-    clave: variable.clave,
-    namespace: variable.clave.split('.')[0] ?? 'general',
-    claveManual: true,
+    clave: restoClave.join('.'),
+    namespace: namespace ?? '',
     destinos: {
       disponibleBackend: variable.disponibleBackend,
       disponibleFrontend: variable.disponibleFrontend,
       disponibleSql: variable.disponibleSql,
       disponibleIntegraciones: variable.disponibleIntegraciones,
     },
-    campos: tipo === 'objeto' ? esquemaACampos(esquema) : [],
-    opciones: tipo === 'seleccion' ? opcionesDeEsquema(esquema) : [],
-    clavesAdicionales: tipo === 'objeto' ? clavesAdicionalesDeEsquema(esquema) : false,
-    itemTipo: item.tipo === 'lista' ? 'texto_corto' : item.tipo,
-    itemCampos: item.campos,
-    itemOpciones: item.opciones,
-    itemClavesAdicionales: item.clavesAdicionales,
-    valor: valorDesdeServidor(tipo, variable.valor),
+    campos,
+    opciones,
+    clavesAdicionales,
+    valor: esLista
+      ? (Array.isArray(variable.valor) ? variable.valor : [])
+      : valorDesdeServidor(tipoBase, variable.valor),
   };
 }
 
@@ -176,22 +185,17 @@ export function VariableEditorDialog({
   const [pasoMax, setPasoMax] = useState(1);
 
   const [tipo, setTipo] = useState<TipoDatoConfig | ''>(inicial.tipo);
+  const [esLista, setEsLista] = useState(inicial.esLista);
   const [nombre, setNombre] = useState(inicial.nombre);
   const [descripcion, setDescripcion] = useState(inicial.descripcion);
   const [clave, setClave] = useState(inicial.clave);
   const [namespace, setNamespace] = useState(inicial.namespace);
-  const [claveManual, setClaveManual] = useState(inicial.claveManual);
+  const [claveTocada, setClaveTocada] = useState(false);
   const [destinos, setDestinos] = useState<DestinosEstado>(inicial.destinos);
 
   const [campos, setCampos] = useState<SchemaField[]>(inicial.campos);
   const [opciones, setOpciones] = useState<string[]>(inicial.opciones);
   const [clavesAdicionales, setClavesAdicionales] = useState(inicial.clavesAdicionales);
-  const [itemTipo, setItemTipo] = useState<TipoCampoConstructor>(inicial.itemTipo);
-  const [itemCampos, setItemCampos] = useState<SchemaField[]>(inicial.itemCampos);
-  const [itemOpciones, setItemOpciones] = useState<string[]>(inicial.itemOpciones);
-  const [itemClavesAdicionales, setItemClavesAdicionales] = useState(
-    inicial.itemClavesAdicionales,
-  );
 
   const [valor, setValor] = useState<unknown>(inicial.valor);
 
@@ -213,36 +217,38 @@ export function VariableEditorDialog({
   const tipoCanonicoEditado =
     esEdicion && variable ? normalizarTipoDato(variable.tipoDato) !== null : true;
 
-  const claveEfectiva = claveManual ? clave : construirClave(namespace, nombre);
+  const namespaceLimpio = namespace.trim();
+  const claveLimpia = clave.trim();
+  const claveEfectiva =
+    namespaceLimpio && claveLimpia
+      ? `${namespaceLimpio}.${claveLimpia}`
+      : '';
+  const errorClave =
+    intentoPaso2 || claveTocada ? validarClave(claveEfectiva) : null;
+  const tipoParaValor = esLista ? 'lista' : (tipoActual || 'json');
+  const metaTipoSeleccionado = tipoActual
+    ? TIPOS_DATO.find((tipoDato) => tipoDato.valor === tipoActual)
+    : undefined;
+  const IconoTipoSeleccionado = tipoActual ? ICONOS_TIPO[tipoActual] : null;
+  const tonoTipoSeleccionado = metaTipoSeleccionado
+    ? TONOS_TIPO[metaTipoSeleccionado.tono]
+    : null;
 
   const esquemaActual = useMemo<JsonSchemaNodo | null>(() => {
     if (!tipoActual) return null;
     return construirEsquema({
       tipo: tipoActual,
+      esLista,
       campos,
       opciones,
       clavesAdicionales,
-      itemTipo,
-      itemCampos,
-      itemOpciones,
-      itemClavesAdicionales,
     });
-  }, [
-    tipoActual,
-    campos,
-    opciones,
-    clavesAdicionales,
-    itemTipo,
-    itemCampos,
-    itemOpciones,
-    itemClavesAdicionales,
-  ]);
+  }, [tipoActual, esLista, campos, opciones, clavesAdicionales]);
 
   const erroresConstructor = useMemo(() => {
     if (tipoActual === 'objeto') return validarConstructor(campos);
-    if (tipoActual === 'lista' && itemTipo === 'objeto') return validarConstructor(itemCampos);
     return [];
-  }, [tipoActual, campos, itemTipo, itemCampos]);
+  }, [tipoActual, campos]);
 
   // El payload se ajusta al esquema: sin claves fuera de properties cuando
   // additionalProperties=false (el backend las rechazaría).
@@ -253,8 +259,16 @@ export function VariableEditorDialog({
 
   const erroresPaso2: Record<string, string> = intentoPaso2 ? validarPaso2() : {};
 
+  const valorVacio =
+    valorParaGuardar === undefined ||
+    valorParaGuardar === null ||
+    (typeof valorParaGuardar === 'string' && valorParaGuardar.trim() === '');
+
   const erroresValor = intentoGuardar
-    ? validarValorVariable(tipoActual || 'json', valorParaGuardar, esquemaActual)
+    ? [
+        ...(valorVacio ? ['Captura un valor antes de guardar.'] : []),
+        ...validarValorVariable(tipoParaValor, valorParaGuardar, esquemaActual),
+      ]
     : [];
 
   function validarPaso2(): Record<string, string> {
@@ -279,22 +293,11 @@ export function VariableEditorDialog({
 
     if (tipoActual === 'objeto') {
       if (campos.length === 0 && !clavesAdicionales) {
-        errores.esquema = 'Agrega al menos un campo o habilita claves adicionales.';
+        errores.esquema = esLista
+          ? 'Agrega al menos un campo a los elementos de la lista.'
+          : 'Agrega al menos un campo o habilita claves adicionales.';
       } else if (erroresConstructor.length > 0) {
         errores.esquema = erroresConstructor[0];
-      }
-    }
-
-    if (tipoActual === 'lista') {
-      if (itemTipo === 'objeto') {
-        if (itemCampos.length === 0 && !itemClavesAdicionales) {
-          errores.esquema = 'Agrega al menos un campo a los elementos de la lista.';
-        } else if (erroresConstructor.length > 0) {
-          errores.esquema = erroresConstructor[0];
-        }
-      }
-      if (itemTipo === 'seleccion' && itemOpciones.length === 0) {
-        errores.esquema = 'Agrega al menos una opción para los elementos de la lista.';
       }
     }
 
@@ -304,15 +307,18 @@ export function VariableEditorDialog({
   const cambiarTipo = (nuevo: TipoDatoConfig) => {
     if (esEdicion) return;
     setTipo(nuevo);
-    setValor(valorPorDefecto(nuevo));
+    setValor(valorInicialFormulario(nuevo, esLista));
     setCampos([]);
     setOpciones([]);
     setClavesAdicionales(false);
-    setItemTipo('texto_corto');
-    setItemCampos([]);
-    setItemOpciones([]);
-    setItemClavesAdicionales(false);
     setIntentoPaso2(false);
+    setIntentoGuardar(false);
+  };
+
+  const alternarLista = (marcado: boolean) => {
+    if (esEdicion) return;
+    setEsLista(marcado);
+    setValor(valorInicialFormulario(tipoActual || 'json', marcado));
     setIntentoGuardar(false);
   };
 
@@ -338,9 +344,6 @@ export function VariableEditorDialog({
         toast.error('Revisa la definición antes de continuar.');
         return;
       }
-      if (tipoActual === 'seleccion' && !valor && opciones[0]) {
-        setValor(opciones[0]);
-      }
       setPaso(3);
       setPasoMax((max) => Math.max(max, 3));
     }
@@ -364,8 +367,11 @@ export function VariableEditorDialog({
     setErrorGeneral(null);
 
     const erroresDefinicion = validarPaso2();
-    const tipoGuardar = tipoActual || 'json';
-    const erroresValorActual = validarValorVariable(tipoGuardar, valorParaGuardar, esquemaActual);
+    const tipoGuardar = tipoParaValor;
+    const erroresValorActual = [
+      ...(valorVacio ? ['Captura un valor antes de guardar.'] : []),
+      ...validarValorVariable(tipoGuardar, valorParaGuardar, esquemaActual),
+    ];
 
     if (Object.keys(erroresDefinicion).length > 0) {
       setPaso(2);
@@ -381,6 +387,7 @@ export function VariableEditorDialog({
 
     if (!esEdicion && !CLAVE_REGEX.test(claveEfectiva.trim())) {
       setPaso(2);
+      setClaveTocada(true);
       toast.error('La clave no tiene el formato namespace.clave.');
       return;
     }
@@ -608,6 +615,44 @@ export function VariableEditorDialog({
 
             <TypeSelector value={tipoActual} onChange={cambiarTipo} disabled={esEdicion} />
 
+            <label
+              className={cn(
+                'flex cursor-pointer items-start gap-3 rounded-xl border-2 p-3.5 transition-colors',
+                esLista
+                  ? 'border-teal-400 bg-teal-50/60'
+                  : 'border-border bg-card hover:bg-muted/30',
+                (!tipoActual || esEdicion) && 'cursor-default',
+              )}
+            >
+              <Checkbox
+                checked={esLista}
+                disabled={!tipoActual || esEdicion}
+                onCheckedChange={(marcado) => alternarLista(marcado === true)}
+                className="mt-0.5"
+              />
+              <span className="flex min-w-0 flex-1 items-start gap-3">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-teal-200 bg-teal-100 text-teal-700">
+                  <List className="h-4 w-4" />
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-sm font-semibold">
+                    Convertir este dato en una lista
+                  </span>
+                  <span className="mt-0.5 block text-[11px] leading-snug text-muted-foreground">
+                    {tipoActual
+                      ? `Guardará varios elementos de tipo «${etiquetaTipo(tipoActual)}». Cada elemento tendrá su propia validación.`
+                      : 'Selecciona primero un tipo para definir qué elementos contendrá la lista.'}
+                  </span>
+                  {esLista && tipoActual && (
+                    <Badge variant="secondary" className="mt-2 gap-1 text-[10px]">
+                      <List className="h-3 w-3" />
+                      Lista de {etiquetaTipo(tipoActual)}
+                    </Badge>
+                  )}
+                </span>
+              </span>
+            </label>
+
             {esEdicion && (
               <div className="flex items-start gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
                 <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0" />
@@ -672,11 +717,35 @@ export function VariableEditorDialog({
               </div>
             </div>
 
-            <div className="space-y-1.5">
-              <Label>Clave</Label>
+            <div className="space-y-2">
+              <div className="flex flex-wrap items-end justify-between gap-2">
+                <div>
+                  <Label>Clave de la variable</Label>
+                  <p className="mt-0.5 text-[11px] text-muted-foreground">
+                    Es el identificador permanente que usarán Backend, Frontend, SQL e
+                    integraciones.
+                  </p>
+                </div>
+                {!esEdicion && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-7 px-2 text-[11px]"
+                    disabled={!nombre.trim()}
+                    onClick={() => {
+                      setClave(aCamelCase(nombre));
+                      setClaveTocada(true);
+                    }}
+                  >
+                    <Sparkles className="h-3 w-3" />
+                    Generar desde el nombre
+                  </Button>
+                )}
+              </div>
 
               {esEdicion ? (
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/30 p-2.5">
                   <Input value={variable?.clave ?? ''} readOnly disabled className="font-mono text-xs" />
                   <Badge variant="secondary" className="shrink-0 gap-1">
                     <Lock className="h-3 w-3" />
@@ -685,57 +754,68 @@ export function VariableEditorDialog({
                 </div>
               ) : (
                 <>
-                  <div className="grid gap-2 sm:grid-cols-[180px_1fr]">
-                    <div className="relative">
+                  <div className="grid gap-3 sm:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
+                    <div className="space-y-1">
+                      <Label htmlFor="variable-namespace" className="text-[11px] text-muted-foreground">
+                        Namespace
+                      </Label>
                       <Input
+                        id="variable-namespace"
                         value={namespace}
                         onChange={(e) => setNamespace(e.target.value)}
-                        onBlur={() => setNamespace(aCamelCase(namespace) || 'general')}
-                        placeholder="namespace"
-                        className="font-mono text-xs"
+                        onBlur={() => setClaveTocada(true)}
+                        placeholder="Ej. viaticos"
+                        className={cn(
+                          'font-mono text-xs',
+                          errorClave &&
+                            'border-destructive focus-visible:ring-destructive/30',
+                        )}
                         aria-label="Namespace de la clave"
+                        aria-invalid={Boolean(errorClave)}
                         maxLength={100}
+                        spellCheck={false}
                       />
-                      <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 font-mono text-xs text-muted-foreground">
-                        .
-                      </span>
                     </div>
-                    <Input
-                      value={claveEfectiva}
-                      onChange={(e) => {
-                        setClaveManual(true);
-                        setClave(e.target.value);
-                      }}
-                      placeholder="namespace.clave"
-                      className="font-mono text-xs"
-                      aria-label="Clave completa"
-                      spellCheck={false}
-                      maxLength={200}
-                    />
+                    <div className="space-y-1">
+                      <Label htmlFor="variable-clave" className="text-[11px] text-muted-foreground">
+                        Nombre de la clave
+                      </Label>
+                      <Input
+                        id="variable-clave"
+                        value={clave}
+                        onChange={(e) => setClave(e.target.value)}
+                        onBlur={() => setClaveTocada(true)}
+                        placeholder="Ej. diasLimite"
+                        className={cn(
+                          'font-mono text-xs',
+                          errorClave &&
+                            'border-destructive focus-visible:ring-destructive/30',
+                        )}
+                        aria-label="Nombre de la clave"
+                        aria-invalid={Boolean(errorClave)}
+                        spellCheck={false}
+                        maxLength={200}
+                      />
+                    </div>
                   </div>
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="text-[11px] text-muted-foreground">
-                      Formato: minúsculas, sin espacios, al menos <code>namespace.clave</code>{' '}
-                      (ej. viaticos.diasLimite).
+
+                  <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2">
+                    <span className="text-[11px] text-muted-foreground">Clave final</span>
+                    <code className="font-mono text-xs font-medium text-foreground">
+                      {claveEfectiva || 'namespace.clave'}
+                    </code>
+                  </div>
+
+                  <p className="text-[11px] text-muted-foreground">
+                    Usa minúsculas, sin espacios. El namespace agrupa la variable por módulo;
+                    la clave identifica el dato dentro de ese módulo.
+                  </p>
+
+                  {errorClave && (
+                    <p className="flex items-center gap-1.5 text-xs text-destructive">
+                      <AlertCircle className="h-3.5 w-3.5" />
+                      {errorClave}
                     </p>
-                    {claveManual && (
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="ghost"
-                        className="h-6 px-2 text-[11px]"
-                        onClick={() => {
-                          setClaveManual(false);
-                          setClave('');
-                        }}
-                      >
-                        <Sparkles className="h-3 w-3" />
-                        Generar desde el nombre
-                      </Button>
-                    )}
-                  </div>
-                  {erroresPaso2.clave && (
-                    <p className="text-xs text-destructive">{erroresPaso2.clave}</p>
                   )}
                 </>
               )}
@@ -797,12 +877,16 @@ export function VariableEditorDialog({
             )}
 
             {tipoActual === 'objeto' && (
-              <div className="space-y-3 rounded-lg border border-border bg-card p-3">
+              <div className="space-y-3 rounded-xl border border-blue-200/70 bg-blue-50/20 p-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
-                    <p className="text-sm font-semibold">Estructura del objeto</p>
+                    <p className="text-sm font-semibold">
+                      {esLista ? 'Campos de cada elemento' : 'Estructura del objeto'}
+                    </p>
                     <p className="text-[11px] text-muted-foreground">
-                      Define las propiedades y cuáles son obligatorias.
+                      {esLista
+                        ? 'Cada elemento de la lista tendrá estas propiedades y validaciones.'
+                        : 'Define las propiedades, su tipo y cuáles son obligatorias.'}
                     </p>
                   </div>
                   <label className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -818,10 +902,10 @@ export function VariableEditorDialog({
                   campos={campos}
                   onChange={setCampos}
                   disabled={guardando}
-                  titulo="Propiedades"
+                  titulo={esLista ? 'Campos de cada elemento' : 'Propiedades'}
                 />
 
-                <details className="rounded-md border border-border bg-muted/20 p-2">
+                <details className="rounded-md border border-border bg-background/70 p-2">
                   <summary className="cursor-pointer text-xs font-medium text-muted-foreground">
                     Ver JSON Schema generado
                   </summary>
@@ -848,74 +932,13 @@ export function VariableEditorDialog({
               </div>
             )}
 
-            {tipoActual === 'lista' && (
-              <div className="space-y-3 rounded-lg border border-border bg-card p-3">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div>
-                    <p className="text-sm font-semibold">Elementos de la lista</p>
-                    <p className="text-[11px] text-muted-foreground">
-                      Elige el tipo de cada elemento; si es objeto, define sus campos.
-                    </p>
-                  </div>
-                  <Select
-                    value={itemTipo === 'lista' ? 'texto_corto' : itemTipo}
-                    disabled={guardando}
-                    onValueChange={(nuevo) => setItemTipo(nuevo as TipoCampoConstructor)}
-                  >
-                    <SelectTrigger className="h-8 w-[170px] text-xs" aria-label="Tipo de los elementos">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {TIPOS_DATO.filter((opcion) => opcion.valor !== 'lista').map((opcion) => (
-                        <SelectItem key={opcion.valor} value={opcion.valor} className="text-xs">
-                          {opcion.etiqueta}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {itemTipo === 'seleccion' && (
-                  <OpcionesSeleccionEditor
-                    opciones={itemOpciones}
-                    onChange={setItemOpciones}
-                    disabled={guardando}
-                    titulo="Opciones de cada elemento"
-                  />
-                )}
-
-                {itemTipo === 'objeto' && (
-                  <>
-                    <label className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <Checkbox
-                        checked={itemClavesAdicionales}
-                        onCheckedChange={(marcado) =>
-                          setItemClavesAdicionales(marcado === true)
-                        }
-                      />
-                      Permitir claves adicionales en cada elemento
-                    </label>
-                    <FieldSchemaBuilder
-                      campos={itemCampos}
-                      onChange={setItemCampos}
-                      disabled={guardando}
-                      titulo="Campos de cada elemento"
-                    />
-                  </>
-                )}
-
-                <details className="rounded-md border border-border bg-muted/20 p-2">
-                  <summary className="cursor-pointer text-xs font-medium text-muted-foreground">
-                    Ver JSON Schema generado
-                  </summary>
-                  <pre className="mt-2 max-h-56 overflow-auto whitespace-pre-wrap font-mono text-[11px] text-foreground">
-                    {jsonATexto(esquemaActual)}
-                  </pre>
-                </details>
-
-                {intentoPaso2 && erroresPaso2.esquema && (
-                  <p className="text-xs text-destructive">{erroresPaso2.esquema}</p>
-                )}
+            {esLista && tipoActual !== 'objeto' && tipoActual !== 'seleccion' && (
+              <div className="flex items-start gap-2 rounded-xl border border-teal-200 bg-teal-50/50 p-3 text-xs text-teal-800">
+                <List className="mt-0.5 h-4 w-4 shrink-0" />
+                <p>
+                  Este valor se guardará como una lista de <strong>{etiquetaTipo(tipoActual)}</strong>.
+                  Podrás agregar, quitar y validar cada elemento por separado en el paso 3.
+                </p>
               </div>
             )}
           </section>
@@ -928,27 +951,66 @@ export function VariableEditorDialog({
               <div>
                 <h3 className="text-base font-semibold">Valor y validaciones</h3>
                 <p className="text-sm text-muted-foreground">
-                  El valor se guarda con el tipo <strong>{etiquetaTipo(tipoActual || 'json')}</strong>.
+                  Captura un valor de tipo{' '}
+                  <strong>
+                    {esLista
+                      ? `lista de ${etiquetaTipo(tipoActual || 'json')}`
+                      : etiquetaTipo(tipoActual || 'json')}
+                  </strong>
+                  . Los ejemplos son solo guías: no se guardan si no los escribes.
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <Badge variant="outline" className="font-mono text-[11px]">
                   {claveEfectiva}
                 </Badge>
-                <Badge variant="secondary" className="text-[11px]">
-                  {etiquetaTipo(tipoActual || 'json')}
-                </Badge>
+                {metaTipoSeleccionado && (
+                  <Badge
+                    variant="secondary"
+                    className={cn('gap-1 text-[11px]', tonoTipoSeleccionado?.chip)}
+                  >
+                    {IconoTipoSeleccionado && <IconoTipoSeleccionado size={12} isAnimated />}
+                    {esLista ? 'Lista de ' : ''}
+                    {metaTipoSeleccionado.etiqueta}
+                  </Badge>
+                )}
               </div>
             </div>
+
+            {metaTipoSeleccionado && (
+              <div className="flex flex-wrap items-start gap-3 rounded-xl border border-border bg-muted/20 p-3">
+                {IconoTipoSeleccionado && (
+                  <span
+                    className={cn(
+                      'flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border',
+                      tonoTipoSeleccionado?.icono,
+                    )}
+                  >
+                    <IconoTipoSeleccionado size={22} isAnimated />
+                  </span>
+                )}
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium">{metaTipoSeleccionado.explicacion}</p>
+                  <p className="mt-0.5 text-[11px] text-muted-foreground">
+                    Editor: <strong>{metaTipoSeleccionado.editor}</strong>. Ejemplo:{' '}
+                    <code className="rounded bg-background px-1 py-0.5">
+                      {metaTipoSeleccionado.ejemplo}
+                    </code>
+                  </p>
+                </div>
+              </div>
+            )}
 
             <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
               <div className="space-y-3">
                 <DynamicValueEditor
-                  tipo={tipoActual || 'json'}
+                  tipo={tipoParaValor}
                   esquema={esquemaActual}
                   valor={valor}
                   onChange={setValor}
                   disabled={guardando}
+                  requerido
+                  mostrarValidacion={intentoGuardar}
                 />
 
                 {erroresValor.length > 0 && (
