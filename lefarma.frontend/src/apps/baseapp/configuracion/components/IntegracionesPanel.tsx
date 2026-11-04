@@ -12,8 +12,10 @@ import { toast } from 'sonner';
 import { Modal } from '@/components/ui/modal';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { MultiSelect, type MultiSelectOption } from '@/components/ui/multi-select';
 import {
   Table,
   TableBody,
@@ -22,7 +24,6 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Textarea } from '@/components/ui/textarea';
 import { InlineLoader } from '@/components/ui/inline-loader';
 import { EmptyState } from '@/components/ui/EmptyState';
 import {
@@ -38,6 +39,7 @@ import {
 import {
   crearIntegracion,
   listarIntegraciones,
+  listarVariables,
   revocarIntegracion,
 } from '../services/configuracionAdminApi';
 import type { IntegracionCliente, IntegracionCreada } from '../types';
@@ -83,12 +85,16 @@ export function IntegracionesPanel({ puedeGestionar }: IntegracionesPanelProps) 
   const [crearAbierto, setCrearAbierto] = useState(false);
   const [nombre, setNombre] = useState('');
   const [expiracion, setExpiracion] = useState('');
-  const [clavesTexto, setClavesTexto] = useState('');
+  const [clavesSeleccionadas, setClavesSeleccionadas] = useState<string[]>([]);
+  const [opcionesClaves, setOpcionesClaves] = useState<MultiSelectOption[]>([]);
+  const [cargandoClaves, setCargandoClaves] = useState(true);
+  const [errorClaves, setErrorClaves] = useState<string | null>(null);
   const [guardando, setGuardando] = useState(false);
   const [errorCrear, setErrorCrear] = useState<string | null>(null);
 
   const [creada, setCreada] = useState<IntegracionCreada | null>(null);
   const [copiada, setCopiada] = useState(false);
+  const [mostrarRevocadas, setMostrarRevocadas] = useState(false);
 
   const [aRevocar, setARevocar] = useState<IntegracionCliente | null>(null);
   const [revocando, setRevocando] = useState(false);
@@ -116,6 +122,38 @@ export function IntegracionesPanel({ puedeGestionar }: IntegracionesPanelProps) 
   }, [cargar]);
 
   useEffect(() => {
+    const controller = new AbortController();
+
+    void (async () => {
+      setCargandoClaves(true);
+      setErrorClaves(null);
+      try {
+        const variables = await listarVariables(
+          { destino: 'integraciones', activo: true },
+          controller.signal,
+        );
+        setOpcionesClaves(
+          variables
+            .map((variable) => ({
+              value: variable.clave,
+              label: `${variable.clave} · ${variable.nombre}`,
+            }))
+            .sort((a, b) => a.value.localeCompare(b.value)),
+        );
+      } catch (err) {
+        if (esCancelado(err)) return;
+        setErrorClaves(
+          mensajeError(err, 'No se pudieron cargar las variables disponibles para integraciones.'),
+        );
+      } finally {
+        if (!controller.signal.aborted) setCargandoClaves(false);
+      }
+    })();
+
+    return () => controller.abort();
+  }, []);
+
+  useEffect(() => {
     return () => {
       abortRef.current?.abort();
     };
@@ -124,7 +162,7 @@ export function IntegracionesPanel({ puedeGestionar }: IntegracionesPanelProps) 
   const limpiarFormulario = () => {
     setNombre('');
     setExpiracion('');
-    setClavesTexto('');
+    setClavesSeleccionadas([]);
     setErrorCrear(null);
   };
 
@@ -153,10 +191,7 @@ export function IntegracionesPanel({ puedeGestionar }: IntegracionesPanelProps) 
       }
     }
 
-    const claves = clavesTexto
-      .split(/[\n,]/)
-      .map((clave) => clave.trim())
-      .filter(Boolean);
+    const claves = clavesSeleccionadas;
 
     setGuardando(true);
     setErrorCrear(null);
@@ -234,6 +269,9 @@ export function IntegracionesPanel({ puedeGestionar }: IntegracionesPanelProps) 
 
   if (!puedeGestionar) return null;
 
+  const activas = integraciones.filter((integracion) => integracion.activo !== false);
+  const visibles = mostrarRevocadas ? integraciones : activas;
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
@@ -244,7 +282,18 @@ export function IntegracionesPanel({ puedeGestionar }: IntegracionesPanelProps) 
             <strong>Integraciones</strong>. La llave completa se muestra una sola vez.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <label className="flex h-8 cursor-pointer items-center gap-2 rounded-md border border-border px-2.5 text-xs">
+            <Checkbox
+              checked={mostrarRevocadas}
+              onCheckedChange={(marcado) => setMostrarRevocadas(marcado === true)}
+              aria-label="Mostrar también las integraciones revocadas"
+            />
+            <span>Mostrar revocadas</span>
+            <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+              {integraciones.length - activas.length}
+            </span>
+          </label>
           <Button type="button" variant="outline" size="sm" onClick={() => void cargar()}>
             <RefreshCw className="h-4 w-4" />
             Recargar
@@ -314,11 +363,17 @@ export function IntegracionesPanel({ puedeGestionar }: IntegracionesPanelProps) 
               Reintentar
             </Button>
           </div>
-        ) : integraciones.length === 0 ? (
+        ) : visibles.length === 0 ? (
           <EmptyState
             icon={<KeyRound className="h-10 w-10" />}
-            title="Sin clientes de integración"
-            description="Crea el primero para emitir una llave de acceso."
+            title={mostrarRevocadas ? 'Sin clientes de integración' : 'Sin integraciones activas'}
+            description={
+              mostrarRevocadas
+                ? 'Crea el primero para emitir una llave de acceso.'
+                : integraciones.length > 0
+                  ? 'Marca «Mostrar revocadas» para consultar el historial.'
+                  : 'Crea el primero para emitir una llave de acceso.'
+            }
           />
         ) : (
           <div className="overflow-x-auto">
@@ -335,7 +390,7 @@ export function IntegracionesPanel({ puedeGestionar }: IntegracionesPanelProps) 
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {integraciones.map((integracion) => {
+                {visibles.map((integracion) => {
                   const estado = estadoIntegracion(integracion);
                   const claves = integracion.clavesPermitidas ?? [];
 
@@ -471,16 +526,30 @@ export function IntegracionesPanel({ puedeGestionar }: IntegracionesPanelProps) 
 
           <div className="space-y-1.5">
             <Label htmlFor="integracion-claves">Claves permitidas (opcional)</Label>
-            <Textarea
-              id="integracion-claves"
-              value={clavesTexto}
-              onChange={(e) => setClavesTexto(e.target.value)}
-              placeholder={'Una por línea o separadas por coma\nej. viaticos.diasLimite'}
-              className="min-h-[90px] font-mono text-xs"
+            <MultiSelect
+              options={opcionesClaves}
+              value={clavesSeleccionadas}
+              onChange={setClavesSeleccionadas}
+              disabled={cargandoClaves || guardando}
+              placeholder={
+                cargandoClaves
+                  ? 'Cargando variables…'
+                  : opcionesClaves.length === 0
+                    ? 'No hay variables con destino Integraciones'
+                    : 'Selecciona las variables permitidas…'
+              }
+              searchPlaceholder="Buscar por clave o nombre…"
+              emptyText="No hay variables con ese criterio."
             />
+            {errorClaves && (
+              <p className="flex items-center gap-1.5 text-[11px] text-destructive">
+                <AlertTriangle className="h-3.5 w-3.5" />
+                {errorClaves}
+              </p>
+            )}
             <p className="text-[11px] text-muted-foreground">
-              Claves exactas o prefijos terminados en <code>*</code>. Déjalo vacío para permitir
-              todas las variables con destino Integraciones.
+              Puedes seleccionar varias variables. Si no seleccionas ninguna, la llave permitirá
+              todas las variables activas con destino Integraciones.
             </p>
           </div>
 
