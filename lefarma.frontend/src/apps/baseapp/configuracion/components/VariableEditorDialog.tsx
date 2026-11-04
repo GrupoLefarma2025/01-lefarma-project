@@ -182,8 +182,10 @@ export function VariableEditorDialog({
   const esEdicion = variable !== null;
   const [inicial] = useState(() => estadoInicial(variable));
 
-  const [paso, setPaso] = useState(1);
-  const [pasoMax, setPasoMax] = useState(1);
+  // Al editar, el tipo y la clave son inmutables; abrimos directamente la
+  // definición para que nombre, descripción y destinos sean evidentes.
+  const [paso, setPaso] = useState(esEdicion ? 2 : 1);
+  const [pasoMax, setPasoMax] = useState(esEdicion ? 3 : 1);
 
   const [tipo, setTipo] = useState<TipoDatoConfig | ''>(inicial.tipo);
   const [esLista, setEsLista] = useState(inicial.esLista);
@@ -688,6 +690,17 @@ export function VariableEditorDialog({
                 crearla.
               </p>
             </div>
+
+            {esEdicion && (
+              <div className="flex items-start gap-2 rounded-lg border border-sky-200 bg-sky-50/50 px-3 py-2 text-xs text-sky-800">
+                <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                <p>
+                  Puedes actualizar <strong>nombre, descripción, destinos, esquema y valor</strong>.
+                  La clave y el tipo de dato permanecen bloqueados para no romper a los
+                  consumidores.
+                </p>
+              </div>
+            )}
 
             <div className="grid items-start gap-4 lg:grid-cols-2">
               <div className="space-y-1.5">

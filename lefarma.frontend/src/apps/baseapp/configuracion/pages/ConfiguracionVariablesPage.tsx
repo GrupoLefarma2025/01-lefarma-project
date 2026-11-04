@@ -16,6 +16,7 @@ import {
   Server,
   Settings2,
   SlidersHorizontal,
+  SquareTerminal,
   Terminal,
   X,
 } from 'lucide-react';
@@ -100,9 +101,18 @@ type FiltroActivo = 'todos' | 'activas' | 'inactivas';
 
 const ICONO_SNIPPET: Record<SnippetCodigo, typeof Code2> = {
   frontend: Code2,
+  console: SquareTerminal,
   backend: Server,
   sql: Database,
   curl: Terminal,
+};
+
+const NOMBRE_SNIPPET: Record<SnippetCodigo, string> = {
+  frontend: 'frontend',
+  console: 'consola',
+  backend: 'backend',
+  sql: 'SQL',
+  curl: 'cURL',
 };
 
 export function ConfiguracionVariablesPage() {
@@ -200,7 +210,7 @@ export function ConfiguracionVariablesPage() {
     const copiado = await copiarAlPortapapeles(codigo);
 
     if (copiado) {
-      toast.success(`Código ${tipo === 'curl' ? 'cURL' : tipo} copiado.`, {
+      toast.success(`Código ${NOMBRE_SNIPPET[tipo]} copiado.`, {
         description: variable.clave,
       });
     } else {
@@ -309,6 +319,9 @@ export function ConfiguracionVariablesPage() {
             </p>
             <code className="mt-2 block break-words rounded bg-white/70 p-2 font-mono text-[10px] text-sky-900">
               useConfig&lt;T&gt;('modulo.clave')
+            </code>
+            <code className="mt-1 block break-words rounded bg-white/70 p-2 font-mono text-[10px] text-sky-900">
+              window.lefarmaConfig.get('modulo.clave')
             </code>
           </div>
           <div className="rounded-lg border border-violet-200 bg-violet-50/40 p-3">

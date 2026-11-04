@@ -12,6 +12,7 @@ import { sseService } from '@/services/sseService';
 import type { SseConfiguracionChangedEvent } from '@/types/sse.types';
 import { hydrateConfigStore } from './configuracionStore';
 import { ensureMissingConfigKeys, syncNow } from './configRuntime';
+import { installLefarmaConfigConsole } from './configConsole';
 
 /** Polling de respaldo aunque SSE se vea conectado. */
 const POLL_INTERVAL_MS = 10 * 60 * 1000;
@@ -71,6 +72,7 @@ export function ConfigSyncProvider({ children }: ConfigSyncProviderProps) {
   // garantiza la hidratación al iniciar la app.
   useEffect(() => {
     hydrateConfigStore();
+    installLefarmaConfigConsole();
   }, []);
 
   // Conexión SSE: solo con sesión. Al perderla se cierra la conexión para no

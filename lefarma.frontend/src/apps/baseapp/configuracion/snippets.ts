@@ -5,7 +5,7 @@ import {
   normalizarTipoDato,
 } from './utils';
 
-export type SnippetCodigo = 'frontend' | 'backend' | 'sql' | 'curl';
+export type SnippetCodigo = 'frontend' | 'console' | 'backend' | 'sql' | 'curl';
 
 function tipoFrontendBase(tipo: string): string {
   const canonico = normalizarTipoDato(tipo);
@@ -78,6 +78,17 @@ function snippetFrontend(variable: VariableConfiguracion): string {
 
 // Se actualiza automáticamente por SSE y polling.
 const valor = useConfig<${tipoFrontend(variable)}>('${variable.clave}');`;
+}
+
+function snippetConsola(variable: VariableConfiguracion): string {
+  return `// Consola del navegador (F12)
+window.lefarmaConfig.get('${variable.clave}');
+
+// Si aún no está en caché:
+await window.lefarmaConfig.getAsync('${variable.clave}');
+
+// Todas las variables frontend disponibles:
+window.lefarmaConfig.getAll();`;
 }
 
 function snippetBackend(variable: VariableConfiguracion): string {
@@ -154,6 +165,8 @@ export function generarSnippet(
   switch (tipo) {
     case 'frontend':
       return snippetFrontend(variable);
+    case 'console':
+      return snippetConsola(variable);
     case 'backend':
       return snippetBackend(variable);
     case 'sql':
@@ -176,6 +189,12 @@ export function opcionesSnippet(variable: VariableConfiguracion): OpcionSnippet[
       tipo: 'frontend',
       etiqueta: 'Frontend',
       descripcion: `useConfig<${tipoFrontend(variable)}>`,
+      disponible: variable.disponibleFrontend,
+    },
+    {
+      tipo: 'console',
+      etiqueta: 'Consola del navegador',
+      descripcion: 'window.lefarmaConfig.get',
       disponible: variable.disponibleFrontend,
     },
     {
@@ -204,7 +223,15 @@ export function opcionesSnippet(variable: VariableConfiguracion): OpcionSnippet[
  * donde navigator.clipboard puede no existir o rechazar la operación.
  */
 export async function copiarAlPortapapeles(texto: string): Promise<boolean> {
-  if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+  // La Clipboard API asíncrona falla o queda vacía en varios navegadores
+  // cuando la aplicación se sirve por HTTP. En ese caso usamos el fallback
+  // síncrono dentro del gesto del usuario.
+  if (
+    typeof window !== 'undefined' &&
+    window.isSecureContext &&
+    typeof navigator !== 'undefined' &&
+    navigator.clipboard?.writeText
+  ) {
     try {
       await navigator.clipboard.writeText(texto);
       return true;
@@ -218,12 +245,18 @@ export async function copiarAlPortapapeles(texto: string): Promise<boolean> {
   const textarea = document.createElement('textarea');
   textarea.value = texto;
   textarea.setAttribute('readonly', '');
+  textarea.setAttribute('aria-hidden', 'true');
   textarea.style.position = 'fixed';
+  textarea.style.top = '0';
+  textarea.style.left = '-9999px';
   textarea.style.opacity = '0';
   textarea.style.pointerEvents = 'none';
   document.body.appendChild(textarea);
 
   try {
+    // El foco y la selección son obligatorios para que execCommand('copy')
+    // funcione también desde un menú desplegable.
+    textarea.focus({ preventScroll: true });
     textarea.select();
     textarea.setSelectionRange(0, texto.length);
     return document.execCommand('copy');
