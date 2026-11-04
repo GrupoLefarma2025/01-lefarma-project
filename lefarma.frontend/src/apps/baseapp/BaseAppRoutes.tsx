@@ -2,9 +2,11 @@ import { Navigate, Outlet, Routes, Route } from 'react-router-dom';
 import { RequireAuth } from '@/shared/auth/RequireAuth';
 import { useAuthStore } from '@/shared/auth/authStore';
 import { MainLayout } from '@/components/layout/MainLayout';
+import { PermissionGuard } from '@/components/auth/PermissionGuard';
 import { shellMenuItems } from './menuItems';
 import { Home } from './Home';
 import { Profile } from './Profile';
+import { ConfiguracionVariablesPage } from './configuracion/pages/ConfiguracionVariablesPage';
 import { PerfilConfig } from '@/pages/configuracion/PerfilConfig';
 import { CxpRoutes } from '@/apps/cxp/CxpRoutes';
 import { RhRoutes } from '@/apps/rh/RhRoutes';
@@ -76,6 +78,14 @@ export function BaseAppRoutes() {
         <Route path="/hub" element={<Home />} />
         <Route path="/perfil" element={<Profile />} />
         <Route path="/perfil/configuracion" element={<PerfilConfig />} />
+        <Route
+          path="/configuracion"
+          element={
+            <PermissionGuard require="configuracion.view" blockedPath="/hub">
+              <ConfiguracionVariablesPage />
+            </PermissionGuard>
+          }
+        />
       </Route>
 
       {/*

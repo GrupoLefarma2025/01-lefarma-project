@@ -1,17 +1,41 @@
 import type { SseEventType, SseConnectionState, SseEvent } from '@/types/sse.types';
 
-
-const SSE_URL = import.meta.env.VITE_API_URL 
+const SSE_URL = import.meta.env.VITE_API_URL
   ? `${import.meta.env.VITE_API_URL}/auth/sse`
   : 'http://localhost:5174/api/auth/sse';
 
 const MAX_RECONNECT_DELAY = 30000;
 const BASE_RECONNECT_DELAY = 1000;
 
+/**
+ * Registro centralizado de eventos. Al agregar un tipo nuevo en
+ * `SseEventType`, basta con añadirlo aquí para que el listener quede instalado
+ * en cada conexión (no se olvida ningún evento).
+ */
+const SSE_EVENT_TYPES: readonly SseEventType[] = [
+  'connected',
+  'user.updated',
+  'configuracion.changed',
+];
+
+const ACCESS_TOKEN_KEY = 'accessToken';
+const LEGACY_TOKEN_KEY = 'token';
+
 type EventCallback<T = SseEvent> = (data: T) => void;
+
+function getStoredToken(): string | null {
+  try {
+    return (
+      localStorage.getItem(ACCESS_TOKEN_KEY) || localStorage.getItem(LEGACY_TOKEN_KEY) || null
+    );
+  } catch {
+    return null;
+  }
+}
 
 class SseService {
   private eventSource: EventSource | null = null;
+  private currentToken: string | null = null;
   private reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
   private reconnectAttempts = 0;
   private listeners: Map<SseEventType, Set<EventCallback>> = new Map();
@@ -23,36 +47,61 @@ class SseService {
   };
   private stateListeners: Set<(state: SseConnectionState) => void> = new Set();
 
+  /**
+   * Idempotente: si ya hay un EventSource abierto/conectando con el mismo token
+   * no crea otro. Con un token distinto (relogin) reemplaza la conexión.
+   */
   connect(token: string): void {
+    if (!token) {
+      return;
+    }
+
+    if (this.eventSource && this.currentToken === token) {
+      return;
+    }
+
     if (this.eventSource) {
       this.disconnect();
+    } else if (this.reconnectTimeout) {
+      clearTimeout(this.reconnectTimeout);
+      this.reconnectTimeout = null;
     }
 
     const url = `${SSE_URL}?token=${encodeURIComponent(token)}`;
-    
+
+    this.currentToken = token;
+
     try {
-      this.eventSource = new EventSource(url);
-      
-      this.eventSource.onopen = () => {
+      const eventSource = new EventSource(url);
+      this.eventSource = eventSource;
+
+      eventSource.onopen = () => {
+        if (this.eventSource !== eventSource) {
+          return;
+        }
         this.handleOpen();
       };
 
-      this.eventSource.onerror = () => {
+      eventSource.onerror = () => {
+        if (this.eventSource !== eventSource) {
+          return;
+        }
         this.handleError();
       };
 
-      this.eventSource.addEventListener('connected', (event: MessageEvent) => {
-        this.handleMessage('connected', event);
-      });
-
-      this.eventSource.addEventListener('user.updated', (event: MessageEvent) => {
-        this.handleMessage('user.updated', event);
-      });
-
+      for (const eventType of SSE_EVENT_TYPES) {
+        eventSource.addEventListener(eventType, (event: MessageEvent) => {
+          if (this.eventSource !== eventSource) {
+            return;
+          }
+          this.handleMessage(eventType, event);
+        });
+      }
     } catch (error) {
-      this.updateState({ 
+      this.currentToken = null;
+      this.updateState({
         error: error instanceof Error ? error.message : 'Connection failed',
-        isConnected: false 
+        isConnected: false,
       });
     }
   }
@@ -68,8 +117,12 @@ class SseService {
       this.eventSource = null;
     }
 
+    this.currentToken = null;
+    this.reconnectAttempts = 0;
+
     this.updateState({
       isConnected: false,
+      reconnectAttempts: 0,
       error: null,
     });
   }
@@ -78,10 +131,12 @@ class SseService {
     if (!this.listeners.has(event)) {
       this.listeners.set(event, new Set());
     }
-    
+
     const callbacks = this.listeners.get(event);
     if (!callbacks) {
-      return () => { /* no-op */ };
+      return () => {
+        /* no-op */
+      };
     }
     callbacks.add(callback as EventCallback);
 
@@ -93,7 +148,7 @@ class SseService {
   onStateChange(callback: (state: SseConnectionState) => void): () => void {
     this.stateListeners.add(callback);
     callback(this.connectionState);
-    
+
     return () => {
       this.stateListeners.delete(callback);
     };
@@ -114,8 +169,6 @@ class SseService {
   }
 
   private handleError(): void {
-    const wasConnected = this.connectionState.isConnected;
-    
     this.updateState({
       isConnected: false,
       error: 'Connection lost',
@@ -126,18 +179,18 @@ class SseService {
       this.eventSource = null;
     }
 
-    if (wasConnected) {
-      this.scheduleReconnect();
-    }
+    // Reconecta también si la conexión inicial nunca abrió; el callback
+    // valida que siga habiendo token.
+    this.scheduleReconnect();
   }
 
   private handleMessage(eventType: SseEventType, event: MessageEvent): void {
     try {
       const data = JSON.parse(event.data) as SseEvent; // Data del endpoint SSE confiable del backend
       const callbacks = this.listeners.get(eventType);
-      
+
       if (callbacks) {
-        callbacks.forEach(callback => callback(data));
+        callbacks.forEach((callback) => callback(data));
       }
     } catch {
       // Ignorar errores de parseo
@@ -161,7 +214,13 @@ class SseService {
 
     this.reconnectTimeout = setTimeout(() => {
       this.reconnectTimeout = null;
-      const token = localStorage.getItem('token');
+
+      if (this.eventSource) {
+        return;
+      }
+
+      // authService guarda el token en `accessToken`; `token` es la clave legacy.
+      const token = getStoredToken() ?? this.currentToken;
       if (token) {
         this.connect(token);
       }
@@ -170,7 +229,7 @@ class SseService {
 
   private updateState(partial: Partial<SseConnectionState>): void {
     this.connectionState = { ...this.connectionState, ...partial };
-    this.stateListeners.forEach(listener => listener(this.connectionState));
+    this.stateListeners.forEach((listener) => listener(this.connectionState));
   }
 }
 

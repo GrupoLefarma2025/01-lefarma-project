@@ -1,4 +1,4 @@
-import { LayoutDashboard, User } from 'lucide-react';
+import { LayoutDashboard, Settings, User } from 'lucide-react';
 import type { SidebarMenuItemConfig } from '@/components/layout/sidebar-types';
 
 /**
@@ -16,5 +16,11 @@ export const shellMenuItems: SidebarMenuItemConfig[] = [
     title: 'Perfil',
     icon: User,
     path: '/perfil',
+  },
+  {
+    title: 'Configuración',
+    icon: Settings,
+    path: '/configuracion',
+    permission: { require: 'configuracion.view' },
   },
 ];
