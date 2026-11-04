@@ -174,11 +174,18 @@ namespace Lefarma.API.Features.Config.Engine
             }
 
             // Fase 2 (T6): firma del usuario actuante al momento del evento (reimpresión fiel).
-            var firmaArchivo = await _context.UsuariosDetalle
+            // OC conserva la firma legacy de CxP cuando el usuario aún no tiene firma cifrada RH.
+            var firmasUsuario = await _context.UsuariosDetalle
                 .AsNoTracking()
                 .Where(d => d.IdUsuario == ctx.IdUsuario)
-                .Select(d => d.FirmaPathCifrada)
+                .Select(d => new { d.FirmaPathCifrada, d.FirmaPath })
                 .FirstOrDefaultAsync();
+
+            var firmaArchivo = !string.IsNullOrWhiteSpace(firmasUsuario?.FirmaPathCifrada)
+                ? firmasUsuario!.FirmaPathCifrada
+                : ctx.TipoEntidad == CodigoProceso.ORDEN_COMPRA
+                    ? firmasUsuario?.FirmaPath
+                    : null;
 
             // Registrar en bitácora la omisión de cada paso saltado
             foreach (var (pasoOmitido, accionAvance, nivel, motivo, destino) in pasosOmitidos)
