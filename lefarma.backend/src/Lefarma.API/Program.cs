@@ -432,6 +432,7 @@ builder.Services.AddScoped<UserPermissionService>();
 // Scoped: PermissionHandler consumes UserPermissionService (Scoped) which consumes AsokamDbContext (Scoped).
 // Singleton here would be a captive dependency — ASP.NET Core rejects it at startup validation.
 builder.Services.AddScoped<IAuthorizationHandler, PermissionHandler>();
+builder.Services.AddScoped<IAuthorizationHandler, AnyPermissionHandler>();
 
 // Controllers
 builder.Services.AddControllers(options =>

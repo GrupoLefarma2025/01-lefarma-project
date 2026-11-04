@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
-import { FileSignature, History, Loader2, Send } from 'lucide-react';
+import { FileSignature, History, Loader2, Printer, Send } from 'lucide-react';
 import { etiquetaEstadoDominio } from './seleccionUtils';
 
 interface DocumentoHeaderCardProps {
@@ -27,6 +27,8 @@ interface DocumentoHeaderCardProps {
   firmando?: boolean;
   firmarDeshabilitado?: boolean;
   /** Muestra el botón "Historial" (bitácora del documento) junto a Firmar. */
+  showImprimir?: boolean;
+  onImprimir?: () => void;
   showHistorial?: boolean;
   onHistorial?: () => void;
   /** Clases de fondo del card (tinte suave por vista); default: bg-card. */
@@ -51,6 +53,8 @@ export function DocumentoHeaderCard({
   onFirmar,
   firmando = false,
   firmarDeshabilitado = false,
+  showImprimir = false,
+  onImprimir,
   showHistorial = false,
   onHistorial,
   fondoClase = 'bg-card',
@@ -83,6 +87,12 @@ export function DocumentoHeaderCard({
           >
             {nombreEstado}
           </span>
+          {showImprimir && (
+            <Button size="sm" variant="outline" className="gap-1.5" onClick={onImprimir}>
+              <Printer className="h-3.5 w-3.5" />
+              Imprimir
+            </Button>
+          )}
           {showHistorial && (
             <Button size="sm" variant="outline" className="gap-1.5" onClick={onHistorial}>
               <History className="h-3.5 w-3.5" />

@@ -1,15 +1,12 @@
-using Lefarma.API.Domain.Entities.Config;
-using Lefarma.API.Domain.Interfaces.Config;
-using Lefarma.API.Shared.Constants;
-
 namespace Lefarma.API.Domain.Entities.EducacionMedica;
 
 /// <summary>
-/// Versión de rutas de una selección mensual: es la entidad autorizable del workflow
-/// (GV firma -> CA revisa costos -> DC autoriza). Una fila por selección + versión;
-/// las filas de <see cref="Ruta"/> apuntan aquí con IdRutaVersion (ADR-00006).
+/// Versión de rutas de una selección mensual: es planeación operativa sin workflow.
+/// Una fila por selección + versión; las filas de <see cref="Ruta"/> apuntan aquí
+/// con IdRutaVersion. La Matriz General es el documento autorizable y apunta a
+/// esta versión con su propio IdRutaVersion.
 /// </summary>
-public class RutaVersion : IWorkflowEntity
+public class RutaVersion
 {
     public const string EstadoCreada = "Creada";
     public const string EstadoCerrada = "Cerrada";
@@ -20,25 +17,13 @@ public class RutaVersion : IWorkflowEntity
     public int IdRutaVersion { get; set; }
     public int IdSeleccionMensual { get; set; }
     public int Version { get; set; }
-    public int? IdTipoGerencia { get; set; }   // denormalizado de la selección (condición del GV)
+    public int? IdTipoGerencia { get; set; }   // denormalizado de la selección
     public string Estado { get; set; } = EstadoCreada;
     public DateTime? FechaConfirmacion { get; set; }
-    public int? IdWorkflow { get; set; }
-    public int? IdPasoActual { get; set; }
-    public int? IdEstado { get; set; }
     public DateTime FechaCreacion { get; set; }
     public DateTime FechaModificacion { get; set; }
     public int? IdUsuarioCreacion { get; set; }
     public int? IdUsuarioModificacion { get; set; }
 
-    public virtual WorkflowEstados? EstadoWorkflow { get; set; }
     public virtual ICollection<Ruta> Rutas { get; set; } = new List<Ruta>();
-
-    // IWorkflowEntity (implementación explícita: las columnas de auditoría son nullable)
-    int IWorkflowEntity.Id { get => IdRutaVersion; set => IdRutaVersion = value; }
-    int IWorkflowEntity.IdWorkflow { get => IdWorkflow ?? 0; set => IdWorkflow = value; }
-    int? IWorkflowEntity.IdPasoActual { get => IdPasoActual; set => IdPasoActual = value; }
-    int IWorkflowEntity.IdEstado { get => IdEstado ?? 0; set => IdEstado = value; }
-    int IWorkflowEntity.IdUsuarioCreador { get => IdUsuarioCreacion ?? 0; set => IdUsuarioCreacion = value; }
-    public string ObtenerTipoEntidad() => CodigoProceso.EDUCACION_MEDICA_RUTAS;
 }

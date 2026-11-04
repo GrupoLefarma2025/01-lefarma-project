@@ -88,6 +88,10 @@ interface CalendarioInspectorProps {
   onAplicarSugerencia?: (sugerencia: SugerenciaEspecialista) => void;
   /** La matriz general está fuera de Creada: la captura de talleres está cerrada. */
   capturaBloqueada?: boolean;
+  /** Vista multi-gerencia: solo consulta, sin acciones de edición. */
+  soloLectura?: boolean;
+  /** La versión de rutas seleccionada está archivada/cancelada/rechazada. */
+  rutaSoloLectura?: boolean;
   onAbrirMatriz?: () => void;
 }
 
@@ -127,8 +131,11 @@ export function CalendarioInspector({
   aplicandoSugerencia = false,
   onAplicarSugerencia,
   capturaBloqueada = false,
+  soloLectura = false,
+  rutaSoloLectura = false,
   onAbrirMatriz,
 }: CalendarioInspectorProps) {
+  const soloLecturaEfectivo = soloLectura || rutaSoloLectura;
   const puedeGestionar = usePermission({
     require: 'educacion_medica.rutas.puede_gestionar',
   });
@@ -365,6 +372,7 @@ export function CalendarioInspector({
     );
   }
 
+  const puedeEditarResponsables = !soloLecturaEfectivo && puedeGestionar;
   const estilo = estiloEvento[tonoEvento(item)];
   const hora = fmtHora(item.hora);
   const horariosTalleres = [
@@ -495,7 +503,7 @@ export function CalendarioInspector({
             {estadoEtiqueta[item.estado] ?? item.estado}
           </Badge>
           <Badge variant="secondary" className="rounded-full text-[10px]">
-            {item.idTaller ? 'Taller' : item.tipoVisita || 'Visita'}
+            {item.idTaller ? item.tipoVisita || 'Sin tipo' : 'Visita planeada'}
           </Badge>
           {item.esExtraordinario && (
             <Badge
@@ -554,16 +562,20 @@ export function CalendarioInspector({
               label={item.idTaller ? 'Hora del taller' : 'Hora'}
               value={hora ?? 'Sin hora'}
             />
-            <Dato
-              icon={UserRound}
-              label="Ejecutivo"
-              value={item.nombreEjecutivo ?? 'Sin asignar'}
-            />
-            <Dato
-              icon={Sparkles}
-              label="Especialista"
-              value={item.nombreEspecialista ?? 'Sin asignar'}
-            />
+            {!puedeEditarResponsables && (
+              <>
+                <Dato
+                  icon={UserRound}
+                  label="Ejecutivo"
+                  value={item.nombreEjecutivo ?? 'Sin asignar'}
+                />
+                <Dato
+                  icon={Sparkles}
+                  label="Especialista"
+                  value={item.nombreEspecialista ?? 'Sin asignar'}
+                />
+              </>
+            )}
           </div>
 
           {talleres.length > 1 && (
@@ -599,7 +611,7 @@ export function CalendarioInspector({
             </div>
           )}
 
-          {puedeGestionar ? (
+          {!soloLecturaEfectivo && puedeGestionar ? (
             <div className="space-y-4">
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
@@ -653,13 +665,23 @@ export function CalendarioInspector({
 
               <div className="space-y-2">
                 <Label className="text-xs">Especialista</Label>
-                {sugerencia && !item.idEspecialista && (
+                {sugerencia && (
                   <div className="flex items-center gap-2 rounded-lg border border-orange-200/70 bg-orange-50/60 px-2.5 py-2 dark:border-orange-900/60 dark:bg-orange-950/20">
                     <Sparkles className="h-3.5 w-3.5 shrink-0 text-orange-500" />
-                    <p className="min-w-0 flex-1 text-[10px] leading-relaxed text-orange-800 dark:text-orange-200">
-                      <span className="font-semibold">{sugerencia.nombreEspecialista}</span>{' '}
-                      {sugerencia.motivo.toLowerCase()}.
-                    </p>
+                    <div className="min-w-0 flex-1 text-[10px] leading-relaxed text-orange-800 dark:text-orange-200">
+                      <p>
+                        <span className="font-semibold">{sugerencia.nombreEspecialista}</span>{' '}
+                        {sugerencia.motivo.toLowerCase()}.
+                      </p>
+                      {sugerencia.haVisitadoHospital && (
+                        <p className="mt-0.5 text-emerald-700 dark:text-emerald-300">
+                          Ya visitó este hospital {sugerencia.visitasRealizadasHospital} vez(ces)
+                          {sugerencia.ultimaVisitaHospital
+                            ? ` · última ${fechaCompacta(sugerencia.ultimaVisitaHospital)}`
+                            : ''}
+                        </p>
+                      )}
+                    </div>
                     <Button
                       size="sm"
                       className="h-7 shrink-0 rounded-lg bg-[#eb6c36] px-2 text-[10px] text-white hover:bg-[#d95a2b]"
@@ -668,6 +690,8 @@ export function CalendarioInspector({
                     >
                       {aplicandoSugerencia ? (
                         <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : item.idEspecialista ? (
+                        'Reasignar'
                       ) : (
                         'Aplicar'
                       )}
@@ -724,31 +748,38 @@ export function CalendarioInspector({
                 <Label htmlFor="calendario-mover" className="text-xs">
                   Reprogramar visita
                 </Label>
-                <div className="flex gap-2">
-                  <Input
-                    id="calendario-mover"
-                    type="date"
-                    className="h-9 flex-1 text-xs"
-                    value={fecha}
-                    onChange={(event) => setFecha(event.target.value)}
-                  />
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-9 px-3"
-                    disabled={moviendo || !fecha || fecha === item.fecha}
-                    onClick={() => void mover()}
-                  >
-                    {moviendo ? (
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    ) : (
-                      <>
-                        <MoveRight className="mr-1 h-3.5 w-3.5" />
-                        Mover
-                      </>
-                    )}
-                  </Button>
-                </div>
+                {item.tieneTalleres ? (
+                  <div className="rounded-lg border border-amber-200/70 bg-amber-50/60 px-3 py-2 text-[11px] leading-relaxed text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/20 dark:text-amber-200">
+                    Esta visita tiene {item.talleresCount} taller(es). Ajusta o elimina los
+                    talleres antes de reprogramarla.
+                  </div>
+                ) : (
+                  <div className="flex gap-2">
+                    <Input
+                      id="calendario-mover"
+                      type="date"
+                      className="h-9 flex-1 text-xs"
+                      value={fecha}
+                      onChange={(event) => setFecha(event.target.value)}
+                    />
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-9 px-3"
+                      disabled={moviendo || !fecha || fecha === item.fecha}
+                      onClick={() => void mover()}
+                    >
+                      {moviendo ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <>
+                          <MoveRight className="mr-1 h-3.5 w-3.5" />
+                          Mover
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                )}
               </div>
 
               {(item.bloqueado || item.solicitudCambioPendiente) && (
@@ -768,8 +799,11 @@ export function CalendarioInspector({
             </div>
           ) : (
             <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-[11px] text-slate-500 dark:border-slate-800 dark:bg-slate-900/60 dark:text-slate-400">
-              Tienes acceso de consulta. Para reasignar responsables necesitas permiso de gestión de
-              rutas.
+              {rutaSoloLectura
+                ? 'Versión archivada: solo lectura. Selecciona la versión activa para editar.'
+                : soloLectura
+                  ? 'Vista multi-gerencia: solo consulta. Selecciona una gerencia para editar.'
+                  : 'Tienes acceso de consulta. Para reasignar responsables necesitas permiso de gestión de rutas.'}
             </div>
           )}
         </TabsContent>
@@ -784,11 +818,19 @@ export function CalendarioInspector({
                 {talleres.length} registrado{talleres.length === 1 ? '' : 's'}
               </p>
             </div>
-            {(puedeCapturar || puedeSolicitarAsistida) && !capturaBloqueada && (
+            {(puedeCapturar || puedeSolicitarAsistida) && (
               <Button
                 size="sm"
                 className="h-8 gap-1 rounded-lg bg-[#eb6c36] px-2.5 text-[11px] text-white hover:bg-[#d95a2b]"
                 onClick={() => onCrearTaller(item)}
+                disabled={soloLecturaEfectivo || capturaBloqueada}
+                title={
+                  rutaSoloLectura
+                    ? 'Versión archivada: solo lectura'
+                    : capturaBloqueada
+                      ? 'La matriz está fuera de captura'
+                      : undefined
+                }
               >
                 <Plus className="h-3.5 w-3.5" />
                 Nuevo taller
@@ -796,7 +838,13 @@ export function CalendarioInspector({
             )}
           </div>
 
-          {capturaBloqueada && (
+          {rutaSoloLectura && (
+            <div className="rounded-xl border border-slate-200 bg-slate-50/80 px-3 py-2 text-[11px] leading-relaxed text-slate-600 dark:border-slate-800 dark:bg-slate-900/40 dark:text-slate-300">
+              Versión archivada: no se pueden crear talleres ni modificar la visita.
+            </div>
+          )}
+
+          {capturaBloqueada && !rutaSoloLectura && (
             <div className="rounded-xl border border-amber-200 bg-amber-50/60 px-3 py-2 text-[11px] leading-relaxed text-amber-800 dark:border-amber-900 dark:bg-amber-950/20 dark:text-amber-300">
               Captura cerrada: la matriz está en autorización. Para cambiar un taller usa
               «Solicitar cambio» en la pestaña Actividad.
@@ -819,7 +867,9 @@ export function CalendarioInspector({
               <p className="mt-1 text-[11px] leading-relaxed text-slate-400">
                 Programa el primer taller usando la fecha de la visita.
               </p>
-              {(puedeCapturar || puedeSolicitarAsistida) && !capturaBloqueada && (
+              {!soloLecturaEfectivo &&
+                (puedeCapturar || puedeSolicitarAsistida) &&
+                !capturaBloqueada && (
                 <Button
                   size="sm"
                   variant="outline"
@@ -924,8 +974,8 @@ export function CalendarioInspector({
           <ActividadVisitaTab
             actividad={actividad}
             cargando={cargandoActividad}
-            puedeResolverSolicitud={puedeAjustarTalleres}
-            puedeSolicitarAsistida={puedeSolicitarAsistida}
+            puedeResolverSolicitud={!soloLecturaEfectivo && puedeAjustarTalleres}
+            puedeSolicitarAsistida={!soloLecturaEfectivo && puedeSolicitarAsistida}
             onSolicitarCambio={abrirSolicitudTaller}
             onResolverSolicitud={abrirResolverSolicitud}
           />
@@ -945,7 +995,7 @@ export function CalendarioInspector({
         acciones={
           detalleTaller ? (
             <>
-              {puedeCapturar && !capturaBloqueada && (
+              {!soloLecturaEfectivo && puedeCapturar && !capturaBloqueada && (
                 <Button
                   size="sm"
                   variant="outline"
@@ -1027,7 +1077,7 @@ export function CalendarioInspector({
         open={asistenciaTaller !== null}
         onClose={() => setAsistenciaTaller(null)}
         taller={asistenciaTaller}
-        puedeCapturar={puedeCapturar}
+        puedeCapturar={!soloLecturaEfectivo && puedeCapturar}
         onChanged={() => {
           void cargarTalleres();
           void onRefresh();
@@ -1038,7 +1088,7 @@ export function CalendarioInspector({
         open={evidenciasTaller !== null}
         onClose={() => setEvidenciasTaller(null)}
         taller={evidenciasTaller}
-        puedeGestionar={puedeGestionarEvidencias}
+        puedeGestionar={!soloLecturaEfectivo && puedeGestionarEvidencias}
         onChanged={() => {
           void cargarTalleres();
           void onRefresh();
@@ -1049,8 +1099,8 @@ export function CalendarioInspector({
         open={materialTaller !== null}
         onClose={() => setMaterialTaller(null)}
         taller={materialTaller}
-        puedeGestionar={puedeGestionarMaterial}
-        puedeConfirmar={puedeConfirmarMaterial}
+        puedeGestionar={!soloLecturaEfectivo && puedeGestionarMaterial}
+        puedeConfirmar={!soloLecturaEfectivo && puedeConfirmarMaterial}
         onChanged={() => {
           void cargarTalleres();
           void onRefresh();

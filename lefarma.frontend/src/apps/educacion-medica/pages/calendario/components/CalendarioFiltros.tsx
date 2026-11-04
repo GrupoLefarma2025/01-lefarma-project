@@ -6,12 +6,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import type {
-  EjecutivoRegion,
-  EspecialistaPersona,
-  Region,
-  TipoGerencia,
-} from '../../../types/educacionMedica.types';
+import { MultiSelect } from '@/components/ui/multi-select';
+import type { Region, TipoGerencia } from '../../../types/educacionMedica.types';
 import { AyudaContextual } from './AyudaContextual';
 
 export interface EstadoFiltroOpcion {
@@ -21,20 +17,13 @@ export interface EstadoFiltroOpcion {
 
 interface CalendarioFiltrosProps {
   todos: string;
-  mostrarResponsables?: boolean;
   periodoLabel: string;
-  idGerencia: string;
+  idGerencias: string[];
   gerencias: TipoGerencia[];
-  onGerenciaChange: (value: string) => void;
+  onGerenciasChange: (value: string[]) => void;
   idRegion: string;
   regiones: Region[];
   onRegionChange: (value: string) => void;
-  idEjecutivo: string;
-  ejecutivos: EjecutivoRegion[];
-  onEjecutivoChange: (value: string) => void;
-  idEspecialista: string;
-  especialistas: EspecialistaPersona[];
-  onEspecialistaChange: (value: string) => void;
   estado: string;
   estados: EstadoFiltroOpcion[];
   onEstadoChange: (value: string) => void;
@@ -44,20 +33,13 @@ const selectClass = 'h-9 w-full rounded-lg border-slate-200 bg-card text-xs dark
 
 export function CalendarioFiltros({
   todos,
-  mostrarResponsables = true,
   periodoLabel,
-  idGerencia,
+  idGerencias,
   gerencias,
-  onGerenciaChange,
+  onGerenciasChange,
   idRegion,
   regiones,
   onRegionChange,
-  idEjecutivo,
-  ejecutivos,
-  onEjecutivoChange,
-  idEspecialista,
-  especialistas,
-  onEspecialistaChange,
   estado,
   estados,
   onEstadoChange,
@@ -81,24 +63,23 @@ export function CalendarioFiltros({
             Alcance
           </p>
           <AyudaContextual titulo="Alcance">
-            Gerencia y región acotan el universo de hospitales. La región se filtra según la
-            gerencia seleccionada.
+            Las gerencias y la región acotan el universo de hospitales. Sin gerencias
+            seleccionadas se consultan todas; con una sola se habilita la edición y la matriz.
           </AyudaContextual>
         </div>
-        <div className="grid gap-2 sm:grid-cols-2">
-          <Select value={idGerencia} onValueChange={onGerenciaChange}>
-            <SelectTrigger className={selectClass} aria-label="Gerencia">
-              <SelectValue placeholder="Gerencia" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={todos}>Todas las gerencias</SelectItem>
-              {gerencias.map((gerencia) => (
-                <SelectItem key={gerencia.idTipoGerencia} value={String(gerencia.idTipoGerencia)}>
-                  {gerencia.descripcion}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        <div className="space-y-2">
+          <MultiSelect
+            options={gerencias.map((gerencia) => ({
+              value: String(gerencia.idTipoGerencia),
+              label: gerencia.descripcion,
+            }))}
+            value={idGerencias}
+            onChange={onGerenciasChange}
+            placeholder="Todas las gerencias"
+            searchPlaceholder="Buscar gerencia..."
+            emptyText="Sin gerencias."
+            className="text-xs"
+          />
 
           <Select value={idRegion} onValueChange={onRegionChange}>
             <SelectTrigger className={selectClass} aria-label="Región">
@@ -115,60 +96,6 @@ export function CalendarioFiltros({
           </Select>
         </div>
       </section>
-
-      {!mostrarResponsables && (
-        <section className="rounded-lg border-l-2 border-sky-300 bg-sky-50/40 p-3 dark:border-sky-800 dark:bg-sky-950/10">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-sky-700 dark:text-sky-300">
-            Mis visitas
-          </p>
-          <p className="mt-1 text-[11px] leading-relaxed text-sky-700 dark:text-sky-300">
-            Solo se muestran las visitas en las que eres ejecutivo o especialista.
-          </p>
-        </section>
-      )}
-
-      {mostrarResponsables && (
-        <section className="rounded-lg border-l-2 border-violet-300 bg-violet-50/30 p-3 dark:border-violet-800 dark:bg-violet-950/10">
-          <div className="mb-2 flex items-center justify-between gap-2">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-violet-700 dark:text-violet-300">
-              Responsables
-            </p>
-            <AyudaContextual titulo="Responsables">
-              El ejecutivo es el dueño comercial del hospital; el especialista es quien viaja e
-              imparte el taller. Puedes filtrar por cualquiera de los dos.
-            </AyudaContextual>
-          </div>
-          <div className="grid gap-2 sm:grid-cols-2">
-            <Select value={idEjecutivo} onValueChange={onEjecutivoChange}>
-              <SelectTrigger className={selectClass} aria-label="Ejecutivo">
-                <SelectValue placeholder="Ejecutivo" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={todos}>Todos los ejecutivos</SelectItem>
-                {ejecutivos.map((ejecutivo) => (
-                  <SelectItem key={ejecutivo.idUsuario} value={String(ejecutivo.idUsuario)}>
-                    {ejecutivo.nombreUsuario}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            <Select value={idEspecialista} onValueChange={onEspecialistaChange}>
-              <SelectTrigger className={selectClass} aria-label="Especialista">
-                <SelectValue placeholder="Especialista" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={todos}>Todos los especialistas</SelectItem>
-                {especialistas.map((especialista) => (
-                  <SelectItem key={especialista.idUsuario} value={String(especialista.idUsuario)}>
-                    {especialista.nombreUsuario}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </section>
-      )}
 
       <section className="rounded-lg border-l-2 border-slate-300 bg-slate-50/50 p-3 dark:border-slate-700 dark:bg-slate-900/30">
         <div className="mb-2 flex items-center justify-between gap-2">

@@ -23,6 +23,8 @@ public class TallerDto
 {
     public int IdTaller { get; set; }
     public int? IdRutaVisita { get; set; }
+    public int? IdTipoVisita { get; set; }
+    public string? TipoVisita { get; set; }
     public int? IdSeleccionHospital { get; set; }
     public int? IdHospital { get; set; }
     public string? NombreHospital { get; set; }
@@ -173,7 +175,10 @@ public class CrearTallerRequest
 /// <summary>Edición de un taller (la liga a la selección/hospital no cambia).</summary>
 public class ActualizarTallerRequest
 {
-    [Range(0, int.MaxValue, ErrorMessage = "El número de participantes no puede ser negativo.")]
+    /// <summary>Tipo del taller (catálogo tipo_visita); null = no cambiar.</summary>
+    public int? IdTipoVisita { get; set; }
+
+    [Range(0, int.MaxValue, ErrorMessage = "El n�mero de participantes no puede ser negativo.")]
     public int? NumeroParticipantes { get; set; }
 
     [MaxLength(160)]

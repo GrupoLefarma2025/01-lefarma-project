@@ -105,7 +105,6 @@ export interface TipoVisitaOpcion {
   idTipoVisita: number;
   clave: string;
   descripcion: string;
-  esTaller: boolean;
 }
 
 export interface TipoGerencia {
@@ -420,6 +419,8 @@ export interface SeleccionMensual {
   nombreUsuarioCreacion: string | null;
   /** Acciones disponibles para el usuario en el paso actual; vacío si no es su turno. */
   acciones: AccionDisponible[];
+  /** El documento admite edición en su paso/estado actual (sin considerar permisos del usuario). */
+  permiteEdicion?: boolean;
 }
 
 export interface SeleccionHospital {
@@ -489,6 +490,7 @@ export interface CalendarioFiltro {
   desde?: string | null;
   hasta?: string | null;
   idGerencia?: number | null;
+  idGerencias?: number[];
   idRegion?: number | null;
   idEjecutivo?: number | null;
   idEspecialista?: number | null;
@@ -506,6 +508,23 @@ export interface SugerenciaEspecialista {
   nombreEspecialista: string;
   cargaDia: number;
   cargaSemana: number;
+  cargaMes: number;
+  tieneDiaConsecutivo: boolean;
+  mismaInstitucion: boolean;
+  institucion: string | null;
+  region: string | null;
+  haVisitadoHospital: boolean;
+  visitasRealizadasHospital: number;
+  ultimaVisitaHospital: string | null;
+  haVisitadoInstitucion: boolean;
+  visitasRealizadasInstitucion: number;
+  ultimaVisitaInstitucion: string | null;
+  haVisitadoCiudad: boolean;
+  visitasRealizadasCiudad: number;
+  ultimaVisitaCiudad: string | null;
+  haVisitadoRegion: boolean;
+  visitasRealizadasRegion: number;
+  ultimaVisitaRegion: string | null;
   motivo: string;
 }
 
@@ -514,6 +533,8 @@ export interface CalendarioItem {
   idRuta: number;
   idSeleccionMensual: number;
   idTaller: number | null;
+  tieneTalleres: boolean;
+  talleresCount: number;
   idSeleccionHospital: number | null;
   idHospital: number | null;
   hospital: string | null;
@@ -684,27 +705,9 @@ export interface HistorialWorkflowItem {
   fechaEvento: string;
 }
 
-/** Estado de autorización de una versión de rutas (workflow Creada → GV → CA → DC → Cerrada). */
-export interface RutaVersionDto {
-  idRutaVersion: number;
-  version: number;
-  estado: 'Creada' | 'Cerrada' | 'Rechazada' | 'Cancelada' | 'Archivada';
-  /** Workflow de la versión (para el historial). */
-  idWorkflow: number | null;
-  idPasoActual: number | null;
-  pasoNombre: string | null;
-  /** Estado del workflow (catálogo config.workflow_estados): nombre y color para la UI. */
-  idEstado: number | null;
-  estadoNombre: string | null;
-  estadoColor: string | null;
-  esEditable: boolean;
-  esFinal: boolean;
-  acciones: AccionDisponible[];
-}
-
 /** Item de la Bandeja de Autorizaciones del módulo. */
 export interface PendienteAprobacion {
-  tipo: 'seleccion' | 'rutas' | 'matriz';
+  tipo: 'seleccion' | 'matriz';
   idEntidad: number;
   idSeleccionMensual: number;
   /** Matriz general cuando el documento es de tipo `matriz`. */
@@ -725,8 +728,6 @@ export interface PendienteAprobacion {
   estadoColor: string | null;
   /** Fecha de creación del documento (convención única para ambos tipos). */
   fecha?: string | null;
-  /** Número de versión cuando el documento es de rutas. */
-  versionRutas?: number | null;
   /** Acciones disponibles para el usuario en el paso actual; vacío si no es su turno. */
   acciones: AccionDisponible[];
 }
@@ -781,6 +782,7 @@ export interface Ruta {
 
 export interface GenerarRutasResponse {
   version: number;
+  idRutaVersion: number;
   estrategia: string;
   rutas: Ruta[];
   avisos: string[];
@@ -1081,6 +1083,9 @@ export interface TallerRecurso {
 export interface Taller {
   idTaller: number;
   idRutaVisita: number | null;
+  /** Tipo del taller (catálogo tipo_visita). */
+  idTipoVisita: number | null;
+  tipoVisita: string | null;
   idSeleccionHospital: number | null;
   idHospital: number | null;
   nombreHospital: string | null;
@@ -1173,7 +1178,7 @@ export interface GuardarTallerRecursoRequest {
 
 /** Alta de un taller (campos FOR-005 1–12; hospital/región se derivan de la selección). */
 export interface CrearTallerRequest {
-  /** Tipo de visita (taller, informativa, captación de queja, otro). */
+  /** Tipo del taller (promoción producto nuevo, informativa, captación de queja, otro). */
   idTipoVisita?: number | null;
   /** Visita de la ruta desde la que se crea el taller; hereda hospital, fecha y responsables. */
   idRutaVisita?: number | null;
@@ -1203,6 +1208,8 @@ export interface CrearTallerRequest {
 
 /** Edición de un taller (la liga a la selección/hospital no cambia). */
 export interface ActualizarTallerRequest {
+  /** Tipo del taller; null/omitido = no cambiar. */
+  idTipoVisita?: number | null;
   numeroParticipantes?: number | null;
   unidadMedica?: string | null;
   lugar?: string | null;
@@ -1380,6 +1387,9 @@ export interface MatrizGeneralResumen {
   idEstado: number | null;
   estadoNombre: string | null;
   estadoColor: string | null;
+  idRutaVersion: number | null;
+  version: number | null;
+  estadoRutaVersion: string | null;
   totalTalleres: number;
   costoTotal: number;
 }
@@ -1390,6 +1400,22 @@ export interface MatrizTalleresDetalle extends MatrizGeneralResumen {
   esFinal: boolean;
   talleres: Taller[];
   acciones: AccionDisponible[];
+  ajustesPostCierre: MatrizAjustePostCierre[];
+}
+
+export interface MatrizAjustePostCierre {
+  idAjuste: number;
+  entidadTipo: string;
+  idEntidad: number;
+  idTaller?: number | null;
+  hospital?: string | null;
+  accion: string;
+  valoresAntes?: string | null;
+  valoresDespues?: string | null;
+  motivo: string;
+  idUsuario: number;
+  nombreUsuario?: string | null;
+  fechaAjuste: string;
 }
 
 /** Panel "Matrices por equipo" de la concentración (captura de cada matriz individual). */
@@ -1416,10 +1442,8 @@ export interface MatrizRevision {
   version: number | null;
   estadoRutaVersion: string | null;
   totalVisitas: number;
-  visitasTipoTaller: number;
   visitasConTaller: number;
   visitasSinTaller: number;
-  visitasNoTaller: number;
   totalTalleres: number;
   talleresSinRecursos: number;
   talleresSinCosto: number;
@@ -1485,4 +1509,5 @@ export interface MatrizDocumento {
   talleres: Taller[];
   costoTotal: number;
   firmas: MatrizDocumentoFirma[];
+  ajustesPostCierre: MatrizAjustePostCierre[];
 }

@@ -66,8 +66,8 @@ export function SugerenciasSheet({
             Sugerencias de especialista
           </SheetTitle>
           <SheetDescription className="text-xs leading-relaxed">
-            El sistema propone al especialista que ya estará cerca o que tiene menor carga. Tú
-            decides si lo asignas.
+            El sistema propone al especialista que ya estará cerca, que conoce la zona o que tiene
+            menor carga. Tú decides si lo asignas.
           </SheetDescription>
         </SheetHeader>
 
@@ -150,8 +150,33 @@ export function SugerenciasSheet({
                         {sugerencia.nombreEspecialista}
                       </p>
                       <p className="text-[10px] leading-relaxed text-slate-500 dark:text-slate-400">
-                        {sugerencia.motivo} · {sugerencia.cargaSemana}/8 visitas en la semana
+                        {sugerencia.motivo} · {sugerencia.cargaSemana}/8 visitas en la semana ·{' '}
+                        {sugerencia.cargaMes} en el mes
+                        {sugerencia.tieneDiaConsecutivo ? ' · día consecutivo' : ''}
                       </p>
+                      {sugerencia.haVisitadoHospital && (
+                        <p className="text-[10px] leading-relaxed text-emerald-700 dark:text-emerald-300">
+                          Ya visitó este hospital {sugerencia.visitasRealizadasHospital} vez(ces)
+                          {sugerencia.ultimaVisitaHospital
+                            ? ` · última ${fechaMedia(sugerencia.ultimaVisitaHospital)}`
+                            : ''}
+                        </p>
+                      )}
+                      {(sugerencia.haVisitadoCiudad ||
+                        sugerencia.haVisitadoRegion ||
+                        sugerencia.haVisitadoInstitucion) && (
+                        <p className="text-[10px] leading-relaxed text-slate-500 dark:text-slate-400">
+                          {sugerencia.haVisitadoCiudad
+                            ? `${sugerencia.visitasRealizadasCiudad} visita(s) en ${sugerencia.ciudadMunicipio}`
+                            : ''}
+                          {sugerencia.haVisitadoRegion
+                            ? `${sugerencia.haVisitadoCiudad ? ' · ' : ''}${sugerencia.visitasRealizadasRegion} en la región ${sugerencia.region}`
+                            : ''}
+                          {sugerencia.haVisitadoInstitucion
+                            ? `${sugerencia.haVisitadoCiudad || sugerencia.haVisitadoRegion ? ' · ' : ''}${sugerencia.visitasRealizadasInstitucion} en la institución`
+                            : ''}
+                        </p>
+                      )}
                     </div>
                     <Button
                       size="sm"
@@ -178,10 +203,12 @@ export function SugerenciasSheet({
             <strong className="font-semibold text-slate-700 dark:text-slate-200">
               Cómo funciona:
             </strong>{' '}
-            el sistema busca visitas sin especialista y propone a quien ya estará en la ciudad o
-            tiene menor carga. Revisa la fecha, la ciudad y la capacidad; selecciona una o varias y
-            pulsa <strong>Asignar</strong>. La sugerencia desaparece y el calendario se actualiza.
-            El sistema no asigna automáticamente.
+            el sistema busca visitas sin especialista y propone a quien ya estará en la ciudad,
+            comparte institución, tiene menor carga y evita días consecutivos. También considera
+            cuántas veces ha visitado el hospital, la ciudad, la región o la institución. Revisa la
+            fecha, la ciudad y la capacidad;
+            selecciona una o varias y pulsa <strong>Asignar</strong>. La sugerencia desaparece y el
+            calendario se actualiza. El sistema no asigna automáticamente.
           </p>
           <Button
             className="h-9 w-full rounded-lg bg-[#eb6c36] text-[11px] text-white hover:bg-[#d95a2b]"

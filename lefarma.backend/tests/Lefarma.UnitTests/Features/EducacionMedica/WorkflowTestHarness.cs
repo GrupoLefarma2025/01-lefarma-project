@@ -381,6 +381,7 @@ internal sealed class WorkflowTestHarness
             EsInicio = esInicio,
             EsFinal = esFinal,
             RequiereFirma = requiereFirma,
+            PermiteEditar = !esFinal,
             Activo = true,
         };
         context.WorkflowPasos.Add(paso);

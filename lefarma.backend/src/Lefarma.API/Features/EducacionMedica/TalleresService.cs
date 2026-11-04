@@ -125,6 +125,7 @@ public class TalleresService : ITalleresService
             ct);
         var (nombresEstados, nombresProductos) = await EducacionMedicaNombres.ResolverParaTalleresAsync(
             _asokamContext, talleres, ct);
+        var nombresTiposVisita = await CargarNombresTiposVisitaAsync(ct);
         var solicitudesPendientes = await CargarSolicitudesPendientesAsync(talleres, ct);
 
         response.NombreEjecutivo = idEjecutivo.HasValue
@@ -139,7 +140,9 @@ public class TalleresService : ITalleresService
         response.Talleres = talleres
             .Select(t =>
             {
-                var dto = TallerDtoMapper.Armar(t, nombresHospitales, nombresUsuarios, nombresProductos, nombresEstados);
+                var dto = TallerDtoMapper.Armar(
+                    t, nombresHospitales, nombresUsuarios, nombresProductos, nombresEstados,
+                    nombresTiposVisita);
                 dto.SolicitudCambioPendiente = solicitudesPendientes.GetValueOrDefault(t.IdTaller);
                 return dto;
             })
@@ -205,13 +208,15 @@ public class TalleresService : ITalleresService
             ct);
         var (nombresEstados, nombresProductos) = await EducacionMedicaNombres.ResolverParaTalleresAsync(
             _asokamContext, talleres, ct);
+        var nombresTiposVisita = await CargarNombresTiposVisitaAsync(ct);
         var solicitudesPendientes = await CargarSolicitudesPendientesAsync(talleres, ct);
 
         return talleres
             .Select(t =>
             {
                 var dto = TallerDtoMapper.Armar(
-                    t, nombresHospitales, nombresUsuarios, nombresProductos, nombresEstados);
+                    t, nombresHospitales, nombresUsuarios, nombresProductos, nombresEstados,
+                    nombresTiposVisita);
                 dto.SolicitudCambioPendiente = solicitudesPendientes.GetValueOrDefault(t.IdTaller);
                 return dto;
             })
@@ -220,6 +225,8 @@ public class TalleresService : ITalleresService
 
     public async Task<TallerDto> CrearAsync(CrearTallerRequest request, int idUsuario, CancellationToken ct = default)
     {
+        await ValidarTipoTallerAsync(request.IdTipoVisita, ct);
+
         if (request.EsExtraordinario)
         {
             if (request.IdRutaVisita.HasValue)
@@ -286,30 +293,6 @@ public class TalleresService : ITalleresService
             }
         }
 
-        if (visita is not null && request.IdTipoVisita.HasValue
-            && visita.IdTipoVisita != request.IdTipoVisita.Value)
-        {
-            var permisos = await _permissionService.GetPermissionsAsync(idUsuario);
-            if (!permisos.Contains(Permissions.EducacionMedica.RutasGestionar))
-            {
-                throw new InvalidOperationException(
-                    "No tienes permiso para cambiar el tipo de visita (educacion_medica.rutas.puede_gestionar).");
-            }
-
-            var tipoValido = await _context.TiposVisita.AsNoTracking()
-                .AnyAsync(t => t.IdTipoVisita == request.IdTipoVisita.Value && t.Activo, ct);
-            if (!tipoValido)
-            {
-                throw new InvalidOperationException("El tipo de visita seleccionado no existe o está inactivo.");
-            }
-
-            var visitaTracked = await _context.RutasVisitas
-                .FirstAsync(v => v.IdRutaVisita == visita.IdRutaVisita, ct);
-            visitaTracked.IdTipoVisita = request.IdTipoVisita;
-            visitaTracked.IdUsuarioModificacion = idUsuario;
-            await _context.SaveChangesAsync(ct);
-        }
-
         var seleccion = await _context.SeleccionesMensuales
             .FirstOrDefaultAsync(s => s.IdSeleccionMensual == hospitalSeleccion.IdSeleccionMensual && s.Activo, ct)
             ?? throw new InvalidOperationException("La selección mensual del hospital no existe.");
@@ -347,7 +330,11 @@ public class TalleresService : ITalleresService
             ? new DateOnly(fechaTaller.Value.Year, fechaTaller.Value.Month, 1)
             : new DateOnly(seleccion.FechaSeleccion.Year, seleccion.FechaSeleccion.Month, 1);
 
-        var matrizGeneral = await GetOrCreateMatrizGeneralAsync(seleccion.IdTipoGerencia.Value, periodo, idUsuario, ct);
+        var idRutaVersion = ruta?.IdRutaVersion
+            ?? await ResolverRutaVersionDeSeleccionAsync(seleccion.IdSeleccionMensual, ct);
+
+        var matrizGeneral = await GetOrCreateMatrizGeneralAsync(
+            seleccion.IdTipoGerencia.Value, periodo, idRutaVersion, idUsuario, ct);
         await ValidarMatrizGeneralEditableAsync(matrizGeneral, "capturar talleres", ct);
 
         var matrizIndividual = responsables.Equipo is not null
@@ -359,6 +346,7 @@ public class TalleresService : ITalleresService
         var taller = new Taller
         {
             IdRutaVisita = request.IdRutaVisita,
+            IdTipoVisita = request.IdTipoVisita,
             IdSeleccionHospital = hospitalSeleccion.IdSeleccionHospital,
             IdHospital = hospitalSeleccion.IdHospital ?? visita?.IdHospital,
             Region = hospitalSeleccion.Region,
@@ -455,8 +443,10 @@ public class TalleresService : ITalleresService
         }
 
         var periodo = new DateOnly(fechaTaller.Year, fechaTaller.Month, 1);
+        var idRutaVersion = await ResolverRutaVersionPorGerenciaPeriodoAsync(idTipoGerencia, periodo, ct);
 
-        var matrizGeneral = await GetOrCreateMatrizGeneralAsync(idTipoGerencia, periodo, idUsuario, ct);
+        var matrizGeneral = await GetOrCreateMatrizGeneralAsync(
+            idTipoGerencia, periodo, idRutaVersion, idUsuario, ct);
         var matrizIndividual = await GetOrCreateMatrizIndividualPorEjecutivoAsync(
             equipo.IdEjecutivo, periodo, idUsuario, ct);
 
@@ -464,6 +454,7 @@ public class TalleresService : ITalleresService
         {
             IdSeleccionHospital = null,
             IdHospital = idHospital,
+            IdTipoVisita = request.IdTipoVisita,
             Region = nombreRegion,
             EntidadFederativa = hospital.CodigoEstado,
             CiudadMunicipio = hospital.Ciudad,
@@ -515,6 +506,8 @@ public class TalleresService : ITalleresService
 
     public async Task<TallerDto> ActualizarAsync(int idTaller, ActualizarTallerRequest request, int idUsuario, CancellationToken ct = default)
     {
+        await ValidarTipoTallerAsync(request.IdTipoVisita, ct);
+
         var taller = await _context.Talleres
             .Include(t => t.Recursos)
             .FirstOrDefaultAsync(t => t.IdTaller == idTaller && t.Activo, ct)
@@ -549,6 +542,10 @@ public class TalleresService : ITalleresService
         taller.TipoEquipoProyeccion = request.TipoEquipoProyeccion;
         taller.Observaciones = request.Observaciones;
         taller.Tema = request.Tema;
+        if (request.IdTipoVisita.HasValue)
+        {
+            taller.IdTipoVisita = request.IdTipoVisita;
+        }
         taller.IdUsuarioModificacion = idUsuario;
 
         ReemplazarRecursos(taller, request.Recursos, idUsuario);
@@ -1338,14 +1335,33 @@ public class TalleresService : ITalleresService
         return (int)(parametro?.Valor ?? 2);
     }
 
-    private async Task<MatrizGeneral> GetOrCreateMatrizGeneralAsync(int idTipoGerencia, DateOnly periodo, int idUsuario, CancellationToken ct)
+    private async Task<MatrizGeneral> GetOrCreateMatrizGeneralAsync(
+        int idTipoGerencia,
+        DateOnly periodo,
+        int? idRutaVersion,
+        int idUsuario,
+        CancellationToken ct)
     {
         var matriz = await _context.MatricesGenerales
             .FirstOrDefaultAsync(m => m.IdTipoGerencia == idTipoGerencia && m.Periodo == periodo, ct);
 
         if (matriz is not null)
         {
+            if (idRutaVersion.HasValue && !matriz.IdRutaVersion.HasValue)
+            {
+                await ValidarRutaVersionDeMatrizAsync(idRutaVersion.Value, idTipoGerencia, periodo, ct);
+                matriz.IdRutaVersion = idRutaVersion.Value;
+                matriz.IdUsuarioModificacion = idUsuario;
+                matriz.FechaModificacion = DateTime.UtcNow;
+                await _context.SaveChangesAsync(ct);
+            }
+
             return matriz;
+        }
+
+        if (idRutaVersion.HasValue)
+        {
+            await ValidarRutaVersionDeMatrizAsync(idRutaVersion.Value, idTipoGerencia, periodo, ct);
         }
 
         // La matriz general nace con el primer taller de la gerencia/mes, ya en el paso inicial
@@ -1362,6 +1378,7 @@ public class TalleresService : ITalleresService
         {
             IdTipoGerencia = idTipoGerencia,
             Periodo = periodo,
+            IdRutaVersion = idRutaVersion,
             IdWorkflow = workflow.IdWorkflow,
             IdPasoActual = pasoInicio.IdPaso,
             IdEstado = pasoInicio.IdEstado,
@@ -1371,6 +1388,69 @@ public class TalleresService : ITalleresService
         _context.MatricesGenerales.Add(matriz);
         await _context.SaveChangesAsync(ct);
         return matriz;
+    }
+
+    private async Task<int?> ResolverRutaVersionDeSeleccionAsync(
+        int idSeleccionMensual,
+        CancellationToken ct)
+    {
+        return await _context.RutasVersiones.AsNoTracking()
+            .Where(v => v.IdSeleccionMensual == idSeleccionMensual
+                && v.Estado != RutaVersion.EstadoArchivada
+                && v.Estado != RutaVersion.EstadoCancelada
+                && v.Estado != RutaVersion.EstadoRechazada)
+            .OrderByDescending(v => v.Version)
+            .Select(v => (int?)v.IdRutaVersion)
+            .FirstOrDefaultAsync(ct);
+    }
+
+    private async Task<int?> ResolverRutaVersionPorGerenciaPeriodoAsync(
+        int idTipoGerencia,
+        DateOnly periodo,
+        CancellationToken ct)
+    {
+        return await (
+            from v in _context.RutasVersiones.AsNoTracking()
+            join s in _context.SeleccionesMensuales.AsNoTracking()
+                on v.IdSeleccionMensual equals s.IdSeleccionMensual
+            where s.IdTipoGerencia == idTipoGerencia
+                && s.FechaSeleccion.Year == periodo.Year
+                && s.FechaSeleccion.Month == periodo.Month
+                && v.Estado != RutaVersion.EstadoArchivada
+                && v.Estado != RutaVersion.EstadoCancelada
+                && v.Estado != RutaVersion.EstadoRechazada
+            orderby v.Version descending
+            select (int?)v.IdRutaVersion)
+            .FirstOrDefaultAsync(ct);
+    }
+
+    private async Task ValidarRutaVersionDeMatrizAsync(
+        int idRutaVersion,
+        int idTipoGerencia,
+        DateOnly periodo,
+        CancellationToken ct)
+    {
+        var datos = await (
+            from v in _context.RutasVersiones.AsNoTracking()
+            join s in _context.SeleccionesMensuales.AsNoTracking()
+                on v.IdSeleccionMensual equals s.IdSeleccionMensual
+            where v.IdRutaVersion == idRutaVersion
+            select new { v.IdRutaVersion, s.IdTipoGerencia, s.FechaSeleccion })
+            .FirstOrDefaultAsync(ct)
+            ?? throw new InvalidOperationException($"La versión de rutas {idRutaVersion} no existe.");
+
+        if (datos.IdTipoGerencia != idTipoGerencia)
+        {
+            throw new InvalidOperationException(
+                "La versión de rutas no pertenece a la gerencia de la matriz.");
+        }
+
+        if (datos.FechaSeleccion.Year != periodo.Year
+            || datos.FechaSeleccion.Month != periodo.Month)
+        {
+            throw new InvalidOperationException(
+                "La versión de rutas no pertenece al mes completo de la matriz.");
+        }
     }
 
     /// <summary>Candado de edición estilo OC/Solicitudes: solo en el paso inicial (estado CREADA).</summary>
@@ -1697,6 +1777,27 @@ public class TalleresService : ITalleresService
         return (nombresHospitales, nombresUsuarios);
     }
 
+    private async Task<IReadOnlyDictionary<int, string>> CargarNombresTiposVisitaAsync(
+        CancellationToken ct)
+    {
+        return await _context.TiposVisita.AsNoTracking()
+            .Where(t => t.Activo)
+            .ToDictionaryAsync(t => t.IdTipoVisita, t => t.Descripcion, ct);
+    }
+
+    private async Task ValidarTipoTallerAsync(int? idTipoVisita, CancellationToken ct)
+    {
+        if (!idTipoVisita.HasValue) return;
+
+        var tipoValido = await _context.TiposVisita.AsNoTracking()
+            .AnyAsync(t => t.IdTipoVisita == idTipoVisita.Value && t.Activo, ct);
+        if (!tipoValido)
+        {
+            throw new InvalidOperationException(
+                "El tipo de taller seleccionado no existe o está inactivo.");
+        }
+    }
+
     private async Task<TallerDto> ArmarTallerDtoConNombresAsync(Taller taller, CancellationToken ct)
     {
         var (nombresHospitales, nombresUsuarios) = await ResolverNombresAsync(
@@ -1705,7 +1806,10 @@ public class TalleresService : ITalleresService
             ct);
         var (nombresEstados, nombresProductos) = await EducacionMedicaNombres.ResolverParaTalleresAsync(
             _asokamContext, [taller], ct);
-        return TallerDtoMapper.Armar(taller, nombresHospitales, nombresUsuarios, nombresProductos, nombresEstados);
+        var nombresTiposVisita = await CargarNombresTiposVisitaAsync(ct);
+        return TallerDtoMapper.Armar(
+            taller, nombresHospitales, nombresUsuarios, nombresProductos, nombresEstados,
+            nombresTiposVisita);
     }
 
     private static MatrizIndividualDto ArmarMatrizIndividualDto(

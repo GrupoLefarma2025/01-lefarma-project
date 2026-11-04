@@ -1,6 +1,7 @@
 using Lefarma.API.Domain.Entities.EducacionMedica;
 using Lefarma.API.Domain.Interfaces.EducacionMedica;
 using Lefarma.API.Features.EducacionMedica.DTOs;
+using Lefarma.API.Features.EducacionMedica.Services;
 using Lefarma.API.Infrastructure.Data;
 using Lefarma.API.Shared.Extensions;
 using Microsoft.EntityFrameworkCore;
@@ -33,22 +34,16 @@ public class SeleccionEjecutivoService : ISeleccionEjecutivoService
         int idUsuario,
         CancellationToken ct = default)
     {
-        var seleccion = await _repository.GetByIdAsync(idSeleccionMensual, ct);
+        var seleccion = await ObtenerSeleccionParaEdicionAsync(idSeleccionMensual, ct);
         if (seleccion is null)
         {
             return null;
         }
 
-        if (seleccion.Estado != SeleccionMensual.EstadoCreada)
-        {
-            throw new InvalidOperationException(
-                $"La selección está {seleccion.Estado}; solo se puede editar en estado Creada.");
-        }
-
         var region = await _repository.GetRegionByIdAsync(idRegion, ct);
         if (region is null || region.IdSeleccionMensual != idSeleccionMensual)
         {
-            throw new InvalidOperationException($"La región {idRegion} no pertenece a la selección {idSeleccionMensual}.");
+            throw new InvalidOperationException($"La región {idRegion} no pertenece a esta selección.");
         }
 
         await ValidarEjecutivoAsync(request.IdEjecutivo, region, seleccion, ct);
@@ -83,23 +78,17 @@ public class SeleccionEjecutivoService : ISeleccionEjecutivoService
         int idUsuario,
         CancellationToken ct = default)
     {
-        var seleccion = await _repository.GetByIdAsync(idSeleccionMensual, ct);
+        var seleccion = await ObtenerSeleccionParaEdicionAsync(idSeleccionMensual, ct);
         if (seleccion is null)
         {
             return null;
-        }
-
-        if (seleccion.Estado != SeleccionMensual.EstadoCreada)
-        {
-            throw new InvalidOperationException(
-                $"La selección está {seleccion.Estado}; solo se puede editar en estado Creada.");
         }
 
         var hospital = await _repository.GetHospitalByIdAsync(idSeleccionHospital, ct);
         if (hospital is null || hospital.IdSeleccionMensual != idSeleccionMensual)
         {
             throw new InvalidOperationException(
-                $"El hospital {idSeleccionHospital} no pertenece a la selección {idSeleccionMensual}.");
+                $"El hospital {idSeleccionHospital} no pertenece a esta selección.");
         }
 
         if (request.IdEjecutivo.HasValue)
@@ -149,6 +138,30 @@ public class SeleccionEjecutivoService : ISeleccionEjecutivoService
             NombreEjecutivo = nombreEjecutivo,
             IdEspecialista = hospital.IdEspecialista,
         };
+    }
+
+    private async Task<SeleccionMensual?> ObtenerSeleccionParaEdicionAsync(
+        int idSeleccionMensual,
+        CancellationToken ct)
+    {
+        var seleccion = await _repository.GetByIdAsync(idSeleccionMensual, ct);
+        if (seleccion is null)
+        {
+            return null;
+        }
+
+        var paso = seleccion.IdPasoActual.HasValue
+            ? await _context.WorkflowPasos.AsNoTracking()
+                .FirstOrDefaultAsync(p => p.IdPaso == seleccion.IdPasoActual.Value, ct)
+            : null;
+
+        if (!SeleccionEditablePolicy.EsEditable(seleccion, paso))
+        {
+            throw new InvalidOperationException(
+                $"La selección ya no admite cambios en su paso actual ({paso?.NombrePaso ?? seleccion.Estado}).");
+        }
+
+        return seleccion;
     }
 
     private async Task ValidarEjecutivoAsync(

@@ -14,5 +14,6 @@ public interface IAsignadorEspecialistasService
         int idSeleccionMensual,
         DateOnly? desde,
         DateOnly? hasta,
+        int? idRutaVisita = null,
         CancellationToken ct = default);
 }

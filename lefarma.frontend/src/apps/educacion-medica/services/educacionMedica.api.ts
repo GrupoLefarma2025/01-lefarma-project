@@ -56,9 +56,7 @@ import type {
   FirmarWorkflowRequest,
   AccionDisponible,
   HistorialWorkflowItem,
-  RutaVersionDto,
   PendienteAprobacion,
-  AgruparSeleccionResponse,
   SeleccionHospital,
   SeleccionRegion,
   Ruta,
@@ -334,10 +332,6 @@ export const educacionMedicaApi = {
       API.delete<ApiResponse<unknown>>(
         `${BASE}/selecciones-mensuales/${idSeleccionMensual}/hospitales/${idSeleccionHospital}`
       ),
-    agrupar: (idSeleccionMensual: number) =>
-      API.post<ApiResponse<AgruparSeleccionResponse>>(
-        `${BASE}/selecciones-mensuales/${idSeleccionMensual}/agrupar`
-      ),
     asignarEquipo: (
       idSeleccionMensual: number,
       idRegion: number,
@@ -382,10 +376,6 @@ export const educacionMedicaApi = {
     hospitalesCercanos: (idSeleccionMensual: number) =>
       API.get<ApiResponse<HospitalCercanoOtraSeleccion[]>>(
         `${BASE}/selecciones-mensuales/${idSeleccionMensual}/hospitales-cercanos`
-      ),
-    enviarRevision: (idSeleccionMensual: number) =>
-      API.post<ApiResponse<SeleccionMensual>>(
-        `${BASE}/selecciones-mensuales/${idSeleccionMensual}/enviar-revision`
       ),
     firmar: (idSeleccionMensual: number, payload: FirmarWorkflowRequest) =>
       API.post<ApiResponse<SeleccionMensual>>(
@@ -444,23 +434,31 @@ export const educacionMedicaApi = {
           ...(filtro.desde ? { desde: filtro.desde } : {}),
           ...(filtro.hasta ? { hasta: filtro.hasta } : {}),
           ...(filtro.idGerencia ? { idGerencia: filtro.idGerencia } : {}),
+          ...(filtro.idGerencias?.length ? { idGerencias: filtro.idGerencias } : {}),
           ...(filtro.idRegion ? { idRegion: filtro.idRegion } : {}),
           ...(filtro.idEjecutivo ? { idEjecutivo: filtro.idEjecutivo } : {}),
           ...(filtro.idEspecialista ? { idEspecialista: filtro.idEspecialista } : {}),
           ...(filtro.estado ? { estado: filtro.estado } : {}),
           ...(filtro.tipoVisita ? { tipoVisita: filtro.tipoVisita } : {}),
         },
+        paramsSerializer: { indexes: null },
       }),
     getById: (idRutaVisita: number) =>
       API.get<ApiResponse<CalendarioItem>>(`${BASE}/calendario/${idRutaVisita}`),
     actividad: (idRutaVisita: number) =>
       API.get<ApiResponse<ActividadVisita>>(`${BASE}/calendario/visitas/${idRutaVisita}/actividad`),
-    sugerencias: (idSeleccion: number, desde?: string, hasta?: string) =>
+    sugerencias: (
+      idSeleccion: number,
+      desde?: string,
+      hasta?: string,
+      idRutaVisita?: number | null
+    ) =>
       API.get<ApiResponse<SugerenciaEspecialista[]>>(`${BASE}/calendario/sugerencias`, {
         params: {
           idSeleccion,
           ...(desde ? { desde } : {}),
           ...(hasta ? { hasta } : {}),
+          ...(idRutaVisita ? { idRutaVisita } : {}),
         },
       }),
     asignarEspecialista: (idRutaVisita: number, idEspecialista: number | null) =>
@@ -478,20 +476,6 @@ export const educacionMedicaApi = {
       API.post<ApiResponse<GenerarRutasResponse>>(
         `${BASE}/selecciones-mensuales/${idSeleccionMensual}/rutas/generar`,
         { estrategia }
-      ),
-    version: (idSeleccionMensual: number, version?: number) =>
-      API.get<ApiResponse<RutaVersionDto | null>>(
-        `${BASE}/selecciones-mensuales/${idSeleccionMensual}/rutas/version`,
-        { params: version !== undefined ? { version } : undefined }
-      ),
-    firmarVersion: (idRutaVersion: number, payload: FirmarWorkflowRequest) =>
-      API.post<ApiResponse<RutaVersionDto>>(
-        `${BASE}/rutas/version/${idRutaVersion}/firmar`,
-        payload
-      ),
-    historialVersion: (idRutaVersion: number) =>
-      API.get<ApiResponse<HistorialWorkflowItem[]>>(
-        `${BASE}/rutas/version/${idRutaVersion}/historial`
       ),
     cancelar: (idSeleccionMensual: number, payload: CancelarRutasRequest) =>
       API.post<ApiResponse<Ruta[]>>(

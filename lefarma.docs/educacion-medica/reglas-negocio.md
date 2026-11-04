@@ -635,8 +635,15 @@ Esta es la **sección central**: las reglas de negocio que el módulo implementa
 ### 5.5 Propuesta del sistema → corrección humana (draft→select)
 
 - **El sistema propone una distribución draft (optimizada)** respetando capacidad (§5.2), pareo (§5.3) y zonas (§5.4).
-- **Los humanos seleccionan/corrigen** la asignación final. El sistema no asigna en automático; propone.
+- **Los humanos seleccionan/corrige** la asignación final. El sistema no asigna en automático; propone.
 - Una vez **cerrada** la versión de rutas, los cambios puntuales (fecha, hora, orden, altas/bajas) ya no reabren el flujo: se aplican como **ajuste post-cierre auditado** (§5.11) o, para el equipo, como **solicitud de cambio** resuelta por el Coordinador de Educación Médica.
+- Las versiones de rutas **Archivada**, **Cancelada** y **Rechazada** son de **solo lectura**: no permiten crear talleres, reprogramar visitas ni reasignar responsables.
+- Si una visita ya tiene **talleres capturados**, no se puede reprogramar hasta ajustarlos o eliminarlos. La validación se hace en el backend y la UI muestra el motivo.
+- No se puede **regenerar la propuesta** de rutas mientras existan talleres capturados en la selección. Primero se ajustan o eliminan los talleres; después se regenera y la matriz se reenlaza a la nueva versión.
+- Las **sugerencias de especialistas** solo consideran rutas activas; no cuentan visitas de versiones archivadas, canceladas o rechazadas. El antecedente de talleres **Realizado** forma parte del score: mismo hospital, misma institución, misma ciudad y misma región, siempre con fecha anterior a la visita. El conteo real se muestra en la sugerencia y el bono se limita con `sugerencia_tope_historial`.
+- El cálculo **distribuye provisionalmente** las sugerencias del mismo lote: al proponer una visita, esa asignación cuenta para la carga de las siguientes, sin persistirse hasta que el usuario la aplique. Así se respetan los máximos diarios/semanales y no se concentra todo en el primer especialista. Las visitas de la misma ciudad y fecha pueden compartir especialista; un especialista no se propone para dos ciudades distintas el mismo día.
+- La comparación de **ciudad y región** ignora mayúsculas, acentos y espacios; por ejemplo, `LEON` y `León` se consideran la misma ciudad.
+- Los **pesos de la sugerencia de especialistas** son globales y configurables en **Configuración > Scoring**. Se guardan en `parametros_modulo`; los topes de visitas por día y por semana siguen siendo parámetros independientes. No se mezclan con `config_ranking`, que conserva su propio versionado.
 
 ### 5.6 Contenido de cada taller / visita
 
@@ -838,6 +845,25 @@ Consolidado de todos los valores que el área puede ajustar **en cualquier momen
 | Máx visitas/día por persona | **3** | Techo de capacidad diaria |
 | Máx visitas/semana por persona | **8** | A la vez objetivo y techo |
 | Días límite para ajuste post-cierre | **45** | `dias_limite_cambio`: máximo de días hacia atrás (desde hoy contra la fecha original del taller/visita) para permitir un ajuste (§5.11) |
+
+### 7.1 Pesos de la sugerencia de especialistas
+
+Se editan en **Configuración > Scoring** y se guardan en `parametros_modulo` (scripts 0044 y 0045).
+
+| Parámetro | Default | Regla |
+|---|---:|---|
+| `sugerencia_peso_misma_ciudad_dia` | 100 | Puntos si el especialista ya tiene visita en la misma ciudad y fecha |
+| `sugerencia_peso_misma_ciudad_cerca` | 50 | Puntos si tiene visita en la misma ciudad dentro de la ventana |
+| `sugerencia_peso_misma_institucion` | 25 | Puntos si tiene visita en la misma institución dentro de la ventana |
+| `sugerencia_penalizacion_dia_consecutivo` | 20 | Puntos que se restan por visita el día anterior o siguiente |
+| `sugerencia_factor_carga_semana` | 1 | Puntos que se restan por visita en la semana |
+| `sugerencia_factor_carga_mes` | 1 | Puntos que se restan por visita en el mes |
+| `sugerencia_ventana_dias_cercania` | 1 | Días hacia atrás y adelante para ciudad o institución cercana |
+| `sugerencia_peso_historial_hospital` | 5 | Puntos por visita previa al mismo hospital; máximo 3 visitas contadas |
+| `sugerencia_peso_historial_institucion` | 5 | Puntos una vez si ya visitó otro hospital de la misma institución |
+| `sugerencia_peso_historial_ciudad` | 3 | Puntos por visita previa en la misma ciudad; máximo 3 visitas contadas |
+| `sugerencia_peso_historial_region` | 2 | Puntos por visita previa en la misma región; máximo 3 visitas contadas |
+| `sugerencia_tope_historial` | 25 | Tope total del bono por historial |
 
 ---
 

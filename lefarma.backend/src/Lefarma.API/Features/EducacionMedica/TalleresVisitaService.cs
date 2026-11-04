@@ -85,18 +85,6 @@ public class TalleresVisitaService : ITalleresVisitaService
             }
         }
 
-        var idTipoVisita = request.IdTipoVisita ?? visita.IdTipoVisita;
-        if (idTipoVisita.HasValue)
-        {
-            var tipoValido = await _context.TiposVisita
-                .AsNoTracking()
-                .AnyAsync(t => t.IdTipoVisita == idTipoVisita.Value && t.Activo, ct);
-            if (!tipoValido)
-            {
-                throw new InvalidOperationException("El tipo de visita seleccionado no existe o está inactivo.");
-            }
-        }
-
         var orden = (await _context.RutasVisitas
             .AsNoTracking()
             .Where(v => v.IdRuta == ruta.IdRuta && v.FechaVisita == request.FechaTaller.Value)
@@ -109,7 +97,7 @@ public class TalleresVisitaService : ITalleresVisitaService
             new AgregarVisitaRequest
             {
                 IdSeleccionHospital = visita.IdSeleccionHospital.Value,
-                IdTipoVisita = idTipoVisita,
+                IdTipoVisita = null,
                 FechaVisita = request.FechaTaller.Value,
                 Orden = orden,
                 Motivo = request.MotivoAjuste,

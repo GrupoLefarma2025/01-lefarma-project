@@ -17,7 +17,7 @@ interface MatrizEquiposTableProps {
   /** Talleres de la matriz general (para calcular el costo por equipo). */
   talleres: Taller[];
   loading?: boolean;
-  /** Visitas tipo taller sin taller capturado para el equipo. */
+  /** Visitas planeadas sin taller confirmado para el equipo. */
   visitasSinTaller?: (equipo: ConcentracionEquipo) => number;
   onVerDetalle: (equipo: ConcentracionEquipo) => void;
 }
@@ -74,16 +74,16 @@ export function MatrizEquiposTable({
       },
       {
         id: 'visitasSinTaller',
-        header: 'Visitas sin taller',
+        header: 'Planeadas sin taller',
         cell: ({ row }) => {
           const total = visitasSinTaller?.(row.original) ?? 0;
           if (total === 0) {
-            return <span className="text-muted-foreground">—</span>;
+            return <span className="text-muted-foreground">-</span>;
           }
           return (
             <Badge
               variant="outline"
-              className="border-amber-300 text-[10px] text-amber-700 dark:border-amber-800 dark:text-amber-300"
+              className="border-slate-300 text-[10px] text-slate-600 dark:border-slate-700 dark:text-slate-300"
             >
               {total}
             </Badge>

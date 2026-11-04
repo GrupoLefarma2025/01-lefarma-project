@@ -1,17 +1,15 @@
-import { AlertTriangle, CheckCircle2, Info, Lock, Unlock } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
+import { AlertTriangle, CheckCircle2, Info } from 'lucide-react';
 import type { MatrizRevision } from '../../../types/educacionMedica.types';
 
 interface SaludMatrizCardProps {
   revision: MatrizRevision | null;
-  capturaAbierta: boolean;
   loading?: boolean;
 }
 
 const indicadores = (revision: MatrizRevision) => [
-  { label: 'Visitas tipo taller', value: revision.visitasTipoTaller },
+  { label: 'Visitas planeadas', value: revision.totalVisitas },
   { label: 'Con taller', value: revision.visitasConTaller },
-  { label: 'Sin taller', value: revision.visitasSinTaller, alerta: revision.visitasSinTaller > 0 },
+  { label: 'Sin taller', value: revision.visitasSinTaller },
   { label: 'Talleres', value: revision.totalTalleres },
   { label: 'Sin recursos', value: revision.talleresSinRecursos, alerta: revision.talleresSinRecursos > 0 },
   { label: 'Sin costo', value: revision.talleresSinCosto, alerta: revision.talleresSinCosto > 0 },
@@ -27,29 +25,16 @@ const indicadores = (revision: MatrizRevision) => [
   },
 ];
 
-export function SaludMatrizCard({ revision, capturaAbierta, loading }: SaludMatrizCardProps) {
+export function SaludMatrizCard({ revision, loading }: SaludMatrizCardProps) {
   return (
     <div className="rounded-2xl border border-slate-200/80 bg-card p-4 shadow-[0_1px_2px_rgba(15,23,42,0.03)] dark:border-slate-800">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <p className="text-sm font-semibold tracking-tight text-slate-800 dark:text-slate-100">
-            Salud de la matriz
-          </p>
-          <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
-            Cobertura contra las visitas de la versión de rutas activa.
-          </p>
-        </div>
-        <Badge
-          variant="outline"
-          className={
-            capturaAbierta
-              ? 'gap-1 rounded-full border-emerald-300 text-[10px] text-emerald-700 dark:border-emerald-800 dark:text-emerald-300'
-              : 'gap-1 rounded-full border-amber-300 text-[10px] text-amber-700 dark:border-amber-800 dark:text-amber-300'
-          }
-        >
-          {capturaAbierta ? <Unlock className="h-3 w-3" /> : <Lock className="h-3 w-3" />}
-          {capturaAbierta ? 'Captura abierta' : 'Captura cerrada'}
-        </Badge>
+      <div>
+        <p className="text-sm font-semibold tracking-tight text-slate-800 dark:text-slate-100">
+          Salud de la matriz
+        </p>
+        <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
+          Visitas planeadas contra talleres confirmados de la versión de rutas activa.
+        </p>
       </div>
 
       {loading ? (
@@ -91,8 +76,8 @@ export function SaludMatrizCard({ revision, capturaAbierta, loading }: SaludMatr
           {revision.visitasSinTaller > 0 && (
             <p className="mt-3 flex items-start gap-2 rounded-lg border border-sky-200 bg-sky-50/60 px-3 py-2 text-[11px] leading-relaxed text-sky-800 dark:border-sky-900/60 dark:bg-sky-950/20 dark:text-sky-300">
               <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-              No todas las visitas requieren taller. Si el hospital no tenía disponibilidad, la visita
-              sin taller puede ser intencional; confírmalo antes de enviar la matriz.
+              Una visita sin taller es normal: puede que aún no se haya llegado a un acuerdo con el
+              hospital o que no se realice. No bloquea el envío de la matriz.
             </p>
           )}
 

@@ -15,6 +15,9 @@
 --
 --   NO aplica el script solo: lo revisa y ejecuta el usuario.
 --
+--   PARA BD NUEVA: NO ejecutar. IMSS Bienestar y sus regiones/estados ya estan
+--   integrados en 0030; este archivo queda para entornos existentes.
+--
 -- REQUISITOS
 --   - 0016 aplicado (y 0030 para los catálogos base).
 --

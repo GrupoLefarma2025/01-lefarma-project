@@ -23,7 +23,18 @@ public interface ISeleccionMensualService
         int idUsuario,
         CancellationToken ct = default);
 
-    Task QuitarHospitalAsync(int idSeleccionMensual, int idSeleccionHospital, CancellationToken ct = default);
+    Task QuitarHospitalAsync(
+        int idSeleccionMensual,
+        int idSeleccionHospital,
+        int idUsuario,
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// Asigna a su región de catálogo los hospitales que aún no tienen región, recalcula
+    /// cantidades/centroides y elimina las regiones vacías. Los hospitales sin región de
+    /// catálogo permanecen en "Sin región".
+    /// </summary>
+    Task SincronizarRegionesAsync(int idSeleccionMensual, int idUsuario, CancellationToken ct = default);
 
     Task<DTOs.AgruparSeleccionResponse> AgruparAsync(int idSeleccionMensual, int idUsuario, CancellationToken ct = default);
 

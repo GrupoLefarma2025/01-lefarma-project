@@ -50,6 +50,8 @@ public class Taller
     public int? IdMatrizIndividual { get; set; }
     public int? IdMatrizGeneral { get; set; }
     public int? IdRutaVisita { get; set; }
+    /// <summary>Tipo del taller (catálogo tipo_visita): promoción, informativa, captación de queja, otro.</summary>
+    public int? IdTipoVisita { get; set; }
     public int? IdTemaTaller { get; set; }
     public string? Tema { get; set; }
 

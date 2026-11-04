@@ -34,6 +34,7 @@ export function CalendarioEvento({
   const esMes = variante === 'mes';
   const esMatriz = variante === 'matriz';
   const compacto = esMes || esMatriz;
+  const ubicacion = [item.entidadFederativa, item.ciudadMunicipio].filter(Boolean).join(' · ');
 
   return (
     <div
@@ -59,7 +60,7 @@ export function CalendarioEvento({
         compacto ? 'px-2 py-1.5' : 'px-2.5 py-2',
         onDragStart ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer',
       ].join(' ')}
-      title={`${item.hospital ?? 'Hospital'} · ${item.gerencia}`}
+      title={`${item.hospital ?? 'Hospital'} · ${item.gerencia}${ubicacion ? ` · ${ubicacion}` : ''}`}
     >
       <span
         className={`absolute inset-y-0 left-0 w-[3px] ${estilo.barra} ${
@@ -79,6 +80,12 @@ export function CalendarioEvento({
             <span className="mt-0.5 flex min-w-0 items-center gap-1 text-[10px] opacity-65">
               <MapPin className="h-2.5 w-2.5 shrink-0" />
               <span className="truncate">{item.region ?? item.gerencia}</span>
+            </span>
+          )}
+          {!esMes && ubicacion && (
+            <span className="mt-0.5 flex min-w-0 items-center gap-1 pl-1 text-[9px] opacity-55">
+              <MapPin className="h-2.5 w-2.5 shrink-0" />
+              <span className="truncate">{ubicacion}</span>
             </span>
           )}
         </span>

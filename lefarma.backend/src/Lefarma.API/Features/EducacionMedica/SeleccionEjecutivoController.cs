@@ -12,7 +12,7 @@ namespace Lefarma.API.Features.EducacionMedica;
 [Route("api/educacion-medica/selecciones-mensuales")]
 [EndpointGroupName("EducacionMedica")]
 [Authorize]
-[HasPermission(Permissions.EducacionMedica.SeleccionesGestionar)]
+[HasAnyPermission(Permissions.EducacionMedica.SeleccionesGestionar, Permissions.EducacionMedica.SeleccionesAutorizar)]
 public class SeleccionEjecutivoController : ControllerBase
 {
     private readonly ISeleccionEjecutivoService _service;

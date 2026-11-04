@@ -34,6 +34,8 @@ public class SeleccionMensualDto
     public string? NombreUsuarioCreacion { get; set; }
     /// <summary>Acciones del motor disponibles para el usuario en el paso actual; vacío si no es su turno.</summary>
     public List<AccionDisponibleResponse> Acciones { get; set; } = [];
+    /// <summary>Indica si el documento admite edición en su paso actual y estado (sin considerar permisos del usuario).</summary>
+    public bool PermiteEdicion { get; set; }
 }
 
 public class SeleccionHospitalDto

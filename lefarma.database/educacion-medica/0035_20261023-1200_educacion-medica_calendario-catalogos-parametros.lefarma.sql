@@ -6,11 +6,22 @@
 --   - rutas_visitas.id_tipo_visita (FK tipo_visita).
 --   - talleres.id_tema_taller (FK tema_taller).
 --   - parametros_modulo.tipo / valor_texto (numero | booleano | texto | enum).
---   - Siembra los parámetros de capacidad, metas, producto y autorización.
---   - Siembra los tipos de visita base.
+--   - Siembra los parámetros de capacidad, metas, producto, autorización,
+--     candado de matriz, cambios de taller y sugerencia de especialistas.
+--   - Siembra los tipos de visita finales (incluye TALLER como
+--     "Promoción producto nuevo" y es_taller = 0, según 0041).
 --
 --   NO aplica el script solo: lo revisa y ejecuta el usuario.
 --   Para instalación limpia, 0016 integra las tablas/columnas; 0035 siembra.
+--   Este script absorbe los seeds de 0036, 0041, 0044 y 0045, por lo que en
+--   una BD nueva NO deben ejecutarse esos incrementales.
+--
+-- ORDEN DE INSTALACIÓN LIMPIA (solo Educación Médica)
+--   1) 0016  esquema completo
+--   2) 0030  catálogos base y backfills
+--   3) 0035  este script (catálogos de calendario y parámetros)
+--   4) 0018  workflows de selección, rutas y matriz
+--   5) 0037  limpieza opcional (manual/educacion-medica)
 --
 -- REQUISITOS
 --   - 0016 aplicado.
@@ -89,7 +100,7 @@ BEGIN TRY
     EXEC(N'
     IF NOT EXISTS (SELECT 1 FROM educacion_medica.tipo_visita WHERE clave = ''TALLER'')
         INSERT INTO educacion_medica.tipo_visita (clave, descripcion, es_taller, activo)
-        VALUES (''TALLER'', N''Taller'', 1, 1);
+        VALUES (''TALLER'', N''Promoción producto nuevo'', 0, 1);
     IF NOT EXISTS (SELECT 1 FROM educacion_medica.tipo_visita WHERE clave = ''INFORMATIVA'')
         INSERT INTO educacion_medica.tipo_visita (clave, descripcion, es_taller, activo)
         VALUES (''INFORMATIVA'', N''Informativa'', 0, 1);
@@ -98,7 +109,14 @@ BEGIN TRY
         VALUES (''CAPTACION_QUEJA'', N''Captación de queja'', 0, 1);
     IF NOT EXISTS (SELECT 1 FROM educacion_medica.tipo_visita WHERE clave = ''OTRO'')
         INSERT INTO educacion_medica.tipo_visita (clave, descripcion, es_taller, activo)
-        VALUES (''OTRO'', N''Otro'', 0, 1);');
+        VALUES (''OTRO'', N''Otro'', 0, 1);
+
+    UPDATE educacion_medica.tipo_visita
+       SET descripcion = N''Promoción producto nuevo'',
+           es_taller = 0,
+           fecha_modificacion = SYSUTCDATETIME()
+     WHERE clave = ''TALLER''
+       AND descripcion = N''Taller'';');
     PRINT 'Tipos de visita base sembrados/verificados.';
 
     -- =========================================================================
@@ -228,7 +246,67 @@ BEGIN TRY
 
     IF NOT EXISTS (SELECT 1 FROM educacion_medica.parametros_modulo WHERE clave = ''meta_talleres_mes_descentralizado'')
         INSERT INTO educacion_medica.parametros_modulo (clave, valor, tipo, valor_texto, descripcion)
-        VALUES (''meta_talleres_mes_descentralizado'', 64, ''numero'', NULL, N''Meta mensual configurable para Descentralizado.'');');
+        VALUES (''meta_talleres_mes_descentralizado'', 64, ''numero'', NULL, N''Meta mensual configurable para Descentralizado.'');
+
+    IF NOT EXISTS (SELECT 1 FROM educacion_medica.parametros_modulo WHERE clave = ''umbral_cambio_costo_reautorizacion'')
+        INSERT INTO educacion_medica.parametros_modulo (clave, valor, tipo, valor_texto, descripcion)
+        VALUES (''umbral_cambio_costo_reautorizacion'', 0, ''numero'', NULL, N''Delta de costo que obliga a reautorizar la matriz; 0 = sin umbral.'');
+
+    IF NOT EXISTS (SELECT 1 FROM educacion_medica.parametros_modulo WHERE clave = ''permite_cambio_hospital'')
+        INSERT INTO educacion_medica.parametros_modulo (clave, valor, tipo, valor_texto, descripcion)
+        VALUES (''permite_cambio_hospital'', 1, ''booleano'', NULL, N''1 = la solicitud de taller puede cambiar el hospital dentro del alcance permitido.'');
+
+    IF NOT EXISTS (SELECT 1 FROM educacion_medica.parametros_modulo WHERE clave = ''permite_cambio_producto'')
+        INSERT INTO educacion_medica.parametros_modulo (clave, valor, tipo, valor_texto, descripcion)
+        VALUES (''permite_cambio_producto'', 1, ''booleano'', NULL, N''1 = la solicitud de taller puede cambiar producto/cantidad y recalcular costos.'');
+
+    IF NOT EXISTS (SELECT 1 FROM educacion_medica.parametros_modulo WHERE clave = ''sugerencia_peso_misma_ciudad_dia'')
+        INSERT INTO educacion_medica.parametros_modulo (clave, valor, tipo, valor_texto, descripcion)
+        VALUES (''sugerencia_peso_misma_ciudad_dia'', 100, ''numero'', NULL, N''Puntos cuando el especialista ya tiene visita en la misma ciudad el mismo día.'');
+
+    IF NOT EXISTS (SELECT 1 FROM educacion_medica.parametros_modulo WHERE clave = ''sugerencia_peso_misma_ciudad_cerca'')
+        INSERT INTO educacion_medica.parametros_modulo (clave, valor, tipo, valor_texto, descripcion)
+        VALUES (''sugerencia_peso_misma_ciudad_cerca'', 50, ''numero'', NULL, N''Puntos cuando el especialista tiene visita en la misma ciudad dentro de la ventana de cercanía.'');
+
+    IF NOT EXISTS (SELECT 1 FROM educacion_medica.parametros_modulo WHERE clave = ''sugerencia_peso_misma_institucion'')
+        INSERT INTO educacion_medica.parametros_modulo (clave, valor, tipo, valor_texto, descripcion)
+        VALUES (''sugerencia_peso_misma_institucion'', 25, ''numero'', NULL, N''Puntos cuando el especialista tiene visita en la misma institución dentro de la ventana de cercanía.'');
+
+    IF NOT EXISTS (SELECT 1 FROM educacion_medica.parametros_modulo WHERE clave = ''sugerencia_penalizacion_dia_consecutivo'')
+        INSERT INTO educacion_medica.parametros_modulo (clave, valor, tipo, valor_texto, descripcion)
+        VALUES (''sugerencia_penalizacion_dia_consecutivo'', 20, ''numero'', NULL, N''Puntos que se restan cuando el especialista tiene visita el día anterior o siguiente.'');
+
+    IF NOT EXISTS (SELECT 1 FROM educacion_medica.parametros_modulo WHERE clave = ''sugerencia_factor_carga_semana'')
+        INSERT INTO educacion_medica.parametros_modulo (clave, valor, tipo, valor_texto, descripcion)
+        VALUES (''sugerencia_factor_carga_semana'', 1, ''numero'', NULL, N''Puntos que se restan por cada visita del especialista en la semana.'');
+
+    IF NOT EXISTS (SELECT 1 FROM educacion_medica.parametros_modulo WHERE clave = ''sugerencia_factor_carga_mes'')
+        INSERT INTO educacion_medica.parametros_modulo (clave, valor, tipo, valor_texto, descripcion)
+        VALUES (''sugerencia_factor_carga_mes'', 1, ''numero'', NULL, N''Puntos que se restan por cada visita del especialista en el mes.'');
+
+    IF NOT EXISTS (SELECT 1 FROM educacion_medica.parametros_modulo WHERE clave = ''sugerencia_ventana_dias_cercania'')
+        INSERT INTO educacion_medica.parametros_modulo (clave, valor, tipo, valor_texto, descripcion)
+        VALUES (''sugerencia_ventana_dias_cercania'', 1, ''numero'', NULL, N''Días hacia atrás y adelante para considerar misma ciudad o institución cercana.'');
+
+    IF NOT EXISTS (SELECT 1 FROM educacion_medica.parametros_modulo WHERE clave = ''sugerencia_peso_historial_hospital'')
+        INSERT INTO educacion_medica.parametros_modulo (clave, valor, tipo, valor_texto, descripcion)
+        VALUES (''sugerencia_peso_historial_hospital'', 5, ''numero'', NULL, N''Puntos por cada visita realizada al mismo hospital; se cuentan hasta 3 visitas.'');
+
+    IF NOT EXISTS (SELECT 1 FROM educacion_medica.parametros_modulo WHERE clave = ''sugerencia_peso_historial_institucion'')
+        INSERT INTO educacion_medica.parametros_modulo (clave, valor, tipo, valor_texto, descripcion)
+        VALUES (''sugerencia_peso_historial_institucion'', 5, ''numero'', NULL, N''Puntos una vez cuando el especialista ya visitó otro hospital de la misma institución.'');
+
+    IF NOT EXISTS (SELECT 1 FROM educacion_medica.parametros_modulo WHERE clave = ''sugerencia_peso_historial_ciudad'')
+        INSERT INTO educacion_medica.parametros_modulo (clave, valor, tipo, valor_texto, descripcion)
+        VALUES (''sugerencia_peso_historial_ciudad'', 3, ''numero'', NULL, N''Puntos por cada visita realizada en la misma ciudad; se cuentan hasta 3 visitas.'');
+
+    IF NOT EXISTS (SELECT 1 FROM educacion_medica.parametros_modulo WHERE clave = ''sugerencia_peso_historial_region'')
+        INSERT INTO educacion_medica.parametros_modulo (clave, valor, tipo, valor_texto, descripcion)
+        VALUES (''sugerencia_peso_historial_region'', 2, ''numero'', NULL, N''Puntos por cada visita realizada en la misma región; se cuentan hasta 3 visitas.'');
+
+    IF NOT EXISTS (SELECT 1 FROM educacion_medica.parametros_modulo WHERE clave = ''sugerencia_tope_historial'')
+        INSERT INTO educacion_medica.parametros_modulo (clave, valor, tipo, valor_texto, descripcion)
+        VALUES (''sugerencia_tope_historial'', 25, ''numero'', NULL, N''Máximo de puntos que puede aportar el historial completo a una sugerencia.'');');
     PRINT 'Parámetros del calendario sembrados/verificados.';
 
     COMMIT TRANSACTION;

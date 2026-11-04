@@ -60,6 +60,13 @@ public class CalendarioService : ICalendarioService
             query = query.Where(x => x.s.IdTipoGerencia == filtro.IdGerencia.Value);
         }
 
+        if (filtro.IdGerencias is { Count: > 0 })
+        {
+            query = query.Where(x =>
+                x.s.IdTipoGerencia.HasValue &&
+                filtro.IdGerencias.Contains(x.s.IdTipoGerencia.Value));
+        }
+
         if (filtro.IdRegion.HasValue)
         {
             query = query.Where(x => x.h != null && x.h.IdRegion == filtro.IdRegion.Value);
@@ -85,7 +92,9 @@ public class CalendarioService : ICalendarioService
         var talleres = await _context.Talleres
             .AsNoTracking()
             .Include(t => t.Recursos)
-            .Where(t => t.IdRutaVisita.HasValue && idsVisitas.Contains(t.IdRutaVisita.Value))
+            .Where(t => t.Activo
+                && t.IdRutaVisita.HasValue
+                && idsVisitas.Contains(t.IdRutaVisita.Value))
             .ToListAsync(ct);
         var tallerPorVisita = talleres
             .GroupBy(t => t.IdRutaVisita!.Value)
@@ -231,8 +240,9 @@ public class CalendarioService : ICalendarioService
 
                 var idEjecutivo = visita.IdEjecutivo ?? taller?.IdEjecutivo;
                 var idEspecialista = visita.IdEspecialista ?? taller?.IdEspecialista;
-                var tipoVisita = visita.IdTipoVisita.HasValue
-                    ? tiposVisita.GetValueOrDefault(visita.IdTipoVisita.Value)
+                var idTipoVisita = taller?.IdTipoVisita;
+                var tipoVisita = idTipoVisita.HasValue
+                    ? tiposVisita.GetValueOrDefault(idTipoVisita.Value)
                     : null;
 
                 var conflictos = CalcularConflictos(
@@ -256,6 +266,8 @@ public class CalendarioService : ICalendarioService
                 IdRuta = visita.IdRuta,
                 IdSeleccionMensual = fila.s.IdSeleccionMensual,
                 IdTaller = taller?.IdTaller,
+                TieneTalleres = talleresVisita.Count > 0,
+                TalleresCount = talleresVisita.Count,
                 IdSeleccionHospital = visita.IdSeleccionHospital,
                 IdHospital = idHospital,
                 Hospital = nombreHospital,
@@ -282,8 +294,8 @@ public class CalendarioService : ICalendarioService
                 NombreEspecialista = idEspecialista.HasValue
                     ? usuarios.GetValueOrDefault(idEspecialista.Value)
                     : null,
-                IdTipoVisita = visita.IdTipoVisita,
-                TipoVisita = tipoVisita ?? "Taller",
+                IdTipoVisita = idTipoVisita,
+                TipoVisita = tipoVisita ?? "Sin tipo",
                 Tema = tema ?? producto,
                 Producto = producto,
                 Cantidad = recursoProducto?.Cantidad,
@@ -851,13 +863,17 @@ public class CalendarioService : ICalendarioService
             return [];
         }
 
-        var filas = await _context.RutasVisitas
-            .AsNoTracking()
-            .Where(v => v.IdEspecialista.HasValue
+        var filas = await (
+            from v in _context.RutasVisitas.AsNoTracking()
+            join r in _context.Rutas.AsNoTracking() on v.IdRuta equals r.IdRuta
+            where v.IdEspecialista.HasValue
                 && idsEspecialista.Contains(v.IdEspecialista.Value)
+                && r.Estado != Ruta.EstadoArchivada
+                && r.Estado != Ruta.EstadoCancelada
+                && r.Estado != Ruta.EstadoRechazada
                 && v.FechaVisita >= inicio.AddDays(-7)
-                && v.FechaVisita <= fin.AddDays(7))
-            .Select(v => new
+                && v.FechaVisita <= fin.AddDays(7)
+            select new
             {
                 v.IdRutaVisita,
                 v.IdEspecialista,

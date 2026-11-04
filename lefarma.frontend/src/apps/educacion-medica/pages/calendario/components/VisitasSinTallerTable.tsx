@@ -47,7 +47,8 @@ export function VisitasSinTallerTable({
             Visitas sin taller
           </p>
           <p className="mt-0.5 text-[11px] text-slate-400">
-            {visitas.length} visita(s) tipo taller sin taller capturado. No todas son un error.
+            {visitas.length} visita(s) planeada(s) sin taller confirmado. Puede que aún no haya
+            acuerdo con el hospital; no es un error.
           </p>
         </div>
         <div className="relative">
@@ -76,7 +77,7 @@ export function VisitasSinTallerTable({
           </p>
           <p className="mt-1 text-[11px] text-slate-400">
             {visitas.length === 0
-              ? 'Todas las visitas tipo taller tienen al menos un taller capturado.'
+              ? 'Todas las visitas planeadas tienen al menos un taller confirmado.'
               : 'Ajusta la búsqueda para encontrar la visita.'}
           </p>
         </div>

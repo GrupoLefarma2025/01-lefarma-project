@@ -83,6 +83,7 @@ public static class Permissions
         public const string ProductosVer = "educacion_medica.productos.puede_ver";
         public const string SeleccionesVer = "educacion_medica.selecciones.puede_ver";
         public const string SeleccionesGestionar = "educacion_medica.selecciones.puede_gestionar";
+        public const string SeleccionesAutorizar = "educacion_medica.selecciones.puede_autorizar";
         public const string RutasVer = "educacion_medica.rutas.puede_ver";
         public const string RutasGestionar = "educacion_medica.rutas.puede_gestionar";
         public const string RutasAjustar = "educacion_medica.rutas.puede_ajustar";

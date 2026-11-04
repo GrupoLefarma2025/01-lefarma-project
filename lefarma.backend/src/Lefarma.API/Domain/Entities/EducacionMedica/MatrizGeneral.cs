@@ -15,6 +15,7 @@ public class MatrizGeneral : IWorkflowEntity
     public int IdMatrizGeneral { get; set; }
     public int IdTipoGerencia { get; set; }
     public DateOnly Periodo { get; set; }   // primer día del mes
+    public int? IdRutaVersion { get; set; }
     public int? IdWorkflow { get; set; }
     public int? IdPasoActual { get; set; }
     public int? IdEstado { get; set; }

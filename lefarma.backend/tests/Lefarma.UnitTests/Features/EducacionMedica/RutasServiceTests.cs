@@ -8,6 +8,7 @@ using Lefarma.API.Features.EducacionMedica.Services;
 using Lefarma.API.Features.Profile;
 using Lefarma.API.Services.Identity;
 using Lefarma.API.Shared.Constants;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
@@ -207,20 +208,11 @@ public class RutasServiceTests
     private RutasService CreateService(WorkflowTestHarness? workflow = null, Mock<IProfileService>? profileService = null)
     {
         workflow ??= _workflow;
-        if (profileService is null)
-        {
-            profileService = new Mock<IProfileService>();
-            profileService
-                .Setup(p => p.HasFirmaAsync(It.IsAny<int>()))
-                .ReturnsAsync(true);
-        }
 
         return new(_rutaRepo, _seleccionRepo, _equipoMock.Object, _hospitalMock.Object, _extensionMock.Object,
             _parametroMock.Object, NullLogger<RutasService>.Instance,
-            workflow.Engine, workflow.CreateResolverMock().Object, workflow.WorkflowRepo,
-            new Mock<Lefarma.API.Features.Config.Workflows.IWorkflowQueryService>().Object,
-            profileService.Object, workflow.JefeResolverMock.Object, workflow.Asokam,
-            workflow.Context, new UserPermissionService(workflow.Asokam, new MemoryCache(new MemoryCacheOptions())),
+            workflow.Asokam, workflow.Context,
+            new UserPermissionService(workflow.Asokam, new MemoryCache(new MemoryCacheOptions())),
             new EjecutivoElegibilidadService(workflow.Context));
     }
 
@@ -419,6 +411,83 @@ public class RutasServiceTests
         dias[0].Should().HaveCount(3);
         dias[1].Should().HaveCount(1);
         resultado.Estrategia.Should().Be("centroide");
+    }
+
+    [Fact]
+    public async Task GenerarAsync_ConTalleresCapturados_Debe_Fallar()
+    {
+        SeedSeleccionAutorizada(cantidadHospitales: 1);
+        _rutaRepo.Rutas.Add(new Ruta
+        {
+            IdRuta = 1,
+            IdSeleccionMensual = 1,
+            IdEquipo = EquipoId,
+            Version = 1,
+            Estado = Ruta.EstadoCreada,
+            Nombre = "Ruta activa",
+        });
+        _rutaRepo.Visitas.Add(new RutaVisita
+        {
+            IdRutaVisita = 1,
+            IdRuta = 1,
+            IdSeleccionHospital = 1,
+            IdHospital = 101,
+            FechaVisita = new DateOnly(2026, 9, 1),
+            Orden = 1,
+        });
+        _workflow.Context.Rutas.Add(new Ruta
+        {
+            IdRuta = 1,
+            IdSeleccionMensual = 1,
+            IdEquipo = EquipoId,
+            Version = 1,
+            Estado = Ruta.EstadoCreada,
+            Nombre = "Ruta activa",
+        });
+        _workflow.Context.RutasVisitas.Add(new RutaVisita
+        {
+            IdRutaVisita = 1,
+            IdRuta = 1,
+            IdSeleccionHospital = 1,
+            IdHospital = 101,
+            FechaVisita = new DateOnly(2026, 9, 1),
+            Orden = 1,
+        });
+        _workflow.Context.Talleres.Add(new Taller
+        {
+            IdTaller = 1,
+            IdRutaVisita = 1,
+            Activo = true,
+        });
+        await _workflow.Context.SaveChangesAsync();
+
+        var service = CreateService();
+        var act = () => service.GenerarAsync(1, idUsuario: 99);
+
+        await act.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("*talleres*");
+    }
+
+    [Fact]
+    public async Task GenerarAsync_SinTalleres_Debe_EnlazarLaMatrizConLaNuevaVersion()
+    {
+        SeedSeleccionAutorizada(cantidadHospitales: 1);
+        var service = CreateService();
+        await service.GenerarAsync(1, idUsuario: 99);
+
+        _workflow.Context.MatricesGenerales.Add(new MatrizGeneral
+        {
+            IdMatrizGeneral = 1,
+            IdTipoGerencia = 1,
+            Periodo = new DateOnly(2026, 9, 1),
+        });
+        await _workflow.Context.SaveChangesAsync();
+
+        var resultado = await service.GenerarAsync(1, idUsuario: 99);
+
+        resultado.Version.Should().Be(2);
+        var matriz = await _workflow.Context.MatricesGenerales.SingleAsync();
+        matriz.IdRutaVersion.Should().Be(resultado.IdRutaVersion);
     }
 
     [Fact]
@@ -849,62 +918,6 @@ public class RutasServiceTests
     }
 
     [Fact]
-    public async Task FirmarVersionAsync_EnviarNoCreador_Debe_Lanzar()
-    {
-        SeedSeleccionAutorizada(cantidadHospitales: 2);
-        _seleccionRepo.Selecciones.Single().IdTipoGerencia = 1;
-        var service = CreateService();
-        await service.GenerarAsync(1, idUsuario: 99);
-        var version = _rutaRepo.Versiones.Single();
-
-        var act = () => service.FirmarVersionAsync(version.IdRutaVersion,
-            new FirmarWorkflowRequest { IdAccion = _workflow.AccionesRutas["Enviar"] }, idUsuario: 20);
-
-        await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("*planificador*");
-    }
-
-    [Fact]
-    public async Task FirmarVersionAsync_CadenaCompleta_Debe_ConfirmarYPublicar()
-    {
-        SeedSeleccionAutorizada(cantidadHospitales: 4);
-        _seleccionRepo.Selecciones.Single().IdTipoGerencia = 1; // IMSS: firma el GV IMSS
-        _seleccionRepo.Selecciones.Single().FechaFinVigencia = DateOnly.FromDateTime(DateTime.Today).AddDays(30);
-        var service = CreateService();
-        await service.GenerarAsync(1, idUsuario: 99);
-        var version = _rutaRepo.Versiones.Single();
-
-        // Enviar a autorización (planificador)
-        await service.FirmarVersionAsync(version.IdRutaVersion,
-            new FirmarWorkflowRequest { IdAccion = _workflow.AccionesRutas["Enviar"] }, idUsuario: 99);
-        version.IdPasoActual.Should().Be(_workflow.PasosRutas["GvImss"]);
-
-        // GV IMSS
-        await service.FirmarVersionAsync(version.IdRutaVersion,
-            new FirmarWorkflowRequest { IdAccion = _workflow.AccionesRutas["GvImssAutorizar"] }, idUsuario: 20);
-        version.IdPasoActual.Should().Be(_workflow.PasosRutas["Ca"]);
-
-        // Coordinador Administrativo
-        await service.FirmarVersionAsync(version.IdRutaVersion,
-            new FirmarWorkflowRequest { IdAccion = _workflow.AccionesRutas["CaAutorizar"] }, idUsuario: 40);
-        version.IdPasoActual.Should().Be(_workflow.PasosRutas["Dc"]);
-
-        // Dirección Corporativa: confirma y publica
-        var dto = await service.FirmarVersionAsync(version.IdRutaVersion,
-            new FirmarWorkflowRequest { IdAccion = _workflow.AccionesRutas["DcCerrar"] }, idUsuario: 50);
-
-        dto.Estado.Should().Be(RutaVersion.EstadoCerrada);
-        _rutaRepo.Rutas.Should().OnlyContain(r => r.Estado == Ruta.EstadoCerrada);
-        _rutaRepo.Rutas.Should().OnlyContain(r => r.FechaConfirmacion != null);
-
-        var asignacionesEv = await service.GetAsignacionesAsync(IdEv);
-        asignacionesEv.Should().HaveCount(4);
-        asignacionesEv.Should().OnlyContain(a => !string.IsNullOrEmpty(a.NombreHospital));
-
-        var asignacionesOtro = await service.GetAsignacionesAsync(999);
-        asignacionesOtro.Should().BeEmpty();
-    }
-
-    [Fact]
     public async Task GetAsignacionesAsync_Debe_ResolverEstadoCiudadEInstitucion()
     {
         SeedSeleccionAutorizada(cantidadHospitales: 1);
@@ -1077,61 +1090,6 @@ public async Task GetAsignacionesAsync_ConRango_Debe_FiltrarYExponerHoras()
     asignaciones[1].HoraLlegada.Should().Be(new TimeOnly(12, 15));
 }
 
-[Fact]
-public async Task FirmarVersionAsync_DcSinCobertura_Debe_Lanzar()
-    {
-        SeedSeleccionAutorizada(cantidadHospitales: 4);
-        _seleccionRepo.Selecciones.Single().IdTipoGerencia = 1;
-        var service = CreateService();
-        var generado = await service.GenerarAsync(1, idUsuario: 99);
-        var version = _rutaRepo.Versiones.Single();
-
-        // Quitar una visita deja cobertura incompleta (se hace antes de mover el paso: Draft es editable)
-        var ruta = generado.Rutas.Single();
-        await service.QuitarVisitaAsync(ruta.IdRuta, ruta.Visitas.Last().IdRutaVisita, motivo: null, idUsuario: 99);
-
-        // La versión llega al paso de Dirección Corporativa
-        version.IdPasoActual = _workflow.PasosRutas["Dc"];
-
-        var act = () => service.FirmarVersionAsync(version.IdRutaVersion,
-            new FirmarWorkflowRequest { IdAccion = _workflow.AccionesRutas["DcCerrar"] }, idUsuario: 50);
-
-        await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("*Cobertura incompleta*");
-    }
-
-    [Fact]
-    public async Task FirmarVersionAsync_Devolver_Debe_RegresarADraft()
-    {
-        SeedSeleccionAutorizada(cantidadHospitales: 2);
-        _seleccionRepo.Selecciones.Single().IdTipoGerencia = 1;
-        var service = CreateService();
-        await service.GenerarAsync(1, idUsuario: 99);
-        var version = _rutaRepo.Versiones.Single();
-
-        await service.FirmarVersionAsync(version.IdRutaVersion,
-            new FirmarWorkflowRequest { IdAccion = _workflow.AccionesRutas["Enviar"] }, idUsuario: 99);
-
-        await service.FirmarVersionAsync(version.IdRutaVersion,
-            new FirmarWorkflowRequest { IdAccion = _workflow.AccionesRutas["GvImssDevolver"], Comentario = "Ajustar la semana 2" }, idUsuario: 20);
-
-        version.Estado.Should().Be(RutaVersion.EstadoCreada);
-        version.IdPasoActual.Should().Be(_workflow.PasosRutas["Draft"]);
-    }
-
-    [Fact]
-    public async Task GenerarAsync_VersionEnFirma_Debe_Lanzar()
-    {
-        SeedSeleccionAutorizada(cantidadHospitales: 2);
-        var service = CreateService();
-        await service.GenerarAsync(1, idUsuario: 99);
-        var version = _rutaRepo.Versiones.Single();
-        version.IdPasoActual = _workflow.PasosRutas["GvImss"]; // en autorización
-
-        var act = () => service.GenerarAsync(1, idUsuario: 99);
-
-        await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("*autorización*");
-    }
-
     [Fact]
     public async Task CancelarAsync_Debe_CancelarVersion_Y_PermitirRegenerar()
     {
@@ -1260,6 +1218,32 @@ public async Task FirmarVersionAsync_DcSinCobertura_Debe_Lanzar()
         ajuste.IdEntidad.Should().Be(visita.IdRutaVisita);
         ajuste.Accion.Should().Be(AjustePostCierre.AccionMoverVisita);
         ajuste.Motivo.Should().Be("Reagenda con el hospital");
+    }
+
+    [Fact]
+    public async Task MoverVisita_ConTalleres_Debe_Fallar()
+    {
+        var (ruta, visita) = SembrarRutaCerradaConVisita();
+        _workflow.Context.Talleres.Add(new Taller
+        {
+            IdTaller = 1,
+            IdRutaVisita = visita.IdRutaVisita,
+            Activo = true,
+        });
+        await _workflow.Context.SaveChangesAsync();
+        _workflow.OtorgarPermiso(IdCem, Permissions.EducacionMedica.RutasAjustar);
+        var service = CreateService();
+
+        var act = () => service.MoverVisitaAsync(ruta.IdRuta, visita.IdRutaVisita, new MoverVisitaRequest
+        {
+            FechaVisita = DateOnly.FromDateTime(DateTime.Today).AddDays(-4),
+            Orden = 1,
+            Motivo = "Reagenda con el hospital",
+        }, IdCem);
+
+        await act.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("*talleres capturados*");
+        visita.FechaVisita.Should().Be(DateOnly.FromDateTime(DateTime.Today).AddDays(-5));
     }
 
     [Fact]

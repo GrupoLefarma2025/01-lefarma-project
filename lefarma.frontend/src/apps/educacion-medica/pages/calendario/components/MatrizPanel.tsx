@@ -1,6 +1,5 @@
-import { useCallback, useMemo, useState } from 'react';
-import { AlertTriangle, Loader2, Printer, Send } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
+import { useCallback, useState } from 'react';
+import { AlertTriangle, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Modal } from '@/components/ui/modal';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -13,9 +12,9 @@ import { DocumentoHeaderCard } from '@/apps/educacion-medica/components/Document
 import { DocumentoHistorialModal } from '@/apps/educacion-medica/components/DocumentoHistorialModal';
 import { educacionMedicaApi } from '@/apps/educacion-medica/services/educacionMedica.api';
 import type {
-  AccionDisponible,
   ConcentracionEquipo,
   GuardarCostoRecursoRequest,
+  MatrizAjustePostCierre,
   MatrizDocumento,
   MatrizRevision,
   MatrizTalleresDetalle,
@@ -35,9 +34,95 @@ import {
 import { TallerAsistenciaModal } from '../../taller/components/TallerAsistenciaModal';
 import { TallerEvidenciasModal } from '../../taller/components/TallerEvidenciasModal';
 import { TallerMaterialModal } from '../../taller/components/TallerMaterialModal';
-import { MatrizEnvioModal } from './MatrizEnvioModal';
 import { SaludMatrizCard } from './SaludMatrizCard';
 import { VisitasSinTallerTable } from './VisitasSinTallerTable';
+
+const ETIQUETAS_AJUSTE: Record<string, string> = {
+  MOVER_VISITA: 'Mover visita',
+  EDITAR_HORAS: 'Editar horas',
+  EDITAR_EJECUTIVO: 'Editar ejecutivo',
+  ALTA_VISITA: 'Alta de visita',
+  BAJA_VISITA: 'Baja de visita',
+  EDITAR_TALLER: 'Editar taller',
+  CANCELAR_VERSION: 'Cancelar versión',
+};
+
+const formatearFechaAjuste = (fecha: string) => {
+  const date = new Date(fecha);
+  return Number.isNaN(date.getTime())
+    ? fecha
+    : date.toLocaleString('es-MX', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+};
+
+function AjustesPostCierreCard({ ajustes }: { ajustes: MatrizAjustePostCierre[] }) {
+  if (ajustes.length === 0) return null;
+
+  return (
+    <section className="rounded-xl border border-amber-200 bg-amber-50/50 p-4 dark:border-amber-900/60 dark:bg-amber-950/10">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-xs font-semibold text-amber-800 dark:text-amber-200">
+            Ajustes post-cierre
+          </p>
+          <p className="mt-0.5 text-[10px] text-amber-700/80 dark:text-amber-300/80">
+            Cambios operativos posteriores a la autorización; no reabren la matriz.
+          </p>
+        </div>
+        <span className="rounded-full bg-amber-200/70 px-2 py-0.5 text-[10px] font-bold text-amber-800 dark:bg-amber-900 dark:text-amber-200">
+          {ajustes.length}
+        </span>
+      </div>
+
+      <div className="mt-3 overflow-x-auto">
+        <table className="w-full min-w-[720px] text-left text-[11px]">
+          <thead className="text-[9px] uppercase tracking-wide text-amber-700/70 dark:text-amber-300/70">
+            <tr>
+              <th className="pb-1.5 pr-3 font-semibold">Fecha</th>
+              <th className="pb-1.5 pr-3 font-semibold">Hospital / taller</th>
+              <th className="pb-1.5 pr-3 font-semibold">Cambio</th>
+              <th className="pb-1.5 pr-3 font-semibold">Antes → después</th>
+              <th className="pb-1.5 pr-3 font-semibold">Motivo</th>
+              <th className="pb-1.5 font-semibold">Usuario</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-amber-200/60 text-slate-600 dark:divide-amber-900/40 dark:text-slate-300">
+            {ajustes.map((ajuste) => (
+              <tr key={ajuste.idAjuste}>
+                <td className="whitespace-nowrap py-2 pr-3">
+                  {formatearFechaAjuste(ajuste.fechaAjuste)}
+                </td>
+                <td className="max-w-[180px] truncate py-2 pr-3">
+                  {ajuste.hospital ?? (ajuste.idTaller ? `Taller ${ajuste.idTaller}` : ajuste.entidadTipo)}
+                </td>
+                <td className="py-2 pr-3">{ETIQUETAS_AJUSTE[ajuste.accion] ?? ajuste.accion}</td>
+                <td className="max-w-[200px] py-2 pr-3">
+                  <span className="block truncate font-mono text-[10px]" title={ajuste.valoresAntes ?? ''}>
+                    {ajuste.valoresAntes ?? '—'}
+                  </span>
+                  <span className="block truncate font-mono text-[10px]" title={ajuste.valoresDespues ?? ''}>
+                    {ajuste.valoresDespues ?? '—'}
+                  </span>
+                </td>
+                <td className="max-w-[220px] truncate py-2 pr-3" title={ajuste.motivo}>
+                  {ajuste.motivo}
+                </td>
+                <td className="whitespace-nowrap py-2">
+                  {ajuste.nombreUsuario ?? `Usuario ${ajuste.idUsuario}`}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
 
 interface MatrizPanelProps {
   idGerencia: number | null;
@@ -91,7 +176,6 @@ export function MatrizPanel({
   const [tab, setTab] = useState<'equipos' | 'hospitales' | 'visitas'>('equipos');
   const [firmaOpen, setFirmaOpen] = useState(false);
   const [historialOpen, setHistorialOpen] = useState(false);
-  const [envioOpen, setEnvioOpen] = useState(false);
   const [printOpen, setPrintOpen] = useState(false);
   const [documento, setDocumento] = useState<MatrizDocumento | null>(null);
   const [costosTaller, setCostosTaller] = useState<Taller | null>(null);
@@ -103,16 +187,7 @@ export function MatrizPanel({
   const [resolverTaller, setResolverTaller] = useState<Taller | null>(null);
   const [equipoDetalle, setEquipoDetalle] = useState<ConcentracionEquipo | null>(null);
   const [guardando, setGuardando] = useState(false);
-  const [enviando, setEnviando] = useState(false);
 
-  const accionEnviar = useMemo<AccionDisponible | undefined>(
-    () => matriz?.acciones.find((accion) => accion.tipoAccionCodigo === 'ENVIAR'),
-    [matriz]
-  );
-  const accionesSinEnviar = useMemo<AccionDisponible[]>(
-    () => matriz?.acciones.filter((accion) => accion.tipoAccionCodigo !== 'ENVIAR') ?? [],
-    [matriz]
-  );
   const puedeEditarCostos = matriz?.pasoNombre?.toLowerCase().includes('costo') ?? false;
   const contarVisitasSinTaller = useCallback(
     (equipo: ConcentracionEquipo) => {
@@ -170,39 +245,6 @@ export function MatrizPanel({
       }
     },
     [matriz, onReload]
-  );
-
-  const enviarMatriz = useCallback(
-    async (comentario: string): Promise<boolean> => {
-      if (!accionEnviar || !matriz) return false;
-      setEnviando(true);
-      try {
-        const response = await educacionMedicaApi.matricesTalleres.firmar(
-          matriz.idMatrizGeneral,
-          {
-            idAccion: accionEnviar.idAccion,
-            comentario: comentario || null,
-            datosAdicionales:
-              (revision?.visitasSinTaller ?? 0) > 0
-                ? { confirmarVisitasSinTaller: true }
-                : null,
-          }
-        );
-        if (!response.data.success) {
-          toast.error(response.data.message ?? 'No se pudo enviar la matriz');
-          return false;
-        }
-        toast.success('Matriz enviada a autorización. La captura quedó cerrada.');
-        await onReload();
-        return true;
-      } catch (err: unknown) {
-        toast.error(toApiError(err).message ?? 'No se pudo enviar la matriz');
-        return false;
-      } finally {
-        setEnviando(false);
-      }
-    },
-    [accionEnviar, matriz, onReload, revision]
   );
 
   const guardarCostos = useCallback(
@@ -330,39 +372,20 @@ export function MatrizPanel({
         estadoNombre={matriz.estadoNombre}
         estadoColor={matriz.estadoColor}
         detalle={`${matriz.totalTalleres} taller(es) · ${fmtMoneda(matriz.costoTotal)}`}
-        showFirmar={accionesSinEnviar.length > 0}
+        showFirmar={matriz.acciones.length > 0}
         onFirmar={() => setFirmaOpen(true)}
         firmando={guardando}
         firmarDeshabilitado={hasFirma === false}
+        showImprimir
+        onImprimir={() => void abrirImpresion()}
         showHistorial
         onHistorial={() => setHistorialOpen(true)}
         fondoClase="bg-emerald-50/60 dark:bg-emerald-950/20"
       />
 
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex flex-wrap items-center gap-2">
-          {accionEnviar && (
-            <Button
-              size="sm"
-              className="gap-1.5 bg-[#eb6c36] text-white hover:bg-[#d95a2b]"
-              onClick={() => setEnvioOpen(true)}
-              disabled={enviando}
-            >
-              <Send className="h-4 w-4" />
-              Enviar a autorización
-            </Button>
-          )}
-          <Badge variant="outline" className="rounded-full text-[10px]">
-            {matriz.esEditable ? 'Captura abierta' : 'Captura cerrada'}
-          </Badge>
-        </div>
-        <Button size="sm" variant="outline" className="gap-1.5" onClick={() => void abrirImpresion()}>
-          <Printer className="h-4 w-4" />
-          Imprimir
-        </Button>
-      </div>
+      <SaludMatrizCard revision={revision} loading={loading} />
 
-      <SaludMatrizCard revision={revision} capturaAbierta={matriz.esEditable} loading={loading} />
+      <AjustesPostCierreCard ajustes={matriz.ajustesPostCierre ?? []} />
 
       <Tabs value={tab} onValueChange={(valor) => setTab(valor as typeof tab)} className="w-full">
         <TabsList className="grid h-11 w-full max-w-xl grid-cols-3 border bg-background p-1">
@@ -381,7 +404,7 @@ export function MatrizPanel({
           <TabsTrigger value="visitas" className="text-xs font-semibold">
             Visitas sin taller
             {(revision?.visitasSinTaller ?? 0) > 0 && (
-              <span className="ml-1.5 rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-bold text-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
+              <span className="ml-1.5 rounded-full bg-slate-100 px-1.5 py-0.5 text-[9px] font-bold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
                 {revision?.visitasSinTaller}
               </span>
             )}
@@ -401,6 +424,7 @@ export function MatrizPanel({
         <TabsContent value="hospitales" className="mt-3">
           <MatrizTalleresTable
             talleres={matriz.talleres}
+            ajustesPostCierre={matriz.ajustesPostCierre ?? []}
             loading={loading}
             puedeEditarCostos={puedeEditarCostos}
             onEditarCostos={setCostosTaller}
@@ -433,7 +457,7 @@ export function MatrizPanel({
         tipo="matriz"
         idEntidad={matriz.idMatrizGeneral}
         idPasoActual={matriz.idPasoActual}
-        acciones={accionesSinEnviar}
+        acciones={matriz.acciones}
         hasFirma={hasFirma ?? undefined}
         guardando={guardando}
         onConfirmar={confirmarAccion}
@@ -450,15 +474,6 @@ export function MatrizPanel({
         idPasoActual={matriz.idPasoActual}
       />
 
-      <MatrizEnvioModal
-        open={envioOpen}
-        onClose={() => setEnvioOpen(false)}
-        matriz={matriz}
-        revision={revision}
-        enviando={enviando}
-        onConfirmar={enviarMatriz}
-      />
-
       <MatrizCostosEditor
         open={costosTaller !== null}
         onClose={() => setCostosTaller(null)}
@@ -473,6 +488,7 @@ export function MatrizPanel({
         open={detalleTaller !== null}
         onClose={cerrarDetalleTaller}
         taller={detalleTaller}
+        tipoVisita={detalleTaller?.tipoVisita ?? null}
         ubicacion={ubicacionDetalle}
       />
 
@@ -500,6 +516,7 @@ export function MatrizPanel({
           talleres={matriz.talleres.filter(
             (taller) => taller.idMatrizIndividual === equipoDetalle?.idMatrizIndividual
           )}
+          ajustesPostCierre={matriz.ajustesPostCierre ?? []}
           loading={loading}
           puedeEditarCostos={puedeEditarCostos}
           onEditarCostos={setCostosTaller}

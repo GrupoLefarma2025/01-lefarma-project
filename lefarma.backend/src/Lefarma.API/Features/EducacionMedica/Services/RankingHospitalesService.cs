@@ -17,6 +17,7 @@ public class RankingHospitalesService : IRankingHospitalesService
     private readonly ApplicationDbContext _context;
     private readonly AsokamDbContext _asokamContext;
     private readonly ISeleccionMensualRepository _seleccionRepository;
+    private readonly ISeleccionMensualService _seleccionService;
     private readonly IHospitalRepository _hospitalRepository;
     private readonly IHospitalExtensionRepository _extensionRepository;
     private readonly ILogger<RankingHospitalesService> _logger;
@@ -25,6 +26,7 @@ public class RankingHospitalesService : IRankingHospitalesService
         ApplicationDbContext context,
         AsokamDbContext asokamContext,
         ISeleccionMensualRepository seleccionRepository,
+        ISeleccionMensualService seleccionService,
         IHospitalRepository hospitalRepository,
         IHospitalExtensionRepository extensionRepository,
         ILogger<RankingHospitalesService> logger)
@@ -32,6 +34,7 @@ public class RankingHospitalesService : IRankingHospitalesService
         _context = context;
         _asokamContext = asokamContext;
         _seleccionRepository = seleccionRepository;
+        _seleccionService = seleccionService;
         _hospitalRepository = hospitalRepository;
         _extensionRepository = extensionRepository;
         _logger = logger;
@@ -43,7 +46,7 @@ public class RankingHospitalesService : IRankingHospitalesService
         int idUsuario,
         CancellationToken cancellationToken = default)
     {
-        var seleccion = await ObtenerSeleccionEditableAsync(idSeleccionMensual, cancellationToken);
+        var seleccion = await ObtenerSeleccionParaEdicionAsync(idSeleccionMensual, cancellationToken);
 
         if (seleccion.IdTipoGerencia is null)
         {
@@ -53,6 +56,7 @@ public class RankingHospitalesService : IRankingHospitalesService
 
         var configuracion = await CargarConfiguracionActivaAsync(cancellationToken);
         var rankingConfig = ConstruirRankingConfig(configuracion);
+        var cantidadSolicitada = NormalizarTopN(request.Cantidad);
 
         var idsYaSeleccionados = await _context.SeleccionesHospitales
             .AsNoTracking()
@@ -121,14 +125,14 @@ public class RankingHospitalesService : IRankingHospitalesService
             IdSeleccionMensual = idSeleccionMensual,
             IdConfiguracion = configuracion.IdConfiguracion,
             VersionAlgoritmo = RankingScoreEngine.AlgoritmoVersion,
-            CantidadSolicitada = request.Cantidad,
+            CantidadSolicitada = cantidadSolicitada,
             CantidadCandidatos = candidatos.Count,
             PesosEfectivosJson = JsonSerializer.Serialize(resultado.PesosEfectivos),
             FiltrosJson = filtrosJson,
             FechaEjecucion = DateTime.UtcNow,
             IdUsuarioEjecucion = idUsuario,
             Hospitales = resultado.Hospitales
-                .Take(request.Cantidad)
+                .Take(cantidadSolicitada)
                 .Select((h, idx) => CrearEjecucionHospital(h, idx + 1, configuracion))
                 .ToList(),
         };
@@ -147,7 +151,7 @@ public class RankingHospitalesService : IRankingHospitalesService
             ejecucion.IdRankingEjecucion,
             idSeleccionMensual,
             candidatos.Count,
-            request.Cantidad);
+            cantidadSolicitada);
 
         return await MapearDtoAsync(ejecucion, candidatosElegibles, cancellationToken);
     }
@@ -198,7 +202,7 @@ public class RankingHospitalesService : IRankingHospitalesService
         int idSeleccionMensual,
         CancellationToken cancellationToken = default)
     {
-        var seleccion = await ObtenerSeleccionEditableAsync(idSeleccionMensual, cancellationToken);
+        var seleccion = await ObtenerSeleccionAsync(idSeleccionMensual, cancellationToken);
 
         if (seleccion.IdTipoGerencia is null)
         {
@@ -306,17 +310,29 @@ public class RankingHospitalesService : IRankingHospitalesService
         };
     }
 
-    private async Task<SeleccionMensual> ObtenerSeleccionEditableAsync(int idSeleccionMensual, CancellationToken ct)
+    private async Task<SeleccionMensual> ObtenerSeleccionParaEdicionAsync(int idSeleccionMensual, CancellationToken ct)
     {
         var seleccion = await _seleccionRepository.GetByIdAsync(idSeleccionMensual, ct)
-            ?? throw new InvalidOperationException($"La selección {idSeleccionMensual} no existe.");
+            ?? throw new InvalidOperationException("La selección solicitada no existe.");
 
-        if (seleccion.Estado is not (SeleccionMensual.EstadoCreada or SeleccionMensual.EstadoEnRevision))
+        var paso = seleccion.IdPasoActual.HasValue
+            ? await _context.WorkflowPasos.AsNoTracking()
+                .FirstOrDefaultAsync(p => p.IdPaso == seleccion.IdPasoActual.Value, ct)
+            : null;
+
+        if (!SeleccionEditablePolicy.EsEditable(seleccion, paso))
         {
-            throw new InvalidOperationException($"La selección {idSeleccionMensual} está {seleccion.Estado.ToLowerInvariant()} y no admite generación de ranking.");
+            throw new InvalidOperationException(
+                $"La selección ya no admite cambios en su paso actual ({paso?.NombrePaso ?? seleccion.Estado}).");
         }
 
         return seleccion;
+    }
+
+    private async Task<SeleccionMensual> ObtenerSeleccionAsync(int idSeleccionMensual, CancellationToken ct)
+    {
+        return await _seleccionRepository.GetByIdAsync(idSeleccionMensual, ct)
+            ?? throw new InvalidOperationException("La selección solicitada no existe.");
     }
 
     private async Task<ConfigRanking> CargarConfiguracionActivaAsync(CancellationToken ct)
@@ -866,7 +882,7 @@ public class RankingHospitalesService : IRankingHospitalesService
         int idUsuario,
         CancellationToken cancellationToken = default)
     {
-        _ = await ObtenerSeleccionEditableAsync(idSeleccionMensual, cancellationToken);
+        _ = await ObtenerSeleccionParaEdicionAsync(idSeleccionMensual, cancellationToken);
 
         var ejecucion = await ResolverEjecucionAsync(idSeleccionMensual, request.IdRankingEjecucion, cancellationToken);
         var hospitalesEjecucion = ejecucion.Hospitales.ToDictionary(h => h.IdHospital);
@@ -926,6 +942,10 @@ public class RankingHospitalesService : IRankingHospitalesService
         _context.SeleccionesHospitales.AddRange(nuevos);
         await _context.SaveChangesAsync(cancellationToken);
 
+        // Los hospitales sugeridos entran directo a su región de catálogo (o a "Sin región").
+        await _seleccionService.SincronizarRegionesAsync(
+            idSeleccionMensual, idUsuario, cancellationToken);
+
         _logger.LogInformation(
             "Se agregaron {Cantidad} hospitales a la selección {IdSeleccion} desde la ejecución {IdEjecucion}.",
             nuevos.Count,
@@ -966,7 +986,7 @@ public class RankingHospitalesService : IRankingHospitalesService
             if (ejecucion is null)
             {
                 throw new InvalidOperationException(
-                    $"La ejecución {idRankingEjecucion.Value} no existe o no pertenece a la selección {idSeleccionMensual}.");
+                    $"La ejecución {idRankingEjecucion.Value} no existe o no pertenece a esta selección.");
             }
 
             var ultima = await _context.RankingsEjecuciones
@@ -992,7 +1012,7 @@ public class RankingHospitalesService : IRankingHospitalesService
             if (ejecucion is null)
             {
                 throw new InvalidOperationException(
-                    $"No existe una ejecución de ranking para la selección {idSeleccionMensual}.");
+                    "No existe una ejecución de ranking para esta selección.");
             }
         }
 
@@ -1033,5 +1053,11 @@ public class RankingHospitalesService : IRankingHospitalesService
             DatoCoordenadasDisponible = hospital?.Latitud.HasValue == true && hospital?.Longitud.HasValue == true,
             Factores = factores,
         };
+    }
+
+    private static int NormalizarTopN(int cantidad)
+    {
+        var baseCantidad = Math.Max(50, cantidad);
+        return (int)(Math.Ceiling(baseCantidad / 50.0) * 50);
     }
 }

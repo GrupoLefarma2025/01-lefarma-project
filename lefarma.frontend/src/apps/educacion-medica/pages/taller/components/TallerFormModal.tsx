@@ -30,6 +30,7 @@ import type {
   Producto,
   Taller,
   TipoRecursoTaller,
+  TipoVisitaOpcion,
 } from '@/apps/educacion-medica/types/educacionMedica.types';
 
 interface RecursoForm {
@@ -133,6 +134,8 @@ export function TallerFormModal({
   const [tipoEquipo, setTipoEquipo] = useState('');
   const [observaciones, setObservaciones] = useState('');
   const [tema, setTema] = useState('');
+  const [idTipoVisita, setIdTipoVisita] = useState('');
+  const [tiposVisita, setTiposVisita] = useState<TipoVisitaOpcion[]>([]);
   const [recursos, setRecursos] = useState<RecursoForm[]>([]);
   const [productos, setProductos] = useState<Producto[]>([]);
 
@@ -261,6 +264,7 @@ export function TallerFormModal({
         setTipoEquipo(aTexto(taller.tipoEquipoProyeccion));
         setObservaciones(aTexto(taller.observaciones));
         setTema(aTexto(taller.tema));
+        setIdTipoVisita(taller.idTipoVisita ? String(taller.idTipoVisita) : '');
         setRecursos(
           taller.recursos.map((r) => ({
             tipoRecurso: (r.tipoRecurso as TipoRecursoTaller) ?? 'Producto',
@@ -286,6 +290,7 @@ export function TallerFormModal({
         setTipoEquipo('');
         setObservaciones('');
         setTema('');
+        setIdTipoVisita('');
         setRecursos([]);
       }
     }
@@ -302,6 +307,19 @@ export function TallerFormModal({
         if (res.data.success) setProductos(res.data.data ?? []);
       })
       .catch(() => setProductos([]));
+  }, [open]);
+
+  // Catálogo de tipos de taller (se carga al primer uso).
+  const tiposSolicitados = useRef(false);
+  useEffect(() => {
+    if (!open || tiposSolicitados.current) return;
+    tiposSolicitados.current = true;
+    void educacionMedicaApi.tipoVisita
+      .getAll()
+      .then((res) => {
+        if (res.data.success) setTiposVisita(res.data.data ?? []);
+      })
+      .catch(() => setTiposVisita([]));
   }, [open]);
 
   // Equipos (captura asistida/extraordinario) y hospitales elegibles del equipo elegido.
@@ -384,6 +402,7 @@ export function TallerFormModal({
     }
 
     const payloadBase = {
+      idTipoVisita: idTipoVisita ? Number(idTipoVisita) : null,
       numeroParticipantes: aNumero(numeroParticipantes),
       unidadMedica: aTextoONull(unidadMedica),
       lugar: aTextoONull(lugar),
@@ -615,6 +634,27 @@ export function TallerFormModal({
             />
             <p className="text-xs text-muted-foreground">Asistentes estimados al taller.</p>
           </div>
+
+          {!esAjuste && (
+            <div className="space-y-1">
+              <Label>Tipo de taller</Label>
+              <Select value={idTipoVisita} onValueChange={setIdTipoVisita}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecciona el tipo" />
+                </SelectTrigger>
+                <SelectContent>
+                  {tiposVisita.map((tipo) => (
+                    <SelectItem key={tipo.idTipoVisita} value={String(tipo.idTipoVisita)}>
+                      {tipo.descripcion}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Clasifica el taller para reportes e indicadores.
+              </p>
+            </div>
+          )}
 
           {!esAjuste && (
             <div className="space-y-1">

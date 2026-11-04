@@ -14,6 +14,7 @@ public class MatrizGeneralConfiguration : IEntityTypeConfiguration<MatrizGeneral
         builder.Property(e => e.IdMatrizGeneral).HasColumnName("id_matriz_general");
         builder.Property(e => e.IdTipoGerencia).HasColumnName("id_tipo_gerencia");
         builder.Property(e => e.Periodo).HasColumnName("periodo");
+        builder.Property(e => e.IdRutaVersion).HasColumnName("id_ruta_version");
         builder.Property(e => e.IdWorkflow).HasColumnName("id_workflow");
         builder.Property(e => e.IdPasoActual).HasColumnName("id_paso_actual");
         builder.Property(e => e.IdEstado).HasColumnName("id_estado");
@@ -31,6 +32,15 @@ public class MatrizGeneralConfiguration : IEntityTypeConfiguration<MatrizGeneral
             .HasForeignKey(e => e.IdTipoGerencia)
             .HasConstraintName("FK_matrices_generales_tipo_gerencia")
             .OnDelete(DeleteBehavior.NoAction);
+
+        builder.HasOne<RutaVersion>()
+            .WithMany()
+            .HasForeignKey(e => e.IdRutaVersion)
+            .HasConstraintName("FK_matrices_generales_ruta_version")
+            .OnDelete(DeleteBehavior.NoAction);
+
+        builder.HasIndex(e => e.IdRutaVersion)
+            .HasDatabaseName("IX_matrices_generales_ruta_version");
 
         builder.HasOne(e => e.EstadoWorkflow)
             .WithMany()

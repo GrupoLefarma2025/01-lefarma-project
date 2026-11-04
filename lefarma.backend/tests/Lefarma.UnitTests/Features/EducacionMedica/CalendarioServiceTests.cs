@@ -33,6 +33,8 @@ public class CalendarioServiceTests
         var item = items.Should().ContainSingle().Subject;
         item.IdRutaVisita.Should().Be(1);
         item.IdTaller.Should().Be(1);
+        item.TieneTalleres.Should().BeTrue();
+        item.TalleresCount.Should().Be(1);
         item.Hospital.Should().Be("Hospital Central");
         item.Institucion.Should().Be("Institución Padre");
         item.Region.Should().Be("Región Norte");
@@ -335,6 +337,80 @@ public class CalendarioServiceTests
         actividad.Eventos.Select(e => e.Fecha).Should().BeInDescendingOrder();
     }
 
+    [Fact]
+    public async Task GetCalendarioAsync_Debe_FiltrarPorListaDeGerencias()
+    {
+        var (app, asokam) = CrearContextos();
+        SeedBase(app);
+        SeedAsokam(asokam);
+        app.TiposGerencia.Add(new TipoGerencia
+        {
+            IdTipoGerencia = 2,
+            Descripcion = "Descentralizado",
+            Activo = true,
+        });
+        app.SeleccionesMensuales.Add(new SeleccionMensual
+        {
+            IdSeleccionMensual = 2,
+            FechaSeleccion = Fecha,
+            FechaInicioVigencia = new DateOnly(2026, 10, 1),
+            FechaFinVigencia = new DateOnly(2026, 10, 31),
+            IdTipoGerencia = 2,
+            Activo = true,
+        });
+        app.SeleccionesHospitales.Add(new SeleccionHospital
+        {
+            IdSeleccionHospital = 2,
+            IdSeleccionMensual = 2,
+            IdHospital = 100,
+            IdEjecutivo = 10,
+        });
+        app.Rutas.Add(new Ruta
+        {
+            IdRuta = 2,
+            IdSeleccionMensual = 2,
+            IdEspecialista = 20,
+            Version = 1,
+            Estado = Ruta.EstadoCreada,
+        });
+        app.RutasVisitas.Add(new RutaVisita
+        {
+            IdRutaVisita = 2,
+            IdRuta = 2,
+            IdSeleccionHospital = 2,
+            IdHospital = 100,
+            IdEjecutivo = 10,
+            IdEspecialista = 20,
+            IdTipoVisita = 1,
+            FechaVisita = Fecha.AddDays(1),
+            Orden = 1,
+        });
+        await app.SaveChangesAsync();
+        await asokam.SaveChangesAsync();
+
+        var service = new CalendarioService(app, asokam);
+        var filtro = new CalendarioFiltro
+        {
+            Desde = Fecha,
+            Hasta = Fecha.AddDays(2),
+            IdGerencias = [1, 2],
+        };
+
+        var ambas = await service.GetCalendarioAsync(filtro, 0, true);
+        var soloSegunda = await service.GetCalendarioAsync(
+            new CalendarioFiltro
+            {
+                Desde = Fecha,
+                Hasta = Fecha.AddDays(2),
+                IdGerencias = [2],
+            },
+            0,
+            true);
+
+        ambas.Should().HaveCount(2);
+        soloSegunda.Should().ContainSingle().Which.IdRutaVisita.Should().Be(2);
+    }
+
     private static void SeedBase(ApplicationDbContext app)
     {
         app.TiposGerencia.Add(new TipoGerencia
@@ -412,6 +488,7 @@ public class CalendarioServiceTests
             IdSeleccionHospital = 1,
             IdHospital = 100,
             IdRutaVisita = 1,
+            IdTipoVisita = 1,
             IdTemaTaller = 1,
             IdEjecutivo = 10,
             IdEspecialista = 20,

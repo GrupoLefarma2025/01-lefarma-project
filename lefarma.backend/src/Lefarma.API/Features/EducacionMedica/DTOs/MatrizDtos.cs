@@ -16,6 +16,9 @@ public class MatrizGeneralResumenDto
     public int? IdEstado { get; set; }
     public string? EstadoNombre { get; set; }
     public string? EstadoColor { get; set; }
+    public int? IdRutaVersion { get; set; }
+    public int? Version { get; set; }
+    public string? EstadoRutaVersion { get; set; }
     public int TotalTalleres { get; set; }
     public decimal CostoTotal { get; set; }
 }
@@ -27,6 +30,23 @@ public class MatrizTalleresDetalleDto : MatrizGeneralResumenDto
     public bool EsFinal { get; set; }
     public List<TallerDto> Talleres { get; set; } = [];
     public List<AccionDisponibleResponse> Acciones { get; set; } = [];
+    public List<MatrizAjustePostCierreDto> AjustesPostCierre { get; set; } = [];
+}
+
+public class MatrizAjustePostCierreDto
+{
+    public int IdAjuste { get; set; }
+    public string EntidadTipo { get; set; } = string.Empty;
+    public int IdEntidad { get; set; }
+    public int? IdTaller { get; set; }
+    public string? Hospital { get; set; }
+    public string Accion { get; set; } = string.Empty;
+    public string? ValoresAntes { get; set; }
+    public string? ValoresDespues { get; set; }
+    public string Motivo { get; set; } = string.Empty;
+    public int IdUsuario { get; set; }
+    public string? NombreUsuario { get; set; }
+    public DateTime FechaAjuste { get; set; }
 }
 
 /// <summary>Panel "Matrices por equipo" de la concentración (estado de cada matriz individual).</summary>
@@ -85,6 +105,7 @@ public class MatrizDocumentoDto
     public List<TallerDto> Talleres { get; set; } = [];
     public decimal CostoTotal { get; set; }
     public List<MatrizDocumentoFirmaDto> Firmas { get; set; } = [];
+    public List<MatrizAjustePostCierreDto> AjustesPostCierre { get; set; } = [];
 }
 
 public class MatrizDocumentoFirmaDto
@@ -109,10 +130,8 @@ public class MatrizRevisionDto
     public int? Version { get; set; }
     public string? EstadoRutaVersion { get; set; }
     public int TotalVisitas { get; set; }
-    public int VisitasTipoTaller { get; set; }
     public int VisitasConTaller { get; set; }
     public int VisitasSinTaller { get; set; }
-    public int VisitasNoTaller { get; set; }
     public int TotalTalleres { get; set; }
     public int TalleresSinRecursos { get; set; }
     public int TalleresSinCosto { get; set; }

@@ -278,12 +278,8 @@ export function CrearTallerVisitaModal({
         </div>
 
         <div className="grid gap-2">
-          <Label>Tipo de visita</Label>
-          <Select
-            value={idTipoVisita}
-            onValueChange={setIdTipoVisita}
-            disabled={!puedeGestionarRutas}
-          >
+          <Label>Tipo de taller</Label>
+          <Select value={idTipoVisita} onValueChange={setIdTipoVisita}>
             <SelectTrigger className="h-10">
               <SelectValue placeholder="Selecciona el tipo" />
             </SelectTrigger>
@@ -296,9 +292,7 @@ export function CrearTallerVisitaModal({
             </SelectContent>
           </Select>
           <p className="text-[10px] text-slate-500 dark:text-slate-400">
-            {puedeGestionarRutas
-              ? 'Clasifica la visita para reportes e indicadores.'
-              : 'Necesitas permiso de gestión de rutas para cambiar el tipo.'}
+            Clasifica el taller para reportes e indicadores.
           </p>
         </div>
 

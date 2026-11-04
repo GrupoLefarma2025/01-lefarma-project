@@ -37,7 +37,6 @@ public class TipoVisitaController : ControllerBase
                 IdTipoVisita = t.IdTipoVisita,
                 Clave = t.Clave,
                 Descripcion = t.Descripcion,
-                EsTaller = t.EsTaller,
             })
             .ToListAsync(ct);
 
@@ -55,5 +54,4 @@ public class TipoVisitaDto
     public int IdTipoVisita { get; set; }
     public string Clave { get; set; } = string.Empty;
     public string Descripcion { get; set; } = string.Empty;
-    public bool EsTaller { get; set; }
 }

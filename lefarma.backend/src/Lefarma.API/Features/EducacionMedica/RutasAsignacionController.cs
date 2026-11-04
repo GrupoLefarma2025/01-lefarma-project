@@ -73,7 +73,7 @@ public class RutasAsignacionController : ControllerBase
     {
         try
         {
-            var sugerencias = await _service.GetSugerenciasAsync(idSeleccion, desde, hasta, ct);
+            var sugerencias = await _service.GetSugerenciasAsync(idSeleccion, desde, hasta, null, ct);
             return Ok(new ApiResponse<List<SugerenciaEspecialistaDto>>
             {
                 Success = true,

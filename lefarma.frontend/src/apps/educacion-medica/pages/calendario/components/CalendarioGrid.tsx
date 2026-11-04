@@ -30,6 +30,7 @@ interface CalendarioGridProps {
   suplentes: EjecutivoSuplente[];
   onSelect: (item: CalendarioItem) => void;
   onMover: (item: CalendarioItem, fecha: string) => void;
+  puedeMover?: boolean;
   onDiaDobleClick?: (fecha: string) => void;
 }
 
@@ -77,15 +78,18 @@ function DragCell({
   children,
   className = '',
   onMover,
+  puedeMover = true,
   onDoubleClick,
 }: {
   fecha: string;
   children: ReactNode;
   className?: string;
   onMover: (fecha: string, idRutaVisita: number) => void;
+  puedeMover?: boolean;
   onDoubleClick?: () => void;
 }) {
   const aceptar = (event: DragEvent<HTMLDivElement>) => {
+    if (!puedeMover) return;
     event.preventDefault();
     event.dataTransfer.dropEffect = 'move';
   };
@@ -94,6 +98,7 @@ function DragCell({
       className={`group/cell relative min-w-0 border-b border-l border-slate-200/70 transition-colors dark:border-slate-800 ${className}`}
       onDragOver={aceptar}
       onDrop={(event) => {
+        if (!puedeMover) return;
         event.preventDefault();
         const id = Number(event.dataTransfer.getData('calendario-item'));
         if (id) onMover(fecha, id);
@@ -105,12 +110,18 @@ function DragCell({
   );
 }
 
+function iniciarArrastre(event: DragEvent<HTMLDivElement>, evento: CalendarioItem) {
+  event.dataTransfer.setData('calendario-item', String(evento.idRutaVisita));
+  event.dataTransfer.effectAllowed = 'move';
+}
+
 function SemanaView({
   fecha,
   items,
   seleccionadoId,
   onSelect,
   onMover,
+  puedeMover = true,
 }: Omit<CalendarioGridProps, 'vista' | 'especialistas' | 'ejecutivos' | 'suplentes'>) {
   const dias = diasLaboralesDe(fecha);
   const sinHora = items.filter((item) => !item.hora);
@@ -155,6 +166,7 @@ function SemanaView({
                   key={dia}
                   fecha={dia}
                   className="min-h-[58px] bg-slate-50/50 p-1 dark:bg-slate-900/20"
+                  puedeMover={puedeMover}
                   onMover={(nuevaFecha, id) => {
                     const item = items.find((evento) => evento.idRutaVisita === id);
                     if (item) onMover(item, nuevaFecha);
@@ -167,13 +179,7 @@ function SemanaView({
                         item={item}
                         activo={item.idRutaVisita === seleccionadoId}
                         onClick={onSelect}
-                        onDragStart={(event, evento) => {
-                          event.dataTransfer.setData(
-                            'calendario-item',
-                            String(evento.idRutaVisita)
-                          );
-                          event.dataTransfer.effectAllowed = 'move';
-                        }}
+                        onDragStart={puedeMover ? iniciarArrastre : undefined}
                       />
                     ))}
                   </div>
@@ -201,6 +207,7 @@ function SemanaView({
                       'min-h-[64px] p-1',
                       esFinDeSemana(dia) ? 'bg-slate-50/50 dark:bg-slate-900/20' : '',
                     ].join(' ')}
+                    puedeMover={puedeMover}
                     onMover={(nuevaFecha, id) => {
                       const item = items.find((evento) => evento.idRutaVisita === id);
                       if (item) onMover(item, nuevaFecha);
@@ -213,13 +220,7 @@ function SemanaView({
                           item={item}
                           activo={item.idRutaVisita === seleccionadoId}
                           onClick={onSelect}
-                          onDragStart={(event, evento) => {
-                            event.dataTransfer.setData(
-                              'calendario-item',
-                              String(evento.idRutaVisita)
-                            );
-                            event.dataTransfer.effectAllowed = 'move';
-                          }}
+                          onDragStart={puedeMover ? iniciarArrastre : undefined}
                         />
                       ))}
                     </div>
@@ -245,6 +246,7 @@ function MesView({
   seleccionadoId,
   onSelect,
   onMover,
+  puedeMover = true,
   onDiaDobleClick,
 }: Omit<CalendarioGridProps, 'vista' | 'especialistas' | 'ejecutivos' | 'suplentes'>) {
   const dias = cuadriculaMes(fecha);
@@ -279,6 +281,7 @@ function MesView({
                     !delMes ? 'bg-slate-50/70 dark:bg-slate-900/40' : '',
                     esFinDeSemana(dia) && delMes ? 'bg-slate-50/40 dark:bg-slate-900/20' : '',
                   ].join(' ')}
+                  puedeMover={puedeMover}
                   onMover={(nuevaFecha, id) => {
                     const item = items.find((evento) => evento.idRutaVisita === id);
                     if (item) onMover(item, nuevaFecha);
@@ -312,13 +315,7 @@ function MesView({
                         variante="mes"
                         activo={item.idRutaVisita === seleccionadoId}
                         onClick={onSelect}
-                        onDragStart={(event, evento) => {
-                          event.dataTransfer.setData(
-                            'calendario-item',
-                            String(evento.idRutaVisita)
-                          );
-                          event.dataTransfer.effectAllowed = 'move';
-                        }}
+                        onDragStart={puedeMover ? iniciarArrastre : undefined}
                       />
                     ))}
                     {eventos.length > 3 && (

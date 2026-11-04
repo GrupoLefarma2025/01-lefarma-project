@@ -91,7 +91,7 @@ export const educacionMedicaMenuItems: SidebarMenuItemConfig[] = [
         permission: { require: PERMISOS.configuracion },
       },
       {
-        title: 'Ranking',
+        title: 'Scoring',
         icon: Sparkles,
         path: '/educacion-medica/catalogos/config-ranking',
         permission: { require: PERMISOS.configuracion },

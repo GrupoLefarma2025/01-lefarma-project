@@ -1,5 +1,6 @@
 using System.Text.Json;
 using ErrorOr;
+using Lefarma.API.Domain.Entities.Config;
 using Lefarma.API.Domain.Entities.EducacionMedica;
 using Lefarma.API.Domain.Interfaces.Config;
 using Lefarma.API.Features.Config.Workflows;
@@ -215,11 +216,12 @@ public class MatrizTalleresService : IMatrizTalleresService
             .FirstOrDefaultAsync(ct);
 
         RutaVersion? version;
-        if (idRutaVersion.HasValue)
+        var idVersionResuelta = idRutaVersion ?? matriz.IdRutaVersion;
+        if (idVersionResuelta.HasValue)
         {
             version = await _context.RutasVersiones.AsNoTracking()
-                .FirstOrDefaultAsync(v => v.IdRutaVersion == idRutaVersion.Value, ct)
-                ?? throw new InvalidOperationException($"La versión de rutas {idRutaVersion} no existe.");
+                .FirstOrDefaultAsync(v => v.IdRutaVersion == idVersionResuelta.Value, ct)
+                ?? throw new InvalidOperationException($"La versión de rutas {idVersionResuelta} no existe.");
 
             if (version.IdTipoGerencia.HasValue
                 && version.IdTipoGerencia.Value != matriz.IdTipoGerencia)
@@ -228,10 +230,24 @@ public class MatrizTalleresService : IMatrizTalleresService
                     "La versión de rutas indicada no pertenece a la gerencia de la matriz.");
             }
 
-            if (seleccion is not null && version.IdSeleccionMensual != seleccion.IdSeleccionMensual)
+            var seleccionVersion = await _context.SeleccionesMensuales.AsNoTracking()
+                .FirstOrDefaultAsync(s => s.IdSeleccionMensual == version.IdSeleccionMensual, ct)
+                ?? throw new InvalidOperationException(
+                    "La versión de rutas no tiene una selección mensual válida.");
+
+            if (seleccionVersion.IdTipoGerencia != matriz.IdTipoGerencia)
             {
                 throw new InvalidOperationException(
-                    "La versión de rutas indicada no pertenece a la selección de la matriz.");
+                    "La versión de rutas indicada no pertenece a la gerencia de la matriz.");
+            }
+
+            var mesVersion = seleccionVersion.FechaInicioVigencia
+                ?? seleccionVersion.FechaSeleccion;
+            if (mesVersion.Year != matriz.Periodo.Year
+                || mesVersion.Month != matriz.Periodo.Month)
+            {
+                throw new InvalidOperationException(
+                    "La versión de rutas indicada no pertenece al mes completo de la matriz.");
             }
         }
         else if (seleccion is not null)
@@ -267,10 +283,6 @@ public class MatrizTalleresService : IMatrizTalleresService
             estadoRutaPorVisita = filas.ToDictionary(f => f.Visita.IdRutaVisita, f => f.EstadoRuta);
         }
 
-        var tiposVisita = await _context.TiposVisita.AsNoTracking()
-            .Where(t => t.Activo)
-            .ToDictionaryAsync(t => t.IdTipoVisita, t => t.EsTaller, ct);
-
         var talleres = await _context.Talleres.AsNoTracking()
             .Include(t => t.Recursos)
             .Where(t => t.IdMatrizGeneral == idMatrizGeneral && t.Activo)
@@ -281,16 +293,10 @@ public class MatrizTalleresService : IMatrizTalleresService
             .GroupBy(t => t.IdRutaVisita!.Value)
             .ToDictionary(g => g.Key, g => g.ToList());
 
-        var visitasTipoTaller = visitas
-            .Where(v => !v.IdTipoVisita.HasValue
-                || !tiposVisita.TryGetValue(v.IdTipoVisita.Value, out var esTaller)
-                || esTaller)
-            .ToList();
-        var visitasSinTaller = visitasTipoTaller
+        var visitasSinTaller = visitas
             .Where(v => !tallerPorVisita.ContainsKey(v.IdRutaVisita))
             .ToList();
-        var visitasConTaller = visitasTipoTaller.Count - visitasSinTaller.Count;
-        var visitasNoTaller = visitas.Count - visitasTipoTaller.Count;
+        var visitasConTaller = visitas.Count - visitasSinTaller.Count;
 
         var idsVisitasActivas = visitas.Select(v => v.IdRutaVisita).ToHashSet();
         var talleresFueraVersion = version is null
@@ -416,17 +422,6 @@ public class MatrizTalleresService : IMatrizTalleresService
             });
         }
 
-        if (visitasSinTaller.Count > 0)
-        {
-            advertencias.Add(new AdvertenciaMatrizDto
-            {
-                Codigo = "VISITAS_SIN_TALLER",
-                Severidad = "info",
-                Mensaje = $"Hay {visitasSinTaller.Count} visita(s) tipo taller sin taller capturado. Revisa que sea intencional (por ejemplo, por disponibilidad del hospital).",
-                Total = visitasSinTaller.Count,
-            });
-        }
-
         if (talleresFueraVersion > 0)
         {
             advertencias.Add(new AdvertenciaMatrizDto
@@ -471,17 +466,6 @@ public class MatrizTalleresService : IMatrizTalleresService
             });
         }
 
-        if (visitasNoTaller > 0)
-        {
-            advertencias.Add(new AdvertenciaMatrizDto
-            {
-                Codigo = "VISITAS_NO_TALLER",
-                Severidad = "info",
-                Mensaje = $"{visitasNoTaller} visita(s) son informativas/otro y no requieren taller.",
-                Total = visitasNoTaller,
-            });
-        }
-
         return new MatrizRevisionDto
         {
             IdMatrizGeneral = matriz.IdMatrizGeneral,
@@ -494,10 +478,8 @@ public class MatrizTalleresService : IMatrizTalleresService
             Version = version?.Version,
             EstadoRutaVersion = version?.Estado,
             TotalVisitas = visitas.Count,
-            VisitasTipoTaller = visitasTipoTaller.Count,
             VisitasConTaller = visitasConTaller,
             VisitasSinTaller = visitasSinTaller.Count,
-            VisitasNoTaller = visitasNoTaller,
             TotalTalleres = talleres.Count,
             TalleresSinRecursos = talleresSinRecursos,
             TalleresSinCosto = talleresSinCosto,
@@ -587,7 +569,10 @@ public class MatrizTalleresService : IMatrizTalleresService
             ct);
         var (nombresEstados, nombresProductos) = await EducacionMedicaNombres.ResolverParaTalleresAsync(
             _asokamContext, [taller], ct);
-        return TallerDtoMapper.Armar(taller, nombresHospitales, nombresUsuarios, nombresProductos, nombresEstados);
+        var nombresTiposVisita = await CargarNombresTiposVisitaAsync(ct);
+        return TallerDtoMapper.Armar(
+            taller, nombresHospitales, nombresUsuarios, nombresProductos, nombresEstados,
+            nombresTiposVisita);
     }
 
     public async Task<MatrizTalleresDetalleDto> FirmarAsync(int idMatrizGeneral, FirmarWorkflowRequest request, int idUsuario, CancellationToken ct = default)
@@ -637,18 +622,6 @@ public class MatrizTalleresService : IMatrizTalleresService
         if ((codigoAccion == "AUTORIZAR" || codigoAccion == "CERRAR") && esFirmaPosteriorALaPrimera)
         {
             await ValidarCostosCapturadosAsync(idMatrizGeneral, ct);
-        }
-
-        if (codigoAccion == "ENVIAR" && pasoActual.EsInicio)
-        {
-            var revision = await GetRevisionAsync(idMatrizGeneral, null, ct);
-            if (revision.VisitasSinTaller > 0
-                && !TieneConfirmacionVisitasSinTaller(request.DatosAdicionales))
-            {
-                throw new InvalidOperationException(
-                    $"La matriz tiene {revision.VisitasSinTaller} visita(s) tipo taller sin taller capturado. " +
-                    "Revisa la lista y confirma el envío con datosAdicionales.confirmarVisitasSinTaller = true.");
-            }
         }
 
         var resultado = await _engine.EjecutarAccionAsync(new WorkflowContext(
@@ -705,6 +678,9 @@ public class MatrizTalleresService : IMatrizTalleresService
                 idMatrizGeneral, talleres.Count);
         }
 
+        await SincronizarPlaneacionConMatrizAsync(
+            matriz, pasoResultante, codigoAccion, idUsuario, ct);
+
         await _context.SaveChangesAsync(ct);
 
         _logger.LogInformation(
@@ -712,6 +688,92 @@ public class MatrizTalleresService : IMatrizTalleresService
             idMatrizGeneral, request.IdAccion, codigoAccion, idUsuario, matriz.IdPasoActual);
 
         return await ArmarDetalleAsync(matriz, idUsuario, ct);
+    }
+
+    private async Task SincronizarPlaneacionConMatrizAsync(
+        MatrizGeneral matriz,
+        WorkflowPaso? pasoResultante,
+        string codigoAccion,
+        int idUsuario,
+        CancellationToken ct)
+    {
+        var estadoVersion = pasoResultante?.EsInicio == true || codigoAccion == "DEVOLVER"
+            ? RutaVersion.EstadoCreada
+            : RutaVersion.EstadoCerrada;
+
+        var idsVersiones = new HashSet<int>();
+        if (matriz.IdRutaVersion.HasValue)
+        {
+            idsVersiones.Add(matriz.IdRutaVersion.Value);
+        }
+
+        var idsVinculadas = await (
+            from t in _context.Talleres
+            join v in _context.RutasVisitas on t.IdRutaVisita equals v.IdRutaVisita
+            join r in _context.Rutas on v.IdRuta equals r.IdRuta
+            where t.IdMatrizGeneral == matriz.IdMatrizGeneral
+                && t.Activo
+                && t.IdRutaVisita.HasValue
+                && r.IdRutaVersion.HasValue
+            select r.IdRutaVersion!.Value)
+            .Distinct()
+            .ToListAsync(ct);
+
+        foreach (var id in idsVinculadas)
+        {
+            idsVersiones.Add(id);
+        }
+
+        if (idsVersiones.Count == 0)
+        {
+            return;
+        }
+
+        var versiones = await _context.RutasVersiones
+            .Where(v => idsVersiones.Contains(v.IdRutaVersion))
+            .ToListAsync(ct);
+
+        var idsActualizadas = new HashSet<int>();
+        foreach (var version in versiones)
+        {
+            if (version.Estado is RutaVersion.EstadoCancelada or RutaVersion.EstadoArchivada)
+            {
+                continue;
+            }
+
+            version.Estado = estadoVersion;
+            version.FechaConfirmacion = estadoVersion == RutaVersion.EstadoCerrada
+                ? (version.FechaConfirmacion ?? DateTime.UtcNow)
+                : null;
+            version.IdUsuarioModificacion = idUsuario;
+            idsActualizadas.Add(version.IdRutaVersion);
+        }
+
+        if (idsActualizadas.Count == 0)
+        {
+            return;
+        }
+
+        var estadoRuta = estadoVersion == RutaVersion.EstadoCerrada
+            ? Ruta.EstadoCerrada
+            : Ruta.EstadoCreada;
+
+        var rutas = await _context.Rutas
+            .Where(r => r.IdRutaVersion.HasValue && idsActualizadas.Contains(r.IdRutaVersion.Value))
+            .ToListAsync(ct);
+
+        foreach (var ruta in rutas)
+        {
+            ruta.Estado = estadoRuta;
+            ruta.FechaConfirmacion = estadoVersion == RutaVersion.EstadoCerrada
+                ? (ruta.FechaConfirmacion ?? DateTime.UtcNow)
+                : null;
+            ruta.IdUsuarioModificacion = idUsuario;
+        }
+
+        _logger.LogInformation(
+            "Matriz {IdMatrizGeneral}: planeación sincronizada a {Estado} en {Versiones} versión(es) y {Rutas} ruta(s).",
+            matriz.IdMatrizGeneral, estadoVersion, idsActualizadas.Count, rutas.Count);
     }
 
     public async Task<ErrorOr<IEnumerable<AccionDisponibleResponse>>> GetAccionesDisponiblesAsync(int idMatrizGeneral, int idUsuario, CancellationToken ct = default)
@@ -801,6 +863,7 @@ public class MatrizTalleresService : IMatrizTalleresService
             Talleres = detalle.Talleres,
             CostoTotal = detalle.CostoTotal,
             Firmas = firmas,
+            AjustesPostCierre = detalle.AjustesPostCierre,
         };
     }
 
@@ -847,22 +910,12 @@ public class MatrizTalleresService : IMatrizTalleresService
         }
     }
 
-    private static bool TieneConfirmacionVisitasSinTaller(Dictionary<string, object>? datos)
+    private async Task<IReadOnlyDictionary<int, string>> CargarNombresTiposVisitaAsync(
+        CancellationToken ct)
     {
-        if (datos is null || !datos.TryGetValue("confirmarVisitasSinTaller", out var valor))
-        {
-            return false;
-        }
-
-        return valor switch
-        {
-            bool confirmado => confirmado,
-            string texto => bool.TryParse(texto, out var confirmado) && confirmado,
-            JsonElement json when json.ValueKind == JsonValueKind.True => true,
-            JsonElement json when json.ValueKind == JsonValueKind.String
-                && bool.TryParse(json.GetString(), out var confirmado) => confirmado,
-            _ => false,
-        };
+        return await _context.TiposVisita.AsNoTracking()
+            .Where(t => t.Activo)
+            .ToDictionaryAsync(t => t.IdTipoVisita, t => t.Descripcion, ct);
     }
 
     private async Task<MatrizGeneralResumenDto> ArmarResumenAsync(MatrizGeneral matriz, CancellationToken ct)
@@ -881,6 +934,13 @@ public class MatrizTalleresService : IMatrizTalleresService
                 .FirstOrDefaultAsync(ct);
         }
 
+        var versionRutas = matriz.IdRutaVersion.HasValue
+            ? await _context.RutasVersiones.AsNoTracking()
+                .Where(v => v.IdRutaVersion == matriz.IdRutaVersion.Value)
+                .Select(v => new { v.Version, v.Estado })
+                .FirstOrDefaultAsync(ct)
+            : null;
+
         return new MatrizGeneralResumenDto
         {
             IdMatrizGeneral = matriz.IdMatrizGeneral,
@@ -893,6 +953,9 @@ public class MatrizTalleresService : IMatrizTalleresService
             IdEstado = matriz.IdEstado,
             EstadoNombre = matriz.EstadoWorkflow?.Nombre,
             EstadoColor = matriz.EstadoWorkflow?.ColorHex,
+            IdRutaVersion = matriz.IdRutaVersion,
+            Version = versionRutas?.Version,
+            EstadoRutaVersion = versionRutas?.Estado,
             TotalTalleres = talleres.Count,
             CostoTotal = talleres.Sum(t => t.Recursos.Sum(r => r.Subtotal ?? 0m)),
         };
@@ -948,14 +1011,20 @@ public class MatrizTalleresService : IMatrizTalleresService
         }
 
         var solicitudesPendientes = await CargarSolicitudesPendientesAsync(talleres, ct);
+        var nombresTiposVisita = await CargarNombresTiposVisitaAsync(ct);
         var talleresDto = talleres
             .Select(t =>
             {
-                var dto = TallerDtoMapper.Armar(t, nombresHospitales, nombresUsuarios, nombresProductos, nombresEstados);
+                var dto = TallerDtoMapper.Armar(
+                    t, nombresHospitales, nombresUsuarios, nombresProductos, nombresEstados,
+                    nombresTiposVisita);
                 dto.SolicitudCambioPendiente = solicitudesPendientes.GetValueOrDefault(t.IdTaller);
                 return dto;
             })
             .ToList();
+
+        var ajustesPostCierre = await CargarAjustesPostCierreAsync(
+            matriz, talleres, nombresHospitales, ct);
 
         return new MatrizTalleresDetalleDto
         {
@@ -969,13 +1038,87 @@ public class MatrizTalleresService : IMatrizTalleresService
             IdEstado = resumen.IdEstado,
             EstadoNombre = resumen.EstadoNombre,
             EstadoColor = resumen.EstadoColor,
+            IdRutaVersion = resumen.IdRutaVersion,
+            Version = resumen.Version,
+            EstadoRutaVersion = resumen.EstadoRutaVersion,
             TotalTalleres = resumen.TotalTalleres,
             CostoTotal = resumen.CostoTotal,
             EsEditable = esEditable,
             EsFinal = esFinal,
             Talleres = talleresDto,
             Acciones = acciones,
+            AjustesPostCierre = ajustesPostCierre,
         };
+    }
+
+    private async Task<List<MatrizAjustePostCierreDto>> CargarAjustesPostCierreAsync(
+        MatrizGeneral matriz,
+        IReadOnlyCollection<Taller> talleres,
+        IReadOnlyDictionary<int, string> nombresHospitales,
+        CancellationToken ct)
+    {
+        var idsTalleres = talleres.Select(t => t.IdTaller).ToList();
+        var idsVisitas = talleres
+            .Where(t => t.IdRutaVisita.HasValue)
+            .Select(t => t.IdRutaVisita!.Value)
+            .Distinct()
+            .ToList();
+        var idRutaVersion = matriz.IdRutaVersion;
+
+        var ajustes = await _context.AjustesPostCierre.AsNoTracking()
+            .Where(a =>
+                (a.EntidadTipo == AjustePostCierre.EntidadTaller
+                    && idsTalleres.Contains(a.IdEntidad))
+                || (a.EntidadTipo == AjustePostCierre.EntidadRutaVisita
+                    && idsVisitas.Contains(a.IdEntidad))
+                || (a.EntidadTipo == AjustePostCierre.EntidadRutaVersion
+                    && idRutaVersion.HasValue
+                    && a.IdEntidad == idRutaVersion.Value))
+            .OrderByDescending(a => a.FechaAjuste)
+            .ToListAsync(ct);
+
+        if (ajustes.Count == 0)
+        {
+            return [];
+        }
+
+        var idsUsuarios = ajustes.Select(a => a.IdUsuario).Distinct().ToList();
+        var nombresUsuarios = await _asokamContext.Usuarios.AsNoTracking()
+            .Where(u => idsUsuarios.Contains(u.IdUsuario))
+            .ToDictionaryAsync(u => u.IdUsuario, u => u.NombreCompleto ?? string.Empty, ct);
+
+        var tallerPorId = talleres.ToDictionary(t => t.IdTaller);
+        var tallerPorVisita = talleres
+            .Where(t => t.IdRutaVisita.HasValue)
+            .GroupBy(t => t.IdRutaVisita!.Value)
+            .ToDictionary(g => g.Key, g => g.First());
+
+        return ajustes.Select(a =>
+        {
+            var taller = a.EntidadTipo == AjustePostCierre.EntidadTaller
+                ? tallerPorId.GetValueOrDefault(a.IdEntidad)
+                : a.EntidadTipo == AjustePostCierre.EntidadRutaVisita
+                    ? tallerPorVisita.GetValueOrDefault(a.IdEntidad)
+                    : null;
+
+            return new MatrizAjustePostCierreDto
+            {
+                IdAjuste = a.IdAjuste,
+                EntidadTipo = a.EntidadTipo,
+                IdEntidad = a.IdEntidad,
+                IdTaller = taller?.IdTaller,
+                Hospital = taller?.IdHospital.HasValue == true
+                    ? nombresHospitales.GetValueOrDefault(taller.IdHospital.Value)
+                    : null,
+                Accion = a.Accion,
+                ValoresAntes = a.ValoresAntes,
+                ValoresDespues = a.ValoresDespues,
+                Motivo = a.Motivo,
+                IdUsuario = a.IdUsuario,
+                NombreUsuario = nombresUsuarios.GetValueOrDefault(a.IdUsuario),
+                FechaAjuste = a.FechaAjuste,
+            };
+        }).ToList();
     }
 
     /// <summary>

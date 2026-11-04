@@ -11,7 +11,8 @@ internal static class TallerDtoMapper
         IReadOnlyDictionary<int, string>? nombresHospitales = null,
         IReadOnlyDictionary<int, string>? nombresUsuarios = null,
         IReadOnlyDictionary<int, string>? nombresProductos = null,
-        IReadOnlyDictionary<string, string>? nombresEstados = null)
+        IReadOnlyDictionary<string, string>? nombresEstados = null,
+        IReadOnlyDictionary<int, string>? nombresTiposVisita = null)
     {
         var recursos = taller.Recursos
             .OrderBy(r => r.IdTallerRecurso)
@@ -37,6 +38,10 @@ internal static class TallerDtoMapper
         {
             IdTaller = taller.IdTaller,
             IdRutaVisita = taller.IdRutaVisita,
+            IdTipoVisita = taller.IdTipoVisita,
+            TipoVisita = taller.IdTipoVisita.HasValue
+                ? nombresTiposVisita?.GetValueOrDefault(taller.IdTipoVisita.Value)
+                : null,
             IdSeleccionHospital = taller.IdSeleccionHospital,
             IdHospital = taller.IdHospital,
             NombreHospital = taller.IdHospital.HasValue

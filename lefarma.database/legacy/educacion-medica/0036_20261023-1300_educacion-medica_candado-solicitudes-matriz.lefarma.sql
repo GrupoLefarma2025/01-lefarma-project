@@ -12,6 +12,9 @@
 --   NO aplica el script solo: lo revisa y ejecuta el usuario.
 --   Requiere 0035 (parametros_modulo.tipo/valor_texto).
 --
+--   PARA BD NUEVA: NO ejecutar. Columnas y parametros ya estan integrados
+--   en 0016 y 0035; este archivo queda para entornos existentes.
+--
 -- REQUISITOS
 --   - 0016, 0033, 0035 aplicados.
 --

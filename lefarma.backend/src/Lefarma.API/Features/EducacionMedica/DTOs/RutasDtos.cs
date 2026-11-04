@@ -61,6 +61,7 @@ public class GenerarRutasRequest
 public class GenerarRutasResponse
 {
     public int Version { get; set; }
+    public int IdRutaVersion { get; set; }
     public string Estrategia { get; set; } = string.Empty;
     public List<RutaDto> Rutas { get; set; } = [];
     public List<string> Avisos { get; set; } = [];

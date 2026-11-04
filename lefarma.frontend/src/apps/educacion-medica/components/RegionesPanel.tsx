@@ -35,7 +35,6 @@ interface RegionesPanelProps {
   especialistas: EspecialistaPersona[];
   idTipoGerencia: number | null;
   editable: boolean;
-  guardando?: boolean;
   regionesAbiertas: string[];
   onRegionesAbiertasChange: (abiertas: string[]) => void;
   onHoverRegion: (idRegion: number | null) => void;
@@ -54,7 +53,6 @@ interface RegionesPanelProps {
   ) => Promise<{ ok: boolean; mensaje?: string }>;
   onQuitarHospital: (hospital: SeleccionHospital) => Promise<void>;
   onDividir: (region: SeleccionRegion) => void;
-  onRecalcular: () => void;
   onMoverARegion: (
     hospital: SeleccionHospital,
     idRegion: number
@@ -408,7 +406,7 @@ function RegionItem({
           )}
 
           <div className="space-y-1">
-            <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,130px)_minmax(0,190px)_48px_96px_32px] items-center gap-2 text-xs font-medium text-muted-foreground">
+            <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,130px)_minmax(0,190px)_48px_96px_36px] items-center gap-2 text-xs font-medium text-muted-foreground">
               <span>Hospital</span>
               <span>Ubicación</span>
               <span>Ejecutivo</span>
@@ -429,7 +427,7 @@ function RegionItem({
               return (
                 <div
                   key={hospital.idSeleccionHospital}
-                  className="grid grid-cols-[minmax(0,1fr)_minmax(0,130px)_minmax(0,190px)_48px_96px_32px] items-center gap-2 border-t py-1.5 text-xs"
+                  className="grid grid-cols-[minmax(0,1fr)_minmax(0,130px)_minmax(0,190px)_48px_96px_36px] items-center gap-2 border-t py-1.5 text-xs"
                   onMouseEnter={() => onHoverHospital(hospital.idSeleccionHospital)}
                   onMouseLeave={() => onHoverHospital(null)}
                 >
@@ -505,8 +503,12 @@ function RegionItem({
                   </span>
                   <span>
                     <Button
+                      type="button"
                       variant="ghost"
-                      size="sm"
+                      size="icon"
+                      className="h-7 w-7"
+                      aria-label="Quitar hospital de la selección"
+                      title="Quitar hospital"
                       disabled={!editable}
                       onClick={() => void onQuitarHospital(hospital)}
                     >
@@ -561,7 +563,6 @@ export function RegionesPanel({
   especialistas,
   idTipoGerencia,
   editable,
-  guardando = false,
   regionesAbiertas,
   onRegionesAbiertasChange,
   onHoverRegion,
@@ -571,7 +572,6 @@ export function RegionesPanel({
   onAsignarEjecutivoHospital,
   onQuitarHospital,
   onDividir,
-  onRecalcular,
   onMoverARegion,
   cercanosPorRegion,
 }: RegionesPanelProps) {
@@ -659,8 +659,12 @@ export function RegionesPanel({
                     </Select>
                   )}
                   <Button
+                    type="button"
                     variant="ghost"
-                    size="sm"
+                    size="icon"
+                    className="h-7 w-7"
+                    aria-label="Quitar hospital de la selección"
+                    title="Quitar hospital"
                     disabled={!editable}
                     onClick={() => void onQuitarHospital(hospital)}
                   >
@@ -682,15 +686,6 @@ export function RegionesPanel({
               <CercanosList cercanos={cercanosSinRegion} />
             </div>
           )}
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={!editable || guardando}
-            onClick={onRecalcular}
-          >
-            <Scissors className="mr-2 h-4 w-4" />
-            Recalcular regiones
-          </Button>
         </div>
       )}
 

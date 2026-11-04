@@ -134,6 +134,7 @@ function ResumenContenido({ detalle }: ResumenContenidoProps) {
                 <tr>
                   <th className={CLASES_ENCABEZADO}>Hospital</th>
                   <th className={CLASES_ENCABEZADO}>Ejecutivo</th>
+                  <th className={CLASES_ENCABEZADO}>Producto a promocionar</th>
                   <th className={CLASES_ENCABEZADO}>Quirófanos</th>
                   <th className={CLASES_ENCABEZADO}>Anestesias</th>
                   <th className={CLASES_ENCABEZADO}>Estado / Ciudad</th>
@@ -143,7 +144,7 @@ function ResumenContenido({ detalle }: ResumenContenidoProps) {
                 {grupos.map(([institucion, hospitalesGrupo]) => (
                   <Fragment key={`inst-${region.idRegion}-${institucion}`}>
                     <tr>
-                      <td colSpan={5} className={`${CLASES_CELDA} bg-muted/50 font-semibold`}>
+                      <td colSpan={6} className={`${CLASES_CELDA} bg-muted/50 font-semibold`}>
                         {institucion} ({hospitalesGrupo.length})
                       </td>
                     </tr>
@@ -155,6 +156,9 @@ function ResumenContenido({ detalle }: ResumenContenidoProps) {
                         <td className={CLASES_CELDA}>
                           {nombreEjecutivoHospital(hospital, region)}
                         </td>
+                        <td className={CLASES_CELDA}>
+                          {hospital.productoAPromocionar ?? '-'}
+                        </td>
                         <td className={CLASES_CELDA}>{hospital.numeroQuirofanos ?? '-'}</td>
                         <td className={CLASES_CELDA}>{hospital.anestesiasTotales ?? '-'}</td>
                         <td className={CLASES_CELDA}>{ubicacionHospital(hospital)}</td>
@@ -164,7 +168,7 @@ function ResumenContenido({ detalle }: ResumenContenidoProps) {
                 ))}
                 {grupos.length === 0 && (
                   <tr>
-                    <td colSpan={5} className={CLASES_CELDA}>
+                    <td colSpan={6} className={CLASES_CELDA}>
                       Sin hospitales con coordenadas registradas.
                     </td>
                   </tr>
@@ -174,6 +178,7 @@ function ResumenContenido({ detalle }: ResumenContenidoProps) {
                     Total {region.nombre ?? `Región ${region.idRegion}`}
                   </td>
                   <td className={`${CLASES_CELDA} font-semibold`}>{region.nombreEjecutivo ?? '-'}</td>
+                  <td className={`${CLASES_CELDA} font-semibold`} />
                   <td className={`${CLASES_CELDA} font-semibold`}>{totalQuir}</td>
                   <td className={`${CLASES_CELDA} font-semibold`}>{totalAnes}</td>
                   <td colSpan={1} className={CLASES_CELDA} />
@@ -194,6 +199,7 @@ function ResumenContenido({ detalle }: ResumenContenidoProps) {
               <tr>
                 <th className={CLASES_ENCABEZADO}>Hospital</th>
                 <th className={CLASES_ENCABEZADO}>Institución</th>
+                <th className={CLASES_ENCABEZADO}>Producto a promocionar</th>
                 <th className={CLASES_ENCABEZADO}>Estado / Ciudad</th>
               </tr>
             </thead>
@@ -204,6 +210,7 @@ function ResumenContenido({ detalle }: ResumenContenidoProps) {
                     {hospital.nombreHospital ?? `Hospital ${hospital.idHospital}`}
                   </td>
                   <td className={CLASES_CELDA}>{hospital.institucion ?? '—'}</td>
+                  <td className={CLASES_CELDA}>{hospital.productoAPromocionar ?? '-'}</td>
                   <td className={CLASES_CELDA}>{ubicacionHospital(hospital)}</td>
                 </tr>
               ))}

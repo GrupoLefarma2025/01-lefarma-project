@@ -124,11 +124,13 @@ public class CalendarioController : ControllerBase
         [FromQuery] int idSeleccion,
         [FromQuery] DateOnly? desde,
         [FromQuery] DateOnly? hasta,
+        [FromQuery] int? idRutaVisita,
         CancellationToken ct)
     {
         try
         {
-            var sugerencias = await _asignador.GetSugerenciasAsync(idSeleccion, desde, hasta, ct);
+            var sugerencias = await _asignador.GetSugerenciasAsync(
+                idSeleccion, desde, hasta, idRutaVisita, ct);
             return Ok(new ApiResponse<List<SugerenciaEspecialistaDto>>
             {
                 Success = true,

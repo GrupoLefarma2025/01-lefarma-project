@@ -19,7 +19,10 @@ import {
   Receipt,
 } from 'lucide-react';
 import { ActionMenuItem } from '@/apps/educacion-medica/components/ActionMenuItem';
-import type { Taller } from '@/apps/educacion-medica/types/educacionMedica.types';
+import type {
+  MatrizAjustePostCierre,
+  Taller,
+} from '@/apps/educacion-medica/types/educacionMedica.types';
 
 const fmtMoneda = (valor: number) =>
   valor.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
@@ -39,6 +42,7 @@ const RESUMEN_RECURSOS: Record<string, string> = {
 
 interface MatrizTalleresTableProps {
   talleres: Taller[];
+  ajustesPostCierre?: MatrizAjustePostCierre[];
   loading?: boolean;
   /** El usuario es el AEM en el paso de registro de costos. */
   puedeEditarCostos: boolean;
@@ -59,6 +63,7 @@ interface MatrizTalleresTableProps {
 /** Tabla concentrada de la matriz general: filas con recursos y Costo Total. */
 export function MatrizTalleresTable({
   talleres,
+  ajustesPostCierre = [],
   loading,
   puedeEditarCostos,
   onEditarCostos,
@@ -78,6 +83,16 @@ export function MatrizTalleresTable({
           Number(Boolean(a.solicitudCambioPendiente))
       ),
     [talleres]
+  );
+
+  const idsConAjuste = useMemo(
+    () =>
+      new Set(
+        ajustesPostCierre
+          .map((ajuste) => ajuste.idTaller)
+          .filter((id): id is number => Boolean(id))
+      ),
+    [ajustesPostCierre]
   );
 
   const columnas = useMemo<ColumnDef<Taller>[]>(
@@ -108,6 +123,15 @@ export function MatrizTalleresTable({
                 >
                   <FileSignature className="h-3 w-3" />
                   Solicitud pendiente
+                </Badge>
+              )}
+              {idsConAjuste.has(row.original.idTaller) && (
+                <Badge
+                  variant="outline"
+                  className="border-amber-300 text-[10px] text-amber-700 dark:border-amber-800 dark:text-amber-300"
+                  title="Tiene cambios posteriores a la autorización de la matriz"
+                >
+                  Ajuste post-cierre
                 </Badge>
               )}
             </div>
@@ -257,6 +281,7 @@ export function MatrizTalleresTable({
       },
     ],
     [
+      idsConAjuste,
       puedeEditarCostos,
       onEditarCostos,
       onVerDetalle,

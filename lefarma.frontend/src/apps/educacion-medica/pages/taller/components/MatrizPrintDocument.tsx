@@ -239,6 +239,42 @@ function ContenidoMatriz({ documento }: { documento: MatrizDocumento }) {
         </table>
       </section>
 
+      {(documento.ajustesPostCierre?.length ?? 0) > 0 && (
+        <section className="break-inside-avoid space-y-2 pt-6">
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            Ajustes post-cierre
+          </h3>
+          <table className="w-full border-collapse text-[10px]">
+            <thead>
+              <tr className="bg-muted/50 text-left">
+                <th className={CELDA}>Fecha</th>
+                <th className={CELDA}>Hospital / taller</th>
+                <th className={CELDA}>Acción</th>
+                <th className={CELDA}>Antes</th>
+                <th className={CELDA}>Después</th>
+                <th className={CELDA}>Motivo</th>
+                <th className={CELDA}>Usuario</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(documento.ajustesPostCierre ?? []).map((ajuste) => (
+                <tr key={ajuste.idAjuste}>
+                  <td className={CELDA}>{new Date(ajuste.fechaAjuste).toLocaleString('es-MX')}</td>
+                  <td className={CELDA}>
+                    {ajuste.hospital ?? (ajuste.idTaller ? `Taller ${ajuste.idTaller}` : ajuste.entidadTipo)}
+                  </td>
+                  <td className={CELDA}>{ajuste.accion}</td>
+                  <td className={CELDA}>{ajuste.valoresAntes ?? '-'}</td>
+                  <td className={CELDA}>{ajuste.valoresDespues ?? '-'}</td>
+                  <td className={CELDA}>{ajuste.motivo}</td>
+                  <td className={CELDA}>{ajuste.nombreUsuario ?? ajuste.idUsuario}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      )}
+
       <section className="break-inside-avoid space-y-3 pt-6">
         <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           Firmas

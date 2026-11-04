@@ -472,33 +472,55 @@ public class MatrizTalleresServiceTests
         var revision = await CrearServicio().GetRevisionAsync(general.IdMatrizGeneral, null);
 
         revision.TotalVisitas.Should().Be(1);
-        revision.VisitasTipoTaller.Should().Be(1);
         revision.VisitasConTaller.Should().Be(0);
         revision.VisitasSinTaller.Should().Be(1);
         revision.VisitasSinTallerDetalle.Should().ContainSingle()
             .Which.IdRutaVisita.Should().Be(1);
         revision.TalleresExtraordinarios.Should().Be(2);
-        revision.Advertencias.Should().Contain(a => a.Codigo == "VISITAS_SIN_TALLER");
+        revision.Advertencias.Should().NotContain(a => a.Codigo == "VISITAS_SIN_TALLER");
     }
 
     [Fact]
-    public async Task Firmar_EnviarConVisitasSinTaller_SinConfirmacion_Debe_Fallar()
+    public async Task Firmar_EnviarYDevolver_Debe_SincronizarLaPlaneacion()
+    {
+        var general = SembrarMatrizEnConcentracion();
+        SembrarSeleccionConVisitaSinTaller();
+        general.IdRutaVersion = 1;
+        _workflow.Context.SaveChanges();
+
+        await MoverMatrizAPasoAsync(general, "Enviar", _workflow.UsuarioGvImss);
+
+        _workflow.Context.RutasVersiones.Single(v => v.IdRutaVersion == 1).Estado
+            .Should().Be(RutaVersion.EstadoCerrada);
+        _workflow.Context.Rutas.Single(r => r.IdRuta == 1).Estado
+            .Should().Be(Ruta.EstadoCerrada);
+
+        _workflow.Context.Entry(general).Reload();
+        await MoverMatrizAPasoAsync(general, "GvImssDevolver", _workflow.UsuarioGvImss);
+
+        _workflow.Context.RutasVersiones.Single(v => v.IdRutaVersion == 1).Estado
+            .Should().Be(RutaVersion.EstadoCreada);
+        _workflow.Context.Rutas.Single(r => r.IdRuta == 1).Estado
+            .Should().Be(Ruta.EstadoCreada);
+    }
+
+    [Fact]
+    public async Task Firmar_EnviarConVisitasSinTaller_SinConfirmacion_Debe_Avanzar()
     {
         var general = SembrarMatrizEnConcentracion();
         SembrarSeleccionConVisitaSinTaller();
         var servicio = CrearServicio();
 
-        var act = () => servicio.FirmarAsync(
+        var detalle = await servicio.FirmarAsync(
             general.IdMatrizGeneral,
             new FirmarWorkflowRequest
             {
                 IdAccion = _workflow.AccionesMatriz["Enviar"],
-                Comentario = "Envío de la matriz",
+                Comentario = "Env�o de la matriz",
             },
             _workflow.UsuarioGvImss);
 
-        await act.Should().ThrowAsync<InvalidOperationException>()
-            .WithMessage("*visita(s) tipo taller sin taller*");
+        detalle.IdPasoActual.Should().Be(_workflow.PasosMatriz["GvImss"]);
     }
 
     [Fact]

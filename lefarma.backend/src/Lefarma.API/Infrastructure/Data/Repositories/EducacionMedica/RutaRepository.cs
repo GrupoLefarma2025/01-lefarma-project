@@ -70,7 +70,6 @@ public class RutaRepository : IRutaRepository
         CancellationToken cancellationToken = default)
     {
         return await _context.RutasVersiones
-            .Include(v => v.EstadoWorkflow)
             .FirstOrDefaultAsync(v => v.IdSeleccionMensual == idSeleccionMensual && v.Version == version, cancellationToken);
     }
 
@@ -79,7 +78,6 @@ public class RutaRepository : IRutaRepository
         CancellationToken cancellationToken = default)
     {
         return await _context.RutasVersiones
-            .Include(v => v.EstadoWorkflow)
             .FirstOrDefaultAsync(v => v.IdRutaVersion == idRutaVersion, cancellationToken);
     }
 
@@ -88,7 +86,6 @@ public class RutaRepository : IRutaRepository
         CancellationToken cancellationToken = default)
     {
         return await _context.RutasVersiones
-            .Include(v => v.EstadoWorkflow)
             .Where(v => v.IdSeleccionMensual == idSeleccionMensual)
             .OrderByDescending(v => v.Version)
             .FirstOrDefaultAsync(cancellationToken);

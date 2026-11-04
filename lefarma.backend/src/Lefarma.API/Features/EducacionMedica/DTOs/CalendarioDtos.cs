@@ -7,6 +7,7 @@ public class CalendarioFiltro
     public DateOnly? Desde { get; set; }
     public DateOnly? Hasta { get; set; }
     public int? IdGerencia { get; set; }
+    public List<int>? IdGerencias { get; set; }
     public int? IdRegion { get; set; }
     public int? IdEjecutivo { get; set; }
     public int? IdEspecialista { get; set; }
@@ -20,6 +21,8 @@ public class CalendarioItemDto
     public int IdRuta { get; set; }
     public int IdSeleccionMensual { get; set; }
     public int? IdTaller { get; set; }
+    public bool TieneTalleres { get; set; }
+    public int TalleresCount { get; set; }
     public int? IdSeleccionHospital { get; set; }
     public int? IdHospital { get; set; }
     public string? Hospital { get; set; }

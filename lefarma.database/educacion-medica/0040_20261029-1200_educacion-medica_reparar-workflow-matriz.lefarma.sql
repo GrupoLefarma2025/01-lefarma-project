@@ -31,7 +31,9 @@ BEGIN
     RETURN;
 END;
 
-DECLARE @scopeTipoGerencia int =
+DECLARE @scopeTipoGerencia int = 0;
+
+SET @scopeTipoGerencia =
     (SELECT TOP 1 id_scope_type
      FROM config.workflow_scope_types
      WHERE codigo = 'TIPO_GERENCIA' AND activo = 1

@@ -14,8 +14,9 @@
 --     personas       : ejecutivo_region, ejecutivo_suplente, especialista_gerencia, especialista_region
 --     equipos        : equipos_pareo (histórico; ADR-00015)
 --     rutas          : rutas, rutas_visitas, rutas_versiones
---     talleres       : talleres, taller_recursos, taller_materiales, taller_asistencias,
---                      taller_evidencias, taller_estados_historial
+--     talleres       : talleres (incluye id_tipo_visita = tipo de taller, tema e
+--                      id_ruta_version), taller_recursos, taller_materiales,
+--                      taller_asistencias, taller_evidencias, taller_estados_historial
 --     ajustes (0010) : ajustes_post_cierre, taller_solicitudes_cambio
 --     matriz (0015)  : matrices_individuales, matrices_generales
 --     ranking        : config_ranking, config_ranking_factores, ranking_ejecuciones,
@@ -27,16 +28,24 @@
 --   0026, 0027 y 0028 (retirados del repositorio el 2026-10-10 al quedar
 --   integrados aquí; las columnas que aquellos agregaban con ALTER TABLE ya
 --   vienen en cada CREATE TABLE). Además integra el modelo de ADR-00015
---   (scripts 0033 y 0038) para que una instalación limpia nazca con reparto por
---   ejecutivo, rutas por especialista, ejecutivos suplentes (sin vigencia) y
---   catálogos de personas.
+--   (scripts 0033 y 0038) y los cambios de esquema de 0039 (tema libre),
+--   0041 (tipo de taller), 0042 (matriz -> versión de rutas) y 0043 (sin
+--   columnas de workflow en rutas_versiones), para que una instalación limpia
+--   nazca con reparto por ejecutivo, rutas por especialista, ejecutivos
+--   suplentes (sin vigencia) y catálogos de personas.
 --   taller_aprobaciones ya NO se crea (la eliminó el ADR-00008: la bitácora
 --   del motor cubre las firmas).
 --
 -- CÓMO USAR (entorno NUEVO / desde cero)
 --   1) 0016  (este script)  — esquema completo (incluye el modelo de ADR-00015)
 --   2) 0030                 — catálogos y backfills (solo Lefarma, sin Asokam)
---   3) 0018                 — workflows de selección, rutas y matriz
+--   3) 0035                 — catálogos de calendario y parámetros
+--   4) 0018                 — workflows de selección, rutas y matriz
+--   5) 0037                 — limpieza opcional (manual/educacion-medica)
+--   En una BD nueva no es necesario ejecutar 0034, 0036, 0038, 0039, 0041,
+--   0042, 0043, 0044, 0045 ni 0046: ya están integrados en
+--   0016/0030/0035/0018 (y son idempotentes si el migrador los ejecuta).
+--   Esos scripts se movieron a legacy/educacion-medica como referencia.
 --   Para BD ya existentes: 0033 (reparto ejecutivo/especialista), 0034+
 --   (tercera gerencia, calendario, candado) según las tareas 00015–00018.
 --   Permisos (solo si el Asokam del entorno está por sembrar): 0017 (roles y
@@ -894,9 +903,6 @@ BEGIN
         [id_tipo_gerencia] int NULL,
         [estado] varchar(15) NOT NULL CONSTRAINT [DF_rutas_versiones_estado] DEFAULT ('Creada'),
         [fecha_confirmacion] datetime2(7) NULL,
-        [id_workflow] int NULL,
-        [id_paso_actual] int NULL,
-        [id_estado] int NULL,
         [fecha_creacion] datetime2(7) NOT NULL CONSTRAINT [DF_rutas_versiones_fecha_creacion] DEFAULT (sysutcdatetime()),
         [fecha_modificacion] datetime2(7) NOT NULL CONSTRAINT [DF_rutas_versiones_fecha_modificacion] DEFAULT (sysutcdatetime()),
         [id_usuario_creacion] int NULL,
@@ -908,7 +914,7 @@ BEGIN
 END
  
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[rutas_versiones]') AND minor_id = 0 AND name = 'MS_Description')
-    EXEC sp_addextendedproperty N'MS_Description', N'Version de rutas de una seleccion mensual: es la entidad autorizable del workflow (GV -> CA -> DC). Una fila por seleccion + version; las filas de rutas apuntan aqui con id_ruta_version (ADR-00006).', 'SCHEMA', N'educacion_medica', 'TABLE', N'rutas_versiones';
+    EXEC sp_addextendedproperty N'MS_Description', N'Version de rutas de una seleccion mensual: planeacion operativa sin workflow. La matriz de talleres apunta aqui con id_ruta_version. Una fila por seleccion + version; las filas de rutas apuntan aqui con id_ruta_version.', 'SCHEMA', N'educacion_medica', 'TABLE', N'rutas_versiones';
  
 -- -----------------------------------------------------------------------------
 -- ranking_ejecucion_hospitales
@@ -1324,16 +1330,26 @@ BEGIN
         [id_estado] int NULL,
         [fecha_ultima_actualizacion] datetime2(7) NULL,
         [total_actualizado] decimal(18,2) NULL,
+        [id_ruta_version] int NULL,
         [fecha_creacion] datetime2(7) NOT NULL CONSTRAINT [DF_matrices_generales_fecha_creacion] DEFAULT (sysutcdatetime()),
         [fecha_modificacion] datetime2(7) NOT NULL CONSTRAINT [DF_matrices_generales_fecha_modificacion] DEFAULT (sysutcdatetime()),
         [id_usuario_creacion] int NULL,
         [id_usuario_modificacion] int NULL,
         CONSTRAINT [PK_matrices_generales] PRIMARY KEY ([id_matriz_general]),
         CONSTRAINT [FK_matrices_generales_tipo_gerencia] FOREIGN KEY ([id_tipo_gerencia]) REFERENCES educacion_medica.[tipo_gerencia] ([id_tipo_gerencia]),
+        CONSTRAINT [FK_matrices_generales_ruta_version] FOREIGN KEY ([id_ruta_version]) REFERENCES educacion_medica.[rutas_versiones] ([id_ruta_version]),
         CONSTRAINT [UQ_matrices_generales_gerencia_periodo] UNIQUE ([id_tipo_gerencia], [periodo]),
         CONSTRAINT [CK_matrices_generales_periodo] CHECK (DAY([periodo]) = 1)
     );
 END
+
+IF NOT EXISTS (
+    SELECT 1 FROM sys.indexes
+    WHERE object_id = OBJECT_ID('educacion_medica.[matrices_generales]')
+      AND name = 'IX_matrices_generales_ruta_version'
+)
+    CREATE INDEX [IX_matrices_generales_ruta_version]
+        ON educacion_medica.[matrices_generales] ([id_ruta_version]);
 
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[matrices_generales]') AND minor_id = 0 AND name = 'MS_Description')
     EXEC sp_addextendedproperty N'MS_Description', N'Matriz general de talleres por gerencia (IMSS / IMSS Bienestar / Descentralizado) y mes: entidad autorizable del workflow EDUCACION_MEDICA_MATRIZ (GV -> costos AEM -> CA -> DC). No tiene estado propio: su estado es el del motor (id_estado). Nace automaticamente con el primer taller capturado de la gerencia/mes (ADR-00007/00017).', 'SCHEMA', N'educacion_medica', 'TABLE', N'matrices_generales';
@@ -1351,6 +1367,8 @@ IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID(
     EXEC sp_addextendedproperty N'MS_Description', N'Fecha/hora del último cambio aprobado sobre la matriz (solicitud de taller); no reabre el workflow.', 'SCHEMA', N'educacion_medica', 'TABLE', N'matrices_generales', 'COLUMN', N'fecha_ultima_actualizacion';
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[matrices_generales]') AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.[matrices_generales]'), 'total_actualizado', 'ColumnId') AND name = 'MS_Description')
     EXEC sp_addextendedproperty N'MS_Description', N'Snapshot del costo total de la matriz tras el último cambio aprobado. NULL = calcular en lectura.', 'SCHEMA', N'educacion_medica', 'TABLE', N'matrices_generales', 'COLUMN', N'total_actualizado';
+IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[matrices_generales]') AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.[matrices_generales]'), 'id_ruta_version', 'ColumnId') AND name = 'MS_Description')
+    EXEC sp_addextendedproperty N'MS_Description', N'Version de rutas de la misma gerencia y mes que esta matriz (FK fisica a rutas_versiones). Permite vincular planeacion y matriz sin depender de busquedas por periodo.', 'SCHEMA', N'educacion_medica', 'TABLE', N'matrices_generales', 'COLUMN', N'id_ruta_version';
 
 -- -----------------------------------------------------------------------------
 -- talleres
@@ -1383,6 +1401,7 @@ BEGIN
         [id_matriz_individual] int NULL,
         [id_matriz_general] int NULL,
         [id_ruta_visita] int NULL,
+        [id_tipo_visita] int NULL,
         [id_tema_taller] int NULL,
         [tema] nvarchar(200) NULL,
         [fecha_realizado] date NULL,
@@ -1393,6 +1412,7 @@ BEGIN
         CONSTRAINT [FK_talleres_matriz_individual] FOREIGN KEY ([id_matriz_individual]) REFERENCES educacion_medica.[matrices_individuales] ([id_matriz_individual]),
         CONSTRAINT [FK_talleres_matriz_general] FOREIGN KEY ([id_matriz_general]) REFERENCES educacion_medica.[matrices_generales] ([id_matriz_general]),
         CONSTRAINT [FK_talleres_ruta_visita] FOREIGN KEY ([id_ruta_visita]) REFERENCES educacion_medica.[rutas_visitas] ([id_ruta_visita]),
+        CONSTRAINT [FK_talleres_tipo_visita] FOREIGN KEY ([id_tipo_visita]) REFERENCES educacion_medica.[tipo_visita] ([id_tipo_visita]),
         CONSTRAINT [FK_talleres_tema_taller] FOREIGN KEY ([id_tema_taller]) REFERENCES educacion_medica.[tema_taller] ([id_tema_taller])
     );
 END
@@ -1403,8 +1423,12 @@ IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID('educacion_
     CREATE INDEX [IX_talleres_id_matriz_general] ON educacion_medica.[talleres] ([id_matriz_general]);
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID('educacion_medica.[talleres]') AND name = 'IX_talleres_id_ruta_visita')
     CREATE INDEX [IX_talleres_id_ruta_visita] ON educacion_medica.[talleres] ([id_ruta_visita]);
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID('educacion_medica.[talleres]') AND name = 'IX_talleres_tipo_visita')
+    CREATE INDEX [IX_talleres_tipo_visita] ON educacion_medica.[talleres] ([id_tipo_visita]);
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID('educacion_medica.[talleres]') AND name = 'IX_talleres_tema_taller')
     CREATE INDEX [IX_talleres_tema_taller] ON educacion_medica.[talleres] ([id_tema_taller]);
+IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[talleres]') AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.[talleres]'), 'id_tipo_visita', 'ColumnId') AND name = 'MS_Description')
+    EXEC sp_addextendedproperty N'MS_Description', N'Tipo del taller (FK educacion_medica.tipo_visita); el tipo describe el taller, no la visita planeada.', 'SCHEMA', N'educacion_medica', 'TABLE', N'talleres', 'COLUMN', N'id_tipo_visita';
  
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[talleres]') AND minor_id = 0 AND name = 'MS_Description')
     EXEC sp_addextendedproperty N'MS_Description', N'Aggregate root "Matriz del Taller" (FOR-005); el state machine se valida en servicio y se refleja en estado; vincula con la seleccion mensual que le dio origen.', 'SCHEMA', N'educacion_medica', 'TABLE', N'talleres';

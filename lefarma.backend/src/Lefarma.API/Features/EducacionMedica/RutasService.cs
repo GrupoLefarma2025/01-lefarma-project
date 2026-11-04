@@ -1,17 +1,10 @@
-using ErrorOr;
-using Lefarma.API.Domain.Entities.Config;
 using Lefarma.API.Domain.Entities.EducacionMedica;
-using Lefarma.API.Domain.Interfaces.Config;
 using Lefarma.API.Domain.Interfaces.EducacionMedica;
-using Lefarma.API.Features.Config.Workflows;
-using Lefarma.API.Features.Config.Workflows.DTOs;
 using Lefarma.API.Features.EducacionMedica.DTOs;
 using Lefarma.API.Features.EducacionMedica.Services;
-using Lefarma.API.Features.Profile;
 using Lefarma.API.Infrastructure.Data;
 using Lefarma.API.Services.Identity;
 using Lefarma.API.Shared.Constants;
-using Lefarma.API.Shared.Errors;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using System.Text.Json;
@@ -33,12 +26,6 @@ public class RutasService : IRutasService
     private readonly IHospitalExtensionRepository _extensionRepository;
     private readonly IParametroModuloRepository _parametroRepository;
     private readonly ILogger<RutasService> _logger;
-    private readonly IWorkflowEngine _engine;
-    private readonly IWorkflowResolver _workflowResolver;
-    private readonly IWorkflowRepository _workflowRepo;
-    private readonly IWorkflowQueryService _workflowQuery;
-    private readonly IProfileService _profileService;
-    private readonly IJefeInmediatoResolver _jefeInmediatoResolver;
     private readonly AsokamDbContext _asokamContext;
     private readonly ApplicationDbContext _context;
     private readonly UserPermissionService _permissionService;
@@ -52,12 +39,6 @@ public class RutasService : IRutasService
         IHospitalExtensionRepository extensionRepository,
         IParametroModuloRepository parametroRepository,
         ILogger<RutasService> logger,
-        IWorkflowEngine engine,
-        IWorkflowResolver workflowResolver,
-        IWorkflowRepository workflowRepo,
-        IWorkflowQueryService workflowQuery,
-        IProfileService profileService,
-        IJefeInmediatoResolver jefeInmediatoResolver,
         AsokamDbContext asokamContext,
         ApplicationDbContext context,
         UserPermissionService permissionService,
@@ -70,12 +51,6 @@ public class RutasService : IRutasService
         _extensionRepository = extensionRepository;
         _parametroRepository = parametroRepository;
         _logger = logger;
-        _engine = engine;
-        _workflowResolver = workflowResolver;
-        _workflowRepo = workflowRepo;
-        _workflowQuery = workflowQuery;
-        _profileService = profileService;
-        _jefeInmediatoResolver = jefeInmediatoResolver;
         _asokamContext = asokamContext;
         _context = context;
         _permissionService = permissionService;
@@ -98,7 +73,7 @@ public class RutasService : IRutasService
         }
 
         var seleccion = await _seleccionRepository.GetByIdAsync(idSeleccionMensual, ct)
-            ?? throw new InvalidOperationException($"La selección {idSeleccionMensual} no existe.");
+            ?? throw new InvalidOperationException("La selección solicitada no existe.");
 
         if (seleccion.Estado != SeleccionMensual.EstadoCerrada)
         {
@@ -113,28 +88,33 @@ public class RutasService : IRutasService
                 "Esta selección ya tiene rutas confirmadas. Cancélalas antes de regenerar la propuesta.");
         }
 
-        // La versión activa es la entidad del workflow (ADR-00006): si está en autorización,
-        // no se puede regenerar; primero se cancela o se resuelve.
-        var workflowRutas = await ResolverWorkflowAsync(seleccion.IdTipoGerencia, ct);
-        var pasoInicioRutas = workflowRutas.Pasos.FirstOrDefault(p => p.EsInicio)
-            ?? throw new InvalidOperationException("El workflow de rutas no tiene paso inicial configurado.");
-
         var versionActiva = await _rutaRepository.GetVersionMaximaAsync(idSeleccionMensual, ct);
-        if (versionActiva is { Estado: RutaVersion.EstadoCreada })
+        if (versionActiva is { Estado: RutaVersion.EstadoCreada }
+            && versionActiva.IdUsuarioCreacion.HasValue
+            && versionActiva.IdUsuarioCreacion.Value != idUsuario)
         {
-            if (versionActiva.IdPasoActual.HasValue
-                && versionActiva.IdPasoActual.Value != pasoInicioRutas.IdPaso)
-            {
-                throw new InvalidOperationException(
-                    "La versión de rutas está en autorización (GV → CA → DC). Cancélala o espera su resolución antes de regenerar.");
-            }
+            throw new InvalidOperationException(
+                "Esta versión está en captura por otro usuario; solo su creador puede regenerarla.");
+        }
 
-            if (versionActiva.IdUsuarioCreacion.HasValue
-                && versionActiva.IdUsuarioCreacion.Value != idUsuario)
-            {
-                throw new InvalidOperationException(
-                    "Esta versión está en captura por otro usuario; solo su creador puede regenerarla o enviarla.");
-            }
+        var idsRutasActivas = rutasExistentes
+            .Where(r => r.Estado is not (Ruta.EstadoArchivada or Ruta.EstadoCancelada or Ruta.EstadoRechazada))
+            .Select(r => r.IdRuta)
+            .ToList();
+        var talleresCapturados = idsRutasActivas.Count == 0
+            ? 0
+            : await _context.Talleres
+                .AsNoTracking()
+                .Where(t => t.Activo
+                    && t.IdRutaVisita.HasValue
+                    && _context.RutasVisitas.Any(v =>
+                        v.IdRutaVisita == t.IdRutaVisita.Value
+                        && idsRutasActivas.Contains(v.IdRuta)))
+                .CountAsync(ct);
+        if (talleresCapturados > 0)
+        {
+            throw new InvalidOperationException(
+                $"No se puede regenerar la propuesta: hay {talleresCapturados} taller(es) capturado(s) en esta selección. Ajusta o elimina los talleres antes de regenerar.");
         }
 
         var regiones = await _seleccionRepository.GetRegionesAsync(idSeleccionMensual, ct);
@@ -245,19 +225,35 @@ public class RutasService : IRutasService
 
         var version = (await _rutaRepository.GetVersionActualAsync(idSeleccionMensual, ct) ?? 0) + 1;
 
-        // La versión nueva nace como entidad del workflow en su paso inicial (Draft editable)
         var versionRow = await _rutaRepository.CreateVersionAsync(new RutaVersion
         {
             IdSeleccionMensual = idSeleccionMensual,
             Version = version,
             IdTipoGerencia = seleccion.IdTipoGerencia,
             Estado = RutaVersion.EstadoCreada,
-            IdWorkflow = workflowRutas.IdWorkflow,
-            IdPasoActual = pasoInicioRutas.IdPaso,
-            IdEstado = pasoInicioRutas.IdEstado,
             IdUsuarioCreacion = idUsuario,
             IdUsuarioModificacion = idUsuario,
         }, ct);
+
+        if (seleccion.IdTipoGerencia.HasValue)
+        {
+            var fechaPeriodo = seleccion.FechaInicioVigencia ?? seleccion.FechaSeleccion;
+            var periodo = new DateOnly(fechaPeriodo.Year, fechaPeriodo.Month, 1);
+            var matrizGeneral = await _context.MatricesGenerales
+                .FirstOrDefaultAsync(m =>
+                    m.IdTipoGerencia == seleccion.IdTipoGerencia.Value
+                    && m.Periodo == periodo, ct);
+
+            if (matrizGeneral is not null
+                && matrizGeneral.IdRutaVersion != versionRow.IdRutaVersion)
+            {
+                matrizGeneral.IdRutaVersion = versionRow.IdRutaVersion;
+                matrizGeneral.IdUsuarioModificacion = idUsuario;
+                matrizGeneral.FechaModificacion = DateTime.UtcNow;
+                await _context.SaveChangesAsync(ct);
+            }
+        }
+
         var rutasCreadas = new List<Ruta>();
         if (usaEspecialistas)
         {
@@ -383,6 +379,7 @@ public class RutasService : IRutasService
         return new GenerarRutasResponse
         {
             Version = version,
+            IdRutaVersion = versionRow.IdRutaVersion,
             Estrategia = estrategia,
             Rutas = detalle,
             Avisos = avisos,
@@ -507,6 +504,15 @@ public class RutasService : IRutasService
         else
         {
             await ValidarRutaEditableAsync(ruta, ct);
+        }
+
+        var tieneTalleres = await _context.Talleres
+            .AsNoTracking()
+            .AnyAsync(t => t.Activo && t.IdRutaVisita == idRutaVisita, ct);
+        if (tieneTalleres)
+        {
+            throw new InvalidOperationException(
+                "La visita tiene talleres capturados. Ajusta o elimina los talleres antes de reprogramarla.");
         }
 
         var (maxDia, maxSemana, _) = await LeerParametrosAsync(ct);
@@ -868,131 +874,6 @@ public class RutasService : IRutasService
         await tx.CommitAsync(ct);
     }
 
-    public async Task<RutaVersionDto?> GetVersionInfoAsync(int idSeleccionMensual, int? version, int idUsuario, CancellationToken ct = default)
-    {
-        var versionRow = version.HasValue
-            ? await _rutaRepository.GetVersionAsync(idSeleccionMensual, version.Value, ct)
-            : await _rutaRepository.GetVersionMaximaAsync(idSeleccionMensual, ct);
-
-        if (versionRow is null) return null;
-
-        return await ArmarVersionDtoAsync(versionRow, idUsuario, ct);
-    }
-
-    public async Task<RutaVersionDto> FirmarVersionAsync(
-        int idRutaVersion,
-        FirmarWorkflowRequest request,
-        int idUsuario,
-        CancellationToken ct = default)
-    {
-        var version = await _rutaRepository.GetVersionByIdAsync(idRutaVersion, ct)
-            ?? throw new InvalidOperationException($"La versión de rutas {idRutaVersion} no existe.");
-
-        if (version.IdWorkflow is null || version.IdPasoActual is null)
-        {
-            throw new InvalidOperationException("La versión de rutas no está en un workflow activo.");
-        }
-
-        var workflow = await _workflowRepo.GetQueryable()
-            .Include(w => w.Pasos)
-                .ThenInclude(p => p.AccionesOrigen)
-                    .ThenInclude(a => a.TipoAccion)
-            .Include(w => w.Pasos)
-                .ThenInclude(p => p.Participantes)
-            .FirstOrDefaultAsync(w => w.IdWorkflow == version.IdWorkflow, ct)
-            ?? throw new InvalidOperationException("No se encontró la configuración del workflow de rutas.");
-
-        var pasoActual = workflow.Pasos.FirstOrDefault(p => p.IdPaso == version.IdPasoActual && p.Activo)
-            ?? throw new InvalidOperationException("La versión no tiene un paso activo válido en el workflow.");
-
-        var accion = pasoActual.AccionesOrigen.FirstOrDefault(a => a.IdAccion == request.IdAccion && a.Activo)
-            ?? throw new InvalidOperationException("La acción no está disponible en el paso actual.");
-
-        var codigoAccion = accion.TipoAccion?.Codigo ?? string.Empty;
-
-        // Cancelar no exige firma digital: la ejecuta el creador (con comentario obligatorio).
-        if (codigoAccion != "CANCELAR")
-        {
-            await ValidarFirmaUsuarioAsync(idUsuario);
-        }
-
-        // El envío a autorización solo lo ejecuta el planificador que generó la versión
-        if (codigoAccion == "ENVIAR" && version.IdUsuarioCreacion.HasValue && version.IdUsuarioCreacion.Value != idUsuario)
-        {
-            throw new InvalidOperationException("Solo el planificador que generó la versión puede enviarla a autorización.");
-        }
-
-        var validacion = await WorkflowFirmaHelper.ValidarParticipanteAsync(
-            pasoActual, workflow.IdWorkflow, idUsuario, version.IdUsuarioCreacion ?? 0,
-            _asokamContext, _jefeInmediatoResolver, codigoAccion);
-        if (validacion.IsError)
-        {
-            throw new InvalidOperationException(validacion.FirstError.Description);
-        }
-
-        // Cobertura 100% antes de enviar a autorización y antes del cierre (DC)
-        if (codigoAccion is "ENVIAR" or "CERRAR")
-        {
-            await ValidarCoberturaVersionAsync(version, ct);
-        }
-
-        var resultado = await _engine.EjecutarAccionAsync(new WorkflowContext(
-            IdWorkflow: workflow.IdWorkflow,
-            IdEntidad: version.IdRutaVersion,
-            TipoEntidad: CodigoProceso.EDUCACION_MEDICA_RUTAS,
-            Entidad: version,
-            IdAccion: request.IdAccion,
-            IdUsuario: idUsuario,
-            Orden: null!,
-            Comentario: request.Comentario,
-            DatosAdicionales: request.DatosAdicionales));
-        if (!resultado.Exitoso)
-        {
-            throw new InvalidOperationException(resultado.Error ?? "Error en el motor de workflow.");
-        }
-
-        version.IdPasoActual = resultado.NuevoIdPaso ?? version.IdPasoActual;
-        version.IdEstado = resultado.NuevoIdEstado ?? version.IdEstado;
-        version.IdUsuarioModificacion = idUsuario;
-
-        var pasoResultante = workflow.Pasos.FirstOrDefault(p => p.IdPaso == version.IdPasoActual);
-        if (pasoResultante?.EsFinal == true)
-        {
-            var estadoFinal = codigoAccion switch
-            {
-                "RECHAZAR" => RutaVersion.EstadoRechazada,
-                "CANCELAR" => RutaVersion.EstadoCancelada,
-                _ => RutaVersion.EstadoCerrada, // CERRAR
-            };
-            await AplicarEstadoVersionAsync(version, estadoFinal, idUsuario, ct);
-        }
-        else if (pasoResultante?.EsInicio == true)
-        {
-            await AplicarEstadoVersionAsync(version, RutaVersion.EstadoCreada, idUsuario, ct);
-        }
-        else
-        {
-            await _rutaRepository.UpdateVersionAsync(version, ct);
-        }
-
-        _logger.LogInformation(
-            "Versión de rutas v{Version} (selección {IdSeleccion}): acción {IdAccion} ({Codigo}) por usuario {IdUsuario} -> paso {IdPaso} ({Estado}).",
-            version.Version, version.IdSeleccionMensual, request.IdAccion, codigoAccion, idUsuario, version.IdPasoActual, version.Estado);
-
-        return await ArmarVersionDtoAsync(version, idUsuario, ct);
-    }
-
-    public async Task<ErrorOr<IEnumerable<HistorialWorkflowItemResponse>>> GetHistorialVersionAsync(int idRutaVersion, CancellationToken ct = default)
-    {
-        var version = await _rutaRepository.GetVersionByIdAsync(idRutaVersion, ct);
-        if (version is null)
-        {
-            return CommonErrors.NotFound("RutaVersion", idRutaVersion.ToString());
-        }
-
-        return await _workflowQuery.GetHistorialWorkflowAsync(idRutaVersion, CodigoProceso.EDUCACION_MEDICA_RUTAS, ct);
-    }
-
     public async Task<List<RutaDto>> CancelarAsync(
         int idSeleccionMensual,
         CancelarRutasRequest request,
@@ -1000,7 +881,7 @@ public class RutasService : IRutasService
         CancellationToken ct = default)
     {
         _ = await _seleccionRepository.GetByIdAsync(idSeleccionMensual, ct)
-            ?? throw new InvalidOperationException($"La selección {idSeleccionMensual} no existe.");
+            ?? throw new InvalidOperationException("La selección solicitada no existe.");
 
         var version = await _rutaRepository.GetVersionMaximaAsync(idSeleccionMensual, ct)
             ?? throw new InvalidOperationException("No hay versiones de rutas que cancelar.");
@@ -1032,62 +913,6 @@ public class RutasService : IRutasService
         return await ArmarDetalleAsync(rutas, null, ct);
     }
 
-    // ----- Helpers de workflow (ADR-00006) -----
-
-    private async Task<Workflow> ResolverWorkflowAsync(int? idTipoGerencia, CancellationToken ct)
-    {
-        if (idTipoGerencia is null)
-        {
-            throw new InvalidOperationException(
-                "La selección no tiene tipo de gerencia configurado; no se puede determinar el workflow de autorización de rutas.");
-        }
-
-        var workflow = await _workflowResolver.ResolveWorkflowIdAsync(
-            CodigoProceso.EDUCACION_MEDICA_RUTAS,
-            new Dictionary<string, int?> { [WorkflowScope.TIPO_GERENCIA] = idTipoGerencia });
-
-        return workflow
-            ?? throw new InvalidOperationException(
-                "No hay workflow configurado para rutas de esa gerencia. Aplica el script 0014 y crea el mapping (EDUCACION_MEDICA_RUTAS + Tipo de gerencia) en el admin de workflows.");
-    }
-
-    private async Task ValidarFirmaUsuarioAsync(int idUsuario)
-    {
-        var tieneFirma = await _profileService.HasFirmaAsync(idUsuario);
-        if (tieneFirma.IsError || !tieneFirma.Value)
-        {
-            throw new InvalidOperationException(
-                "El usuario no tiene una firma digital registrada. Cárguela en Configuración > Perfil para continuar.");
-        }
-    }
-
-    private async Task ValidarCoberturaVersionAsync(RutaVersion version, CancellationToken ct)
-    {
-        var hospitales = await _seleccionRepository.GetHospitalesAsync(version.IdSeleccionMensual, ct);
-        var rutas = await _rutaRepository.GetBySeleccionAsync(version.IdSeleccionMensual, version.Version, ct);
-
-        var idsPlanificados = new HashSet<int>();
-        foreach (var ruta in rutas)
-        {
-            var visitas = await _rutaRepository.GetVisitasAsync(ruta.IdRuta, ct);
-            foreach (var visita in visitas)
-            {
-                // Las visitas extraordinarias no cubren hospitales de la selección (ADR-00011).
-                if (visita.IdSeleccionHospital.HasValue)
-                {
-                    idsPlanificados.Add(visita.IdSeleccionHospital.Value);
-                }
-            }
-        }
-
-        var faltantes = hospitales.Count(h => !idsPlanificados.Contains(h.IdSeleccionHospital));
-        if (faltantes > 0)
-        {
-            throw new InvalidOperationException(
-                $"Cobertura incompleta: {faltantes} hospital(es) de la selección quedan sin visita. Asígnales una ruta o exclúyelos antes de continuar.");
-        }
-    }
-
     /// <summary>Escribe el estado de negocio en la versión y lo sincroniza en sus filas de rutas.</summary>
     private async Task AplicarEstadoVersionAsync(RutaVersion version, string estado, int idUsuario, CancellationToken ct)
     {
@@ -1117,54 +942,6 @@ public class RutasService : IRutasService
             ruta.IdUsuarioModificacion = idUsuario;
             await _rutaRepository.UpdateAsync(ruta, ct);
         }
-    }
-
-    private async Task<RutaVersionDto> ArmarVersionDtoAsync(RutaVersion version, int idUsuario, CancellationToken ct)
-    {
-        string? pasoNombre = null;
-        var esEditable = false;
-        var esFinal = false;
-
-        if (version.IdPasoActual.HasValue)
-        {
-            var paso = await _workflowRepo.GetPasoAsync(version.IdPasoActual.Value, ct);
-            pasoNombre = paso?.NombrePaso;
-            esEditable = paso?.EsInicio == true;
-            esFinal = paso?.EsFinal == true;
-        }
-
-        var acciones = new List<AccionDisponibleResponse>();
-        if (version.IdWorkflow.HasValue && version.IdPasoActual.HasValue)
-        {
-            var resultadoAcciones = await _workflowQuery.GetAccionesDisponiblesAsync(
-                version.IdWorkflow.Value,
-                version.IdRutaVersion,
-                version.IdPasoActual.Value,
-                idUsuario,
-                CodigoProceso.EDUCACION_MEDICA_RUTAS,
-                version,
-                ct);
-            if (!resultadoAcciones.IsError && resultadoAcciones.Value is not null)
-            {
-                acciones = resultadoAcciones.Value.ToList();
-            }
-        }
-
-        return new RutaVersionDto
-        {
-            IdRutaVersion = version.IdRutaVersion,
-            Version = version.Version,
-            Estado = version.Estado,
-            IdWorkflow = version.IdWorkflow,
-            IdPasoActual = version.IdPasoActual,
-            PasoNombre = pasoNombre,
-            IdEstado = version.IdEstado,
-            EstadoNombre = version.EstadoWorkflow?.Nombre,
-            EstadoColor = version.EstadoWorkflow?.ColorHex,
-            EsEditable = esEditable,
-            EsFinal = esFinal,
-            Acciones = acciones,
-        };
     }
 
     public async Task<List<AsignacionDto>> GetAsignacionesAsync(
@@ -1648,27 +1425,15 @@ public class RutasService : IRutasService
             ?? throw new InvalidOperationException($"La ruta {idRuta} no existe.");
     }
 
-    private async Task ValidarRutaEditableAsync(Ruta ruta, CancellationToken ct)
+    private Task ValidarRutaEditableAsync(Ruta ruta, CancellationToken ct)
     {
         if (ruta.Estado != Ruta.EstadoCreada)
         {
-            throw new InvalidOperationException($"Solo una ruta en Draft es editable (estado actual: {ruta.Estado}).");
+            throw new InvalidOperationException(
+                $"Solo una ruta en Creada es editable (estado actual: {ruta.Estado}).");
         }
 
-        // Si la versión ya salió a autorización, la ruta queda en solo lectura (ADR-00006)
-        if (ruta.IdRutaVersion.HasValue)
-        {
-            var version = await _rutaRepository.GetVersionByIdAsync(ruta.IdRutaVersion.Value, ct);
-            if (version?.IdPasoActual is { } idPaso)
-            {
-                var paso = await _workflowRepo.GetPasoAsync(idPaso, ct);
-                if (paso is not null && !paso.EsInicio)
-                {
-                    throw new InvalidOperationException(
-                        "La versión de rutas está en autorización (solo lectura). Cancélala o espera su resolución para editarla.");
-                }
-            }
-        }
+        return Task.CompletedTask;
     }
 
     private async Task<List<string>> ValidarMovimientoAsync(

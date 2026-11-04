@@ -4,7 +4,6 @@ import {
   AlertTriangle,
   ArrowLeft,
   ArrowRight,
-  BarChart3,
   Building2,
   CalendarDays,
   CalendarRange,
@@ -16,6 +15,7 @@ import {
   Grid2X2,
   LayoutList,
   Loader2,
+  LockKeyhole,
   MapPin,
   PanelLeftClose,
   PanelLeftOpen,
@@ -53,13 +53,11 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { usePageTitle } from '@/hooks/usePageTitle';
-import { DocumentoHeaderCard } from '../../components/DocumentoHeaderCard';
-import { DocumentoFirmaModal } from '../../components/DocumentoFirmaModal';
-import { DocumentoHistorialModal } from '../../components/DocumentoHistorialModal';
 import { CalendarioFiltros } from './components/CalendarioFiltros';
 import { ResumenCalendario } from './components/ResumenCalendario';
 import { AyudaContextual } from './components/AyudaContextual';
 import { SugerenciasSheet } from './components/SugerenciasSheet';
+import { ResponsablesSheet } from './components/ResponsablesSheet';
 import { CotizarRutaModal } from '../planificacion/components/CotizarRutaModal';
 import {
   crearBorradorDesdeRuta,
@@ -70,7 +68,7 @@ import {
 import { usePermission } from '@/hooks/usePermission';
 import { useAuthStore } from '@/shared/auth/authStore';
 import { educacionMedicaApi } from '../../services/educacionMedica.api';
-import type { AccionWorkflow } from '@/components/workflows/workflowAccion';
+import { nombreSeleccion } from '../../components/seleccionUtils';
 import type {
   CalendarioItem,
   EjecutivoRegion,
@@ -78,7 +76,6 @@ import type {
   EspecialistaPersona,
   Region,
   Ruta,
-  RutaVersionDto,
   SeleccionDetalle,
   SugerenciaEspecialista,
   TipoGerencia,
@@ -104,7 +101,6 @@ import {
   type VistaCalendario,
 } from './calendarioUtils';
 import { CalendarioGrid } from './components/CalendarioGrid';
-import { CalendarioMatriz } from './components/CalendarioMatriz';
 import { CalendarioTabla } from './components/CalendarioTabla';
 import { CalendarioInspector } from './components/CalendarioInspector';
 import { CrearTallerVisitaModal } from './components/CrearTallerVisitaModal';
@@ -134,7 +130,7 @@ const ESTADOS = [
   { valor: 'Cancelado', etiqueta: 'Cancelado' },
 ];
 
-type ModoCalendario = 'calendario' | 'tabla' | 'resumen' | 'matriz';
+type ModoCalendario = 'calendario' | 'tabla' | 'matriz';
 
 const AYUDA_VISTA: Record<VistaCalendario, string> = {
   dia: 'Agenda del día; arrastra un taller para reprogramarlo.',
@@ -151,8 +147,6 @@ const MODOS: Array<{
 }> = [
   { valor: 'calendario', etiqueta: 'Calendario', icono: CalendarDays },
   { valor: 'tabla', etiqueta: 'Tabla', icono: Table2 },
-  { valor: 'resumen', etiqueta: 'Resumen', icono: BarChart3 },
-  { valor: 'matriz', etiqueta: 'Matriz', icono: Presentation },
 ];
 
 type FiltroRapido = 'todos' | 'hoy' | 'mis' | 'solicitudes' | 'conflictos' | 'sin-taller';
@@ -257,13 +251,10 @@ export default function CalendarioPage() {
     esVistaValida(vistaParam) ? vistaParam : 'semana'
   );
   const [modo, setModo] = useState<ModoCalendario>(() =>
-    vistaParam === 'tabla' || vistaParam === 'resumen' || vistaParam === 'matriz'
-      ? vistaParam
-      : 'calendario'
+    vistaParam === 'tabla' || vistaParam === 'matriz' ? vistaParam : 'calendario'
   );
   const navigate = useNavigate();
   const usuarioActual = useAuthStore((state) => state.user);
-  const hasFirma = useAuthStore((state) => state.hasFirma);
   const puedeGestionarRutas = usePermission({
     require: 'educacion_medica.rutas.puede_gestionar',
   });
@@ -279,7 +270,9 @@ export default function CalendarioPage() {
     const filtro = searchParams.get('filtro');
     return esFiltroRapidoValido(filtro) ? filtro : 'todos';
   });
-  const [idGerencia, setIdGerencia] = useState(TODOS);
+  const [idGerencias, setIdGerencias] = useState<string[]>([]);
+  const idGerencia = idGerencias.length === 1 ? idGerencias[0] : TODOS;
+  const multiGerencia = idGerencias.length !== 1;
   const [idRegion, setIdRegion] = useState(TODOS);
   const [idEspecialista, setIdEspecialista] = useState(TODOS);
   const [idEjecutivo, setIdEjecutivo] = useState(TODOS);
@@ -299,7 +292,9 @@ export default function CalendarioPage() {
   const [seleccionContexto, setSeleccionContexto] = useState<SeleccionDetalle | null>(null);
   const idMatrizParam = Number(searchParams.get('idMatriz')) || null;
   const gerenciaMatrizId =
-    idGerencia !== TODOS ? Number(idGerencia) : (seleccionContexto?.idTipoGerencia ?? null);
+    idGerencias.length === 1
+      ? Number(idGerencias[0])
+      : (seleccionContexto?.idTipoGerencia ?? null);
   const {
     matriz: matrizPeriodo,
     concentracion: matrizConcentracion,
@@ -309,20 +304,21 @@ export default function CalendarioPage() {
     reload: recargarMatriz,
   } = useMatrizPeriodo(gerenciaMatrizId, periodoMes, idMatrizParam);
   const capturaBloqueada = matrizPeriodo ? !matrizPeriodo.esEditable : false;
+  const talleresCapturados = matrizPeriodo?.totalTalleres ?? 0;
   const [hayRutas, setHayRutas] = useState<boolean | null>(null);
   const [rutasVersion, setRutasVersion] = useState<Ruta[]>([]);
   const [versionRuta, setVersionRuta] = useState<number | null>(null);
-  const [versionInfo, setVersionInfo] = useState<RutaVersionDto | null>(null);
   const [refrescoRutas, setRefrescoRutas] = useState(0);
   const [modalGenerar, setModalGenerar] = useState(false);
-  const [modalFirma, setModalFirma] = useState(false);
   const [sugerencias, setSugerencias] = useState<SugerenciaEspecialista[]>([]);
+  const [sugerenciaContextual, setSugerenciaContextual] = useState<SugerenciaEspecialista | null>(
+    null
+  );
   const [sugerenciasAbiertas, setSugerenciasAbiertas] = useState(false);
+  const [responsablesAbiertos, setResponsablesAbiertos] = useState(false);
   const [rutaCotizarAbierta, setRutaCotizarAbierta] = useState(false);
   const [asignandoSugerencia, setAsignandoSugerencia] = useState<number | null>(null);
   const [asignandoSugerencias, setAsignandoSugerencias] = useState(false);
-  const [modalHistorial, setModalHistorial] = useState(false);
-  const [guardandoWorkflow, setGuardandoWorkflow] = useState(false);
 
   const [gerencias, setGerencias] = useState<TipoGerencia[]>([]);
   const [regiones, setRegiones] = useState<Region[]>([]);
@@ -372,14 +368,19 @@ export default function CalendarioPage() {
               ? lista[0]
               : null
             : lista.find((seleccion) => String(seleccion.idTipoGerencia) === idGerencia);
-        if (candidata) setIdSeleccionActiva(candidata.idSeleccionMensual);
+        if (candidata) {
+          setIdSeleccionActiva(candidata.idSeleccionMensual);
+          if (idGerencias.length === 0) {
+            setIdGerencias([String(candidata.idTipoGerencia)]);
+          }
+        }
       })
       .catch(() => undefined);
 
     return () => {
       cancelado = true;
     };
-  }, [periodoMes, idGerencia, idSeleccionActiva]);
+  }, [periodoMes, idGerencia, idGerencias.length, idSeleccionActiva]);
 
   useEffect(() => {
     if (!idSeleccionActiva) return;
@@ -400,8 +401,8 @@ export default function CalendarioPage() {
             inicio && inicio.slice(0, 7) === mesSeleccion ? inicio : `${mesSeleccion}-01`;
           setFecha(fechaDeepLink.current ?? fechaSeleccion);
         }
-        if (idGerencia === TODOS && detalle?.idTipoGerencia) {
-          setIdGerencia(String(detalle.idTipoGerencia));
+        if (idGerencias.length === 0 && detalle?.idTipoGerencia && idSeleccionParam) {
+          setIdGerencias([String(detalle.idTipoGerencia)]);
         }
       })
       .catch(() => undefined);
@@ -430,26 +431,7 @@ export default function CalendarioPage() {
     return () => {
       cancelado = true;
     };
-  }, [idSeleccionActiva, idGerencia, puedeVerRutas, refrescoRutas]);
-
-  useEffect(() => {
-    if (!idSeleccionActiva || versionRuta == null || !puedeVerRutas) {
-      return;
-    }
-    let cancelado = false;
-    void educacionMedicaApi.rutas
-      .version(idSeleccionActiva, versionRuta)
-      .then((response) => {
-        if (cancelado || !response.data.success) return;
-        setVersionInfo(response.data.data ?? null);
-      })
-      .catch(() => {
-        if (!cancelado) setVersionInfo(null);
-      });
-    return () => {
-      cancelado = true;
-    };
-  }, [idSeleccionActiva, versionRuta, puedeVerRutas, refrescoRutas]);
+  }, [idSeleccionActiva, idGerencia, idGerencias.length, idSeleccionParam, puedeVerRutas, refrescoRutas]);
 
   const versionesDisponibles = useMemo(() => {
     const mapa = new Map<number, Ruta['estado']>();
@@ -496,33 +478,18 @@ export default function CalendarioPage() {
     [rutasVersionActual]
   );
 
-  const versionInfoActual = versionInfo && versionInfo.version === versionRuta ? versionInfo : null;
-
   const estadoVersionSeleccionada =
     versionRuta == null
       ? null
-      : ((versionInfo?.version === versionRuta ? versionInfo.estado : null) ??
-        versionesDisponibles.find(([version]) => version === versionRuta)?.[1] ??
-        null);
+      : (versionesDisponibles.find(([version]) => version === versionRuta)?.[1] ?? null);
+
+  const versionSoloLectura =
+    estadoVersionSeleccionada != null &&
+    ['Archivada', 'Cancelada', 'Rechazada'].includes(estadoVersionSeleccionada);
+  const puedeEditarCalendario = !multiGerencia && !versionSoloLectura;
 
   const cotizacionBloqueada =
     estadoVersionSeleccionada != null && !esEstadoRutaCotizable(estadoVersionSeleccionada);
-
-  const accionesWorkflowRutas =
-    versionInfoActual?.acciones.filter((accion) => accion.tipoAccionCodigo !== 'CANCELAR') ?? [];
-  const accionesFirmaRutas =
-    versionInfoActual && !versionInfoActual.esEditable && !versionInfoActual.esFinal
-      ? accionesWorkflowRutas
-      : [];
-  const accionEnviarRutas = accionesWorkflowRutas.find(
-    (accion) => accion.tipoAccionCodigo === 'ENVIAR'
-  );
-  const accionesModalRutas =
-    accionesFirmaRutas.length > 0
-      ? accionesFirmaRutas
-      : accionEnviarRutas
-        ? [accionEnviarRutas]
-        : [];
 
   const rango = useMemo(() => rangoVista(fecha, vista), [fecha, vista]);
 
@@ -545,16 +512,18 @@ export default function CalendarioPage() {
     };
   }, [idSeleccionActiva, puedeVerRutas, rango.desde, rango.hasta, refrescoRutas]);
 
-  const cargar = useCallback(async () => {
+  const cargar = useCallback(async (versionOverride?: number | null) => {
     setCargando(true);
     setError(null);
+    const version = versionOverride !== undefined ? versionOverride : versionRuta;
     try {
       const response = await educacionMedicaApi.calendario.getAll({
-        idSeleccion: idSeleccionActiva,
-        version: versionRuta,
+        idSeleccion: multiGerencia ? null : idSeleccionActiva,
+        version: multiGerencia ? null : version,
         desde: rango.desde,
         hasta: rango.hasta,
-        idGerencia: idGerencia === TODOS ? null : Number(idGerencia),
+        idGerencia: idGerencias.length === 1 ? Number(idGerencias[0]) : null,
+        idGerencias: idGerencias.length > 0 ? idGerencias.map(Number) : undefined,
         idRegion: idRegion === TODOS ? null : Number(idRegion),
         idEspecialista: idEspecialista === TODOS ? null : Number(idEspecialista),
         idEjecutivo: idEjecutivo === TODOS ? null : Number(idEjecutivo),
@@ -573,13 +542,14 @@ export default function CalendarioPage() {
   }, [
     rango.desde,
     rango.hasta,
-    idGerencia,
+    idGerencias,
     idRegion,
     idEspecialista,
     idEjecutivo,
     estado,
     idSeleccionActiva,
     versionRuta,
+    multiGerencia,
   ]);
 
   useEffect(() => {
@@ -613,16 +583,21 @@ export default function CalendarioPage() {
     await cargar();
   }, [cargar]);
 
-  const recargarMatrizYCalendario = useCallback(async () => {
-    await Promise.all([recargarMatriz(), cargar()]);
-  }, [recargarMatriz, cargar]);
+  const recargarMatrizYCalendario = useCallback(
+    async (versionOverride?: number | null) => {
+      await Promise.all([recargarMatriz(), cargar(versionOverride)]);
+    },
+    [recargarMatriz, cargar]
+  );
 
   const regionesDisponibles = useMemo(
     () =>
-      idGerencia === TODOS
+      idGerencias.length === 0
         ? regiones
-        : regiones.filter((region) => region.idTipoGerencia === Number(idGerencia)),
-    [regiones, idGerencia]
+        : regiones.filter((region) =>
+            idGerencias.includes(String(region.idTipoGerencia))
+          ),
+    [regiones, idGerencias]
   );
 
   const itemsFiltrados = useMemo(() => {
@@ -672,39 +647,48 @@ export default function CalendarioPage() {
     [sugerencias, seleccionadoId]
   );
 
+  useEffect(() => {
+    const idVisita = seleccionado?.idRutaVisita ?? null;
+    let cancelado = false;
+    if (
+      !idSeleccionActiva ||
+      !idVisita ||
+      !seleccionado?.idEspecialista ||
+      !puedeVerRutas
+    ) {
+      void Promise.resolve().then(() => {
+        if (!cancelado) setSugerenciaContextual(null);
+      });
+      return () => {
+        cancelado = true;
+      };
+    }
+    void educacionMedicaApi.calendario
+      .sugerencias(idSeleccionActiva, rango.desde, rango.hasta, idVisita)
+      .then((response) => {
+        if (cancelado) return;
+        setSugerenciaContextual(response.data.success ? (response.data.data?.[0] ?? null) : null);
+      })
+      .catch(() => {
+        if (!cancelado) setSugerenciaContextual(null);
+      });
+
+    return () => {
+      cancelado = true;
+    };
+  }, [
+    idSeleccionActiva,
+    seleccionado?.idRutaVisita,
+    seleccionado?.idEspecialista,
+    rango.desde,
+    rango.hasta,
+    puedeVerRutas,
+    refrescoRutas,
+  ]);
+
   const seleccionarItem = (item: CalendarioItem) => {
     setSeleccionadoId(item.idRutaVisita);
     setSeleccionadoTallerId(item.idTaller);
-  };
-
-  const firmarVersionRutas = async (
-    accion: AccionWorkflow,
-    comentario?: string,
-    datosAdicionales?: Record<string, unknown> | null
-  ): Promise<boolean> => {
-    if (!versionInfoActual) return false;
-    setGuardandoWorkflow(true);
-    try {
-      const response = await educacionMedicaApi.rutas.firmarVersion(
-        versionInfoActual.idRutaVersion,
-        {
-          idAccion: accion.idAccion,
-          comentario: comentario ?? null,
-          datosAdicionales: datosAdicionales ?? null,
-        }
-      );
-      if (!response.data.success) {
-        throw new Error(response.data.message ?? 'No se pudo avanzar el workflow.');
-      }
-      setRefrescoRutas((valor) => valor + 1);
-      await cargar();
-      return true;
-    } catch (err: unknown) {
-      setError(toApiError(err).message ?? 'No se pudo avanzar el workflow.');
-      return false;
-    } finally {
-      setGuardandoWorkflow(false);
-    }
   };
 
   const asignarSugerencia = async (sugerencia: SugerenciaEspecialista) => {
@@ -850,6 +834,8 @@ export default function CalendarioPage() {
     setIdSeleccionActiva(null);
     setSeleccionContexto(null);
     setHayRutas(null);
+    setRutasVersion([]);
+    setVersionRuta(null);
     const params = new URLSearchParams(searchParams);
     params.set('vista', 'mes');
     params.delete('idSeleccion');
@@ -857,12 +843,14 @@ export default function CalendarioPage() {
     setSearchParams(params, { replace: true });
   };
 
-  const cambiarGerencia = (value: string) => {
-    setIdGerencia(value);
+  const cambiarGerencias = (values: string[]) => {
+    setIdGerencias(values);
     setIdRegion(TODOS);
     setIdSeleccionActiva(null);
     setSeleccionContexto(null);
     setHayRutas(null);
+    setRutasVersion([]);
+    setVersionRuta(null);
     const params = new URLSearchParams(searchParams);
     params.delete('idSeleccion');
     params.delete('idMatriz');
@@ -876,6 +864,8 @@ export default function CalendarioPage() {
     setIdSeleccionActiva(null);
     setSeleccionContexto(null);
     setHayRutas(null);
+    setRutasVersion([]);
+    setVersionRuta(null);
     const params = new URLSearchParams(searchParams);
     params.delete('idSeleccion');
     params.delete('idMatriz');
@@ -894,6 +884,8 @@ export default function CalendarioPage() {
       setIdSeleccionActiva(null);
       setSeleccionContexto(null);
       setHayRutas(null);
+      setRutasVersion([]);
+      setVersionRuta(null);
       const params = new URLSearchParams(searchParams);
       params.delete('idSeleccion');
       params.delete('idMatriz');
@@ -923,7 +915,7 @@ export default function CalendarioPage() {
   const limpiarFiltros = () => {
     setBusqueda('');
     setFiltroRapido('todos');
-    setIdGerencia(TODOS);
+    setIdGerencias([]);
     setIdRegion(TODOS);
     setIdEspecialista(TODOS);
     setIdEjecutivo(TODOS);
@@ -945,6 +937,8 @@ export default function CalendarioPage() {
       idRuta: visita.idRuta,
       idSeleccionMensual: seleccionContexto?.idSeleccionMensual ?? 0,
       idTaller: null,
+      tieneTalleres: false,
+      talleresCount: 0,
       idSeleccionHospital: null,
       idHospital: visita.idHospital,
       hospital: visita.hospital,
@@ -962,7 +956,7 @@ export default function CalendarioPage() {
       idEspecialista: visita.idEspecialista,
       nombreEspecialista: visita.nombreEspecialista,
       idTipoVisita: null,
-      tipoVisita: 'Taller',
+      tipoVisita: 'Sin tipo',
       tema: null,
       producto: null,
       cantidad: null,
@@ -990,6 +984,18 @@ export default function CalendarioPage() {
 
   const moverItem = async (item: CalendarioItem, nuevaFecha: string) => {
     if (item.fecha === nuevaFecha || moviendo) return;
+    if (!puedeEditarCalendario) {
+      toast.error(
+        versionSoloLectura
+          ? 'La versión archivada es de solo lectura.'
+          : 'Selecciona una gerencia para editar el calendario.'
+      );
+      return;
+    }
+    if (item.tieneTalleres) {
+      toast.error('La visita tiene talleres. Ajusta o elimina los talleres antes de reprogramarla.');
+      return;
+    }
     setMoviendo(true);
     try {
       const response = await educacionMedicaApi.rutas.moverVisita(item.idRuta, item.idRutaVisita, {
@@ -1037,9 +1043,9 @@ export default function CalendarioPage() {
 
   const totalPersonasRail = personasRail.reduce((total, persona) => total + persona.total, 0);
 
-  const filtrosActivos = [idGerencia, idRegion, idEjecutivo, idEspecialista, estado].filter(
-    (valor) => valor !== TODOS
-  ).length;
+  const filtrosActivos =
+    (idGerencias.length > 0 ? 1 : 0) +
+    [idRegion, idEjecutivo, idEspecialista, estado].filter((valor) => valor !== TODOS).length;
 
   const actualizarVistaQuery = (nuevoModo: ModoCalendario, nuevaVista: VistaCalendario) => {
     const params = new URLSearchParams(searchParams);
@@ -1069,11 +1075,9 @@ export default function CalendarioPage() {
   const ayudaVista =
     modo === 'tabla'
       ? 'Tabla operativa del periodo · ordena y abre cualquier fila para revisar el detalle.'
-      : modo === 'resumen'
-        ? 'Resumen operativo por gerencia y ejecutivo · solo lectura para comparar la carga.'
-        : modo === 'matriz'
-          ? 'Matriz general del periodo · documento de autorización, costos y cobertura de talleres.'
-          : vista === 'dia'
+      : modo === 'matriz'
+        ? 'Matriz general del periodo · documento de autorización, costos y cobertura de talleres.'
+        : vista === 'dia'
           ? 'Agenda diaria · arrastra un taller para reprogramarlo.'
           : vista === 'semana'
             ? 'Semana de trabajo · arrastra un taller para moverlo de día.'
@@ -1086,7 +1090,7 @@ export default function CalendarioPage() {
   const hayFiltros =
     busqueda.trim() !== '' ||
     filtroRapido !== 'todos' ||
-    idGerencia !== TODOS ||
+    idGerencias.length > 0 ||
     idRegion !== TODOS ||
     idEspecialista !== TODOS ||
     idEjecutivo !== TODOS ||
@@ -1102,14 +1106,20 @@ export default function CalendarioPage() {
           },
         ]
       : []),
-    ...(idGerencia !== TODOS
+    ...(idGerencias.length > 0
       ? [
           {
             key: 'gerencia',
             label:
-              gerencias.find((gerencia) => String(gerencia.idTipoGerencia) === idGerencia)
-                ?.descripcion ?? 'Gerencia',
-            clear: () => setIdGerencia(TODOS),
+              idGerencias
+                .map(
+                  (id) =>
+                    gerencias.find((gerencia) => String(gerencia.idTipoGerencia) === id)
+                      ?.descripcion
+                )
+                .filter(Boolean)
+                .join(' · ') || 'Gerencia',
+            clear: () => setIdGerencias([]),
           },
         ]
       : []),
@@ -1164,22 +1174,19 @@ export default function CalendarioPage() {
   const contenidoFiltros = (
     <CalendarioFiltros
       todos={TODOS}
-      mostrarResponsables={puedeVerTodas}
       periodoLabel={
-        idSeleccionParam ? `Selección #${idSeleccionParam}` : etiquetaPeriodo(fecha, vista)
+        seleccionContexto
+          ? nombreSeleccion(seleccionContexto.fechaSeleccion, seleccionContexto.tipoGerencia)
+          : idSeleccionParam
+            ? 'Selección mensual'
+            : etiquetaPeriodo(fecha, vista)
       }
-      idGerencia={idGerencia}
+      idGerencias={idGerencias}
       gerencias={gerencias}
-      onGerenciaChange={cambiarGerencia}
+      onGerenciasChange={cambiarGerencias}
       idRegion={idRegion}
       regiones={regionesDisponibles}
       onRegionChange={setIdRegion}
-      idEjecutivo={idEjecutivo}
-      ejecutivos={ejecutivos}
-      onEjecutivoChange={setIdEjecutivo}
-      idEspecialista={idEspecialista}
-      especialistas={especialistas}
-      onEspecialistaChange={setIdEspecialista}
       estado={estado}
       estados={ESTADOS}
       onEstadoChange={setEstado}
@@ -1249,17 +1256,40 @@ export default function CalendarioPage() {
               <ChevronRight className="h-3.5 w-3.5" />
             </Button>
           </div>
-          {idSeleccionActiva && seleccionContexto?.estado === 'Cerrada' && puedeGestionarRutas && (
+          <Button
+            size="sm"
+            className="h-9 gap-1.5 rounded-xl bg-[#eb6c36] px-3 text-[11px] text-white hover:bg-[#d95a2b]"
+            onClick={() => cambiarModo(modo === 'matriz' ? 'calendario' : 'matriz')}
+            disabled={modo !== 'matriz' && !gerenciaMatrizId}
+            title={
+              modo !== 'matriz' && !gerenciaMatrizId
+                ? 'Selecciona una gerencia para abrir la matriz'
+                : undefined
+            }
+          >
+            <Presentation className="h-3.5 w-3.5" />
+            {modo === 'matriz' ? 'Volver al calendario' : 'Abrir matriz'}
+          </Button>
+          {idSeleccionActiva &&
+            seleccionContexto?.estado === 'Cerrada' &&
+            puedeGestionarRutas &&
+            !multiGerencia && (
             <Button
               size="sm"
               className="h-9 gap-1.5 rounded-xl bg-slate-900 px-3 text-[11px] text-white hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200"
               onClick={() => setModalGenerar(true)}
+              disabled={talleresCapturados > 0}
+              title={
+                talleresCapturados > 0
+                  ? `Hay ${talleresCapturados} taller(es) capturado(s); no se puede regenerar`
+                  : undefined
+              }
             >
               <Route className="h-3.5 w-3.5" />
               {rutasGeneradas ? 'Regenerar propuesta' : 'Generar propuesta'}
             </Button>
           )}
-          {puedeCotizar && (
+          {puedeCotizar && !multiGerencia && (
             <Button
               variant="outline"
               size="sm"
@@ -1322,25 +1352,17 @@ export default function CalendarioPage() {
               </Select>
             </div>
           </div>
-          {versionInfoActual && (
-            <DocumentoHeaderCard
-              titulo={`Rutas v${versionInfoActual.version}`}
-              pasoNombre={versionInfoActual.pasoNombre}
-              estadoNombre={versionInfoActual.estadoNombre}
-              estadoColor={versionInfoActual.estadoColor}
-              estadoFallback={versionInfoActual.estado}
-              detalle={`${seleccionContexto?.tipoGerencia ?? 'Sin gerencia'} · ${MESES[Number(periodoMes.slice(5, 7)) - 1]} ${periodoMes.slice(0, 4)}`}
-              showFirmar={accionesModalRutas.length > 0}
-              textoFirmar={accionEnviarRutas ? 'Enviar a autorización' : 'Firmar'}
-              tipoAccion={accionEnviarRutas ? 'enviar' : 'firmar'}
-              onFirmar={() => setModalFirma(true)}
-              firmando={guardandoWorkflow}
-              firmarDeshabilitado={hasFirma === false}
-              showHistorial
-              onHistorial={() => setModalHistorial(true)}
-            />
-          )}
         </section>
+      )}
+
+      {versionSoloLectura && (
+        <div className="flex items-start gap-2 rounded-2xl border border-amber-200/80 bg-amber-50/70 px-4 py-3 text-xs text-amber-800 dark:border-amber-900/70 dark:bg-amber-950/20 dark:text-amber-200">
+          <LockKeyhole className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>
+            Estás viendo la versión v{versionRuta} {estadoVersionSeleccionada?.toLowerCase()}. Es
+            de solo lectura: cambia a la versión activa para editar visitas o talleres.
+          </span>
+        </div>
       )}
 
       <section className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200/80 bg-card p-2.5 shadow-[0_1px_2px_rgba(15,23,42,0.03)] dark:border-slate-800">
@@ -1381,20 +1403,6 @@ export default function CalendarioPage() {
               );
             })}
           </div>
-
-          {matrizPeriodo && (
-            <Badge
-              variant="outline"
-              className={
-                capturaBloqueada
-                  ? 'rounded-full border-amber-300 text-[10px] text-amber-700 dark:border-amber-800 dark:text-amber-300'
-                  : 'rounded-full border-emerald-300 text-[10px] text-emerald-700 dark:border-emerald-800 dark:text-emerald-300'
-              }
-              title="Estado de captura de los talleres de la matriz"
-            >
-              {capturaBloqueada ? 'Captura cerrada' : 'Captura abierta'}
-            </Badge>
-          )}
 
           {modo === 'calendario' && (
             <div className="hidden flex-wrap items-center gap-1 rounded-xl bg-slate-50 p-1 dark:bg-slate-900/60 xl:flex">
@@ -1456,6 +1464,17 @@ export default function CalendarioPage() {
               <Badge className="h-4 min-w-4 rounded-full bg-orange-200/70 px-1 text-[9px] text-orange-800 hover:bg-orange-200/70 dark:bg-orange-900 dark:text-orange-200">
                 {sugerencias.length}
               </Badge>
+            </Button>
+          )}
+          {puedeVerTodas && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 gap-1.5 rounded-lg border-slate-200 bg-card px-2.5 text-[11px] xl:hidden"
+              onClick={() => setResponsablesAbiertos(true)}
+            >
+              <UsersRound className="h-3.5 w-3.5" />
+              Colaboradores
             </Button>
           )}
           <Popover open={filtrosDesktopAbiertos} onOpenChange={setFiltrosDesktopAbiertos}>
@@ -1988,13 +2007,6 @@ export default function CalendarioPage() {
               seleccionadoId={seleccionadoId}
               onSelect={seleccionarItem}
             />
-          ) : modo === 'resumen' ? (
-            <CalendarioMatriz
-              items={itemsFiltrados}
-              seleccionadoId={seleccionadoId}
-              onSelect={seleccionarItem}
-              onAbrirMatriz={() => cambiarModo('matriz')}
-            />
           ) : modo === 'matriz' ? (
             <MatrizPanel
               idGerencia={gerenciaMatrizId}
@@ -2044,6 +2056,7 @@ export default function CalendarioPage() {
                   ejecutivos={ejecutivos}
                   suplentes={suplentes}
                   onSelect={seleccionarItem}
+                  puedeMover={puedeEditarCalendario}
                   onMover={(item, nuevaFecha) => void moverItem(item, nuevaFecha)}
                 />
               </div>
@@ -2058,6 +2071,7 @@ export default function CalendarioPage() {
                   ejecutivos={ejecutivos}
                   suplentes={suplentes}
                   onSelect={seleccionarItem}
+                  puedeMover={puedeEditarCalendario}
                   onMover={(item, nuevaFecha) => void moverItem(item, nuevaFecha)}
                   onDiaDobleClick={abrirDia}
                 />
@@ -2108,7 +2122,7 @@ export default function CalendarioPage() {
             suplentes={suplentes}
             especialistas={especialistas}
             pendientes={itemsFiltrados.filter((item) => item.solicitudCambioPendiente)}
-            sugerencia={sugerenciaSeleccionada}
+            sugerencia={sugerenciaSeleccionada ?? sugerenciaContextual}
             aplicandoSugerencia={asignandoSugerencia === seleccionadoId}
             onAplicarSugerencia={(sugerencia) => void asignarSugerencia(sugerencia)}
             onSelectItem={seleccionarItem}
@@ -2119,6 +2133,8 @@ export default function CalendarioPage() {
             onRefresh={refrescarCalendario}
             onCrearTaller={setCrearTallerItem}
             capturaBloqueada={capturaBloqueada}
+            soloLectura={multiGerencia}
+            rutaSoloLectura={versionSoloLectura}
             onAbrirMatriz={() => cambiarModo('matriz')}
           />
         </div>
@@ -2183,6 +2199,21 @@ export default function CalendarioPage() {
         }
       />
 
+      <ResponsablesSheet
+        open={responsablesAbiertos}
+        onOpenChange={setResponsablesAbiertos}
+        tab={tabPersonas}
+        onTabChange={setTabPersonas}
+        ejecutivosCount={ejecutivos.length}
+        especialistasCount={especialistas.length}
+        personas={personasRail}
+        total={totalPersonasRail}
+        onTodos={() => {
+          if (tabPersonas === 'ejecutivos') setIdEjecutivo(TODOS);
+          else setIdEspecialista(TODOS);
+        }}
+      />
+
       {rutaCotizarAbierta && (
         <CotizarRutaModal
           rutas={rutasParaCotizar}
@@ -2197,44 +2228,14 @@ export default function CalendarioPage() {
         onOpenChange={setModalGenerar}
         seleccion={seleccionContexto}
         regenerar={rutasGeneradas}
-        onGenerated={() => {
+        talleresCapturados={talleresCapturados}
+        onGenerated={(resultado) => {
           setHayRutas(true);
+          setVersionRuta(resultado.version);
           setRefrescoRutas((valor) => valor + 1);
-          void cargar();
+          void recargarMatrizYCalendario(resultado.version);
         }}
       />
-
-      {versionInfoActual && (
-        <DocumentoFirmaModal
-          open={modalFirma}
-          onClose={() => setModalFirma(false)}
-          documento={`Rutas v${versionInfoActual.version}`}
-          estadoTexto={versionInfoActual.estadoNombre ?? versionInfoActual.estado}
-          pasoNombre={versionInfoActual.pasoNombre}
-          tipo="rutas"
-          idEntidad={versionInfoActual.idRutaVersion}
-          idPasoActual={versionInfoActual.idPasoActual}
-          acciones={accionesModalRutas}
-          hasFirma={hasFirma ?? undefined}
-          guardando={guardandoWorkflow}
-          onConfirmar={(accion, comentario, datosAdicionales) =>
-            firmarVersionRutas(accion, comentario, datosAdicionales)
-          }
-        />
-      )}
-
-      {versionInfoActual && (
-        <DocumentoHistorialModal
-          open={modalHistorial}
-          onClose={() => setModalHistorial(false)}
-          documento={`Rutas v${versionInfoActual.version}`}
-          estadoTexto={versionInfoActual.estadoNombre ?? versionInfoActual.estado ?? 'Sin estado'}
-          tipo="rutas"
-          idEntidad={versionInfoActual.idRutaVersion}
-          idWorkflow={versionInfoActual.idWorkflow}
-          idPasoActual={versionInfoActual.idPasoActual}
-        />
-      )}
 
       <CrearTallerVisitaModal
         open={Boolean(crearTallerItem)}

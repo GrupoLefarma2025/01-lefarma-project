@@ -1,5 +1,4 @@
 using System.Security.Claims;
-using Lefarma.API.Features.Config.Workflows.DTOs;
 using Lefarma.API.Features.EducacionMedica.DTOs;
 using Lefarma.API.Shared.Authorization;
 using Lefarma.API.Shared.Constants;
@@ -69,68 +68,6 @@ public class RutasController : ControllerBase
         {
             return Conflict(new ApiResponse<object> { Success = false, Message = ex.Message });
         }
-    }
-
-    [HttpGet("selecciones-mensuales/{idSeleccionMensual:int}/rutas/version")]
-    [HasPermission(Permissions.EducacionMedica.RutasVer)]
-    [SwaggerOperation(
-        Summary = "Estado de autorización de la versión de rutas",
-        Description = "Devuelve la versión activa (o la indicada) con su paso actual, si es editable y las acciones disponibles para el usuario.")]
-    [SwaggerResponse(200, "Versión de rutas", typeof(ApiResponse<RutaVersionDto>))]
-    public async Task<IActionResult> GetVersion(int idSeleccionMensual, [FromQuery] int? version, CancellationToken ct)
-    {
-        var dto = await _service.GetVersionInfoAsync(idSeleccionMensual, version, GetUserId(), ct);
-        return Ok(new ApiResponse<RutaVersionDto?>
-        {
-            Success = true,
-            Message = "Versión de rutas obtenida.",
-            Data = dto
-        });
-    }
-
-    [HttpPost("rutas/version/{idRutaVersion:int}/firmar")]
-    [HasPermission(Permissions.EducacionMedica.RutasVer)]
-    [SwaggerOperation(
-        Summary = "Ejecutar una acción del workflow sobre la versión de rutas",
-        Description = "Enviar a autorización (planificador), firmar GV → CA → DC, devolver a Draft o cancelar, según las acciones disponibles del paso actual.")]
-    [SwaggerResponse(200, "Acción registrada", typeof(ApiResponse<RutaVersionDto>))]
-    [SwaggerResponse(409, "Acción no disponible para el usuario o estado inválido")]
-    public async Task<IActionResult> FirmarVersion(int idRutaVersion, [FromBody] FirmarWorkflowRequest request, CancellationToken ct)
-    {
-        try
-        {
-            var dto = await _service.FirmarVersionAsync(idRutaVersion, request, GetUserId(), ct);
-            return Ok(new ApiResponse<RutaVersionDto>
-            {
-                Success = true,
-                Message = "Acción registrada exitosamente.",
-                Data = dto
-            });
-        }
-        catch (InvalidOperationException ex)
-        {
-            return Conflict(new ApiResponse<object> { Success = false, Message = ex.Message });
-        }
-    }
-
-    [HttpGet("rutas/version/{idRutaVersion:int}/historial")]
-    [HasPermission(Permissions.EducacionMedica.RutasVer)]
-    [SwaggerOperation(Summary = "Historial de workflow de la versión de rutas (bitácora)")]
-    [SwaggerResponse(200, "Historial", typeof(ApiResponse<IEnumerable<HistorialWorkflowItemResponse>>))]
-    public async Task<IActionResult> GetHistorialVersion(int idRutaVersion, CancellationToken ct)
-    {
-        var resultado = await _service.GetHistorialVersionAsync(idRutaVersion, ct);
-        if (resultado.IsError)
-        {
-            return NotFound(new ApiResponse<object> { Success = false, Message = resultado.FirstError.Description });
-        }
-
-        return Ok(new ApiResponse<IEnumerable<HistorialWorkflowItemResponse>>
-        {
-            Success = true,
-            Message = "Historial obtenido.",
-            Data = resultado.Value
-        });
     }
 
     [HttpPost("selecciones-mensuales/{idSeleccionMensual:int}/rutas/cancelar")]

@@ -4,8 +4,12 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Modal } from '@/components/ui/modal';
 import { educacionMedicaApi } from '../../../services/educacionMedica.api';
-import type { SeleccionDetalle } from '../../../types/educacionMedica.types';
+import type {
+  GenerarRutasResponse,
+  SeleccionDetalle,
+} from '../../../types/educacionMedica.types';
 import { toApiError } from '@/utils/errors';
+import { nombreSeleccion } from '../../../components/seleccionUtils';
 import { fechaMedia } from '../calendarioUtils';
 
 type Estrategia = 'ciudad' | 'centroide';
@@ -15,7 +19,8 @@ interface GenerarRutasModalProps {
   onOpenChange: (open: boolean) => void;
   seleccion: SeleccionDetalle | null;
   regenerar?: boolean;
-  onGenerated: () => void;
+  talleresCapturados?: number;
+  onGenerated: (response: GenerarRutasResponse) => void;
 }
 
 export function GenerarRutasModal({
@@ -23,6 +28,7 @@ export function GenerarRutasModal({
   onOpenChange,
   seleccion,
   regenerar = false,
+  talleresCapturados = 0,
   onGenerated,
 }: GenerarRutasModalProps) {
   const [estrategia, setEstrategia] = useState<Estrategia>('ciudad');
@@ -45,12 +51,12 @@ export function GenerarRutasModal({
         seleccion.idSeleccionMensual,
         estrategia
       );
-      if (!response.data.success) {
+      if (!response.data.success || !response.data.data) {
         throw new Error(response.data.message ?? 'No se pudo generar la propuesta.');
       }
       toast.success('Propuesta de rutas generada. Las visitas ya están en el calendario.');
       onOpenChange(false);
-      onGenerated();
+      onGenerated(response.data.data);
     } catch (err: unknown) {
       setError(toApiError(err).message ?? 'No se pudo generar la propuesta de rutas.');
     } finally {
@@ -78,7 +84,7 @@ export function GenerarRutasModal({
           <Button
             className="bg-[#eb6c36] text-white hover:bg-[#d95a2b]"
             onClick={() => void generar()}
-            disabled={guardando || !seleccion}
+            disabled={guardando || !seleccion || talleresCapturados > 0}
           >
             {guardando && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Generar propuesta
@@ -94,7 +100,9 @@ export function GenerarRutasModal({
             </span>
             <div className="min-w-0">
               <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-                Selección #{seleccion?.idSeleccionMensual ?? '—'}
+                {seleccion
+                  ? nombreSeleccion(seleccion.fechaSeleccion, seleccion.tipoGerencia)
+                  : 'Selección mensual'}
               </p>
               <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
                 <span className="inline-flex items-center gap-1">
@@ -173,6 +181,13 @@ export function GenerarRutasModal({
             ? 'Se archivará el borrador actual y se creará la siguiente versión. Después podrás ajustar fechas, responsables y talleres.'
             : 'Se creará la primera versión de rutas. Después podrás ajustar fechas, responsables y talleres.'}
         </div>
+
+        {talleresCapturados > 0 && (
+          <div className="rounded-xl border border-amber-200 bg-amber-50/80 px-3 py-2.5 text-xs leading-relaxed text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
+            No se puede regenerar mientras existan talleres capturados. Ajusta o elimina los
+            talleres de esta selección primero.
+          </div>
+        )}
 
         {error && (
           <p className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-700 dark:border-rose-900 dark:bg-rose-950/50 dark:text-rose-300">
