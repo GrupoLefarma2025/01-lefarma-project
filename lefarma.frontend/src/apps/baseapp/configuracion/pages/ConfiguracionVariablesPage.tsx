@@ -26,6 +26,8 @@ import { usePermissionVersion } from '@/utils/permissions';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Modal } from '@/components/ui/modal';
+import { Textarea } from '@/components/ui/textarea';
 import {
   Select,
   SelectContent,
@@ -115,6 +117,12 @@ const NOMBRE_SNIPPET: Record<SnippetCodigo, string> = {
   curl: 'cURL',
 };
 
+interface SnippetVisible {
+  variable: VariableConfiguracion;
+  tipo: SnippetCodigo;
+  codigo: string;
+}
+
 export function ConfiguracionVariablesPage() {
   usePageTitle('Configuración');
   usePermissionVersion(); // re-render cuando cambian los permisos
@@ -138,6 +146,7 @@ export function ConfiguracionVariablesPage() {
 
   const [editor, setEditor] = useState<{ variable: VariableConfiguracion | null } | null>(null);
   const [historialVariable, setHistorialVariable] = useState<VariableConfiguracion | null>(null);
+  const [snippetVisible, setSnippetVisible] = useState<SnippetVisible | null>(null);
 
   const [estadoPendiente, setEstadoPendiente] = useState<VariableConfiguracion | null>(null);
   const [procesandoEstado, setProcesandoEstado] = useState<number | null>(null);
@@ -205,17 +214,30 @@ export function ConfiguracionVariablesPage() {
     setHistorialVariable(variable);
   };
 
+  const copiarSnippetVisible = async () => {
+    if (!snippetVisible) return;
+    const copiado = await copiarAlPortapapeles(snippetVisible.codigo);
+    if (copiado) {
+      toast.success('Código copiado al portapapeles.');
+    } else {
+      toast.error('El navegador bloqueó el portapapeles.', {
+        description: 'Selecciona el texto del cuadro y cópialo manualmente.',
+      });
+    }
+  };
+
   const copiarCodigo = async (variable: VariableConfiguracion, tipo: SnippetCodigo) => {
     const codigo = generarSnippet(variable, tipo);
+    setSnippetVisible({ variable, tipo, codigo });
     const copiado = await copiarAlPortapapeles(codigo);
 
     if (copiado) {
       toast.success(`Código ${NOMBRE_SNIPPET[tipo]} copiado.`, {
-        description: variable.clave,
+        description: 'También puedes revisarlo o seleccionarlo en la ventana.',
       });
     } else {
-      toast.error('No se pudo copiar automáticamente.', {
-        description: 'Revisa los permisos del portapapeles e inténtalo de nuevo.',
+      toast.error('El portapapeles fue bloqueado por el navegador.', {
+        description: 'El código quedó visible para que lo copies manualmente.',
       });
     }
   };
@@ -779,6 +801,55 @@ export function ConfiguracionVariablesPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Modal
+        id="modal-codigo-configuracion"
+        open={snippetVisible !== null}
+        setOpen={(abierto) => {
+          if (!abierto) setSnippetVisible(null);
+        }}
+        title="Código de uso"
+        subtitle={
+          snippetVisible
+            ? `${NOMBRE_SNIPPET[snippetVisible.tipo]} · ${snippetVisible.variable.clave}`
+            : undefined
+        }
+        size="wide"
+        footer={
+          <div className="flex w-full items-center justify-between gap-2">
+            <p className="text-[11px] text-muted-foreground">
+              El código queda seleccionado al entrar al cuadro.
+            </p>
+            <div className="flex gap-2">
+              <Button type="button" variant="outline" onClick={() => setSnippetVisible(null)}>
+                Cerrar
+              </Button>
+              <Button type="button" onClick={() => void copiarSnippetVisible()}>
+                <Copy className="h-4 w-4" />
+                Copiar código
+              </Button>
+            </div>
+          </div>
+        }
+      >
+        {snippetVisible && (
+          <div className="space-y-2">
+            <Textarea
+              readOnly
+              autoFocus
+              value={snippetVisible.codigo}
+              rows={12}
+              spellCheck={false}
+              aria-label="Código de uso de la variable"
+              className="min-h-[260px] resize-y bg-slate-950 font-mono text-xs leading-relaxed text-slate-100"
+              onFocus={(event) => event.currentTarget.select()}
+            />
+            <p className="text-[11px] text-muted-foreground">
+              Si el navegador bloquea el portapapeles, el texto ya está seleccionado: usa Ctrl+C.
+            </p>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }
