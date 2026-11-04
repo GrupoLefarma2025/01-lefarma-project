@@ -106,7 +106,7 @@ const ICONO_SNIPPET: Record<SnippetCodigo, typeof Code2> = {
 };
 
 export function ConfiguracionVariablesPage() {
-  usePageTitle('Configuración', 'Variables globales, historial e integraciones');
+  usePageTitle('Configuración');
   usePermissionVersion(); // re-render cuando cambian los permisos
 
   const puedeCrear = tienePermiso(PERMISOS_CONFIGURACION.crear);
