@@ -53,7 +53,7 @@ public class CalendarioServiceTests
     }
 
     [Fact]
-    public async Task GetCalendarioAsync_Debe_FiltrarVisitasPropiasCuandoNoVeTodas()
+    public async Task GetCalendarioAsync_Debe_AplicarAlcancePorGerenciaCuandoNoVeTodas()
     {
         var (app, asokam) = CrearContextos();
         SeedBase(app);
@@ -86,17 +86,62 @@ public class CalendarioServiceTests
             new CalendarioFiltro { IdSeleccion = 1 }, 10, true);
 
         propiasEjecutivo.Should().ContainSingle().Which.IdRutaVisita.Should().Be(1);
-        propiasEspecialista.Should().ContainSingle().Which.IdRutaVisita.Should().Be(1);
+        propiasEspecialista.Should().HaveCount(2);
+        propiasEspecialista.Select(i => i.IdRutaVisita).Should().BeEquivalentTo([1, 2]);
         ajenas.Should().ContainSingle().Which.IdRutaVisita.Should().Be(2);
         todas.Should().HaveCount(2);
 
         var detalleAjeno = await service.GetItemAsync(2, 10, false);
         var detallePropio = await service.GetItemAsync(2, 30, false);
+        var detalleGerenciaEspecialista = await service.GetItemAsync(2, 20, false);
         var actividadAjena = await service.GetActividadVisitaAsync(2, 10, false);
 
         detalleAjeno.Should().BeNull();
         detallePropio.Should().NotBeNull();
+        detalleGerenciaEspecialista.Should().NotBeNull();
         actividadAjena.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task GetCalendarioAsync_Debe_IncluirTodaLaGerenciaDelEjecutivo()
+    {
+        var (app, asokam) = CrearContextos();
+        SeedBase(app);
+        SeedAsokam(asokam);
+        app.RegionesCat.Add(new RegionCatalogo
+        {
+            IdRegion = 1,
+            IdTipoGerencia = 1,
+            Nombre = "Región Norte",
+            Activo = true,
+        });
+        app.EjecutivosRegion.Add(new EjecutivoRegion
+        {
+            IdEjecutivoRegion = 1,
+            IdUsuario = 50,
+            IdRegionCatalogo = 1,
+            Activo = true,
+        });
+        app.RutasVisitas.Add(new RutaVisita
+        {
+            IdRutaVisita = 2,
+            IdRuta = 1,
+            IdSeleccionHospital = 1,
+            IdHospital = 100,
+            IdEjecutivo = 30,
+            IdEspecialista = 40,
+            FechaVisita = Fecha,
+            HoraSalida = new TimeOnly(10, 0),
+            Orden = 2,
+        });
+        await app.SaveChangesAsync();
+        await asokam.SaveChangesAsync();
+
+        var service = new CalendarioService(app, asokam);
+        var visibles = await service.GetCalendarioAsync(
+            new CalendarioFiltro { IdSeleccion = 1 }, 50, false);
+
+        visibles.Should().HaveCount(2);
     }
 
     [Fact]

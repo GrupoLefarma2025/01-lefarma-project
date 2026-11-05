@@ -699,6 +699,204 @@ public class AsignadorEspecialistasServiceTests
         sugerencia.Motivo.Should().Be("Ya visitó este hospital 1 vez(ces)");
     }
 
+    [Fact]
+    public async Task AsignarEspecialista_Debe_ContarCargaDeOtraGerencia()
+    {
+        var (app, asokam) = CrearContextos();
+        var dia = new DateOnly(2026, 11, 3);
+        SeedSeleccion(app, asokam);
+
+        app.SeleccionesMensuales.Add(new SeleccionMensual
+        {
+            IdSeleccionMensual = 2,
+            FechaSeleccion = dia,
+            FechaInicioVigencia = new DateOnly(2026, 11, 1),
+            FechaFinVigencia = new DateOnly(2026, 11, 30),
+            IdTipoGerencia = 2,
+            Activo = true,
+        });
+        app.Rutas.AddRange(
+            new Ruta
+            {
+                IdRuta = 2,
+                IdSeleccionMensual = 2,
+                IdEspecialista = 30,
+                Version = 1,
+                Estado = Ruta.EstadoCreada,
+            },
+            new Ruta
+            {
+                IdRuta = 3,
+                IdSeleccionMensual = 1,
+                Version = 1,
+                Estado = Ruta.EstadoCreada,
+            });
+        app.RutasVisitas.AddRange(
+            new RutaVisita
+            {
+                IdRutaVisita = 3,
+                IdRuta = 3,
+                IdSeleccionHospital = 1,
+                IdHospital = 100,
+                FechaVisita = dia,
+                Orden = 1,
+            },
+            new RutaVisita
+            {
+                IdRutaVisita = 4,
+                IdRuta = 2,
+                IdHospital = 101,
+                IdEspecialista = 30,
+                FechaVisita = dia,
+                Orden = 1,
+            });
+        await app.SaveChangesAsync();
+        await asokam.SaveChangesAsync();
+        var maxSemana = await app.ParametrosModulo.SingleAsync(p => p.Clave == "max_visitas_semana");
+        maxSemana.Valor = 1;
+        await app.SaveChangesAsync();
+
+        var service = new AsignadorEspecialistasService(app, asokam);
+        var act = () => service.AsignarEspecialistaAsync(
+            3,
+            new AsignarEspecialistaVisitaRequest { IdEspecialista = 30 },
+            idUsuario: 99);
+
+        await act.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("*máximo es 1*");
+    }
+
+    [Fact]
+    public async Task GetSugerenciasAsync_Debe_IgnorarEspecialistaConOtraCiudadElMismoDiaEnOtraGerencia()
+    {
+        var (app, asokam) = CrearContextos();
+        var dia = new DateOnly(2026, 11, 3);
+        SeedSeleccion(app, asokam);
+
+        app.SeleccionesMensuales.Add(new SeleccionMensual
+        {
+            IdSeleccionMensual = 2,
+            FechaSeleccion = dia,
+            FechaInicioVigencia = new DateOnly(2026, 11, 1),
+            FechaFinVigencia = new DateOnly(2026, 11, 30),
+            IdTipoGerencia = 2,
+            Activo = true,
+        });
+        app.Rutas.AddRange(
+            new Ruta
+            {
+                IdRuta = 2,
+                IdSeleccionMensual = 2,
+                IdEspecialista = 30,
+                Version = 1,
+                Estado = Ruta.EstadoCreada,
+            },
+            new Ruta
+            {
+                IdRuta = 3,
+                IdSeleccionMensual = 1,
+                Version = 1,
+                Estado = Ruta.EstadoCreada,
+            });
+        app.RutasVisitas.AddRange(
+            new RutaVisita
+            {
+                IdRutaVisita = 3,
+                IdRuta = 3,
+                IdSeleccionHospital = 1,
+                IdHospital = 100,
+                FechaVisita = dia,
+                Orden = 1,
+            },
+            new RutaVisita
+            {
+                IdRutaVisita = 4,
+                IdRuta = 2,
+                IdHospital = 102,
+                IdEspecialista = 30,
+                FechaVisita = dia,
+                Orden = 1,
+            });
+        asokam.Hospitales.Add(new Hospital
+        {
+            CodigoContacto = 102,
+            NombreContacto = "Hospital Occidente",
+            Ciudad = "Guadalajara",
+        });
+        await app.SaveChangesAsync();
+        await asokam.SaveChangesAsync();
+
+        var service = new AsignadorEspecialistasService(app, asokam);
+        var sugerencias = await service.GetSugerenciasAsync(
+            1, new DateOnly(2026, 11, 1), new DateOnly(2026, 11, 30));
+
+        sugerencias.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task GetSugerenciasAsync_Debe_ContarCargaDeOtraGerencia()
+    {
+        var (app, asokam) = CrearContextos();
+        var dia = new DateOnly(2026, 11, 3);
+        SeedSeleccion(app, asokam);
+
+        app.SeleccionesMensuales.Add(new SeleccionMensual
+        {
+            IdSeleccionMensual = 2,
+            FechaSeleccion = dia,
+            FechaInicioVigencia = new DateOnly(2026, 11, 1),
+            FechaFinVigencia = new DateOnly(2026, 11, 30),
+            IdTipoGerencia = 2,
+            Activo = true,
+        });
+        app.Rutas.AddRange(
+            new Ruta
+            {
+                IdRuta = 2,
+                IdSeleccionMensual = 2,
+                IdEspecialista = 30,
+                Version = 1,
+                Estado = Ruta.EstadoCreada,
+            },
+            new Ruta
+            {
+                IdRuta = 3,
+                IdSeleccionMensual = 1,
+                Version = 1,
+                Estado = Ruta.EstadoCreada,
+            });
+        app.RutasVisitas.AddRange(
+            new RutaVisita
+            {
+                IdRutaVisita = 3,
+                IdRuta = 3,
+                IdSeleccionHospital = 1,
+                IdHospital = 100,
+                FechaVisita = dia,
+                Orden = 1,
+            },
+            new RutaVisita
+            {
+                IdRutaVisita = 4,
+                IdRuta = 2,
+                IdHospital = 101,
+                IdEspecialista = 30,
+                FechaVisita = dia,
+                Orden = 1,
+            });
+        await app.SaveChangesAsync();
+        await asokam.SaveChangesAsync();
+
+        var service = new AsignadorEspecialistasService(app, asokam);
+        var sugerencias = await service.GetSugerenciasAsync(
+            1, new DateOnly(2026, 11, 1), new DateOnly(2026, 11, 30));
+
+        var sugerencia = sugerencias.Single(s => s.IdRutaVisita == 3);
+        sugerencia.IdEspecialista.Should().Be(30);
+        sugerencia.CargaDia.Should().Be(1);
+        sugerencia.CargaSemana.Should().Be(1);
+    }
+
     private static (ApplicationDbContext App, AsokamDbContext Asokam) CrearContextos()
     {
         var app = new ApplicationDbContext(new DbContextOptionsBuilder<ApplicationDbContext>()

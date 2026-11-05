@@ -20,6 +20,7 @@ public class CalendarioItemDto
     public int IdRutaVisita { get; set; }
     public int IdRuta { get; set; }
     public int IdSeleccionMensual { get; set; }
+    public int? IdTipoGerencia { get; set; }
     public int? IdTaller { get; set; }
     public bool TieneTalleres { get; set; }
     public int TalleresCount { get; set; }

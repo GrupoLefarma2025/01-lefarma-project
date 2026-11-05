@@ -16,7 +16,6 @@ import {
   LayoutList,
   Loader2,
   LockKeyhole,
-  MapPin,
   PanelLeftClose,
   PanelLeftOpen,
   Plane,
@@ -51,13 +50,12 @@ import {
 } from '@/components/ui/sheet';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { CalendarioFiltros } from './components/CalendarioFiltros';
+import { CalendarioLeyenda } from './components/CalendarioLeyenda';
 import { ResumenCalendario } from './components/ResumenCalendario';
-import { AyudaContextual } from './components/AyudaContextual';
+import { ResponsableFiltro, type ResponsableGrupo, type TipoResponsable } from './components/ResponsableFiltro';
 import { SugerenciasSheet } from './components/SugerenciasSheet';
-import { ResponsablesSheet } from './components/ResponsablesSheet';
 import { CotizarRutaModal } from '../planificacion/components/CotizarRutaModal';
 import {
   crearBorradorDesdeRuta,
@@ -77,7 +75,9 @@ import type {
   Region,
   Ruta,
   SeleccionDetalle,
+  SeleccionMensual,
   SugerenciaEspecialista,
+  SugerenciaEspecialistaCalendario,
   TipoGerencia,
   VisitaSinTaller,
 } from '../../types/educacionMedica.types';
@@ -87,17 +87,17 @@ import {
   MESES,
   etiquetaPeriodo,
   claveEvento,
+  estiloGerencia,
   fechaCorta,
   fechaInicialCalendario,
   fechaLarga,
   fechaMedia,
   fmtHora,
   hoyIso,
-  iniciales,
   rangoVista,
   sumarDias,
   sumarMeses,
-  tonoAvatar,
+  tonoGerencia,
   type VistaCalendario,
 } from './calendarioUtils';
 import { CalendarioGrid } from './components/CalendarioGrid';
@@ -110,7 +110,20 @@ import { useMatrizPeriodo } from './hooks/useMatrizPeriodo';
 
 const TODOS = 'all';
 
-const VISTAS: Array<{
+const ETIQUETAS_ESTADO_SELECCION: Record<string, string> = {
+  Creada: 'Creada',
+  EnRevision: 'En revisión',
+  Cerrada: 'Cerrada',
+  Rechazada: 'Rechazada',
+  Cancelada: 'Cancelada',
+};
+
+const ESTADOS_SELECCION_SIN_MATRIZ = new Set(['Cancelada', 'Rechazada']);
+
+const puedeAbrirMatrizSeleccion = (seleccion: SeleccionMensual) =>
+  !ESTADOS_SELECCION_SIN_MATRIZ.has(seleccion.estado);
+
+const VISTAS_PERIODO: Array<{
   valor: VistaCalendario;
   etiqueta: string;
   icono: typeof CalendarDays;
@@ -118,9 +131,18 @@ const VISTAS: Array<{
   { valor: 'dia', etiqueta: 'Día', icono: LayoutList },
   { valor: 'semana', etiqueta: 'Semana', icono: Columns3 },
   { valor: 'mes', etiqueta: 'Mes', icono: Grid2X2 },
+];
+
+const VISTAS_AGRUPACION: Array<{
+  valor: VistaCalendario;
+  etiqueta: string;
+  icono: typeof CalendarDays;
+}> = [
   { valor: 'especialista', etiqueta: 'Especialista', icono: UserRound },
   { valor: 'ejecutivo', etiqueta: 'Ejecutivo', icono: UsersRound },
 ];
+
+const VISTAS = [...VISTAS_PERIODO, ...VISTAS_AGRUPACION];
 
 const ESTADOS = [
   { valor: 'SinTaller', etiqueta: 'Sin taller' },
@@ -136,8 +158,8 @@ const AYUDA_VISTA: Record<VistaCalendario, string> = {
   dia: 'Agenda del día; arrastra un taller para reprogramarlo.',
   semana: 'Semana laboral con horarios, capacidad y visitas.',
   mes: 'Vista mensual; doble clic en un día para abrir su agenda.',
-  especialista: 'Carga y visitas agrupadas por especialista.',
-  ejecutivo: 'Carga y visitas agrupadas por ejecutivo.',
+  especialista: 'Carga de visitas por especialista.',
+  ejecutivo: 'Carga de visitas por ejecutivo.',
 };
 
 const MODOS: Array<{
@@ -181,55 +203,6 @@ function esFechaValida(valor: string | null): valor is string {
   return Boolean(valor && /^\d{4}-\d{2}-\d{2}$/.test(valor));
 }
 
-function RailPersona({
-  nombre,
-  detalle,
-  total,
-  activo,
-  onClick,
-}: {
-  nombre: string;
-  detalle: string;
-  total: number;
-  activo: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={[
-        'flex w-full items-center gap-2.5 rounded-xl px-2 py-2 text-left transition-colors',
-        activo
-          ? 'bg-orange-50 text-orange-900 dark:bg-orange-950/50 dark:text-orange-100'
-          : 'hover:bg-slate-50 dark:hover:bg-slate-900/60',
-      ].join(' ')}
-    >
-      <span
-        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${tonoAvatar(nombre)}`}
-      >
-        {iniciales(nombre)}
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="block truncate text-xs font-semibold text-slate-700 dark:text-slate-200">
-          {nombre}
-        </span>
-        <span className="block truncate text-[9px] text-slate-400">{detalle}</span>
-      </span>
-      <span
-        className={[
-          'flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[9px] font-bold tabular-nums',
-          activo
-            ? 'bg-orange-200/70 text-orange-800 dark:bg-orange-900 dark:text-orange-200'
-            : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400',
-        ].join(' ')}
-      >
-        {total}
-      </span>
-    </button>
-  );
-}
-
 export default function CalendarioPage() {
   usePageTitle('Panel de rutas', 'Rutas, visitas y talleres');
   const [searchParams, setSearchParams] = useSearchParams();
@@ -241,6 +214,7 @@ export default function CalendarioPage() {
   const fechaDeepLinkInicial = esFechaValida(fechaParam) ? fechaParam : null;
   const fechaDeepLink = useRef(fechaDeepLinkInicial);
   const deepLinkAplicado = useRef(false);
+  const gerenciasInicializadas = useRef(false);
   const [idSeleccionActiva, setIdSeleccionActiva] = useState<number | null>(idSeleccionParam);
 
   const [fecha, setFecha] = useState(() => fechaDeepLinkInicial ?? fechaInicialCalendario());
@@ -271,13 +245,13 @@ export default function CalendarioPage() {
     return esFiltroRapidoValido(filtro) ? filtro : 'todos';
   });
   const [idGerencias, setIdGerencias] = useState<string[]>([]);
-  const idGerencia = idGerencias.length === 1 ? idGerencias[0] : TODOS;
   const multiGerencia = idGerencias.length !== 1;
   const [idRegion, setIdRegion] = useState(TODOS);
   const [idEspecialista, setIdEspecialista] = useState(TODOS);
   const [idEjecutivo, setIdEjecutivo] = useState(TODOS);
   const [estado, setEstado] = useState(TODOS);
 
+  const [seleccionesMes, setSeleccionesMes] = useState<SeleccionMensual[]>([]);
   const [items, setItems] = useState<CalendarioItem[]>([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -286,15 +260,17 @@ export default function CalendarioPage() {
   const [crearTallerItem, setCrearTallerItem] = useState<CalendarioItem | null>(null);
   const [filtrosAbiertos, setFiltrosAbiertos] = useState(false);
   const [filtrosDesktopAbiertos, setFiltrosDesktopAbiertos] = useState(false);
-  const [panelLateralAbierto, setPanelLateralAbierto] = useState(true);
-  const [tabPersonas, setTabPersonas] = useState<'ejecutivos' | 'especialistas'>('especialistas');
+  const [panelLateralAbierto, setPanelLateralAbierto] = useState(false);
+  const [tabResponsables, setTabResponsables] = useState<TipoResponsable>('especialistas');
   const [moviendo, setMoviendo] = useState(false);
   const [seleccionContexto, setSeleccionContexto] = useState<SeleccionDetalle | null>(null);
+  const [seleccionGenerar, setSeleccionGenerar] = useState<SeleccionDetalle | null>(null);
+  const [cargandoGenerar, setCargandoGenerar] = useState(false);
+  const [gerenciaMatrizManual, setGerenciaMatrizManual] = useState<number | null>(null);
   const idMatrizParam = Number(searchParams.get('idMatriz')) || null;
   const gerenciaMatrizId =
-    idGerencias.length === 1
-      ? Number(idGerencias[0])
-      : (seleccionContexto?.idTipoGerencia ?? null);
+    gerenciaMatrizManual ??
+    (idGerencias.length === 1 ? Number(idGerencias[0]) : null);
   const {
     matriz: matrizPeriodo,
     concentracion: matrizConcentracion,
@@ -310,12 +286,14 @@ export default function CalendarioPage() {
   const [versionRuta, setVersionRuta] = useState<number | null>(null);
   const [refrescoRutas, setRefrescoRutas] = useState(0);
   const [modalGenerar, setModalGenerar] = useState(false);
-  const [sugerencias, setSugerencias] = useState<SugerenciaEspecialista[]>([]);
+  const [matrizPickerAbierto, setMatrizPickerAbierto] = useState(false);
+  const [generarPickerAbierto, setGenerarPickerAbierto] = useState(false);
+  const [sugerencias, setSugerencias] = useState<SugerenciaEspecialistaCalendario[]>([]);
   const [sugerenciaContextual, setSugerenciaContextual] = useState<SugerenciaEspecialista | null>(
     null
   );
   const [sugerenciasAbiertas, setSugerenciasAbiertas] = useState(false);
-  const [responsablesAbiertos, setResponsablesAbiertos] = useState(false);
+  const [responsableFiltroAbierto, setResponsableFiltroAbierto] = useState(false);
   const [rutaCotizarAbierta, setRutaCotizarAbierta] = useState(false);
   const [asignandoSugerencia, setAsignandoSugerencia] = useState<number | null>(null);
   const [asignandoSugerencias, setAsignandoSugerencias] = useState(false);
@@ -325,6 +303,10 @@ export default function CalendarioPage() {
   const [ejecutivos, setEjecutivos] = useState<EjecutivoRegion[]>([]);
   const [suplentes, setSuplentes] = useState<EjecutivoSuplente[]>([]);
   const [especialistas, setEspecialistas] = useState<EspecialistaPersona[]>([]);
+  const sinGerenciasActivas = gerencias.length > 0 && idGerencias.length === 0;
+  const todasGerenciasActivas =
+    gerencias.length > 0 &&
+    gerencias.every((gerencia) => idGerencias.includes(String(gerencia.idTipoGerencia)));
 
   useEffect(() => {
     void educacionMedicaApi.tipoGerencia
@@ -350,7 +332,19 @@ export default function CalendarioPage() {
   }, []);
 
   useEffect(() => {
-    if (idSeleccionActiva) return;
+    if (
+      gerenciasInicializadas.current ||
+      gerencias.length === 0 ||
+      idGerencias.length > 0
+    ) {
+      return;
+    }
+
+    gerenciasInicializadas.current = true;
+    setIdGerencias(gerencias.map((gerencia) => String(gerencia.idTipoGerencia)));
+  }, [gerencias, idGerencias.length]);
+
+  useEffect(() => {
     let cancelado = false;
 
     void educacionMedicaApi.seleccionesMensuales
@@ -362,25 +356,16 @@ export default function CalendarioPage() {
             (seleccion.fechaInicioVigencia?.slice(0, 7) ??
               seleccion.fechaSeleccion?.slice(0, 7)) === periodoMes
         );
-        const candidata =
-          idGerencia === TODOS
-            ? lista.length === 1
-              ? lista[0]
-              : null
-            : lista.find((seleccion) => String(seleccion.idTipoGerencia) === idGerencia);
-        if (candidata) {
-          setIdSeleccionActiva(candidata.idSeleccionMensual);
-          if (idGerencias.length === 0) {
-            setIdGerencias([String(candidata.idTipoGerencia)]);
-          }
-        }
+        setSeleccionesMes(lista);
       })
-      .catch(() => undefined);
+      .catch(() => {
+        if (!cancelado) setSeleccionesMes([]);
+      });
 
     return () => {
       cancelado = true;
     };
-  }, [periodoMes, idGerencia, idGerencias.length, idSeleccionActiva]);
+  }, [periodoMes]);
 
   useEffect(() => {
     if (!idSeleccionActiva) return;
@@ -400,9 +385,6 @@ export default function CalendarioPage() {
           const fechaSeleccion =
             inicio && inicio.slice(0, 7) === mesSeleccion ? inicio : `${mesSeleccion}-01`;
           setFecha(fechaDeepLink.current ?? fechaSeleccion);
-        }
-        if (idGerencias.length === 0 && detalle?.idTipoGerencia && idSeleccionParam) {
-          setIdGerencias([String(detalle.idTipoGerencia)]);
         }
       })
       .catch(() => undefined);
@@ -431,7 +413,7 @@ export default function CalendarioPage() {
     return () => {
       cancelado = true;
     };
-  }, [idSeleccionActiva, idGerencia, idGerencias.length, idSeleccionParam, puedeVerRutas, refrescoRutas]);
+  }, [idSeleccionActiva, puedeVerRutas, refrescoRutas]);
 
   const versionesDisponibles = useMemo(() => {
     const mapa = new Map<number, Ruta['estado']>();
@@ -484,35 +466,84 @@ export default function CalendarioPage() {
       : (versionesDisponibles.find(([version]) => version === versionRuta)?.[1] ?? null);
 
   const versionSoloLectura =
+    !multiGerencia &&
     estadoVersionSeleccionada != null &&
     ['Archivada', 'Cancelada', 'Rechazada'].includes(estadoVersionSeleccionada);
-  const puedeEditarCalendario = !multiGerencia && !versionSoloLectura;
+  const puedeEditarCalendario = puedeGestionarRutas && !versionSoloLectura;
 
   const cotizacionBloqueada =
     estadoVersionSeleccionada != null && !esEstadoRutaCotizable(estadoVersionSeleccionada);
 
   const rango = useMemo(() => rangoVista(fecha, vista), [fecha, vista]);
 
-  useEffect(() => {
-    if (!idSeleccionActiva || !puedeVerRutas) return;
-    let cancelado = false;
+  const seleccionesDelPeriodo = useMemo(
+    () =>
+      sinGerenciasActivas
+        ? []
+        : idGerencias.length === 0
+          ? seleccionesMes
+          : seleccionesMes.filter((seleccion) =>
+              idGerencias.includes(String(seleccion.idTipoGerencia))
+            ),
+    [seleccionesMes, idGerencias, sinGerenciasActivas]
+  );
 
-    void educacionMedicaApi.calendario
-      .sugerencias(idSeleccionActiva, rango.desde, rango.hasta)
-      .then((response) => {
-        if (cancelado || !response.data.success) return;
-        setSugerencias(response.data.data ?? []);
-      })
-      .catch(() => {
+  useEffect(() => {
+    let cancelado = false;
+    const seleccionesSugerencia = seleccionesDelPeriodo;
+
+    if (!puedeVerRutas || seleccionesSugerencia.length === 0) {
+      void Promise.resolve().then(() => {
         if (!cancelado) setSugerencias([]);
       });
+      return () => {
+        cancelado = true;
+      };
+    }
+
+    void Promise.allSettled(
+      seleccionesSugerencia.map(async (seleccion) => {
+        const response = await educacionMedicaApi.calendario.sugerencias(
+          seleccion.idSeleccionMensual,
+          rango.desde,
+          rango.hasta
+        );
+        if (!response.data.success) return [];
+
+        return (response.data.data ?? []).map((sugerencia) => ({
+          ...sugerencia,
+          idSeleccionMensual: seleccion.idSeleccionMensual,
+          idTipoGerencia: seleccion.idTipoGerencia,
+          gerencia: seleccion.tipoGerencia ?? 'Gerencia',
+        }));
+      })
+    ).then((resultados) => {
+      if (cancelado) return;
+      setSugerencias(
+        resultados.flatMap((resultado) =>
+          resultado.status === 'fulfilled' ? resultado.value : []
+        )
+      );
+    });
 
     return () => {
       cancelado = true;
     };
-  }, [idSeleccionActiva, puedeVerRutas, rango.desde, rango.hasta, refrescoRutas]);
+  }, [
+    puedeVerRutas,
+    seleccionesDelPeriodo,
+    rango.desde,
+    rango.hasta,
+    refrescoRutas,
+  ]);
 
   const cargar = useCallback(async (versionOverride?: number | null) => {
+    if (sinGerenciasActivas) {
+      setItems([]);
+      setCargando(false);
+      return;
+    }
+
     setCargando(true);
     setError(null);
     const version = versionOverride !== undefined ? versionOverride : versionRuta;
@@ -550,6 +581,7 @@ export default function CalendarioPage() {
     idSeleccionActiva,
     versionRuta,
     multiGerencia,
+    sinGerenciasActivas,
   ]);
 
   useEffect(() => {
@@ -590,14 +622,53 @@ export default function CalendarioPage() {
     [recargarMatriz, cargar]
   );
 
+  const resumenSelecciones = useMemo(() => {
+    const estados = new Map<string, number>();
+    let totalHospitales = 0;
+    let totalRegiones = 0;
+    let conRutas = 0;
+
+    for (const seleccion of seleccionesDelPeriodo) {
+      totalHospitales += seleccion.totalHospitales;
+      totalRegiones += seleccion.totalRegiones;
+      if (seleccion.tieneRutas) conRutas += 1;
+      estados.set(seleccion.estado, (estados.get(seleccion.estado) ?? 0) + 1);
+    }
+
+    return {
+      totalHospitales,
+      totalRegiones,
+      conRutas,
+      total: seleccionesDelPeriodo.length,
+      estados: [...estados.entries()],
+    };
+  }, [seleccionesDelPeriodo]);
+
+  const seleccionesCerradas = useMemo(
+    () => seleccionesDelPeriodo.filter((seleccion) => seleccion.estado === 'Cerrada'),
+    [seleccionesDelPeriodo]
+  );
+
+  const seleccionesConGerencia = useMemo(
+    () => seleccionesDelPeriodo.filter((seleccion) => seleccion.idTipoGerencia != null),
+    [seleccionesDelPeriodo]
+  );
+
+  const seleccionesMatrizDisponibles = useMemo(
+    () => seleccionesConGerencia.filter(puedeAbrirMatrizSeleccion),
+    [seleccionesConGerencia]
+  );
+
   const regionesDisponibles = useMemo(
     () =>
-      idGerencias.length === 0
-        ? regiones
-        : regiones.filter((region) =>
-            idGerencias.includes(String(region.idTipoGerencia))
-          ),
-    [regiones, idGerencias]
+      sinGerenciasActivas
+        ? []
+        : idGerencias.length === 0
+          ? regiones
+          : regiones.filter((region) =>
+              idGerencias.includes(String(region.idTipoGerencia))
+            ),
+    [regiones, idGerencias, sinGerenciasActivas]
   );
 
   const itemsFiltrados = useMemo(() => {
@@ -630,6 +701,35 @@ export default function CalendarioPage() {
     });
   }, [items, busqueda, filtroRapido, usuarioActual?.id]);
 
+  const gerenciasPresentes = useMemo(() => {
+    const mapa = new Map<string, { idTipoGerencia: number | null; nombre: string }>();
+    for (const item of itemsFiltrados) {
+      if (!item.gerencia) continue;
+      const clave = item.idTipoGerencia == null ? item.gerencia : String(item.idTipoGerencia);
+      if (!mapa.has(clave)) {
+        mapa.set(clave, { idTipoGerencia: item.idTipoGerencia, nombre: item.gerencia });
+      }
+    }
+    return [...mapa.values()].sort((a, b) => a.nombre.localeCompare(b.nombre));
+  }, [itemsFiltrados]);
+
+  const opcionesGerencias = useMemo(() => {
+    const base =
+      gerencias.length > 0
+        ? gerencias
+            .map((gerencia) => ({
+              idTipoGerencia: gerencia.idTipoGerencia,
+              nombre: gerencia.descripcion,
+            }))
+            .sort((a, b) => a.nombre.localeCompare(b.nombre))
+        : gerenciasPresentes;
+
+    if (puedeVerTodas) return base;
+
+    const visibles = new Set(gerenciasPresentes.map((gerencia) => gerencia.idTipoGerencia));
+    return base.filter((gerencia) => visibles.has(gerencia.idTipoGerencia));
+  }, [gerencias, gerenciasPresentes, puedeVerTodas]);
+
   const seleccionado = useMemo(
     () =>
       items.find(
@@ -640,8 +740,6 @@ export default function CalendarioPage() {
     [items, seleccionadoId, seleccionadoTallerId]
   );
 
-  const rutasGeneradas = hayRutas === true || seleccionContexto?.tieneRutas === true;
-
   const sugerenciaSeleccionada = useMemo(
     () => sugerencias.find((sugerencia) => sugerencia.idRutaVisita === seleccionadoId) ?? null,
     [sugerencias, seleccionadoId]
@@ -649,9 +747,10 @@ export default function CalendarioPage() {
 
   useEffect(() => {
     const idVisita = seleccionado?.idRutaVisita ?? null;
+    const idSeleccionVisita = seleccionado?.idSeleccionMensual ?? null;
     let cancelado = false;
     if (
-      !idSeleccionActiva ||
+      !idSeleccionVisita ||
       !idVisita ||
       !seleccionado?.idEspecialista ||
       !puedeVerRutas
@@ -664,7 +763,7 @@ export default function CalendarioPage() {
       };
     }
     void educacionMedicaApi.calendario
-      .sugerencias(idSeleccionActiva, rango.desde, rango.hasta, idVisita)
+      .sugerencias(idSeleccionVisita, rango.desde, rango.hasta, idVisita)
       .then((response) => {
         if (cancelado) return;
         setSugerenciaContextual(response.data.success ? (response.data.data?.[0] ?? null) : null);
@@ -677,7 +776,7 @@ export default function CalendarioPage() {
       cancelado = true;
     };
   }, [
-    idSeleccionActiva,
+    seleccionado?.idSeleccionMensual,
     seleccionado?.idRutaVisita,
     seleccionado?.idEspecialista,
     rango.desde,
@@ -843,11 +942,13 @@ export default function CalendarioPage() {
     setSearchParams(params, { replace: true });
   };
 
-  const cambiarGerencias = (values: string[]) => {
+  const aplicarGerencias = (values: string[]) => {
     setIdGerencias(values);
     setIdRegion(TODOS);
     setIdSeleccionActiva(null);
     setSeleccionContexto(null);
+    setGerenciaMatrizManual(null);
+    setSeleccionGenerar(null);
     setHayRutas(null);
     setRutasVersion([]);
     setVersionRuta(null);
@@ -857,12 +958,61 @@ export default function CalendarioPage() {
     setSearchParams(params, { replace: true });
   };
 
+  const cambiarGerencias = (values: string[]) => {
+    aplicarGerencias(
+      values.length > 0
+        ? values
+        : gerencias.map((gerencia) => String(gerencia.idTipoGerencia))
+    );
+  };
+
+  const alternarGerencia = (idTipoGerencia: number) => {
+    const valor = String(idTipoGerencia);
+    aplicarGerencias(
+      idGerencias.includes(valor)
+        ? idGerencias.filter((gerencia) => gerencia !== valor)
+        : [...idGerencias, valor]
+    );
+  };
+
+  const abrirGenerar = async (seleccion: SeleccionMensual) => {
+    setGenerarPickerAbierto(false);
+    setCargandoGenerar(true);
+    try {
+      const response = await educacionMedicaApi.seleccionesMensuales.getById(
+        seleccion.idSeleccionMensual
+      );
+      if (!response.data.success || !response.data.data) {
+        throw new Error(response.data.message ?? 'No se pudo cargar la selección.');
+      }
+      setSeleccionGenerar(response.data.data);
+      setModalGenerar(true);
+    } catch (error: unknown) {
+      toast.error(toApiError(error).message ?? 'No se pudo cargar la selección.');
+    } finally {
+      setCargandoGenerar(false);
+    }
+  };
+
+  const abrirMatriz = (seleccion: SeleccionMensual) => {
+    if (seleccion.idTipoGerencia == null || !puedeAbrirMatrizSeleccion(seleccion)) return;
+    setMatrizPickerAbierto(false);
+    setGerenciaMatrizManual(seleccion.idTipoGerencia);
+    setModo('matriz');
+    const params = new URLSearchParams(searchParams);
+    params.delete('idMatriz');
+    params.set('vista', 'matriz');
+    setSearchParams(params, { replace: true });
+  };
+
   const irHoy = () => {
     const hoy = hoyIso();
     setFecha(hoy);
     setPeriodoMes(hoy.slice(0, 7));
     setIdSeleccionActiva(null);
     setSeleccionContexto(null);
+    setGerenciaMatrizManual(null);
+    setSeleccionGenerar(null);
     setHayRutas(null);
     setRutasVersion([]);
     setVersionRuta(null);
@@ -883,6 +1033,8 @@ export default function CalendarioPage() {
       setPeriodoMes(nuevoMes);
       setIdSeleccionActiva(null);
       setSeleccionContexto(null);
+      setGerenciaMatrizManual(null);
+      setSeleccionGenerar(null);
       setHayRutas(null);
       setRutasVersion([]);
       setVersionRuta(null);
@@ -891,14 +1043,6 @@ export default function CalendarioPage() {
       params.delete('idMatriz');
       setSearchParams(params, { replace: true });
     }
-  };
-
-  const cambiarFiltroEspecialista = (id: number) => {
-    setIdEspecialista((actual) => (actual === String(id) ? TODOS : String(id)));
-  };
-
-  const cambiarFiltroEjecutivo = (id: number) => {
-    setIdEjecutivo((actual) => (actual === String(id) ? TODOS : String(id)));
   };
 
   const cambiarFiltroRapido = (valor: FiltroRapido) => {
@@ -915,7 +1059,8 @@ export default function CalendarioPage() {
   const limpiarFiltros = () => {
     setBusqueda('');
     setFiltroRapido('todos');
-    setIdGerencias([]);
+    setResponsableFiltroAbierto(false);
+    setIdGerencias(gerencias.map((gerencia) => String(gerencia.idTipoGerencia)));
     setIdRegion(TODOS);
     setIdEspecialista(TODOS);
     setIdEjecutivo(TODOS);
@@ -936,6 +1081,7 @@ export default function CalendarioPage() {
       idRutaVisita: visita.idRutaVisita,
       idRuta: visita.idRuta,
       idSeleccionMensual: seleccionContexto?.idSeleccionMensual ?? 0,
+      idTipoGerencia: matrizPeriodo?.idTipoGerencia ?? null,
       idTaller: null,
       tieneTalleres: false,
       talleresCount: 0,
@@ -988,7 +1134,13 @@ export default function CalendarioPage() {
       toast.error(
         versionSoloLectura
           ? 'La versión archivada es de solo lectura.'
-          : 'Selecciona una gerencia para editar el calendario.'
+          : 'No tienes permiso para mover visitas.'
+      );
+      return;
+    }
+    if (item.estadoRuta !== 'Creada') {
+      toast.error(
+        'La ruta no está editable. Los ajustes de rutas cerradas se gestionan en otra fase.'
       );
       return;
     }
@@ -1014,37 +1166,138 @@ export default function CalendarioPage() {
     }
   };
 
-  const personasRail =
-    tabPersonas === 'ejecutivos'
-      ? [...ejecutivos]
-          .sort((a, b) => a.nombreUsuario.localeCompare(b.nombreUsuario))
-          .map((ejecutivo) => ({
-            id: ejecutivo.idUsuario,
-            nombre: ejecutivo.nombreUsuario,
-            detalle: ejecutivo.nombreRegion,
-            total: conteoEjecutivos.get(ejecutivo.idUsuario) ?? 0,
-            activo: idEjecutivo === String(ejecutivo.idUsuario),
-            onClick: () => cambiarFiltroEjecutivo(ejecutivo.idUsuario),
-          }))
-      : [...especialistas]
-          .sort((a, b) => a.nombreUsuario.localeCompare(b.nombreUsuario))
-          .map((especialista) => ({
+  const gruposResponsables = useMemo(() => {
+    const incluirGerencia = (idTipoGerencia: number | null) => {
+      if (sinGerenciasActivas) return false;
+      if (idGerencias.length === 0) return true;
+      return idTipoGerencia != null && idGerencias.includes(String(idTipoGerencia));
+    };
+
+    const ordenarGrupos = (grupos: ResponsableGrupo[]) =>
+      grupos.sort((a, b) => {
+        if (a.idTipoGerencia == null) return 1;
+        if (b.idTipoGerencia == null) return -1;
+        return a.nombreGerencia.localeCompare(b.nombreGerencia);
+      });
+
+    const ejecutivosPorGerencia = new Map<string, ResponsableGrupo>();
+    for (const ejecutivo of ejecutivos) {
+      if (!incluirGerencia(ejecutivo.idTipoGerencia)) continue;
+      const clave = String(ejecutivo.idTipoGerencia);
+      const grupo =
+        ejecutivosPorGerencia.get(clave) ?? {
+          idTipoGerencia: ejecutivo.idTipoGerencia,
+          nombreGerencia: ejecutivo.nombreGerencia,
+          personas: [],
+        };
+      if (!grupo.personas.some((persona) => persona.id === ejecutivo.idUsuario)) {
+        grupo.personas.push({
+          id: ejecutivo.idUsuario,
+          nombre: ejecutivo.nombreUsuario,
+          detalle: ejecutivo.nombreRegion,
+          total: conteoEjecutivos.get(ejecutivo.idUsuario) ?? 0,
+        });
+      }
+      ejecutivosPorGerencia.set(clave, grupo);
+    }
+
+    const especialistasPorGerencia = new Map<string, ResponsableGrupo>();
+    for (const especialista of especialistas) {
+      const gerencias = especialista.gerencias
+        .filter((gerencia) => gerencia.activo)
+        .map((gerencia) => ({
+          idTipoGerencia: gerencia.idTipoGerencia as number | null,
+          nombreGerencia: gerencia.nombreGerencia,
+        }));
+      if (gerencias.length === 0) {
+        gerencias.push({ idTipoGerencia: null, nombreGerencia: 'Sin gerencia' });
+      }
+
+      for (const gerencia of gerencias) {
+        if (!incluirGerencia(gerencia.idTipoGerencia)) continue;
+        const clave = gerencia.idTipoGerencia == null ? 'sin-gerencia' : String(gerencia.idTipoGerencia);
+        const grupo =
+          especialistasPorGerencia.get(clave) ?? {
+            idTipoGerencia: gerencia.idTipoGerencia,
+            nombreGerencia: gerencia.nombreGerencia,
+            personas: [],
+          };
+        if (!grupo.personas.some((persona) => persona.id === especialista.idUsuario)) {
+          grupo.personas.push({
             id: especialista.idUsuario,
             nombre: especialista.nombreUsuario,
-            detalle:
-              especialista.gerencias
-                .map((gerencia) => gerencia.nombreGerencia)
-                .filter(Boolean)
-                .join(' · ') || 'Sin gerencia',
+            detalle: especialista.regionPreferida?.nombreRegion ?? 'Sin región preferida',
             total: conteoEspecialistas.get(especialista.idUsuario) ?? 0,
-            activo: idEspecialista === String(especialista.idUsuario),
-            onClick: () => cambiarFiltroEspecialista(especialista.idUsuario),
-          }));
+          });
+        }
+        especialistasPorGerencia.set(clave, grupo);
+      }
+    }
 
-  const totalPersonasRail = personasRail.reduce((total, persona) => total + persona.total, 0);
+    return {
+      ejecutivos: ordenarGrupos([...ejecutivosPorGerencia.values()]).map((grupo) => ({
+        ...grupo,
+        personas: grupo.personas.sort((a, b) => a.nombre.localeCompare(b.nombre)),
+      })),
+      especialistas: ordenarGrupos([...especialistasPorGerencia.values()]).map((grupo) => ({
+        ...grupo,
+        personas: grupo.personas.sort((a, b) => a.nombre.localeCompare(b.nombre)),
+      })),
+    };
+  }, [
+    conteoEjecutivos,
+    conteoEspecialistas,
+    ejecutivos,
+    especialistas,
+    idGerencias,
+    sinGerenciasActivas,
+  ]);
+
+  const idResponsableSeleccionado =
+    tabResponsables === 'ejecutivos'
+      ? idEjecutivo !== TODOS
+        ? Number(idEjecutivo)
+        : null
+      : idEspecialista !== TODOS
+        ? Number(idEspecialista)
+        : null;
+
+  const responsableActivoNombre = useMemo(() => {
+    if (idEspecialista !== TODOS) {
+      return (
+        especialistas.find((especialista) => String(especialista.idUsuario) === idEspecialista)
+          ?.nombreUsuario ?? 'Especialista'
+      );
+    }
+    if (idEjecutivo !== TODOS) {
+      return (
+        ejecutivos.find((ejecutivo) => String(ejecutivo.idUsuario) === idEjecutivo)?.nombreUsuario ??
+        'Ejecutivo'
+      );
+    }
+    return null;
+  }, [ejecutivos, especialistas, idEjecutivo, idEspecialista]);
+
+  const abrirResponsableFiltro = () => {
+    if (idEjecutivo !== TODOS) setTabResponsables('ejecutivos');
+    else if (idEspecialista !== TODOS) setTabResponsables('especialistas');
+    else setTabResponsables(vista === 'ejecutivo' ? 'ejecutivos' : 'especialistas');
+    setResponsableFiltroAbierto(true);
+  };
+
+  const seleccionarResponsable = (id: number | null, tipo: TipoResponsable) => {
+    if (tipo === 'ejecutivos') {
+      setIdEjecutivo(id == null ? TODOS : String(id));
+      setIdEspecialista(TODOS);
+    } else {
+      setIdEspecialista(id == null ? TODOS : String(id));
+      setIdEjecutivo(TODOS);
+    }
+    setResponsableFiltroAbierto(false);
+  };
 
   const filtrosActivos =
-    (idGerencias.length > 0 ? 1 : 0) +
+    (idGerencias.length > 0 && !todasGerenciasActivas ? 1 : 0) +
     [idRegion, idEjecutivo, idEspecialista, estado].filter((valor) => valor !== TODOS).length;
 
   const actualizarVistaQuery = (nuevoModo: ModoCalendario, nuevaVista: VistaCalendario) => {
@@ -1055,6 +1308,7 @@ export default function CalendarioPage() {
 
   const cambiarModo = (nuevo: ModoCalendario) => {
     if (nuevo === modo) return;
+    if (nuevo !== 'matriz') setGerenciaMatrizManual(null);
     setModo(nuevo);
     actualizarVistaQuery(nuevo, vista);
   };
@@ -1090,7 +1344,7 @@ export default function CalendarioPage() {
   const hayFiltros =
     busqueda.trim() !== '' ||
     filtroRapido !== 'todos' ||
-    idGerencias.length > 0 ||
+    (idGerencias.length > 0 && !todasGerenciasActivas) ||
     idRegion !== TODOS ||
     idEspecialista !== TODOS ||
     idEjecutivo !== TODOS ||
@@ -1106,7 +1360,7 @@ export default function CalendarioPage() {
           },
         ]
       : []),
-    ...(idGerencias.length > 0
+    ...(idGerencias.length > 0 && !todasGerenciasActivas
       ? [
           {
             key: 'gerencia',
@@ -1119,7 +1373,8 @@ export default function CalendarioPage() {
                 )
                 .filter(Boolean)
                 .join(' · ') || 'Gerencia',
-            clear: () => setIdGerencias([]),
+            clear: () =>
+              setIdGerencias(gerencias.map((gerencia) => String(gerencia.idTipoGerencia))),
           },
         ]
       : []),
@@ -1138,10 +1393,14 @@ export default function CalendarioPage() {
       ? [
           {
             key: 'ejecutivo',
-            label:
+            label: `Ejecutivo: ${
               ejecutivos.find((ejecutivo) => String(ejecutivo.idUsuario) === idEjecutivo)
-                ?.nombreUsuario ?? 'Ejecutivo',
-            clear: () => setIdEjecutivo(TODOS),
+                ?.nombreUsuario ?? 'Ejecutivo'
+            }`,
+            clear: () => {
+              setIdEjecutivo(TODOS);
+              setIdEspecialista(TODOS);
+            },
           },
         ]
       : []),
@@ -1149,11 +1408,15 @@ export default function CalendarioPage() {
       ? [
           {
             key: 'especialista',
-            label:
+            label: `Especialista: ${
               especialistas.find(
                 (especialista) => String(especialista.idUsuario) === idEspecialista
-              )?.nombreUsuario ?? 'Especialista',
-            clear: () => setIdEspecialista(TODOS),
+              )?.nombreUsuario ?? 'Especialista'
+            }`,
+            clear: () => {
+              setIdEspecialista(TODOS);
+              setIdEjecutivo(TODOS);
+            },
           },
         ]
       : []),
@@ -1167,7 +1430,13 @@ export default function CalendarioPage() {
         ]
       : []),
     ...(busqueda.trim()
-      ? [{ key: 'busqueda', label: `Buscar: ${busqueda.trim()}`, clear: () => setBusqueda('') }]
+      ? [
+          {
+            key: 'busqueda',
+            label: `Buscar: ${busqueda.trim()}`,
+            clear: () => setBusqueda(''),
+          },
+        ]
       : []),
   ];
 
@@ -1175,11 +1444,13 @@ export default function CalendarioPage() {
     <CalendarioFiltros
       todos={TODOS}
       periodoLabel={
-        seleccionContexto
-          ? nombreSeleccion(seleccionContexto.fechaSeleccion, seleccionContexto.tipoGerencia)
-          : idSeleccionParam
-            ? 'Selección mensual'
-            : etiquetaPeriodo(fecha, vista)
+        multiGerencia
+          ? etiquetaPeriodo(fecha, vista)
+          : seleccionContexto
+            ? nombreSeleccion(seleccionContexto.fechaSeleccion, seleccionContexto.tipoGerencia)
+            : idSeleccionParam
+              ? 'Selección mensual'
+              : etiquetaPeriodo(fecha, vista)
       }
       idGerencias={idGerencias}
       gerencias={gerencias}
@@ -1198,33 +1469,78 @@ export default function CalendarioPage() {
       <section className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div className="min-w-0">
           <h1 className="sr-only">Calendario</h1>
-          <p className="mt-2 text-[24px] font-semibold leading-tight tracking-[-0.035em] text-slate-900 dark:text-slate-100">
-            {seleccionContexto
-              ? `${seleccionContexto.tipoGerencia ?? 'Gerencia'} · ${MESES[Number(periodoMes.slice(5, 7)) - 1]} ${periodoMes.slice(0, 4)}`
-              : 'Planeación de visitas y talleres'}
+          <p className="mt-2 text-[24px] font-semibold uppercase leading-tight tracking-[-0.035em] text-slate-900 dark:text-slate-100">
+            {MESES[Number(periodoMes.slice(5, 7)) - 1]} {periodoMes.slice(0, 4)}
           </p>
-          {seleccionContexto ? (
+          {resumenSelecciones.total > 0 || gerenciasPresentes.length > 0 ? (
             <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-slate-500 dark:text-slate-400">
-              <span>{seleccionContexto.hospitales.length} hospitales</span>
-              <span>·</span>
-              <span>{seleccionContexto.regiones.length} regiones</span>
-              <span>·</span>
-              <span>{rutasGeneradas ? 'Rutas generadas' : 'Sin rutas'}</span>
-              <span>·</span>
-              <span>{seleccionContexto.estado}</span>
-              <Link
-                to={`/educacion-medica/seleccion?idSeleccion=${seleccionContexto.idSeleccionMensual}`}
-                className="font-semibold text-orange-600 hover:text-orange-700 dark:text-orange-300"
-              >
-                Ver selección
-              </Link>
+              {resumenSelecciones.total > 0 ? (
+                <>
+                  <span>{resumenSelecciones.totalHospitales} hospitales</span>
+                  <span>·</span>
+                  <span>{resumenSelecciones.totalRegiones} regiones</span>
+                  <span>·</span>
+                  <span>
+                    {resumenSelecciones.conRutas}/{resumenSelecciones.total} con rutas
+                  </span>
+                  <span>·</span>
+                  {resumenSelecciones.estados.map(([estadoSeleccion, cantidad]) => (
+                    <span key={estadoSeleccion} className="inline-flex items-center gap-1">
+                      <span className="h-1.5 w-1.5 rounded-full bg-slate-400" />
+                      {cantidad} {ETIQUETAS_ESTADO_SELECCION[estadoSeleccion] ?? estadoSeleccion}
+                    </span>
+                  ))}
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <button
+                        type="button"
+                        className="font-semibold text-orange-600 hover:text-orange-700 dark:text-orange-300"
+                      >
+                        Ver selecciones
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent align="start" className="w-[380px] p-2">
+                      <div className="space-y-1">
+                        {seleccionesDelPeriodo.map((seleccion) => (
+                          <Link
+                            key={seleccion.idSeleccionMensual}
+                            to={`/educacion-medica/seleccion?idSeleccion=${seleccion.idSeleccionMensual}`}
+                            className={[
+                              'flex items-start gap-2 rounded-lg px-2 py-2 transition-colors hover:bg-slate-50 dark:hover:bg-slate-900',
+                              seleccion.idSeleccionMensual === idSeleccionParam
+                                ? 'bg-orange-50/70 dark:bg-orange-950/20'
+                                : '',
+                            ].join(' ')}
+                          >
+                            <span
+                              className="mt-1 h-2 w-2 shrink-0 rounded-full"
+                              style={{ backgroundColor: seleccion.estadoColor ?? '#94a3b8' }}
+                            />
+                            <span className="min-w-0 flex-1">
+                              <span className="block text-xs font-semibold text-slate-800 dark:text-slate-100">
+                                {seleccion.tipoGerencia ?? 'Gerencia'}
+                              </span>
+                              <span className="block text-[10px] text-slate-500 dark:text-slate-400">
+                                {seleccion.totalHospitales} hospitales · {seleccion.totalRegiones} regiones ·{' '}
+                                {seleccion.tieneRutas ? 'Con rutas' : 'Sin rutas'}
+                              </span>
+                            </span>
+                            <span className="shrink-0 text-[10px] font-medium text-slate-500 dark:text-slate-400">
+                              {ETIQUETAS_ESTADO_SELECCION[seleccion.estado] ?? seleccion.estado}
+                            </span>
+                          </Link>
+                        ))}
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                </>
+              ) : (
+                <span>
+                  {gerenciasPresentes.length} gerencia(s) · {itemsFiltrados.length} actividad(es) en el periodo.
+                </span>
+              )}
             </div>
-          ) : (
-            <p className="mt-2 max-w-xl text-sm leading-relaxed text-slate-500 dark:text-slate-400">
-              No hay selección mensual para {MESES[Number(periodoMes.slice(5, 7)) - 1]}{' '}
-              {periodoMes.slice(0, 4)}. Puedes revisar el calendario o crear una selección.
-            </p>
-          )}
+          ) : null}
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -1256,38 +1572,127 @@ export default function CalendarioPage() {
               <ChevronRight className="h-3.5 w-3.5" />
             </Button>
           </div>
-          <Button
-            size="sm"
-            className="h-9 gap-1.5 rounded-xl bg-[#eb6c36] px-3 text-[11px] text-white hover:bg-[#d95a2b]"
-            onClick={() => cambiarModo(modo === 'matriz' ? 'calendario' : 'matriz')}
-            disabled={modo !== 'matriz' && !gerenciaMatrizId}
-            title={
-              modo !== 'matriz' && !gerenciaMatrizId
-                ? 'Selecciona una gerencia para abrir la matriz'
-                : undefined
-            }
-          >
-            <Presentation className="h-3.5 w-3.5" />
-            {modo === 'matriz' ? 'Volver al calendario' : 'Abrir matriz'}
-          </Button>
-          {idSeleccionActiva &&
-            seleccionContexto?.estado === 'Cerrada' &&
-            puedeGestionarRutas &&
-            !multiGerencia && (
+          {modo === 'matriz' ? (
             <Button
               size="sm"
-              className="h-9 gap-1.5 rounded-xl bg-slate-900 px-3 text-[11px] text-white hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200"
-              onClick={() => setModalGenerar(true)}
-              disabled={talleresCapturados > 0}
-              title={
-                talleresCapturados > 0
-                  ? `Hay ${talleresCapturados} taller(es) capturado(s); no se puede regenerar`
-                  : undefined
-              }
+              className="h-9 gap-1.5 rounded-xl bg-[#eb6c36] px-3 text-[11px] text-white hover:bg-[#d95a2b]"
+              onClick={() => cambiarModo('calendario')}
             >
-              <Route className="h-3.5 w-3.5" />
-              {rutasGeneradas ? 'Regenerar propuesta' : 'Generar propuesta'}
+              <Presentation className="h-3.5 w-3.5" />
+              Volver al calendario
             </Button>
+          ) : (
+            <Popover open={matrizPickerAbierto} onOpenChange={setMatrizPickerAbierto}>
+              <PopoverTrigger asChild>
+                <Button
+                  size="sm"
+                  className="h-9 gap-1.5 rounded-xl bg-[#eb6c36] px-3 text-[11px] text-white hover:bg-[#d95a2b]"
+                  disabled={seleccionesConGerencia.length === 0}
+                  title={
+                    seleccionesConGerencia.length === 0
+                      ? 'No hay selecciones para abrir la matriz'
+                      : undefined
+                  }
+                >
+                  <Presentation className="h-3.5 w-3.5" />
+                  Abrir matriz
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent align="end" className="w-[320px] p-2">
+                <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-400">
+                  Matriz por gerencia
+                </p>
+                <div className="space-y-1">
+                  {seleccionesConGerencia.map((seleccion) => {
+                    const habilitada = puedeAbrirMatrizSeleccion(seleccion);
+                    return (
+                      <button
+                        key={seleccion.idSeleccionMensual}
+                        type="button"
+                        disabled={!habilitada}
+                        title={
+                          habilitada
+                            ? undefined
+                            : 'La selección está cancelada o rechazada; no se puede abrir la matriz'
+                        }
+                        className={[
+                          'flex w-full items-center justify-between gap-2 rounded-lg px-2 py-2 text-left transition-colors',
+                          habilitada
+                            ? 'hover:bg-slate-50 dark:hover:bg-slate-900'
+                            : 'cursor-not-allowed opacity-50',
+                        ].join(' ')}
+                        onClick={() => habilitada && abrirMatriz(seleccion)}
+                      >
+                        <span className="text-xs font-medium text-slate-700 dark:text-slate-200">
+                          {seleccion.tipoGerencia ?? 'Gerencia'}
+                        </span>
+                        <span className="flex items-center gap-1.5 text-[10px] text-slate-400">
+                          {!habilitada && <LockKeyhole className="h-3 w-3" />}
+                          {ETIQUETAS_ESTADO_SELECCION[seleccion.estado] ?? seleccion.estado}
+                        </span>
+                      </button>
+                    );
+                  })}
+                  {seleccionesMatrizDisponibles.length === 0 && (
+                    <p className="px-2 py-2 text-[10px] text-slate-400">
+                      No hay matrices disponibles para este periodo. Las selecciones canceladas
+                      o rechazadas se muestran solo como referencia.
+                    </p>
+                  )}
+                </div>
+              </PopoverContent>
+            </Popover>
+          )}
+          {puedeGestionarRutas && (
+            <Popover open={generarPickerAbierto} onOpenChange={setGenerarPickerAbierto}>
+              <PopoverTrigger asChild>
+                <Button
+                  size="sm"
+                  className="h-9 gap-1.5 rounded-xl bg-slate-900 px-3 text-[11px] text-white hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200"
+                  disabled={seleccionesCerradas.length === 0 || cargandoGenerar}
+                  title={
+                    seleccionesCerradas.length === 0
+                      ? 'No hay selecciones cerradas para generar rutas'
+                      : undefined
+                  }
+                >
+                  {cargandoGenerar ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Route className="h-3.5 w-3.5" />
+                  )}
+                  Generar propuesta
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent align="end" className="w-[340px] p-2">
+                <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-400">
+                  Selección para rutas
+                </p>
+                <div className="space-y-1">
+                  {seleccionesCerradas.map((seleccion) => (
+                    <button
+                      key={seleccion.idSeleccionMensual}
+                      type="button"
+                      className="flex w-full items-start justify-between gap-2 rounded-lg px-2 py-2 text-left transition-colors hover:bg-slate-50 dark:hover:bg-slate-900"
+                      onClick={() => void abrirGenerar(seleccion)}
+                      disabled={cargandoGenerar}
+                    >
+                      <span className="min-w-0">
+                        <span className="block text-xs font-medium text-slate-700 dark:text-slate-200">
+                          {seleccion.tipoGerencia ?? 'Gerencia'}
+                        </span>
+                        <span className="block text-[10px] text-slate-400">
+                          {seleccion.tieneRutas ? 'Regenerar propuesta' : 'Generar propuesta'}
+                        </span>
+                      </span>
+                      <span className="shrink-0 text-[10px] text-slate-400">
+                        {seleccion.totalHospitales} hospitales
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </PopoverContent>
+            </Popover>
           )}
           {puedeCotizar && !multiGerencia && (
             <Button
@@ -1323,7 +1728,7 @@ export default function CalendarioPage() {
         </div>
       </section>
 
-      {idSeleccionActiva && versionesDisponibles.length > 0 && (
+      {!multiGerencia && idSeleccionActiva && versionesDisponibles.length > 0 && (
         <section className="space-y-2">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
@@ -1366,59 +1771,29 @@ export default function CalendarioPage() {
       )}
 
       <section className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200/80 bg-card p-2.5 shadow-[0_1px_2px_rgba(15,23,42,0.03)] dark:border-slate-800">
-        <div className="flex flex-wrap items-center gap-2">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="hidden h-8 w-8 rounded-lg text-slate-400 hover:text-slate-700 xl:inline-flex"
-            onClick={() => setPanelLateralAbierto((abierto) => !abierto)}
-            aria-label={panelLateralAbierto ? 'Ocultar panel lateral' : 'Mostrar panel lateral'}
-            title={panelLateralAbierto ? 'Ocultar panel lateral' : 'Mostrar panel lateral'}
-          >
-            {panelLateralAbierto ? (
-              <PanelLeftClose className="h-4 w-4" />
-            ) : (
-              <PanelLeftOpen className="h-4 w-4" />
-            )}
-          </Button>
-          <div className="flex items-center gap-1 rounded-xl border border-slate-200/80 bg-white p-1 shadow-sm dark:border-slate-800 dark:bg-slate-950">
-            {MODOS.map((opcion) => {
-              const Icono = opcion.icono;
-              const activo = modo === opcion.valor;
-              return (
-                <button
-                  key={opcion.valor}
-                  type="button"
-                  onClick={() => cambiarModo(opcion.valor)}
-                  className={[
-                    'inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] font-semibold transition-all',
-                    activo
-                      ? 'bg-slate-900 text-white shadow-sm dark:bg-white dark:text-slate-900'
-                      : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200',
-                  ].join(' ')}
-                >
-                  <Icono className="h-3.5 w-3.5" />
-                  {opcion.etiqueta}
-                </button>
-              );
-            })}
-          </div>
-
-          {modo === 'calendario' && (
-            <div className="hidden flex-wrap items-center gap-1 rounded-xl bg-slate-50 p-1 dark:bg-slate-900/60 xl:flex">
-              {VISTAS.map((opcion) => {
+        <div className="flex flex-wrap items-end gap-2">
+          <div className="flex flex-col gap-1">
+            <span className="px-1 text-[8px] font-semibold uppercase tracking-[0.14em] text-slate-400">
+              Formato
+            </span>
+            <div
+              className="flex items-center gap-1 rounded-xl border border-slate-200/70 bg-slate-50/70 p-1 dark:border-slate-800 dark:bg-slate-900/40"
+              role="group"
+              aria-label="Formato de visualización"
+            >
+              {MODOS.map((opcion) => {
                 const Icono = opcion.icono;
-                const activo = vista === opcion.valor;
+                const activo = modo === opcion.valor;
                 return (
                   <button
                     key={opcion.valor}
                     type="button"
-                    title={AYUDA_VISTA[opcion.valor]}
-                    onClick={() => cambiarVista(opcion.valor)}
+                    onClick={() => cambiarModo(opcion.valor)}
+                    aria-pressed={activo}
                     className={[
                       'inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] font-semibold transition-all',
                       activo
-                        ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-800 dark:text-white'
+                        ? 'bg-slate-900 text-white shadow-sm dark:bg-white dark:text-slate-900'
                         : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200',
                     ].join(' ')}
                   >
@@ -1428,31 +1803,105 @@ export default function CalendarioPage() {
                 );
               })}
             </div>
-          )}
-          {modo === 'calendario' && (
-            <AyudaContextual titulo="Vistas del calendario">
-              <ul className="list-disc space-y-1 pl-4">
-                <li>Semana: lunes a viernes con horarios y capacidad.</li>
-                <li>Mes: doble clic en un día para abrir su agenda.</li>
-                <li>Especialista: carga y visitas de cada especialista.</li>
-                <li>Ejecutivo: carga de cada dueño de hospital.</li>
-                <li>Arrastra una tarjeta para reprogramarla.</li>
-              </ul>
-            </AyudaContextual>
-          )}
+          </div>
+
+          <div className="flex flex-col gap-1">
+            <span className="px-1 text-[8px] font-semibold uppercase tracking-[0.14em] text-slate-400">
+              Periodo
+            </span>
+            <div
+              className={[
+                'flex items-center gap-1 rounded-xl border border-slate-200/70 bg-slate-50/70 p-1 dark:border-slate-800 dark:bg-slate-900/40',
+                modo !== 'calendario' ? 'opacity-50' : '',
+              ].join(' ')}
+              role="group"
+              aria-label="Periodo del calendario"
+            >
+              {VISTAS_PERIODO.map((opcion) => {
+                const Icono = opcion.icono;
+                const activo = modo === 'calendario' && vista === opcion.valor;
+                return (
+                  <button
+                    key={opcion.valor}
+                    type="button"
+                    title={
+                      modo === 'calendario'
+                        ? AYUDA_VISTA[opcion.valor]
+                        : 'Disponible en la vista Calendario'
+                    }
+                    disabled={modo !== 'calendario'}
+                    aria-pressed={activo}
+                    onClick={() => cambiarVista(opcion.valor)}
+                    className={[
+                      'inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] font-semibold transition-all disabled:cursor-not-allowed',
+                      activo
+                        ? 'bg-slate-900 text-white shadow-sm dark:bg-white dark:text-slate-900'
+                        : 'text-slate-500 hover:text-slate-800 disabled:text-slate-400 dark:text-slate-400 dark:hover:text-slate-200',
+                    ].join(' ')}
+                  >
+                    <Icono className="h-3.5 w-3.5" />
+                    {opcion.etiqueta}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-1">
+            <span className="px-1 text-[8px] font-semibold uppercase tracking-[0.14em] text-slate-400">
+              Agrupación
+            </span>
+            <div
+              className={[
+                'flex items-center gap-1 rounded-xl border border-slate-200/70 bg-slate-50/70 p-1 dark:border-slate-800 dark:bg-slate-900/40',
+                modo !== 'calendario' ? 'opacity-50' : '',
+              ].join(' ')}
+              role="group"
+              aria-label="Agrupación del calendario"
+            >
+              {VISTAS_AGRUPACION.map((opcion) => {
+                const Icono = opcion.icono;
+                const activo = modo === 'calendario' && vista === opcion.valor;
+                return (
+                  <button
+                    key={opcion.valor}
+                    type="button"
+                    title={
+                      modo === 'calendario'
+                        ? AYUDA_VISTA[opcion.valor]
+                        : 'Disponible en la vista Calendario'
+                    }
+                    disabled={modo !== 'calendario'}
+                    aria-pressed={activo}
+                    onClick={() => cambiarVista(opcion.valor)}
+                    className={[
+                      'inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] font-semibold transition-all disabled:cursor-not-allowed',
+                      activo
+                        ? 'bg-slate-900 text-white shadow-sm dark:bg-white dark:text-slate-900'
+                        : 'text-slate-500 hover:text-slate-800 disabled:text-slate-400 dark:text-slate-400 dark:hover:text-slate-200',
+                    ].join(' ')}
+                  >
+                    <Icono className="h-3.5 w-3.5" />
+                    {opcion.etiqueta}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="relative w-[280px]">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+            <Input
+              value={busqueda}
+              onChange={(event) => setBusqueda(event.target.value)}
+              placeholder="Buscar hospital, región…"
+              className="h-8 rounded-lg border-slate-200 bg-slate-50/60 pl-8 text-xs dark:border-slate-800 dark:bg-slate-900/40"
+            />
+          </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
-            <Input
-              className="h-8 w-[200px] rounded-lg border-slate-200 bg-slate-50/60 pl-8 text-xs dark:border-slate-800 dark:bg-slate-900/40"
-              placeholder="Buscar hospital, región…"
-              value={busqueda}
-              onChange={(event) => setBusqueda(event.target.value)}
-            />
-          </div>
-          {idSeleccionActiva && sugerencias.length > 0 && (
+          {sugerencias.length > 0 && (
             <Button
               variant="outline"
               size="sm"
@@ -1467,27 +1916,37 @@ export default function CalendarioPage() {
             </Button>
           )}
           {puedeVerTodas && (
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-8 gap-1.5 rounded-lg border-slate-200 bg-card px-2.5 text-[11px] xl:hidden"
-              onClick={() => setResponsablesAbiertos(true)}
-            >
-              <UsersRound className="h-3.5 w-3.5" />
-              Colaboradores
-            </Button>
+            <ResponsableFiltro
+              abierto={responsableFiltroAbierto}
+              onAbiertoChange={(abierto) => {
+                if (!abierto) {
+                  setResponsableFiltroAbierto(false);
+                  return;
+                }
+                abrirResponsableFiltro();
+              }}
+              tipo={tabResponsables}
+              onTipoChange={setTabResponsables}
+              grupos={gruposResponsables[tabResponsables]}
+              idSeleccionado={idResponsableSeleccionado}
+              onSeleccionar={seleccionarResponsable}
+              ejecutivosCount={ejecutivos.length}
+              especialistasCount={especialistas.length}
+              activoNombre={responsableActivoNombre}
+            />
           )}
           <Popover open={filtrosDesktopAbiertos} onOpenChange={setFiltrosDesktopAbiertos}>
             <PopoverTrigger asChild>
               <Button
                 variant="outline"
-                size="sm"
-                className="hidden h-8 gap-1.5 rounded-lg border-slate-200 bg-card px-2.5 text-[11px] md:inline-flex"
+                size="icon"
+                className="relative hidden h-8 w-8 rounded-lg border-slate-200 bg-card md:inline-flex"
+                aria-label="Filtros"
+                title="Filtros"
               >
                 <SlidersHorizontal className="h-3.5 w-3.5" />
-                Filtros
                 {filtrosActivos > 0 && (
-                  <Badge className="h-4 min-w-4 rounded-full bg-orange-100 px-1 text-[9px] text-orange-700 hover:bg-orange-100 dark:bg-orange-950 dark:text-orange-300">
+                  <Badge className="absolute -right-1 -top-1 h-4 min-w-4 rounded-full bg-orange-100 px-1 text-[9px] text-orange-700 hover:bg-orange-100 dark:bg-orange-950 dark:text-orange-300">
                     {filtrosActivos}
                   </Badge>
                 )}
@@ -1518,27 +1977,29 @@ export default function CalendarioPage() {
 
           <Button
             variant="outline"
-            size="sm"
-            className="h-8 gap-1.5 rounded-lg border-slate-200 bg-card px-2.5 text-[11px] md:hidden"
+            size="icon"
+            className="relative h-8 w-8 rounded-lg border-slate-200 bg-card md:hidden"
             onClick={() => setFiltrosAbiertos(true)}
+            aria-label="Filtros"
+            title="Filtros"
           >
             <SlidersHorizontal className="h-3.5 w-3.5" />
-            Filtros
             {filtrosActivos > 0 && (
-              <Badge className="h-4 min-w-4 rounded-full bg-orange-100 px-1 text-[9px] text-orange-700 hover:bg-orange-100 dark:bg-orange-950 dark:text-orange-300">
+              <Badge className="absolute -right-1 -top-1 h-4 min-w-4 rounded-full bg-orange-100 px-1 text-[9px] text-orange-700 hover:bg-orange-100 dark:bg-orange-950 dark:text-orange-300">
                 {filtrosActivos}
               </Badge>
             )}
           </Button>
           <Button
             variant="ghost"
-            size="sm"
-            className="h-8 gap-1 px-2 text-[11px] text-slate-500"
+            size="icon"
+            className="h-8 w-8 rounded-lg text-slate-500"
             onClick={limpiarFiltros}
             disabled={!hayFiltros}
+            aria-label="Limpiar filtros"
+            title="Limpiar filtros"
           >
             <FilterX className="h-3.5 w-3.5" />
-            Limpiar
           </Button>
         </div>
       </section>
@@ -1567,6 +2028,51 @@ export default function CalendarioPage() {
         sinResponsable={metricas.sinResponsable}
         onVerConflictos={() => cambiarFiltroRapido('conflictos')}
       />
+
+      {opcionesGerencias.length > 0 && (
+        <div className="rounded-2xl border border-slate-200/80 bg-card px-3 py-2.5 dark:border-slate-800">
+          <div className="flex items-center gap-3 overflow-x-auto pb-0.5">
+            <span className="shrink-0 whitespace-nowrap text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-400">
+              Gerencias
+            </span>
+            <div className="flex shrink-0 items-center gap-1.5">
+              {opcionesGerencias.map((gerencia) => {
+              const id = gerencia.idTipoGerencia;
+              const activa =
+                gerencias.length === 0
+                  ? true
+                  : id != null && idGerencias.includes(String(id));
+              const estilo = estiloGerencia[
+                tonoGerencia({
+                  idTipoGerencia: id,
+                  gerencia: gerencia.nombre,
+                })
+              ];
+              return (
+                <button
+                  key={`${id ?? 'sin-id'}-${gerencia.nombre}`}
+                  type="button"
+                  disabled={id == null}
+                  onClick={() => id != null && alternarGerencia(id)}
+                  className={[
+                    'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-medium transition-all',
+                    activa
+                      ? 'border-slate-200 bg-white text-slate-700 shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200'
+                      : 'border-dashed border-slate-200 bg-slate-50 text-slate-400 dark:border-slate-800 dark:bg-slate-950/40 dark:text-slate-500',
+                  ].join(' ')}
+                >
+                  <span className={`h-1.5 w-1.5 rounded-full ${activa ? estilo.punto : 'bg-slate-300'}`} />
+                  {gerencia.nombre}
+                </button>
+              );
+            })}
+            </div>
+            <span className="shrink-0 whitespace-nowrap text-[10px] text-slate-400">
+              Activa o desactiva su visibilidad
+            </span>
+          </div>
+        </div>
+      )}
 
       {error && (
         <div className="flex items-center justify-between gap-3 rounded-2xl border border-rose-200 bg-rose-50/80 px-4 py-3 text-xs text-rose-700 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-300">
@@ -1597,59 +2103,126 @@ export default function CalendarioPage() {
         >
         {modo === 'calendario' && panelLateralAbierto && (
           <aside className="hidden space-y-4 xl:block">
-            {seleccionContexto ? (
+            {seleccionesDelPeriodo.length > 0 ? (
               <div className="rounded-2xl border border-slate-200/80 bg-card p-4 shadow-[0_1px_2px_rgba(15,23,42,0.03)] dark:border-slate-800">
                 <div className="flex items-center justify-between gap-2">
                   <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-400">
-                    Selección del mes
+                    Selecciones del mes
                   </p>
                   <Badge variant="secondary" className="rounded-full text-[9px]">
-                    {seleccionContexto.estado}
+                    {resumenSelecciones.total}
                   </Badge>
                 </div>
-                <p className="mt-2 text-sm font-semibold tracking-tight text-slate-800 dark:text-slate-100">
-                  {seleccionContexto.tipoGerencia ?? 'Gerencia'} ·{' '}
-                  {MESES[Number(periodoMes.slice(5, 7)) - 1]}
-                </p>
-                <div className="mt-3 grid grid-cols-2 gap-2 text-[10px]">
-                  <div className="rounded-lg bg-slate-50 px-2 py-1.5 dark:bg-slate-900/60">
-                    <p className="text-slate-400">Hospitales</p>
-                    <p className="font-semibold tabular-nums text-slate-700 dark:text-slate-200">
-                      {seleccionContexto.hospitales.length}
+
+                {resumenSelecciones.total === 1 ? (
+                  <>
+                    <p className="mt-2 text-sm font-semibold tracking-tight text-slate-800 dark:text-slate-100">
+                      {seleccionesDelPeriodo[0].tipoGerencia ?? 'Gerencia'} — {MESES[Number(periodoMes.slice(5, 7)) - 1]}
                     </p>
-                  </div>
-                  <div className="rounded-lg bg-slate-50 px-2 py-1.5 dark:bg-slate-900/60">
-                    <p className="text-slate-400">Regiones</p>
-                    <p className="font-semibold tabular-nums text-slate-700 dark:text-slate-200">
-                      {seleccionContexto.regiones.length}
+                    <div className="mt-3 grid grid-cols-2 gap-2 text-[10px]">
+                      <div className="rounded-lg bg-slate-50 px-2 py-1.5 dark:bg-slate-900/60">
+                        <p className="text-slate-400">Hospitales</p>
+                        <p className="font-semibold tabular-nums text-slate-700 dark:text-slate-200">
+                          {seleccionesDelPeriodo[0].totalHospitales}
+                        </p>
+                      </div>
+                      <div className="rounded-lg bg-slate-50 px-2 py-1.5 dark:bg-slate-900/60">
+                        <p className="text-slate-400">Regiones</p>
+                        <p className="font-semibold tabular-nums text-slate-700 dark:text-slate-200">
+                          {seleccionesDelPeriodo[0].totalRegiones}
+                        </p>
+                      </div>
+                    </div>
+                    <p className="mt-3 flex items-center gap-1.5 text-[10px] text-slate-500 dark:text-slate-400">
+                      <Route className="h-3 w-3" />
+                      {seleccionesDelPeriodo[0].tieneRutas ? 'Rutas generadas' : 'Sin rutas generadas'}
                     </p>
-                  </div>
-                </div>
-                <p className="mt-3 flex items-center gap-1.5 text-[10px] text-slate-500 dark:text-slate-400">
-                  <Route className="h-3 w-3" />
-                  {rutasGeneradas ? 'Rutas generadas' : 'Sin rutas generadas'}
-                </p>
-                <Button
-                  asChild
-                  variant="outline"
-                  size="sm"
-                  className="mt-3 h-8 w-full justify-between rounded-lg text-[10px]"
-                >
-                  <Link
-                    to={`/educacion-medica/seleccion?idSeleccion=${seleccionContexto.idSeleccionMensual}`}
-                  >
-                    Ver selección
-                    <ChevronRight className="h-3 w-3" />
-                  </Link>
-                </Button>
+                    <Button
+                      asChild
+                      variant="outline"
+                      size="sm"
+                      className="mt-3 h-8 w-full justify-between rounded-lg text-[10px]"
+                    >
+                      <Link
+                        to={`/educacion-medica/seleccion?idSeleccion=${seleccionesDelPeriodo[0].idSeleccionMensual}`}
+                      >
+                        Ver selección
+                        <ChevronRight className="h-3 w-3" />
+                      </Link>
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <p className="mt-2 text-sm font-semibold tracking-tight text-slate-800 dark:text-slate-100">
+                      {resumenSelecciones.total} selecciones en {MESES[Number(periodoMes.slice(5, 7)) - 1]}
+                    </p>
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {resumenSelecciones.estados.map(([estadoSeleccion, cantidad]) => (
+                        <span
+                          key={estadoSeleccion}
+                          className="rounded-full border border-slate-200 px-2 py-0.5 text-[9px] font-medium text-slate-500 dark:border-slate-800 dark:text-slate-400"
+                        >
+                          {cantidad} {ETIQUETAS_ESTADO_SELECCION[estadoSeleccion] ?? estadoSeleccion}
+                        </span>
+                      ))}
+                    </div>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="mt-3 h-8 w-full justify-between rounded-lg text-[10px]"
+                        >
+                          Ver selecciones
+                          <ChevronRight className="h-3 w-3" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent align="start" className="w-[360px] p-2">
+                        <div className="space-y-1">
+                          {seleccionesDelPeriodo.map((seleccion) => (
+                            <Link
+                              key={seleccion.idSeleccionMensual}
+                              to={`/educacion-medica/seleccion?idSeleccion=${seleccion.idSeleccionMensual}`}
+                              className={[
+                                'flex items-start gap-2 rounded-lg px-2 py-2 transition-colors hover:bg-slate-50 dark:hover:bg-slate-900',
+                                seleccion.idSeleccionMensual === idSeleccionParam
+                                  ? 'bg-orange-50/70 dark:bg-orange-950/20'
+                                  : '',
+                              ].join(' ')}
+                            >
+                              <span
+                                className="mt-1 h-2 w-2 shrink-0 rounded-full"
+                                style={{ backgroundColor: seleccion.estadoColor ?? '#94a3b8' }}
+                              />
+                              <span className="min-w-0 flex-1">
+                                <span className="block text-xs font-semibold text-slate-800 dark:text-slate-100">
+                                  {seleccion.tipoGerencia ?? 'Gerencia'}
+                                </span>
+                                <span className="block text-[10px] text-slate-500 dark:text-slate-400">
+                                  {seleccion.totalHospitales} hospitales · {seleccion.totalRegiones} regiones ·{' '}
+                                  {seleccion.tieneRutas ? 'Con rutas' : 'Sin rutas'}
+                                </span>
+                              </span>
+                              <span className="shrink-0 text-[10px] font-medium text-slate-500 dark:text-slate-400">
+                                {ETIQUETAS_ESTADO_SELECCION[seleccion.estado] ?? seleccion.estado}
+                              </span>
+                            </Link>
+                          ))}
+                        </div>
+                      </PopoverContent>
+                    </Popover>
+                  </>
+                )}
               </div>
             ) : (
               <div className="rounded-2xl border border-dashed border-slate-200 bg-card p-4 text-center dark:border-slate-800">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-400">
-                  Selección del mes
+                  Selecciones del mes
                 </p>
                 <p className="mt-2 text-xs font-semibold text-slate-600 dark:text-slate-300">
-                  Sin selección para {MESES[Number(periodoMes.slice(5, 7)) - 1]}
+                  {sinGerenciasActivas
+                    ? 'Activa al menos una gerencia'
+                    : `Sin selecciones para ${MESES[Number(periodoMes.slice(5, 7)) - 1]}`}
                 </p>
                 <Button
                   asChild
@@ -1692,75 +2265,6 @@ export default function CalendarioPage() {
                 ))}
               </div>
             </div>
-
-            {puedeVerTodas && (
-              <div className="rounded-2xl border border-slate-200/80 bg-card p-3 shadow-[0_1px_2px_rgba(15,23,42,0.03)] dark:border-slate-800">
-                <div className="flex items-center justify-between px-1">
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-400">
-                    Responsables
-                  </p>
-                  <Sparkles className="h-3 w-3 text-orange-400" />
-                </div>
-                <Tabs
-                  value={tabPersonas}
-                  onValueChange={(value) => setTabPersonas(value as 'ejecutivos' | 'especialistas')}
-                  className="mt-2"
-                >
-                  <TabsList className="grid h-8 w-full grid-cols-2 rounded-lg bg-slate-50 p-0.5 dark:bg-slate-900/60">
-                    <TabsTrigger
-                      value="ejecutivos"
-                      className="gap-1 rounded-md text-[10px] data-[state=active]:bg-card data-[state=active]:text-slate-800 data-[state=active]:shadow-sm dark:data-[state=active]:bg-slate-800 dark:data-[state=active]:text-slate-100"
-                    >
-                      Ejecutivos
-                      <span className="text-[9px] text-slate-400">{ejecutivos.length}</span>
-                    </TabsTrigger>
-                    <TabsTrigger
-                      value="especialistas"
-                      className="gap-1 rounded-md text-[10px] data-[state=active]:bg-card data-[state=active]:text-slate-800 data-[state=active]:shadow-sm dark:data-[state=active]:bg-slate-800 dark:data-[state=active]:text-slate-100"
-                    >
-                      Especialistas
-                      <span className="text-[9px] text-slate-400">{especialistas.length}</span>
-                    </TabsTrigger>
-                  </TabsList>
-                </Tabs>
-                <div className="mt-2 max-h-[320px] space-y-0.5 overflow-y-auto pr-1">
-                  <RailPersona
-                    nombre="Todos"
-                    detalle={
-                      tabPersonas === 'ejecutivos'
-                        ? 'Sin filtro de ejecutivo'
-                        : 'Sin filtro de especialista'
-                    }
-                    total={totalPersonasRail}
-                    activo={
-                      tabPersonas === 'ejecutivos'
-                        ? idEjecutivo === TODOS
-                        : idEspecialista === TODOS
-                    }
-                    onClick={() => {
-                      if (tabPersonas === 'ejecutivos') setIdEjecutivo(TODOS);
-                      else setIdEspecialista(TODOS);
-                    }}
-                  />
-                  {personasRail.length === 0 ? (
-                    <p className="px-2 py-3 text-[10px] text-slate-400">
-                      Sin colaboradores activos.
-                    </p>
-                  ) : (
-                    personasRail.map((persona) => (
-                      <RailPersona
-                        key={persona.id}
-                        nombre={persona.nombre}
-                        detalle={persona.detalle}
-                        total={persona.total}
-                        activo={persona.activo}
-                        onClick={persona.onClick}
-                      />
-                    ))
-                  )}
-                </div>
-              </div>
-            )}
 
             {!puedeVerTodas && (
               <div className="rounded-2xl border border-sky-200/70 bg-sky-50/60 p-3 text-sky-800 dark:border-sky-900/60 dark:bg-sky-950/20 dark:text-sky-300">
@@ -1845,41 +2349,38 @@ export default function CalendarioPage() {
         <section className="min-w-0">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2 px-0.5">
             <div className="flex items-center gap-2">
+              {modo === 'calendario' && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="hidden h-7 gap-1.5 rounded-lg border-slate-200 bg-card px-2.5 text-[10px] xl:inline-flex"
+                  onClick={() => setPanelLateralAbierto((abierto) => !abierto)}
+                  aria-label={panelLateralAbierto ? 'Ocultar panel lateral' : 'Mostrar panel lateral'}
+                  title={panelLateralAbierto ? 'Ocultar panel lateral' : 'Mostrar panel lateral'}
+                >
+                  {panelLateralAbierto ? (
+                    <PanelLeftClose className="h-3.5 w-3.5" />
+                  ) : (
+                    <PanelLeftOpen className="h-3.5 w-3.5" />
+                  )}
+                  {panelLateralAbierto ? 'Ocultar panel' : 'Mostrar panel'}
+                </Button>
+              )}
               <h2 className="text-sm font-semibold tracking-tight text-slate-800 dark:text-slate-100">
-                <span className="xl:hidden">
-                  {modo === 'tabla'
-                    ? 'Tabla de actividades'
-                    : modo === 'matriz'
-                      ? 'Matriz operativa'
-                      : 'Agenda diaria'}
-                </span>
-                <span className="hidden xl:inline">
-                  {modo === 'tabla'
-                    ? 'Tabla de actividades'
-                    : modo === 'matriz'
-                      ? 'Matriz operativa'
-                      : vista === 'dia'
-                        ? DIAS_SEMANA_LARGOS[(new Date(`${fecha}T00:00:00`).getDay() + 6) % 7]
-                        : vista === 'mes'
-                          ? MESES[Number(fecha.slice(5, 7)) - 1]
-                          : vista === 'especialista'
-                            ? 'Carga por especialista'
-                            : vista === 'ejecutivo'
-                              ? 'Carga por ejecutivo'
-                              : 'Semana de trabajo'}
-                </span>
+                {modo === 'tabla'
+                  ? 'Tabla de actividades'
+                  : modo === 'matriz'
+                    ? 'Matriz operativa'
+                    : vista === 'dia'
+                      ? DIAS_SEMANA_LARGOS[(new Date(`${fecha}T00:00:00`).getDay() + 6) % 7]
+                      : vista === 'mes'
+                        ? MESES[Number(fecha.slice(5, 7)) - 1].toUpperCase()
+                        : vista === 'especialista'
+                          ? 'Carga por especialista'
+                          : vista === 'ejecutivo'
+                            ? 'Carga por ejecutivo'
+                            : 'Semana de trabajo'}
               </h2>
-              <Badge
-                variant="secondary"
-                className="rounded-full bg-slate-100 text-[9px] text-slate-500 dark:bg-slate-800 dark:text-slate-400"
-              >
-                <span className="xl:hidden">
-                  {modo === 'calendario'
-                    ? `${itemsFiltrados.filter((item) => item.fecha === fecha).length} del día`
-                    : `${itemsFiltrados.length} actividades`}
-                </span>
-                <span className="hidden xl:inline">{itemsFiltrados.length} actividades</span>
-              </Badge>
               {moviendo && (
                 <span className="inline-flex items-center gap-1 text-[10px] text-slate-400">
                   <Loader2 className="h-3 w-3 animate-spin" />
@@ -1923,6 +2424,10 @@ export default function CalendarioPage() {
               <p className="hidden text-[10px] text-slate-400 sm:block">{ayudaVista}</p>
             )}
           </div>
+
+          {modo === 'calendario' && (
+            <CalendarioLeyenda puedeEditar={puedeEditarCalendario} />
+          )}
 
           {cargando ? (
             <div className="space-y-2">
@@ -1969,7 +2474,14 @@ export default function CalendarioPage() {
                   {puedeGestionarRutas ? (
                     <Button
                       className="mt-5 rounded-xl bg-[#eb6c36] text-white hover:bg-[#d95a2b]"
-                      onClick={() => setModalGenerar(true)}
+                      onClick={() => {
+                        const objetivo =
+                          seleccionesDelPeriodo.find(
+                            (seleccion) =>
+                              seleccion.idSeleccionMensual === seleccionContexto.idSeleccionMensual
+                          ) ?? seleccionesCerradas[0];
+                        if (objetivo) void abrirGenerar(objetivo);
+                      }}
                       disabled={seleccionContexto.hospitales.length === 0}
                     >
                       <Route className="mr-2 h-4 w-4" />
@@ -2022,91 +2534,21 @@ export default function CalendarioPage() {
               onVerCalendario={() => cambiarModo('calendario')}
             />
           ) : (
-            <>
-              <div className="space-y-3 xl:hidden">
-                <div className="flex items-center justify-between rounded-2xl border border-slate-200/80 bg-card px-2 py-1.5 dark:border-slate-800">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 rounded-lg"
-                    onClick={() => setFecha((actual) => sumarDias(actual, -1))}
-                    aria-label="Día anterior"
-                  >
-                    <ChevronLeft className="h-4 w-4" />
-                  </Button>
-                  <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">
-                    {fechaLarga(fecha)}
-                  </span>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 rounded-lg"
-                    onClick={() => setFecha((actual) => sumarDias(actual, 1))}
-                    aria-label="Día siguiente"
-                  >
-                    <ChevronRight className="h-4 w-4" />
-                  </Button>
-                </div>
-                <CalendarioGrid
-                  vista="dia"
-                  fecha={fecha}
-                  items={itemsFiltrados}
-                  seleccionadoId={seleccionadoId}
-                  especialistas={especialistas}
-                  ejecutivos={ejecutivos}
-                  suplentes={suplentes}
-                  onSelect={seleccionarItem}
-                  puedeMover={puedeEditarCalendario}
-                  onMover={(item, nuevaFecha) => void moverItem(item, nuevaFecha)}
-                />
-              </div>
-
-              <div className="hidden xl:block">
-                <CalendarioGrid
-                  vista={vista}
-                  fecha={fecha}
-                  items={itemsFiltrados}
-                  seleccionadoId={seleccionadoId}
-                  especialistas={especialistas}
-                  ejecutivos={ejecutivos}
-                  suplentes={suplentes}
-                  onSelect={seleccionarItem}
-                  puedeMover={puedeEditarCalendario}
-                  onMover={(item, nuevaFecha) => void moverItem(item, nuevaFecha)}
-                  onDiaDobleClick={abrirDia}
-                />
-              </div>
-            </>
+            <CalendarioGrid
+              vista={vista}
+              fecha={fecha}
+              items={itemsFiltrados}
+              seleccionadoId={seleccionadoId}
+              especialistas={especialistas}
+              ejecutivos={ejecutivos}
+              suplentes={suplentes}
+              onSelect={seleccionarItem}
+              puedeMover={puedeEditarCalendario}
+              onMover={(item, nuevaFecha) => void moverItem(item, nuevaFecha)}
+              onDiaDobleClick={abrirDia}
+            />
           )}
 
-          {vista === 'semana' && itemsFiltrados.length > 0 && (
-            <div className="mt-3 hidden flex-wrap items-center gap-x-4 gap-y-1.5 px-1 text-[9px] text-slate-400 xl:flex">
-              <span className="inline-flex items-center gap-1.5">
-                <span className="h-1.5 w-1.5 rounded-full bg-orange-400" />
-                Taller
-              </span>
-              <span className="inline-flex items-center gap-1.5">
-                <span className="h-1.5 w-1.5 rounded-full bg-sky-400" />
-                Visita
-              </span>
-              <span className="inline-flex items-center gap-1.5">
-                <span className="h-1.5 w-1.5 rounded-full bg-rose-400" />
-                Conflicto
-              </span>
-              <span className="inline-flex items-center gap-1.5">
-                <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
-                Bloqueado
-              </span>
-              <span className="inline-flex items-center gap-1.5">
-                <span className="h-1.5 w-1.5 rounded-full bg-violet-400" />
-                Extraordinario
-              </span>
-              <span className="ml-auto inline-flex items-center gap-1 text-slate-300">
-                <MapPin className="h-2.5 w-2.5" />
-                Arrastra para reprogramar
-              </span>
-            </div>
-          )}
         </section>
 
         <div
@@ -2133,7 +2575,7 @@ export default function CalendarioPage() {
             onRefresh={refrescarCalendario}
             onCrearTaller={setCrearTallerItem}
             capturaBloqueada={capturaBloqueada}
-            soloLectura={multiGerencia}
+            soloLectura={multiGerencia && !puedeGestionarRutas}
             rutaSoloLectura={versionSoloLectura}
             onAbrirMatriz={() => cambiarModo('matriz')}
           />
@@ -2160,7 +2602,7 @@ export default function CalendarioPage() {
           <SheetHeader className="text-left">
             <SheetTitle className="text-base tracking-tight">Filtros del calendario</SheetTitle>
             <SheetDescription className="text-xs text-slate-500">
-              Acota la agenda por gerencia, región, responsable o estado.
+              Acota la agenda por gerencia, región o estado.
             </SheetDescription>
           </SheetHeader>
 
@@ -2199,21 +2641,6 @@ export default function CalendarioPage() {
         }
       />
 
-      <ResponsablesSheet
-        open={responsablesAbiertos}
-        onOpenChange={setResponsablesAbiertos}
-        tab={tabPersonas}
-        onTabChange={setTabPersonas}
-        ejecutivosCount={ejecutivos.length}
-        especialistasCount={especialistas.length}
-        personas={personasRail}
-        total={totalPersonasRail}
-        onTodos={() => {
-          if (tabPersonas === 'ejecutivos') setIdEjecutivo(TODOS);
-          else setIdEspecialista(TODOS);
-        }}
-      />
-
       {rutaCotizarAbierta && (
         <CotizarRutaModal
           rutas={rutasParaCotizar}
@@ -2225,15 +2652,28 @@ export default function CalendarioPage() {
 
       <GenerarRutasModal
         open={modalGenerar}
-        onOpenChange={setModalGenerar}
-        seleccion={seleccionContexto}
-        regenerar={rutasGeneradas}
-        talleresCapturados={talleresCapturados}
-        onGenerated={(resultado) => {
-          setHayRutas(true);
-          setVersionRuta(resultado.version);
+        onOpenChange={(abierto) => {
+          setModalGenerar(abierto);
+          if (!abierto) setSeleccionGenerar(null);
+        }}
+        seleccion={seleccionGenerar}
+        regenerar={seleccionGenerar?.tieneRutas === true}
+        talleresCapturados={
+          seleccionGenerar?.idTipoGerencia === gerenciaMatrizId ? talleresCapturados : 0
+        }
+        onGenerated={() => {
+          const idSeleccionGenerada = seleccionGenerar?.idSeleccionMensual;
+          setSeleccionesMes((actuales) =>
+            actuales.map((seleccion) =>
+              seleccion.idSeleccionMensual === idSeleccionGenerada
+                ? { ...seleccion, tieneRutas: true }
+                : seleccion
+            )
+          );
+          setSeleccionGenerar(null);
           setRefrescoRutas((valor) => valor + 1);
-          void recargarMatrizYCalendario(resultado.version);
+          void cargar();
+          if (gerenciaMatrizId) void recargarMatriz();
         }}
       />
 

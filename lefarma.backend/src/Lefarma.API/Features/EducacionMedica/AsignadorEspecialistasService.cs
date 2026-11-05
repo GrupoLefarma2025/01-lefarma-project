@@ -237,25 +237,19 @@ public class AsignadorEspecialistasService : IAsignadorEspecialistasService
                 .Where(r => idsRegiones.Contains(r.IdRegion))
                 .ToDictionaryAsync(r => r.IdRegion, ct);
 
-        // La carga y el "ya tiene visita" solo consideran planeación vigente.
-        // Las versiones archivadas/canceladas/rechazadas no deben contaminar la sugerencia.
-        var inicioMes = new DateOnly(inicio.Year, inicio.Month, 1);
-        var finMes = inicioMes.AddMonths(1).AddDays(-1);
-        var inicioConsulta = inicio < inicioMes ? inicio : inicioMes;
-        var finConsulta = fin > finMes ? fin : finMes;
-
-        var visitasEspecialistas = await (
-            from v in _context.RutasVisitas.AsNoTracking()
-            join r in _context.Rutas.AsNoTracking() on v.IdRuta equals r.IdRuta
-            where v.IdEspecialista.HasValue
-                && r.IdSeleccionMensual == idSeleccionMensual
-                && r.Estado != Ruta.EstadoArchivada
-                && r.Estado != Ruta.EstadoCancelada
-                && r.Estado != Ruta.EstadoRechazada
-                && v.FechaVisita >= inicioConsulta.AddDays(-1)
-                && v.FechaVisita <= finConsulta.AddDays(1)
-            select v)
-            .ToListAsync(ct);
+        // La carga y el "ya tiene visita" consideran planeación vigente de todas
+        // las gerencias: un especialista puede atender varias selecciones.
+        var configuracion = await LeerConfiguracionSugerenciasAsync(ct);
+        var margenConsulta = Math.Max(7, configuracion.VentanaDiasCercania);
+        var inicioConsulta = new DateOnly(inicio.Year, inicio.Month, 1).AddDays(-margenConsulta);
+        var finConsulta = new DateOnly(fin.Year, fin.Month, 1)
+            .AddMonths(1)
+            .AddDays(-1 + margenConsulta);
+        var visitasEspecialistas = await ObtenerVisitasActivasEspecialistasAsync(
+            idsEspecialistas,
+            inicioConsulta,
+            finConsulta,
+            ct);
 
         var historialRealizado = await _context.Talleres.AsNoTracking()
             .Where(t => t.Activo
@@ -324,7 +318,6 @@ public class AsignadorEspecialistasService : IAsignadorEspecialistasService
             .ToDictionary(idHospital => idHospital, idHospital => InstitucionDeHospital(idHospital));
 
         var (maxDia, maxSemana) = await LeerCapacidadesAsync(ct);
-        var configuracion = await LeerConfiguracionSugerenciasAsync(ct);
         var sugerencias = new List<SugerenciaEspecialistaDto>();
 
         foreach (var visita in visitasSinEspecialista)
@@ -372,7 +365,7 @@ public class AsignadorEspecialistasService : IAsignadorEspecialistasService
 
                 var otraCiudadMismoDia = ciudadNormalizada is not null
                     && visitas.Any(v => v.FechaVisita == visita.FechaVisita
-                        && NormalizarTexto(CiudadDeVisita(v, hospitalesSeleccion)) is string otraCiudad
+                        && NormalizarTexto(CiudadDeVisita(v, hospitalesSeleccion, hospitalesAsokam)) is string otraCiudad
                         && otraCiudad != ciudadNormalizada);
                 if (otraCiudadMismoDia)
                 {
@@ -381,12 +374,12 @@ public class AsignadorEspecialistasService : IAsignadorEspecialistasService
 
                 var mismaCiudadMismoDia = ciudadNormalizada is not null
                     && visitas.Any(v => v.FechaVisita == visita.FechaVisita
-                        && NormalizarTexto(CiudadDeVisita(v, hospitalesSeleccion)) == ciudadNormalizada);
+                        && NormalizarTexto(CiudadDeVisita(v, hospitalesSeleccion, hospitalesAsokam)) == ciudadNormalizada);
                 var mismaCiudadCerca = ciudadNormalizada is not null
                     && visitas.Any(v =>
                         Math.Abs(v.FechaVisita.DayNumber - visita.FechaVisita.DayNumber)
                             <= configuracion.VentanaDiasCercania
-                        && NormalizarTexto(CiudadDeVisita(v, hospitalesSeleccion)) == ciudadNormalizada);
+                        && NormalizarTexto(CiudadDeVisita(v, hospitalesSeleccion, hospitalesAsokam)) == ciudadNormalizada);
                 var mismaInstitucion = institucionNormalizada is not null
                     && visitas.Any(v =>
                         Math.Abs(v.FechaVisita.DayNumber - visita.FechaVisita.DayNumber)
@@ -621,6 +614,31 @@ public class AsignadorEspecialistasService : IAsignadorEspecialistasService
         decimal PesoHistorialRegion,
         decimal TopeHistorial);
 
+    private async Task<List<RutaVisita>> ObtenerVisitasActivasEspecialistasAsync(
+        IReadOnlyCollection<int> idsEspecialistas,
+        DateOnly desde,
+        DateOnly hasta,
+        CancellationToken ct)
+    {
+        if (idsEspecialistas.Count == 0)
+        {
+            return [];
+        }
+
+        return await (
+            from v in _context.RutasVisitas.AsNoTracking()
+            join r in _context.Rutas.AsNoTracking() on v.IdRuta equals r.IdRuta
+            where v.IdEspecialista.HasValue
+                && idsEspecialistas.Contains(v.IdEspecialista.Value)
+                && r.Estado != Ruta.EstadoArchivada
+                && r.Estado != Ruta.EstadoCancelada
+                && r.Estado != Ruta.EstadoRechazada
+                && v.FechaVisita >= desde
+                && v.FechaVisita <= hasta
+            select v)
+            .ToListAsync(ct);
+    }
+
     private async Task<(int CargaDia, int CargaSemana)> ContarCargaAsync(
         int idEspecialista,
         DateOnly fecha,
@@ -629,15 +647,15 @@ public class AsignadorEspecialistasService : IAsignadorEspecialistasService
     {
         var inicioSemana = InicioSemana(fecha);
         var finSemana = inicioSemana.AddDays(6);
-
-        var fechas = await _context.RutasVisitas
-            .AsNoTracking()
-            .Where(v => v.IdEspecialista == idEspecialista
-                && v.IdRutaVisita != idRutaVisitaExcluir
-                && v.FechaVisita >= inicioSemana
-                && v.FechaVisita <= finSemana)
+        var visitas = await ObtenerVisitasActivasEspecialistasAsync(
+            [idEspecialista],
+            inicioSemana,
+            finSemana,
+            ct);
+        var fechas = visitas
+            .Where(v => v.IdRutaVisita != idRutaVisitaExcluir)
             .Select(v => v.FechaVisita)
-            .ToListAsync(ct);
+            .ToList();
 
         return (fechas.Count(f => f == fecha), fechas.Count);
     }
@@ -670,11 +688,19 @@ public class AsignadorEspecialistasService : IAsignadorEspecialistasService
 
     private static string? CiudadDeVisita(
         RutaVisita visita,
-        IReadOnlyDictionary<int, SeleccionHospital> hospitales)
+        IReadOnlyDictionary<int, SeleccionHospital> hospitales,
+        IReadOnlyDictionary<int, Hospital> hospitalesAsokam)
     {
-        return visita.IdSeleccionHospital.HasValue
+        if (visita.IdSeleccionHospital.HasValue
             && hospitales.TryGetValue(visita.IdSeleccionHospital.Value, out var hospital)
-            ? hospital.CiudadMunicipio
+            && !string.IsNullOrWhiteSpace(hospital.CiudadMunicipio))
+        {
+            return hospital.CiudadMunicipio;
+        }
+
+        return visita.IdHospital.HasValue
+            && hospitalesAsokam.TryGetValue(visita.IdHospital.Value, out var hospitalAsokam)
+            ? hospitalAsokam.Ciudad
             : null;
     }
 }

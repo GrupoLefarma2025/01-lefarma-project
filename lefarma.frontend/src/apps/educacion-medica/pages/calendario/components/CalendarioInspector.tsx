@@ -432,6 +432,12 @@ export function CalendarioInspector({
 
   const mover = async () => {
     if (!puedeGestionar || !item || !fecha || fecha === item.fecha) return;
+    if (item.estadoRuta !== 'Creada') {
+      toast.error(
+        'La ruta no está editable. Los ajustes de rutas cerradas se gestionan en otra fase.'
+      );
+      return;
+    }
     setMoviendo(true);
     try {
       const response = await educacionMedicaApi.rutas.moverVisita(item.idRuta, item.idRutaVisita, {

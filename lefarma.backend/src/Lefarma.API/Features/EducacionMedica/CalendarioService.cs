@@ -35,8 +35,13 @@ public class CalendarioService : ICalendarioService
 
         if (!verTodas)
         {
-            query = query.Where(x =>
-                x.v.IdEjecutivo == idUsuario || x.v.IdEspecialista == idUsuario);
+            var gerenciasVisibles = await ObtenerGerenciasVisiblesAsync(idUsuario, ct);
+            query = gerenciasVisibles.Count > 0
+                ? query.Where(x =>
+                    x.s.IdTipoGerencia.HasValue
+                    && gerenciasVisibles.Contains(x.s.IdTipoGerencia.Value))
+                : query.Where(x =>
+                    x.v.IdEjecutivo == idUsuario || x.v.IdEspecialista == idUsuario);
         }
 
         if (filtro.Version.HasValue)
@@ -265,6 +270,7 @@ public class CalendarioService : ICalendarioService
                 IdRutaVisita = visita.IdRutaVisita,
                 IdRuta = visita.IdRuta,
                 IdSeleccionMensual = fila.s.IdSeleccionMensual,
+                IdTipoGerencia = fila.s.IdTipoGerencia,
                 IdTaller = taller?.IdTaller,
                 TieneTalleres = talleresVisita.Count > 0,
                 TalleresCount = talleresVisita.Count,
@@ -360,11 +366,25 @@ public class CalendarioService : ICalendarioService
         bool verTodas,
         CancellationToken ct = default)
     {
-        var fecha = await _context.RutasVisitas
-            .AsNoTracking()
-            .Where(v => v.IdRutaVisita == idRutaVisita
-                && (verTodas || v.IdEjecutivo == idUsuario || v.IdEspecialista == idUsuario))
-            .Select(v => (DateOnly?)v.FechaVisita)
+        var query = from v in _context.RutasVisitas.AsNoTracking()
+                    join r in _context.Rutas.AsNoTracking() on v.IdRuta equals r.IdRuta
+                    join s in _context.SeleccionesMensuales.AsNoTracking() on r.IdSeleccionMensual equals s.IdSeleccionMensual
+                    where v.IdRutaVisita == idRutaVisita
+                    select new { v, s };
+
+        if (!verTodas)
+        {
+            var gerenciasVisibles = await ObtenerGerenciasVisiblesAsync(idUsuario, ct);
+            query = gerenciasVisibles.Count > 0
+                ? query.Where(x =>
+                    x.s.IdTipoGerencia.HasValue
+                    && gerenciasVisibles.Contains(x.s.IdTipoGerencia.Value))
+                : query.Where(x =>
+                    x.v.IdEjecutivo == idUsuario || x.v.IdEspecialista == idUsuario);
+        }
+
+        var fecha = await query
+            .Select(x => (DateOnly?)x.v.FechaVisita)
             .FirstOrDefaultAsync(ct);
         if (!fecha.HasValue)
         {
@@ -385,9 +405,24 @@ public class CalendarioService : ICalendarioService
         bool verTodas,
         CancellationToken ct = default)
     {
-        var visita = await _context.RutasVisitas.AsNoTracking()
-            .FirstOrDefaultAsync(v => v.IdRutaVisita == idRutaVisita
-                && (verTodas || v.IdEjecutivo == idUsuario || v.IdEspecialista == idUsuario), ct);
+        var query = from v in _context.RutasVisitas.AsNoTracking()
+                    join r in _context.Rutas.AsNoTracking() on v.IdRuta equals r.IdRuta
+                    join s in _context.SeleccionesMensuales.AsNoTracking() on r.IdSeleccionMensual equals s.IdSeleccionMensual
+                    where v.IdRutaVisita == idRutaVisita
+                    select new { v, s };
+
+        if (!verTodas)
+        {
+            var gerenciasVisibles = await ObtenerGerenciasVisiblesAsync(idUsuario, ct);
+            query = gerenciasVisibles.Count > 0
+                ? query.Where(x =>
+                    x.s.IdTipoGerencia.HasValue
+                    && gerenciasVisibles.Contains(x.s.IdTipoGerencia.Value))
+                : query.Where(x =>
+                    x.v.IdEjecutivo == idUsuario || x.v.IdEspecialista == idUsuario);
+        }
+
+        var visita = await query.Select(x => x.v).FirstOrDefaultAsync(ct);
 
         if (visita is null)
         {
@@ -791,6 +826,46 @@ public class CalendarioService : ICalendarioService
         public string? Motivo { get; set; }
         public int? IdUsuarioResolutor { get; set; }
         public DateTime Fecha { get; set; }
+    }
+
+    private async Task<HashSet<int>> ObtenerGerenciasVisiblesAsync(
+        int idUsuario,
+        CancellationToken ct)
+    {
+        var gerencias = new HashSet<int>();
+
+        gerencias.UnionWith(await _context.EspecialistasGerencia
+            .AsNoTracking()
+            .Where(e => e.Activo && e.IdUsuario == idUsuario)
+            .Select(e => e.IdTipoGerencia)
+            .ToListAsync(ct));
+
+        gerencias.UnionWith(await (
+            from e in _context.EjecutivosRegion.AsNoTracking()
+            join r in _context.RegionesCat.AsNoTracking() on e.IdRegionCatalogo equals r.IdRegion
+            where e.Activo && e.IdUsuario == idUsuario && r.Activo
+            select r.IdTipoGerencia)
+            .ToListAsync(ct));
+
+        gerencias.UnionWith(await _context.EjecutivosSuplentes
+            .AsNoTracking()
+            .Where(e => e.Activo
+                && e.IdUsuario == idUsuario
+                && e.IdTipoGerencia.HasValue)
+            .Select(e => e.IdTipoGerencia!.Value)
+            .ToListAsync(ct));
+
+        gerencias.UnionWith(await (
+            from e in _context.EjecutivosSuplentes.AsNoTracking()
+            join r in _context.RegionesCat.AsNoTracking() on e.IdRegionCatalogo equals r.IdRegion
+            where e.Activo
+                && e.IdUsuario == idUsuario
+                && e.IdRegionCatalogo.HasValue
+                && r.Activo
+            select r.IdTipoGerencia)
+            .ToListAsync(ct));
+
+        return gerencias;
     }
 
     private async Task<(DateOnly Inicio, DateOnly Fin)> ResolverRangoAsync(

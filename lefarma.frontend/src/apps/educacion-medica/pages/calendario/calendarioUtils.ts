@@ -91,8 +91,7 @@ export const cuadriculaMes = (fecha: string) => {
 export const rangoVista = (fecha: string, vista: VistaCalendario) => {
   if (vista === 'dia') return { desde: fecha, hasta: fecha };
   if (vista === 'mes') {
-    const dias = cuadriculaMes(fecha);
-    return { desde: dias[0], hasta: dias[dias.length - 1] };
+    return { desde: inicioMes(fecha), hasta: finMes(fecha) };
   }
   const dias = diasLaboralesDe(fecha);
   return { desde: dias[0], hasta: dias[4] };
@@ -170,6 +169,50 @@ export const tonoEvento = (item: CalendarioItem): TonoEvento => {
   if (item.esExtraordinario) return 'extra';
   if (item.idTaller) return 'taller';
   return 'visita';
+};
+
+export type TonoGerencia = 'imss' | 'bienestar' | 'descentralizado' | 'privado' | 'otro';
+
+export const tonoGerencia = (
+  item: Pick<CalendarioItem, 'idTipoGerencia' | 'gerencia'>
+): TonoGerencia => {
+  const nombre = (item.gerencia ?? '').toLowerCase();
+  if (nombre.includes('bienestar')) return 'bienestar';
+  if (nombre.includes('descentralizado')) return 'descentralizado';
+  if (nombre.includes('imss')) return 'imss';
+  if (nombre.includes('privado')) return 'privado';
+  return 'otro';
+};
+
+export const estiloGerencia: Record<
+  TonoGerencia,
+  { barra: string; punto: string; chip: string }
+> = {
+  imss: {
+    barra: 'bg-blue-500',
+    punto: 'bg-blue-500',
+    chip: 'border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-300',
+  },
+  bienestar: {
+    barra: 'bg-emerald-500',
+    punto: 'bg-emerald-500',
+    chip: 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-300',
+  },
+  descentralizado: {
+    barra: 'bg-violet-500',
+    punto: 'bg-violet-500',
+    chip: 'border-violet-200 bg-violet-50 text-violet-700 dark:border-violet-900 dark:bg-violet-950 dark:text-violet-300',
+  },
+  privado: {
+    barra: 'bg-slate-500',
+    punto: 'bg-slate-500',
+    chip: 'border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300',
+  },
+  otro: {
+    barra: 'bg-amber-500',
+    punto: 'bg-amber-500',
+    chip: 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-300',
+  },
 };
 
 export const estiloEvento: Record<

@@ -10,7 +10,14 @@ import {
   UserRound,
 } from 'lucide-react';
 import type { CalendarioItem } from '../../../types/educacionMedica.types';
-import { esFinDeSemana, estiloEvento, fmtHora, tonoEvento } from '../calendarioUtils';
+import {
+  esFinDeSemana,
+  estiloEvento,
+  estiloGerencia,
+  fmtHora,
+  tonoEvento,
+  tonoGerencia,
+} from '../calendarioUtils';
 import { TextoExpandible } from './TextoExpandible';
 
 interface CalendarioEventoProps {
@@ -30,6 +37,7 @@ export function CalendarioEvento({
 }: CalendarioEventoProps) {
   const tono = tonoEvento(item);
   const estilo = estiloEvento[tono];
+  const gerenciaEstilo = estiloGerencia[tonoGerencia(item)];
   const hora = fmtHora(item.hora);
   const esMes = variante === 'mes';
   const esMatriz = variante === 'matriz';
@@ -63,7 +71,7 @@ export function CalendarioEvento({
       title={`${item.hospital ?? 'Hospital'} · ${item.gerencia}${ubicacion ? ` · ${ubicacion}` : ''}`}
     >
       <span
-        className={`absolute inset-y-0 left-0 w-[3px] ${estilo.barra} ${
+        className={`absolute inset-y-0 left-0 w-[3px] ${gerenciaEstilo.barra} ${
           esFinDeSemana(item.fecha) ? 'opacity-60' : ''
         }`}
       />
@@ -143,7 +151,10 @@ export function CalendarioEvento({
           ) : (
             <Building2 className="h-2.5 w-2.5" />
           )}
-          <span className="truncate">{hora ?? item.gerencia}</span>
+          <span className="truncate">
+            {item.gerencia}
+            {hora ? ` · ${hora}` : ''}
+          </span>
         </span>
       )}
     </div>

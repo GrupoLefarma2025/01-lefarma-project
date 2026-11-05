@@ -55,8 +55,8 @@ export function GenerarRutasModal({
         throw new Error(response.data.message ?? 'No se pudo generar la propuesta.');
       }
       toast.success('Propuesta de rutas generada. Las visitas ya están en el calendario.');
-      onOpenChange(false);
       onGenerated(response.data.data);
+      onOpenChange(false);
     } catch (err: unknown) {
       setError(toApiError(err).message ?? 'No se pudo generar la propuesta de rutas.');
     } finally {

@@ -63,8 +63,9 @@ export function CalendarioFiltros({
             Alcance
           </p>
           <AyudaContextual titulo="Alcance">
-            Las gerencias y la región acotan el universo de hospitales. Sin gerencias
-            seleccionadas se consultan todas; con una sola se habilita la edición y la matriz.
+            Activa o desactiva las gerencias que quieres consultar. Si desactivas todas, el
+            calendario se muestra vacío hasta reactivar alguna. La matriz se abre por gerencia
+            desde su propio selector.
           </AyudaContextual>
         </div>
         <div className="space-y-2">

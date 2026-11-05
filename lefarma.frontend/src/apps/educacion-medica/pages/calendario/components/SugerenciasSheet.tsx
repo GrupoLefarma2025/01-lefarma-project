@@ -10,17 +10,23 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet';
-import type { SugerenciaEspecialista } from '../../../types/educacionMedica.types';
-import { fechaMedia, iniciales, tonoAvatar } from '../calendarioUtils';
+import type { SugerenciaEspecialistaCalendario } from '../../../types/educacionMedica.types';
+import {
+  estiloGerencia,
+  fechaMedia,
+  iniciales,
+  tonoAvatar,
+  tonoGerencia,
+} from '../calendarioUtils';
 
 interface SugerenciasSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  sugerencias: SugerenciaEspecialista[];
+  sugerencias: SugerenciaEspecialistaCalendario[];
   asignandoId: number | null;
   asignandoLote?: boolean;
-  onAsignar: (sugerencia: SugerenciaEspecialista) => void;
-  onAsignarSeleccionadas: (sugerencias: SugerenciaEspecialista[]) => void;
+  onAsignar: (sugerencia: SugerenciaEspecialistaCalendario) => void;
+  onAsignarSeleccionadas: (sugerencias: SugerenciaEspecialistaCalendario[]) => void;
 }
 
 export function SugerenciasSheet({
@@ -57,6 +63,16 @@ export function SugerenciasSheet({
       return siguientes;
     });
   };
+
+  const grupos = [...sugerencias
+    .reduce<Map<string, SugerenciaEspecialistaCalendario[]>>((mapa, sugerencia) => {
+      const grupo = mapa.get(sugerencia.gerencia) ?? [];
+      grupo.push(sugerencia);
+      mapa.set(sugerencia.gerencia, grupo);
+      return mapa;
+    }, new Map())
+    .entries()]
+    .sort(([gerenciaA], [gerenciaB]) => gerenciaA.localeCompare(gerenciaB));
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-md">
@@ -101,9 +117,27 @@ export function SugerenciasSheet({
               </p>
             </div>
           ) : (
-            sugerencias.map((sugerencia) => {
-              const guardando = asignandoId === sugerencia.idRutaVisita;
+            grupos.map(([gerencia, sugerenciasGrupo]) => {
+              const estilo = estiloGerencia[
+                tonoGerencia({
+                  idTipoGerencia: sugerenciasGrupo[0]?.idTipoGerencia ?? null,
+                  gerencia,
+                })
+              ];
               return (
+                <section key={gerencia} className="space-y-2">
+                  <div className="flex items-center gap-2 px-1 pt-1">
+                    <span className={`h-2 w-2 rounded-full ${estilo.punto}`} />
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-500 dark:text-slate-400">
+                      {gerencia}
+                    </p>
+                    <span className="text-[10px] text-slate-400">
+                      {sugerenciasGrupo.length}
+                    </span>
+                  </div>
+                  {sugerenciasGrupo.map((sugerencia) => {
+                    const guardando = asignandoId === sugerencia.idRutaVisita;
+                    return (
                 <article
                   key={sugerencia.idRutaVisita}
                   className="rounded-xl border border-slate-200/80 bg-card p-3 dark:border-slate-800"
@@ -193,6 +227,9 @@ export function SugerenciasSheet({
                     </Button>
                   </div>
                 </article>
+              );
+                  })}
+                </section>
               );
             })
           )}

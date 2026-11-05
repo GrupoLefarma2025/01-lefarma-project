@@ -4,16 +4,25 @@ import { Button } from '@/components/ui/button';
 import type { CalendarioItem } from '../../../types/educacionMedica.types';
 import {
   claveEvento,
+  estiloGerencia,
   fechaMedia,
   fmtHora,
   fmtMoneda,
   iniciales,
   tonoAvatar,
+  tonoGerencia,
 } from '../calendarioUtils';
 import { EstadoActividadBadge, MarcasActividad } from './CalendarioEstado';
 import { TextoExpandible } from './TextoExpandible';
 
-type ColumnaOrden = 'fecha' | 'hospital' | 'region' | 'ejecutivo' | 'especialista' | 'estado';
+type ColumnaOrden =
+  | 'fecha'
+  | 'hospital'
+  | 'region'
+  | 'gerencia'
+  | 'ejecutivo'
+  | 'especialista'
+  | 'estado';
 
 interface CalendarioTablaProps {
   items: CalendarioItem[];
@@ -25,6 +34,7 @@ const COMPARADORES: Record<ColumnaOrden, (a: CalendarioItem, b: CalendarioItem) 
   fecha: (a, b) => `${a.fecha}${a.hora ?? '23:59'}`.localeCompare(`${b.fecha}${b.hora ?? '23:59'}`),
   hospital: (a, b) => (a.hospital ?? '').localeCompare(b.hospital ?? ''),
   region: (a, b) => (a.region ?? '').localeCompare(b.region ?? ''),
+  gerencia: (a, b) => (a.gerencia ?? '').localeCompare(b.gerencia ?? ''),
   ejecutivo: (a, b) => (a.nombreEjecutivo ?? '').localeCompare(b.nombreEjecutivo ?? ''),
   especialista: (a, b) => (a.nombreEspecialista ?? '').localeCompare(b.nombreEspecialista ?? ''),
   estado: (a, b) => a.estado.localeCompare(b.estado),
@@ -121,7 +131,7 @@ export function CalendarioTabla({ items, seleccionadoId, onSelect }: CalendarioT
     <>
       <div className="hidden overflow-hidden rounded-2xl border border-slate-200/80 bg-card shadow-[0_1px_2px_rgba(15,23,42,0.04)] dark:border-slate-800 xl:block">
         <div className="max-h-[calc(100vh-250px)] overflow-auto">
-          <table className="w-full min-w-[1480px] border-separate border-spacing-0 text-[11px]">
+          <table className="w-full min-w-[1630px] border-separate border-spacing-0 text-[11px]">
             <thead>
               <tr className="bg-slate-50/95 backdrop-blur dark:bg-slate-900/95">
                 <th className="sticky left-0 top-0 z-30 w-12 border-b border-slate-200/80 bg-slate-50/95 px-3 py-2.5 text-left font-semibold dark:border-slate-800 dark:bg-slate-900/95">
@@ -144,6 +154,15 @@ export function CalendarioTabla({ items, seleccionadoId, onSelect }: CalendarioT
                   className="w-[130px] border-b border-slate-200/80 dark:border-slate-800"
                 >
                   Región
+                </EncabezadoOrdenable>
+                <EncabezadoOrdenable
+                  columna="gerencia"
+                  actual={orden.columna}
+                  direccion={orden.direccion}
+                  onOrdenar={cambiarOrden}
+                  className="w-[150px] border-b border-slate-200/80 dark:border-slate-800"
+                >
+                  Gerencia
                 </EncabezadoOrdenable>
                 <th className="w-[150px] border-b border-slate-200/80 px-3 py-2.5 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-slate-400 dark:border-slate-800">
                   Institución
@@ -264,8 +283,17 @@ export function CalendarioTabla({ items, seleccionadoId, onSelect }: CalendarioT
                         text={item.region}
                         className="block max-w-[150px] truncate"
                       />
-                      <span className="mt-0.5 block truncate text-[9px] text-slate-400">
-                        {item.gerencia}
+                    </td>
+                    <td className="border-b border-slate-100 px-3 py-2.5 text-slate-500 dark:border-slate-800/70 dark:text-slate-400">
+                      <span className="flex min-w-0 items-center gap-1.5">
+                        <span
+                          className={`h-1.5 w-1.5 shrink-0 rounded-full ${estiloGerencia[tonoGerencia(item)].punto}`}
+                        />
+                        <TextoExpandible
+                          text={item.gerencia}
+                          fallback="Sin gerencia"
+                          className="block max-w-[130px] truncate"
+                        />
                       </span>
                     </td>
                     <td className="border-b border-slate-100 px-3 py-2.5 text-slate-500 dark:border-slate-800/70 dark:text-slate-400">

@@ -269,8 +269,8 @@ function MesView({
           </div>
           <div className="grid grid-cols-7">
             {dias.map((dia) => {
-              const eventos = porDia(dia);
               const delMes = Number(dia.slice(5, 7)) === mes;
+              const eventos = delMes ? porDia(dia) : [];
               const hoy = dia === fechaIso(new Date());
               return (
                 <DragCell
@@ -286,7 +286,7 @@ function MesView({
                     const item = items.find((evento) => evento.idRutaVisita === id);
                     if (item) onMover(item, nuevaFecha);
                   }}
-                  onDoubleClick={() => onDiaDobleClick?.(dia)}
+                  onDoubleClick={delMes ? () => onDiaDobleClick?.(dia) : undefined}
                 >
                   <div className="mb-1 flex items-center justify-between px-1">
                     <span

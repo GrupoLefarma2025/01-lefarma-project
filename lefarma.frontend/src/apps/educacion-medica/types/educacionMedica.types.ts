@@ -528,10 +528,18 @@ export interface SugerenciaEspecialista {
   motivo: string;
 }
 
+/** Sugerencia enriquecida para la vista global de varias gerencias. */
+export interface SugerenciaEspecialistaCalendario extends SugerenciaEspecialista {
+  idSeleccionMensual: number;
+  idTipoGerencia: number | null;
+  gerencia: string;
+}
+
 export interface CalendarioItem {
   idRutaVisita: number;
   idRuta: number;
   idSeleccionMensual: number;
+  idTipoGerencia: number | null;
   idTaller: number | null;
   tieneTalleres: boolean;
   talleresCount: number;
