@@ -13,7 +13,7 @@ import {
   getPaginationRowModel,
   useReactTable,
 } from '@tanstack/react-table';
-import { useState, useMemo, useEffect, useCallback, useRef, type ReactNode } from 'react';
+import { useState, useMemo, useEffect, useCallback, useRef, type CSSProperties, type ReactNode } from 'react';
 import {
   ArrowUpIcon,
   ArrowDownIcon,
@@ -109,6 +109,73 @@ export interface DataTableProps<TData> {
   pageSizeOverride?: number; // renombrado para evitar conflicto con el pageSize existente
 }
 
+// ─── Skeleton de carga ────────────────────────────────────────────────────────
+
+/**
+ * Anchos (en %) de las barras del skeleton. El patrón se desplaza por fila y
+ * columna para que el bloque no parezca una cuadrícula uniforme.
+ */
+const SKELETON_BAR_WIDTHS = [72, 48, 86, 58, 66, 42, 90, 54];
+
+interface TableSkeletonRowsProps {
+  rowCount: number;
+  columnIds: string[];
+  withSelectColumn: boolean;
+}
+
+/**
+ * Filas de carga: replican el ritmo de una fila real (una línea de texto por
+ * celda y dos en la columna principal) para que la tabla no "salte" al llegar
+ * los datos.
+ */
+function TableSkeletonRows({ rowCount, columnIds, withSelectColumn }: TableSkeletonRowsProps) {
+  const primaryColumnIndex = withSelectColumn ? 1 : 0;
+
+  return (
+    <>
+      {Array.from({ length: rowCount }).map((_, rowIndex) => {
+        // Desfase por fila: el pulso recorre la tabla como una ola en vez de
+        // parpadear todo el bloque a la vez.
+        const rowDelay: CSSProperties = { animationDelay: `${rowIndex * 70}ms` };
+
+        return (
+          <TableRow key={`skeleton-${rowIndex}`} className="h-10 hover:bg-transparent">
+            {columnIds.map((columnId, columnIndex) => {
+              if (columnId === 'select') {
+                return (
+                  <TableCell key={columnId}>
+                    <Skeleton className="h-4 w-4 bg-border" style={rowDelay} />
+                  </TableCell>
+                );
+              }
+              if (columnIndex === primaryColumnIndex) {
+                return (
+                  <TableCell key={columnId}>
+                    <div className="flex flex-col gap-1">
+                      <Skeleton className="h-3 w-[60%] min-w-[48px] bg-border" style={rowDelay} />
+                      <Skeleton className="h-2 w-[85%] min-w-[64px] bg-border" style={rowDelay} />
+                    </div>
+                  </TableCell>
+                );
+              }
+              const widthPercent =
+                SKELETON_BAR_WIDTHS[(columnIndex + rowIndex) % SKELETON_BAR_WIDTHS.length];
+              return (
+                <TableCell key={columnId}>
+                  <Skeleton
+                    className="h-3 bg-border"
+                    style={{ ...rowDelay, width: `${widthPercent}%` }}
+                  />
+                </TableCell>
+              );
+            })}
+          </TableRow>
+        );
+      })}
+    </>
+  );
+}
+
 // ─── Función auxiliar de encabezado de ordenamiento ─────────────────────────────────────────────────────
 
 function SortIcon({ direction }: { direction: 'asc' | 'desc' | false }) {
@@ -178,6 +245,7 @@ export function DataTable<TData>({
   // Usa la configuración si no se proporciona explícitamente
   const tableDensity = density || ui.componentes.tables.density;
   const tablePageSize = pageSizeOverride || pageSize || ui.componentes.tables.defaultPageSize;
+  const skeletonRowCount = Math.min(tablePageSize, 10);
 
   const selectionColumn = useMemo<ColumnDef<TData>>(() => ({
     id: 'select',
@@ -512,13 +580,6 @@ export function DataTable<TData>({
           )}
           <div className="overflow-auto" style={height ? { height } : undefined}>
             <div className="relative">
-              {loading && (
-                <div className="bg-card/70 absolute inset-0 z-10 flex flex-col gap-2 p-4 backdrop-blur-sm">
-                  {Array.from({ length: 5 }).map((_, i) => (
-                    <Skeleton key={i} className="h-10 w-full" />
-                  ))}
-                </div>
-              )}
               <Table containerClassName="overflow-visible">
                 <TableHeader className="sticky top-0 z-10 bg-muted">
                   {table.getHeaderGroups().map((headerGroup) => (
@@ -563,7 +624,13 @@ export function DataTable<TData>({
                   ))}
                 </TableHeader>
                 <TableBody>
-                  {table.getRowModel().rows.length ? (
+                  {loading ? (
+                    <TableSkeletonRows
+                      rowCount={skeletonRowCount}
+                      columnIds={table.getVisibleLeafColumns().map((column) => column.id)}
+                      withSelectColumn={enableRowSelection}
+                    />
+                  ) : table.getRowModel().rows.length ? (
                     table.getRowModel().rows.map((row) => {
                       const selected = isRowSelected?.(row.original) ?? false;
                       return (
@@ -615,7 +682,13 @@ export function DataTable<TData>({
             <div className="flex flex-wrap items-center justify-between gap-2 border-t border-muted px-4 py-2 text-xs text-muted-foreground">
               <div className="flex items-center gap-3">
                 <span>
-                  Página {table.getState().pagination.pageIndex + 1} de {table.getPageCount()}
+                  {loading ? (
+                    'Cargando…'
+                  ) : (
+                    <>
+                      Página {table.getState().pagination.pageIndex + 1} de {table.getPageCount()}
+                    </>
+                  )}
                 </span>
                 {manualPagination && totalCount !== undefined && (
                   <span>
@@ -693,7 +766,9 @@ export function DataTable<TData>({
             <div className="flex flex-wrap items-center justify-between gap-2 border-t border-muted px-4 py-2">
               {showRowCount && (
                 <span className="text-xs text-muted-foreground">
-                  {manualPagination && totalCount !== undefined ? (
+                  {loading ? (
+                    'Cargando…'
+                  ) : manualPagination && totalCount !== undefined ? (
                     <>
                       Mostrando{' '}
                       <strong className="text-foreground">
