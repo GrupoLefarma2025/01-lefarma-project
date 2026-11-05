@@ -129,6 +129,10 @@ export interface AuthState {
   /** La firma del usuario está en comprobación por RH (remisión sin resolver). */
   firmaEnComprobacion: boolean | null;
   puedeSeleccionarEmpresas: boolean;
+  /** Área (departamento) del empleado según Asistencias.dbo.vwEmpleados. */
+  areaEmpleado: string | null;
+  /** Puesto del empleado según Asistencias.dbo.vwEmpleados. */
+  puestoEmpleado: string | null;
   usuarioDetalle: { idEmpresa: number; idSucursal: number; idArea: number | null } | null;
   profileError: string | null;
 

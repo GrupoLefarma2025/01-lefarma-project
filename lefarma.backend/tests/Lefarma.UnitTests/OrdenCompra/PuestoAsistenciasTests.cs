@@ -35,6 +35,47 @@ public class PuestoAsistenciasTests
     }
 
     [Fact]
+    public void Cruce_Por_Correo_Tambien_Sustituye_Departamento()
+    {
+        var usuariosInfo = new Dictionary<int, OrdenCompraService.UsuarioInfo>
+        {
+            [25] = NewInfo("1a41@asokam.mx")
+        };
+        var empleados = new List<VwEmpleado>
+        {
+            new()
+            {
+                Correo = "1a41@asokam.mx",
+                Puesto = "AUXILIAR DE COMPRAS",
+                Departamento = "COORDINACION ADMINISTRATIVA ASOKAM"
+            }
+        };
+
+        OrdenCompraService.AplicarPuestosDeAsistencias(usuariosInfo, empleados);
+
+        usuariosInfo[25].Puesto.Should().Be("AUXILIAR DE COMPRAS");
+        usuariosInfo[25].Departamento.Should().Be("COORDINACION ADMINISTRATIVA ASOKAM");
+    }
+
+    [Fact]
+    public void Solo_Departamento_Se_Aplica_Aunque_No_Haya_Puesto()
+    {
+        var usuariosInfo = new Dictionary<int, OrdenCompraService.UsuarioInfo>
+        {
+            [25] = NewInfo("1a41@asokam.mx")
+        };
+        var empleados = new List<VwEmpleado>
+        {
+            new() { Correo = "1a41@asokam.mx", Puesto = null, Departamento = "TI" }
+        };
+
+        OrdenCompraService.AplicarPuestosDeAsistencias(usuariosInfo, empleados);
+
+        usuariosInfo[25].Puesto.Should().Be("Sin asignar");
+        usuariosInfo[25].Departamento.Should().Be("TI");
+    }
+
+    [Fact]
     public void Sin_Correspondencia_Conserva_Puesto_Original()
     {
         var usuariosInfo = new Dictionary<int, OrdenCompraService.UsuarioInfo>

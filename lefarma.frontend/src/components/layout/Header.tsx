@@ -13,7 +13,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
-import { Building2, MapPin, Layers, User, LogOut, Sun, Moon, Monitor, PenLine, AlertTriangle, HelpCircle } from 'lucide-react';
+import { Building2, MapPin, Layers, Briefcase, User, LogOut, Sun, Moon, Monitor, PenLine, AlertTriangle, HelpCircle } from 'lucide-react';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { useState } from 'react';
 import CambiarUbicacionModal from './CambiarUbicacionModal';
@@ -41,6 +41,8 @@ export const Header = ({ showContext = false, configPath, showHelp = false, onOp
     empresa,
     sucursal,
     area,
+    areaEmpleado,
+    puestoEmpleado,
     hasFirma,
     hasFirmaLegacy,
     puedeSeleccionarEmpresas,
@@ -50,6 +52,12 @@ export const Header = ({ showContext = false, configPath, showHelp = false, onOp
   const { ui, setTema } = useConfigStore();
   const navigate = useNavigate();
   const [modalOpen, setModalOpen] = useState(false);
+
+  // Área y puesto visibles provienen de Asistencias.dbo.vwEmpleados (vía
+  // /profile). El área del catálogo CxP queda como respaldo cuando el usuario
+  // no tiene fila de empleado.
+  const areaMostrada = areaEmpleado || area?.nombre || null;
+  const puestoMostrado = puestoEmpleado?.trim() || null;
 
   const puedeCambiarUbicacion = showContext && puedeSeleccionarEmpresas;
 
@@ -101,12 +109,21 @@ export const Header = ({ showContext = false, configPath, showHelp = false, onOp
             <MapPin className="h-4 w-4 text-muted-foreground" />
             <span className="text-muted-foreground">{sucursal?.nombre || 'Sin sucursal'}</span>
           </div>
-          {area && (
+          {areaMostrada && (
             <>
               <div className="h-4 w-px bg-border" />
               <div className="flex items-center gap-2 text-sm">
                 <Layers className="h-4 w-4 text-muted-foreground" />
-                <span className="text-muted-foreground">{area.nombre}</span>
+                <span className="max-w-[220px] truncate text-muted-foreground">{areaMostrada}</span>
+              </div>
+            </>
+          )}
+          {puestoMostrado && (
+            <>
+              <div className="h-4 w-px bg-border" />
+              <div className="flex items-center gap-2 text-sm">
+                <Briefcase className="h-4 w-4 text-muted-foreground" />
+                <span className="max-w-[220px] truncate text-muted-foreground">{puestoMostrado}</span>
               </div>
             </>
           )}
@@ -189,8 +206,8 @@ export const Header = ({ showContext = false, configPath, showHelp = false, onOp
             <DropdownMenuLabel className="flex flex-col gap-1">
               <span className="font-medium">{user?.nombre || user?.username}</span>
               <span className="text-xs font-normal text-muted-foreground">{user?.correo}</span>
-              {user?.puesto && (
-                <span className="text-xs font-normal text-muted-foreground">{user.puesto}</span>
+              {puestoMostrado && (
+                <span className="text-xs font-normal text-muted-foreground">{puestoMostrado}</span>
               )}
             </DropdownMenuLabel>
 
@@ -207,10 +224,10 @@ export const Header = ({ showContext = false, configPath, showHelp = false, onOp
                 <MapPin className="h-3 w-3" />
                 <span className="truncate">{sucursal?.nombre || 'Sin sucursal'}</span>
               </div>
-              {area && (
+              {areaMostrada && (
                 <div className="flex items-center gap-2">
                   <Layers className="h-3 w-3" />
-                  <span className="truncate">{area.nombre}</span>
+                  <span className="truncate">{areaMostrada}</span>
                 </div>
               )}
               <div className="flex items-center gap-2">

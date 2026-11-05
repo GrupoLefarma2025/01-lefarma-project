@@ -1,6 +1,7 @@
 using ErrorOr;
 using Lefarma.API.Domain.Firmas;
 using Lefarma.API.Domain.Interfaces;
+using Lefarma.API.Domain.Interfaces.Rh;
 using Lefarma.API.Features.Archivos.Settings;
 using Lefarma.API.Features.Notifications.DTOs;
 using Lefarma.API.Features.Profile.DTOs;
@@ -23,6 +24,7 @@ public class ProfileService : BaseService, IProfileService
 {
     private readonly AsokamDbContext _asokamContext;
     private readonly ApplicationDbContext _appContext;
+    private readonly IEmpleadoRepository _empleadoRepository;
     private readonly UserPermissionService _permissionService;
     private readonly INotificationService _notificationService;
     private readonly IOptions<ArchivosSettings> _archivosSettings;
@@ -32,6 +34,7 @@ public class ProfileService : BaseService, IProfileService
     public ProfileService(
         AsokamDbContext asokamContext,
         ApplicationDbContext appContext,
+        IEmpleadoRepository empleadoRepository,
         UserPermissionService permissionService,
         INotificationService notificationService,
         IOptions<ArchivosSettings> archivosSettings,
@@ -41,6 +44,7 @@ public class ProfileService : BaseService, IProfileService
     {
         _asokamContext = asokamContext;
         _appContext = appContext;
+        _empleadoRepository = empleadoRepository;
         _permissionService = permissionService;
         _notificationService = notificationService;
         _archivosSettings = archivosSettings;
@@ -61,6 +65,12 @@ public class ProfileService : BaseService, IProfileService
             }
 
             var detalle = await EnsureUsuarioDetalleAsync(userId, cancellationToken);
+
+            // Área y puesto visibles se toman de Asistencias.dbo.vwEmpleados:
+            // app.Usuarios.Puesto está en 'Sin asignar' y el área del catálogo
+            // CxP no refleja el departamento real del empleado.
+            var (areaEmpleado, puestoEmpleado) = await ResolverAreaYPuestoEmpleadoAsync(
+                userId, detalle.Puesto, cancellationToken);
 
             // Estado de firma del sistema RH: solo cuenta firma_path_cifrada.
             // El usuario legacy se trata como nuevo (0 subidas; el backfill 027 no aplica).
@@ -94,6 +104,8 @@ public class ProfileService : BaseService, IProfileService
                 Roles = roles,
                 Permissions = permisos,
                 PuedeSeleccionarEmpresas = puedeSeleccionarEmpresas,
+                AreaEmpleado = areaEmpleado,
+                PuestoEmpleado = puestoEmpleado,
                 Detalle = detalle != null ? new UsuarioDetalleData
                 {
                     IdEmpresa = detalle.IdEmpresa,
@@ -659,6 +671,36 @@ public class ProfileService : BaseService, IProfileService
             .Where(id => id != excluirIdUsuario)
             .Distinct()
             .ToList();
+    }
+
+    /// <summary>
+    /// Resuelve área (departamento) y puesto desde Asistencias.dbo.vwEmpleados.
+    /// Best-effort: un timeout o una caída de Asistencias devuelve el respaldo
+    /// sin tumbar el perfil (la app debe abrir aunque Asistencias no responda).
+    /// </summary>
+    private async Task<(string? Area, string? Puesto)> ResolverAreaYPuestoEmpleadoAsync(
+        int userId,
+        string? puestoRespaldo,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            timeout.CancelAfter(TimeSpan.FromSeconds(3));
+
+            var empleado = await _empleadoRepository.ObtenerEmpleadoPorUsuarioAsync(userId, timeout.Token);
+            if (empleado == null)
+                return (null, puestoRespaldo);
+
+            var area = string.IsNullOrWhiteSpace(empleado.Departamento) ? null : empleado.Departamento.Trim();
+            var puesto = string.IsNullOrWhiteSpace(empleado.Puesto) ? puestoRespaldo : empleado.Puesto.Trim();
+            return (area, puesto);
+        }
+        catch (Exception ex)
+        {
+            EnrichWideEvent(action: "GetProfileAreaPuesto", entityId: userId, exception: ex);
+            return (null, puestoRespaldo);
+        }
     }
 
     private async Task<Domain.Entities.Catalogos.UsuarioDetalle> EnsureUsuarioDetalleAsync(int userId, CancellationToken cancellationToken)

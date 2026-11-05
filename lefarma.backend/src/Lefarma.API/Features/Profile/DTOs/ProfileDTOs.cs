@@ -20,6 +20,19 @@ public record ProfileResponse
     // Detalle de la empresa seleccionada (para saber si puede ver/seleccionar otras)
     public bool PuedeSeleccionarEmpresas { get; init; }
 
+    /// <summary>
+    /// Área (departamento) del empleado según Asistencias.dbo.vwEmpleados.
+    /// Es la fuente que muestra la UI; el área del catálogo CxP se conserva
+    /// solo como respaldo y para la operación de las órdenes.
+    /// </summary>
+    public string? AreaEmpleado { get; init; }
+
+    /// <summary>
+    /// Puesto del empleado según Asistencias.dbo.vwEmpleados. Sustituye a
+    /// app.Usuarios.Puesto, que en producción está en 'Sin asignar'.
+    /// </summary>
+    public string? PuestoEmpleado { get; init; }
+
     // Detalles del usuario
     public UsuarioDetalleData? Detalle { get; init; }
 }

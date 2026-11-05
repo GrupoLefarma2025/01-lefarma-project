@@ -34,7 +34,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
         private readonly UserPermissionService _permissionService;
         protected override string EntityName => "OrdenCompra";
 
-        internal record UsuarioInfo(string Nombre, string? Puesto, string? Correo = null);
+        internal record UsuarioInfo(string Nombre, string? Puesto, string? Correo = null, string? Departamento = null);
 
         public OrdenCompraService(
             IOrdenCompraRepository repo,
@@ -817,24 +817,39 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
             return total;
         }
 
-        // The 'Puesto' shown in PDFs must come from Asistencias.dbo.vwEmpleados because
-        // app.Usuarios.Puesto defaults to 'Sin asignar'. Match key: full email,
-        // app.Usuarios.Correo == vwEmpleados.correo, compared case-insensitively
-        // (e.g. user 'Adriana Arredondo Ortiz' has Correo '1a41@asokam.mx' in Asokam and
-        // the same correo in vwEmpleados with puesto 'AUXILIAR DE COMPRAS').
+        // The 'Puesto' and 'Área' shown in PDFs must come from
+        // Asistencias.dbo.vwEmpleados because app.Usuarios.Puesto defaults to
+        // 'Sin asignar' and the CxP area catalog is a legacy job-position list.
+        // Match key: full email, app.Usuarios.Correo == vwEmpleados.correo,
+        // compared case-insensitively (e.g. user 'Adriana Arredondo Ortiz' has
+        // Correo '1a41@asokam.mx' in Asokam and the same correo in vwEmpleados
+        // with puesto 'AUXILIAR DE COMPRAS' and departamento
+        // 'COORDINACION ADMINISTRATIVA ASOKAM').
         internal static void AplicarPuestosDeAsistencias(Dictionary<int, UsuarioInfo> usuariosInfo, IEnumerable<VwEmpleado> empleados)
         {
-            var puestoPorCorreo = empleados
-                .Where(e => !string.IsNullOrWhiteSpace(e.Correo) && !string.IsNullOrWhiteSpace(e.Puesto))
+            var datosPorCorreo = empleados
+                .Where(e => !string.IsNullOrWhiteSpace(e.Correo))
                 .GroupBy(e => e.Correo!.Trim(), StringComparer.OrdinalIgnoreCase)
-                .ToDictionary(g => g.Key, g => g.First().Puesto!.Trim(), StringComparer.OrdinalIgnoreCase);
-            if (puestoPorCorreo.Count == 0) return;
+                .ToDictionary(
+                    g => g.Key,
+                    g => (
+                        Puesto: g.Select(e => e.Puesto?.Trim()).FirstOrDefault(p => !string.IsNullOrWhiteSpace(p)),
+                        Departamento: g.Select(e => e.Departamento?.Trim()).FirstOrDefault(d => !string.IsNullOrWhiteSpace(d))
+                    ),
+                    StringComparer.OrdinalIgnoreCase);
+            if (datosPorCorreo.Count == 0) return;
 
             foreach (var id in usuariosInfo.Keys.ToList())
             {
                 var info = usuariosInfo[id];
-                if (!string.IsNullOrWhiteSpace(info.Correo) && puestoPorCorreo.TryGetValue(info.Correo.Trim(), out var puesto))
-                    usuariosInfo[id] = info with { Puesto = puesto };
+                if (string.IsNullOrWhiteSpace(info.Correo)) continue;
+                if (!datosPorCorreo.TryGetValue(info.Correo.Trim(), out var datos)) continue;
+
+                usuariosInfo[id] = info with
+                {
+                    Puesto = datos.Puesto ?? info.Puesto,
+                    Departamento = datos.Departamento ?? info.Departamento
+                };
             }
         }
 
@@ -907,6 +922,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
             IdUsuarioCreador = o.IdUsuarioCreador,
             SolicitanteNombre = usuariosInfo != null && usuariosInfo.TryGetValue(o.IdUsuarioCreador, out var ui) ? ui.Nombre : null,
             SolicitantePuesto = usuariosInfo != null && usuariosInfo.TryGetValue(o.IdUsuarioCreador, out ui) ? ui.Puesto : null,
+            SolicitanteArea = usuariosInfo != null && usuariosInfo.TryGetValue(o.IdUsuarioCreador, out ui) ? ui.Departamento : null,
             SolicitanteCorreo = usuariosInfo != null && usuariosInfo.TryGetValue(o.IdUsuarioCreador, out ui) ? ui.Correo : null,
             SinDatosFiscales = o.SinDatosFiscales,
             NotaFormaPago = o.NotaFormaPago,

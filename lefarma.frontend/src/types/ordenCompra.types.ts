@@ -78,6 +78,8 @@ export interface OrdenCompraResponse {
   idUsuarioCreador?: number;
   solicitanteNombre?: string | null;
   solicitantePuesto?: string | null;
+  /** Área (departamento) del solicitante según Asistencias.dbo.vwEmpleados. */
+  solicitanteArea?: string | null;
   solicitanteCorreo?: string | null;
   segundoAutorizador?: string | null;
   notaFormaPago?: string | null;
