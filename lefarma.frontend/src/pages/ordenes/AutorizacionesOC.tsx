@@ -260,6 +260,16 @@ interface WorkflowPasoFlowResponse {
   requiereComentario: boolean;
   requiereAdjunto: boolean;
   permiteAdjunto: boolean;
+  participantes?: WorkflowPasoParticipanteFlowResponse[];
+}
+
+interface WorkflowPasoParticipanteFlowResponse {
+  idUsuario?: number | null;
+  idRol?: number | null;
+  nombreUsuario?: string | null;
+  nombreRol?: string | null;
+  requiereJefeInmediato: boolean;
+  nivelJefe?: number | null;
 }
 
 type CampoFormItem = { campo: WorkflowCampoConfig; requerido: boolean; inputKey: string; handlerKey: string; validacionExito?: boolean | null; validacionMensaje?: string | null };
@@ -446,6 +456,7 @@ export default function AutorizacionesOC() {
   const sinFirma = hasFirma === false && hasFirmaLegacy === false;
 
   const [loadingDetail, setLoadingDetail] = useState(false);
+  const [loadingOrdenes, setLoadingOrdenes] = useState(true);
   const [ordenes, setOrdenes] = useState<OrdenCompraResponse[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(idOrdenParam);
   const [selectedOrden, setSelectedOrden] = useState<OrdenCompraResponse | null>(null);
@@ -540,6 +551,7 @@ export default function AutorizacionesOC() {
     value.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
 
   const fetchOrdenes = useCallback(async () => {
+    setLoadingOrdenes(true);
     try {
       const res = await API.get<ApiResponse<OrdenCompraResponse[]>>('/ordenes');
       const data = res.data.data || [];
@@ -547,6 +559,8 @@ export default function AutorizacionesOC() {
     } catch (error: unknown) {
       const err = toApiError(error);
       toast.error(err.message ?? 'Error al cargar bandeja de órdenes');
+    } finally {
+      setLoadingOrdenes(false);
     }
   }, []);
 
@@ -848,6 +862,7 @@ export default function AutorizacionesOC() {
       console.log("¡Todo cargado!");
     } catch (error) {
       console.error("Error al cargar los datos:", error);
+      setLoadingOrdenes(false);
     }
   };
 
@@ -1400,9 +1415,25 @@ export default function AutorizacionesOC() {
   const eventosPorPaso = useMemo(() => {
     const map = new Map<number, HistorialWorkflowItemResponse[]>();
     for (const item of historialOrdenado) {
-      const arr = map.get(item.idPaso) ?? [];
+      // La bitácora registra el evento en el paso DESTINO, pero la acción de
+      // avance la ejecutó el usuario en el paso ANTERIOR. Se agrupa por ese
+      // paso para que cada tarjeta muestre a quien realmente actuó en ella.
+      // Rechazos y devoluciones se quedan en el paso destino porque describen
+      // el estado al que llegó la orden.
+      let idPasoEvento = item.idPaso;
+      if (getTipoEvento(item) === 'autorizacion' && item.datosSnapshot) {
+        try {
+          const snapshot = JSON.parse(item.datosSnapshot) as {
+            idPasoAnterior?: number | null;
+          };
+          if (snapshot.idPasoAnterior) idPasoEvento = snapshot.idPasoAnterior;
+        } catch {
+          // ignorar JSON inválido
+        }
+      }
+      const arr = map.get(idPasoEvento) ?? [];
       arr.push(item);
-      map.set(item.idPaso, arr);
+      map.set(idPasoEvento, arr);
     }
     return map;
   }, [historialOrdenado]);
@@ -1643,6 +1674,7 @@ export default function AutorizacionesOC() {
             subtitle={`Total: ${filtered.length}`}
             pagination
             pageSize={10}
+            loading={loadingOrdenes}
             globalFilter={false}
             showRefreshButton
             onRefresh={fetchOrdenes}
@@ -2394,6 +2426,15 @@ export default function AutorizacionesOC() {
                               const isActualCancelada = isActual && selectedOrden?.idEstado === 9;
                               const eventosPaso = eventosPorPaso.get(paso.idPaso) || [];
                               const ultimoEvento = eventosPaso[eventosPaso.length - 1];
+                              const responsablesPaso = (paso.participantes ?? [])
+                                .map((p) =>
+                                  p.nombreUsuario ||
+                                  p.nombreRol ||
+                                  (p.requiereJefeInmediato
+                                    ? `Jefe inmediato nivel ${p.nivelJefe ?? 1}`
+                                    : null)
+                                )
+                                .filter((nombre): nombre is string => Boolean(nombre));
 
                               // Fecha en que la orden llegó a este paso (última transición
                               // cuyo destino es el paso). Para el paso inicial se usa la creación.
@@ -2609,7 +2650,17 @@ export default function AutorizacionesOC() {
                                           </div>
 
                                           {eventosPaso.length === 0 ? (
-                                            <p className="rounded border bg-background/80 p-2 text-xs text-muted-foreground">Sin actividad registrada en este paso.</p>
+                                            <div className="rounded border bg-background/80 p-2 text-xs text-muted-foreground">
+                                              <p>Sin actividad registrada en este paso.</p>
+                                              {isActual && responsablesPaso.length > 0 && (
+                                                <p className="mt-1">
+                                                  <span className="font-medium text-foreground/80">
+                                                    Responsable(s):
+                                                  </span>{' '}
+                                                  {responsablesPaso.join(' · ')}
+                                                </p>
+                                              )}
+                                            </div>
                                           ) : (
                                             <div className="space-y-2">
                                             {eventosPaso.map((item) => {
@@ -2684,20 +2735,15 @@ export default function AutorizacionesOC() {
                                         </div>
 
                                         {/* Acciones disponibles */}
-                                        {isActual && (
+                                        {isActual && acciones.filter(a => !a.enviaConcentrado).length > 0 && (
                                           <div className="border-t border-border/50 pt-3">
                                             <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                                               Acciones disponibles
                                             </p>
                                             <div className="flex flex-wrap gap-2">
-                                              {acciones.filter(a => !a.enviaConcentrado).length === 0 ? (
-                                                <p className="text-xs text-muted-foreground">
-                                                  No hay acciones disponibles para su usuario en este paso.
-                                                </p>
-                                              ) : (
-                                                acciones
-                                                  .filter(a => !a.enviaConcentrado)
-                                                  .map((a) => (
+                                              {acciones
+                                                .filter(a => !a.enviaConcentrado)
+                                                .map((a) => (
                                                   <Button
                                                    key={a.idAccion}
                                                    size="sm"
@@ -2720,8 +2766,7 @@ export default function AutorizacionesOC() {
                                                   >
                                                     {a.tipoAccionNombre}
                                                   </Button>
-                                                ))
-                                              )}
+                                                ))}
                                             </div>
                                           </div>
                                         )}
