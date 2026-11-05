@@ -1,0 +1,32 @@
+﻿tipo,objeto,detalle
+PROCEDIMIENTO,dbo.SP_ActualizaCamposOdooInterfas,"Definición distinta (se comparó el texto normalizado, sin distinguir mayúsculas/espacios)"
+PROCEDIMIENTO,dbo.SP_Jobs_RespaldaBases,"Definición distinta (se comparó el texto normalizado, sin distinguir mayúsculas/espacios)"
+PROCEDIMIENTO,dbo.SP_Reportes_Almacen_Remisiones,"Definición distinta (se comparó el texto normalizado, sin distinguir mayúsculas/espacios)"
+PROCEDIMIENTO,dbo.SP_Reportes_Almacen_ReporteEnvios,"Definición distinta (se comparó el texto normalizado, sin distinguir mayúsculas/espacios)"
+PROCEDIMIENTO,dbo.SP_Reportes_CxC_ActualizarEstatusIntentoCxCPagos,"Definición distinta (se comparó el texto normalizado, sin distinguir mayúsculas/espacios)"
+PROCEDIMIENTO,dbo.SP_Reportes_CxC_CobranzaRoberto,"Definición distinta (se comparó el texto normalizado, sin distinguir mayúsculas/espacios)"
+PROCEDIMIENTO,dbo.SP_Reportes_CxC_TableroCobranza,"Definición distinta (se comparó el texto normalizado, sin distinguir mayúsculas/espacios)"
+PROCEDIMIENTO,dbo.SP_Reportes_Estadistica_PendientesXSurtirConInventario,"Definición distinta (se comparó el texto normalizado, sin distinguir mayúsculas/espacios)"
+PROCEDIMIENTO,dbo.SP_Reportes_Finanzas_CrearGasto,"Definición distinta (se comparó el texto normalizado, sin distinguir mayúsculas/espacios)"
+PROCEDIMIENTO,dbo.SP_Reportes_Inventarios_Kardex,"Definición distinta (se comparó el texto normalizado, sin distinguir mayúsculas/espacios)"
+PROCEDIMIENTO,dbo.SP_Reportes_Sistemas_TicketsRS,"Definición distinta (se comparó el texto normalizado, sin distinguir mayúsculas/espacios)"
+PROCEDIMIENTO,dbo.SP_SincronizaDiarioDeVentas,"Definición distinta (se comparó el texto normalizado, sin distinguir mayúsculas/espacios)"
+PROCEDIMIENTO,dbo.SP_SincronizarDatos,"Definición distinta (se comparó el texto normalizado, sin distinguir mayúsculas/espacios)"
+PROCEDIMIENTO,dbo.sp_EnviarRespuestaCurl,"Definición distinta (se comparó el texto normalizado, sin distinguir mayúsculas/espacios)"
+TABLA,app.LogNotificacionDocumento,columna url: tipo nvarchar(1000)→nvarchar(500)
+TABLA,dbo.DiarioDeVentas,falta columna codigoEmpresa (int)
+TABLA,dbo.DiarioDeVentas,falta DEFAULT en codigoEmpresa: ((0))
+TABLA,dbo.DiarioDeVentasHist,falta columna codigoEmpresa (int)
+TABLA,dbo.DiarioDeVentasHist,falta DEFAULT en codigoEmpresa: ((0))
+TABLA,dbo.enviosCab,falta columna almacen (varchar(50))
+TABLA,dbo.enviosCab,"falta columna costoEntregaPaqueteria (numeric(13,2))"
+TABLA,dbo.enviosCab,"falta columna ivaGuiaEnvio (numeric(13,2))"
+TABLA,dbo.enviosCab,"falta columna retencionIvaGuiaEnvio (numeric(13,2))"
+TABLA,dbo.enviosCab,falta columna rollosPlayo (int)
+TABLA,dbo.enviosCab,"falta columna subtotalGuiaEnvio (numeric(13,2))"
+TRIGGER,app.trg_Documentos_Update_Estatus,"Definición distinta (se comparó el texto normalizado, sin distinguir mayúsculas/espacios)"
+VISTA,dbo.vwDiarioDeVentas,"Definición distinta (se comparó el texto normalizado, sin distinguir mayúsculas/espacios)"
+VISTA,dbo.vwEnviosConTraslados,"Definición distinta (se comparó el texto normalizado, sin distinguir mayúsculas/espacios)"
+VISTA,dbo.vwInconsistenciasDAYBiometrico,"Definición distinta (se comparó el texto normalizado, sin distinguir mayúsculas/espacios)"
+VISTA,dbo.vwRemisionesCab,"Definición distinta (se comparó el texto normalizado, sin distinguir mayúsculas/espacios)"
+VISTA,dbo.vwTickets,"Definición distinta (se comparó el texto normalizado, sin distinguir mayúsculas/espacios)"

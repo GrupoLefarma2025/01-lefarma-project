@@ -69,15 +69,6 @@ public class ProfileService : BaseService, IProfileService
                 ? 0
                 : Math.Max(firmaControl.Subidas, 1);
 
-            // Obtener si la empresa del usuario puede seleccionar otras empresas
-            var puedeSeleccionarEmpresas = false;
-            if (detalle.IdEmpresa > 0)
-            {
-                var empresa = await _appContext.Empresas
-                    .FirstOrDefaultAsync(e => e.IdEmpresa == detalle.IdEmpresa, cancellationToken);
-                puedeSeleccionarEmpresas = empresa?.PuedeSeleccionarEmpresas ?? false;
-            }
-
             // Obtener roles activos del usuario
             var roles = await _asokamContext.UsuariosRoles
                 .Include(ur => ur.Rol)
@@ -88,6 +79,7 @@ public class ProfileService : BaseService, IProfileService
 
             // Permisos via cache compartido (5 min) — misma fuente que PermissionHandler
             var permisos = (await _permissionService.GetPermissionsAsync(userId)).ToList();
+            var puedeSeleccionarEmpresas = permisos.Contains(Permissions.OrdenesCompra.CambiarEmpresa);
 
             var response = new ProfileResponse
             {

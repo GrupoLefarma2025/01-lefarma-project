@@ -1,21 +1,10 @@
 import React from 'react';
 import type { OrdenCompraResponse } from '@/types/ordenCompra.types';
 import type { ProveedorCuentaBancaria } from '@/types/catalogo.types';
-import logoDefault from '@/assets/logo.png';
-import logoArtricenter from '@/assets/logo_1.png?no-inline';
-import logoAsokam from '@/assets/logo_7.png?no-inline';
-import logoLefarma from '@/assets/logo_8.png?no-inline';
-import logoConstrumedika from '@/assets/logo_11.png?no-inline';
-import logoGrupoLefarma from '@/assets/logo_12.png?no-inline';
-
-// ponytail: static imports — Vite can't bundle dynamic asset paths
-const LOGOS: Record<number, string> = {
-  1: logoArtricenter,
-  7: logoAsokam,
-  8: logoLefarma,
-  11: logoConstrumedika,
-  12: logoGrupoLefarma,
-};
+import {
+  resolverLogoEmpresa,
+  resolverNombreEmpresaDocumento,
+} from '@/utils/empresaDocumento';
 
 interface ProveedorInfo {
   idProveedor: number;
@@ -329,12 +318,7 @@ export function OrdenCompraConcentradoPDF({ orden, firmaSolicitante, firmaReviso
     <div id={id} style={s.page}>
       {/* ── HEADER ── */}
       <div style={s.headerRow}>
-        <Logo src={(() => {
-          const k = Number(orden.idEmpresa);
-          const s = LOGOS[k] ?? logoDefault;
-          console.log('[OrdenCompraConcentradoPDF] idEmpresa:', orden.idEmpresa, '→ key:', k, '→ match:', s !== logoDefault, '→ logos ok:', { 1: !!logoArtricenter, 7: !!logoAsokam, 8: !!logoLefarma, 11: !!logoConstrumedika, 12: !!logoGrupoLefarma });
-          return s;
-        })()} />
+        <Logo src={resolverLogoEmpresa(Number(orden.idEmpresa), orden.empresaNombre)} />
         <div style={s.docTitle}>ORDEN DE COMPRA</div>
         <div style={s.folioBox}>
           <div style={{ ...s.folioRow, borderBottom: `1px solid ${BORDER}` }}>
@@ -357,7 +341,7 @@ export function OrdenCompraConcentradoPDF({ orden, firmaSolicitante, firmaReviso
           <tr>
             <td style={s.thBlue}>Empresa</td>
             <td style={s.tdValue}>
-              {orden.empresaNombre?.toUpperCase() ?? orden.idEmpresa ?? '-'}
+              {resolverNombreEmpresaDocumento(Number(orden.idEmpresa), orden.empresaNombre)}
             </td>
             <td style={s.thBlue}>Sucursal</td>
             <td style={s.tdValue}>

@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cómo se calculan los días de vacaciones · Lefarma</title>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#f5f5f5; --ink:#2d3142; --muted:#4f5d75; --soft:#7a8399;
+    --accent:#eb6c36; --accent-tint:rgba(235,108,54,.10);
+    --rule:rgba(45,49,66,.12);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{background:var(--paper);color:var(--ink);font-family:'Geist',system-ui,-apple-system,sans-serif;-webkit-font-smoothing:antialiased}
+  main{max-width:1080px;margin:0 auto;padding:56px 40px 72px}
+  .eyebrow{font-family:'Geist Mono',monospace;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--soft);margin:0 0 12px}
+  h1{font-family:'Instrument Serif',Georgia,serif;font-weight:400;font-size:44px;line-height:1.05;margin:0 0 12px;letter-spacing:-.01em}
+  .sub{font-size:15px;line-height:1.55;color:var(--muted);max-width:660px;margin:0 0 48px}
+  .block{margin:0 0 56px}
+  .block > .eyebrow{margin-bottom:20px}
+  .formula{display:grid;grid-template-columns:1.05fr .95fr;gap:32px;align-items:start}
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  th{font-family:'Geist Mono',monospace;font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--soft);text-align:left;font-weight:500;padding:0 0 8px;border-bottom:1px solid var(--rule)}
+  td{padding:9px 0;border-bottom:1px solid var(--rule);color:var(--muted)}
+  td:first-child,td:nth-child(3){color:var(--ink);font-weight:500}
+  td:nth-child(2),td:nth-child(4){font-family:'Geist Mono',monospace;font-size:13px;text-align:right;padding-right:12px}
+  th:nth-child(2),th:nth-child(4){text-align:right;padding-right:12px}
+  pre{background:#fff;border:1px solid var(--rule);border-radius:6px;padding:16px;margin:0 0 16px;overflow-x:auto}
+  code{font-family:'Geist Mono',monospace;font-size:12px;line-height:1.6;color:var(--ink)}
+  .note{font-size:13px;line-height:1.6;color:var(--muted);margin:0 0 12px}
+  .note:last-child{margin-bottom:0}
+  .note strong{color:var(--ink);font-weight:600}
+  .balance{font-family:'Geist Mono',monospace;font-size:11px;color:var(--ink);background:rgba(45,49,66,.05);border-left:2px solid var(--soft);padding:8px 12px;margin:0 0 12px;overflow-x:auto;white-space:nowrap}
+  .cards{display:grid;grid-template-columns:1.1fr 1fr .9fr;gap:20px;margin:0 0 56px}
+  .card{background:#fff;border:1px solid var(--rule);border-radius:6px;padding:20px}
+  .card h3{font-size:14px;margin:0 0 8px;font-weight:600;display:flex;align-items:center;gap:8px}
+  .card p{font-size:13px;line-height:1.55;color:var(--muted);margin:0}
+  .dot{width:7px;height:7px;border-radius:50%;flex:none}
+  .dot.ink{background:var(--ink)} .dot.accent{background:var(--accent)} .dot.soft{background:var(--soft)}
+  svg{width:100%;height:auto;display:block}
+  footer{border-top:1px solid var(--rule);padding-top:20px;font-family:'Geist Mono',monospace;font-size:10px;color:var(--soft);line-height:1.7}
+  @media (max-width:900px){
+    main{padding:40px 24px 56px}
+    h1{font-size:34px}
+    .formula,.cards{grid-template-columns:1fr}
+  }
+</style>
+</head>
+<body>
+<main>
+
+  <header>
+    <p class="eyebrow">RH · Vacaciones</p>
+    <h1>Cómo se calculan los días</h1>
+    <p class="sub">La fórmula vive en la vista de Asistencias y el job nocturno la copia a <span style="font-family:'Geist Mono',monospace;font-size:13px">rh.saldos_vacaciones_anuales</span> cada día. El salto de días ocurre el día del aniversario del empleado, no el 1 de enero.</p>
+  </header>
+
+  <section class="block">
+    <p class="eyebrow">01 · La fórmula</p>
+    <div class="formula">
+      <div>
+        <table>
+          <thead>
+            <tr><th>Años cumplidos</th><th>Días</th><th>Años cumplidos</th><th>Días</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>0</td><td>0</td><td>6 – 10</td><td>22</td></tr>
+            <tr><td>1</td><td>12</td><td>11 – 15</td><td>24</td></tr>
+            <tr><td>2</td><td>14</td><td>16 – 20</td><td>26</td></tr>
+            <tr><td>3</td><td>16</td><td>21 – 25</td><td>28</td></tr>
+            <tr><td>4</td><td>18</td><td>26 – 30</td><td>30</td></tr>
+            <tr><td>5</td><td>20</td><td>31 – 35</td><td>32</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div>
+        <pre><code>CASE
+  WHEN años = 0        THEN 0
+  WHEN años BETWEEN 1 AND 5
+       THEN 10 + (años * 2)
+  WHEN años >= 6
+       THEN 22 + (CEILING((años - 10) / 5.0) * 2)
+END</code></pre>
+        <p class="note"><strong>Aniversario exacto:</strong> <code style="font-size:11px">fn_ObtenerAñosTranscurridos</code> resta un año si el mes y día de hoy todavía no llegan al de <code style="font-size:11px">hire_date</code>. El día que cumple años, el conteo sube.</p>
+        <p class="note"><strong>El SP no calcula:</strong> lee <code style="font-size:11px">vacacionesxantiguedadASumar</code> de la vista. Si RH cambia la regla, cambia la vista y el SP la hereda.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="block">
+    <p class="eyebrow">02 · Qué hace el job cada noche</p>
+
+    <svg viewBox="0 0 960 820" role="img" aria-labelledby="vac-title vac-desc">
+      <title id="vac-title">Flujo de sincronización de saldos de vacaciones</title>
+      <desc id="vac-desc">El job de SQL Agent ejecuta el procedimiento, que lee la fórmula de antigüedad desde vwEmpleados, mapea correo a usuario y empresa, actualiza dias_generados, cierra la bitácora y envía correo; si un paso falla, registra el error, avisa y marca el job como fallido.</desc>
+      <defs>
+        <marker id="vac-arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+          <polygon points="0 0, 8 3, 0 6" fill="#4f5d75"/>
+        </marker>
+        <marker id="vac-arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+          <polygon points="0 0, 8 3, 0 6" fill="#eb6c36"/>
+        </marker>
+      </defs>
+
+      <rect width="960" height="820" fill="#f5f5f5"/>
+
+      <!-- Conectores (antes de las cajas) -->
+      <path d="M208 128 V168" fill="none" stroke="#4f5d75" stroke-width="1" marker-end="url(#vac-arrow)"/>
+      <path d="M208 256 V296" fill="none" stroke="#4f5d75" stroke-width="1" marker-end="url(#vac-arrow)"/>
+      <path d="M208 376 V416" fill="none" stroke="#4f5d75" stroke-width="1" marker-end="url(#vac-arrow)"/>
+      <path d="M208 496 V536" fill="none" stroke="#4f5d75" stroke-width="1" marker-end="url(#vac-arrow)"/>
+      <path d="M208 616 V656" fill="none" stroke="#4f5d75" stroke-width="1" marker-end="url(#vac-arrow)"/>
+      <path d="M368 212 H448 Q456 212 456 220 V328 Q456 336 464 336 H544" fill="none" stroke="#eb6c36" stroke-width="1" stroke-dasharray="5,4" marker-end="url(#vac-arrow-accent)"/>
+      <path d="M704 376 V416" fill="none" stroke="#4f5d75" stroke-width="1" stroke-dasharray="5,4" marker-end="url(#vac-arrow)"/>
+
+      <!-- 1. Job -->
+      <rect x="48" y="56" width="320" height="72" rx="6" fill="#f5f5f5"/>
+      <rect x="48" y="56" width="320" height="72" rx="6" fill="rgba(45,49,66,.04)" stroke="rgba(45,49,66,.30)" stroke-width="1"/>
+      <rect x="56" y="62" width="44" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,.30)" stroke-width="0.8"/>
+      <text x="78" y="71" fill="#4f5d75" font-family="'Geist Mono',monospace" font-size="8" letter-spacing=".08em" text-anchor="middle">JOB</text>
+      <text x="208" y="96" fill="#2d3142" font-family="'Geist',sans-serif" font-size="12" font-weight="600" text-anchor="middle">SQL Agent · 20:00</text>
+      <text x="208" y="114" fill="#4f5d75" font-family="'Geist Mono',monospace" font-size="9" text-anchor="middle">SP_Jobs_SincronizaSaldosVacaciones</text>
+
+      <!-- 2. SP (foco) -->
+      <rect x="48" y="168" width="320" height="88" rx="6" fill="#f5f5f5"/>
+      <rect x="48" y="168" width="320" height="88" rx="6" fill="rgba(235,108,54,.10)" stroke="#eb6c36" stroke-width="1"/>
+      <rect x="56" y="174" width="44" height="12" rx="2" fill="transparent" stroke="rgba(235,108,54,.40)" stroke-width="0.8"/>
+      <text x="78" y="183" fill="#eb6c36" font-family="'Geist Mono',monospace" font-size="8" letter-spacing=".08em" text-anchor="middle">SP</text>
+      <text x="208" y="208" fill="#2d3142" font-family="'Geist',sans-serif" font-size="12" font-weight="600" text-anchor="middle">rh.sp_sincroniza_saldos_vacaciones</text>
+      <text x="208" y="226" fill="#4f5d75" font-family="'Geist Mono',monospace" font-size="9" text-anchor="middle">@anio · @correo_notifica · @correo_error</text>
+
+      <!-- 3. Vista RH -->
+      <rect x="48" y="296" width="320" height="80" rx="6" fill="#f5f5f5"/>
+      <rect x="48" y="296" width="320" height="80" rx="6" fill="rgba(45,49,66,.03)" stroke="rgba(45,49,66,.30)" stroke-width="1"/>
+      <rect x="56" y="302" width="44" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,.30)" stroke-width="0.8"/>
+      <text x="78" y="311" fill="#4f5d75" font-family="'Geist Mono',monospace" font-size="8" letter-spacing=".08em" text-anchor="middle">VIEW</text>
+      <text x="208" y="336" fill="#2d3142" font-family="'Geist',sans-serif" font-size="12" font-weight="600" text-anchor="middle">vwEmpleados · Asistencias</text>
+      <text x="208" y="354" fill="#4f5d75" font-family="'Geist Mono',monospace" font-size="9" text-anchor="middle">[ESFR-DOCTS] · vacacionesxantiguedadASumar</text>
+
+      <!-- 4. Mapeo -->
+      <rect x="48" y="416" width="320" height="80" rx="6" fill="#f5f5f5"/>
+      <rect x="48" y="416" width="320" height="80" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+      <rect x="56" y="422" width="44" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,.40)" stroke-width="0.8"/>
+      <text x="78" y="431" fill="#4f5d75" font-family="'Geist Mono',monospace" font-size="8" letter-spacing=".08em" text-anchor="middle">STEP</text>
+      <text x="208" y="456" fill="#2d3142" font-family="'Geist',sans-serif" font-size="12" font-weight="600" text-anchor="middle">Mapeo correo → usuario → empresa</text>
+      <text x="208" y="474" fill="#4f5d75" font-family="'Geist Mono',monospace" font-size="9" text-anchor="middle">Asokam.app.usuarios + config.usuario_detalle</text>
+
+      <!-- 5. Upsert -->
+      <rect x="48" y="536" width="320" height="80" rx="6" fill="#f5f5f5"/>
+      <rect x="48" y="536" width="320" height="80" rx="6" fill="rgba(45,49,66,.05)" stroke="#4f5d75" stroke-width="1"/>
+      <rect x="56" y="542" width="44" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,.40)" stroke-width="0.8"/>
+      <text x="78" y="551" fill="#4f5d75" font-family="'Geist Mono',monospace" font-size="8" letter-spacing=".08em" text-anchor="middle">TABLE</text>
+      <text x="208" y="576" fill="#2d3142" font-family="'Geist',sans-serif" font-size="12" font-weight="600" text-anchor="middle">UPSERT saldos_vacaciones_anuales</text>
+      <text x="208" y="594" fill="#4f5d75" font-family="'Geist Mono',monospace" font-size="9" text-anchor="middle">dias_generados = fórmula · por año</text>
+
+      <!-- 6. OK -->
+      <rect x="48" y="656" width="320" height="80" rx="6" fill="#f5f5f5"/>
+      <rect x="48" y="656" width="320" height="80" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+      <rect x="56" y="662" width="44" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,.40)" stroke-width="0.8"/>
+      <text x="78" y="671" fill="#4f5d75" font-family="'Geist Mono',monospace" font-size="8" letter-spacing=".08em" text-anchor="middle">OK</text>
+      <text x="208" y="696" fill="#2d3142" font-family="'Geist',sans-serif" font-size="12" font-weight="600" text-anchor="middle">Bitácora OK + correo</text>
+      <text x="208" y="714" fill="#4f5d75" font-family="'Geist Mono',monospace" font-size="9" text-anchor="middle">21@ y 6@ · solo si hubo cambios</text>
+
+      <!-- 7. CATCH -->
+      <rect x="544" y="296" width="320" height="80" rx="6" fill="#f5f5f5"/>
+      <rect x="544" y="296" width="320" height="80" rx="6" fill="rgba(45,49,66,.02)" stroke="rgba(45,49,66,.20)" stroke-width="1" stroke-dasharray="4,3"/>
+      <rect x="552" y="302" width="44" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,.30)" stroke-width="0.8"/>
+      <text x="574" y="311" fill="#4f5d75" font-family="'Geist Mono',monospace" font-size="8" letter-spacing=".08em" text-anchor="middle">CATCH</text>
+      <text x="704" y="336" fill="#2d3142" font-family="'Geist',sans-serif" font-size="12" font-weight="600" text-anchor="middle">BEGIN CATCH</text>
+      <text x="704" y="354" fill="#4f5d75" font-family="'Geist Mono',monospace" font-size="9" text-anchor="middle">cualquier paso del TRY</text>
+
+      <!-- 8. Error -->
+      <rect x="544" y="416" width="320" height="96" rx="6" fill="#f5f5f5"/>
+      <rect x="544" y="416" width="320" height="96" rx="6" fill="rgba(45,49,66,.02)" stroke="rgba(45,49,66,.20)" stroke-width="1" stroke-dasharray="4,3"/>
+      <rect x="552" y="422" width="44" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,.30)" stroke-width="0.8"/>
+      <text x="574" y="431" fill="#4f5d75" font-family="'Geist Mono',monospace" font-size="8" letter-spacing=".08em" text-anchor="middle">ERROR</text>
+      <text x="704" y="464" fill="#2d3142" font-family="'Geist',sans-serif" font-size="12" font-weight="600" text-anchor="middle">Bitácora ERROR + correo + THROW</text>
+      <text x="704" y="482" fill="#4f5d75" font-family="'Geist Mono',monospace" font-size="9" text-anchor="middle">el job queda en rojo</text>
+
+      <!-- Etiqueta del conector de error -->
+      <rect x="480" y="316" width="48" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="504" y="325" fill="#eb6c36" font-family="'Geist Mono',monospace" font-size="8" letter-spacing=".06em" text-anchor="middle">ERROR</text>
+
+      <!-- Leyenda -->
+      <line x1="48" y1="776" x2="912" y2="776" stroke="rgba(45,49,66,.10)" stroke-width="0.8"/>
+      <text x="48" y="796" fill="#4f5d75" font-family="'Geist Mono',monospace" font-size="8" letter-spacing=".14em">LEYENDA</text>
+      <line x1="136" y1="792" x2="168" y2="792" stroke="#4f5d75" stroke-width="1"/>
+      <text x="176" y="796" fill="#7a8399" font-family="'Geist Mono',monospace" font-size="8">flujo normal</text>
+      <line x1="300" y1="792" x2="332" y2="792" stroke="#eb6c36" stroke-width="1" stroke-dasharray="5,4"/>
+      <text x="340" y="796" fill="#7a8399" font-family="'Geist Mono',monospace" font-size="8">ruta de error</text>
+    </svg>
+  </section>
+
+  <section class="cards">
+    <div class="card">
+      <h3><span class="dot ink"></span>Qué escribe</h3>
+      <p>Solo <code style="font-size:11px">dias_generados</code> y <code style="font-size:11px">fecha_modificacion</code>. Nunca toca <code style="font-size:11px">dias_tomados</code>, <code style="font-size:11px">vencidos</code>, <code style="font-size:11px">compensados</code> ni <code style="font-size:11px">ajustados</code>: esos los mueve la app.</p>
+    </div>
+    <div class="card">
+      <h3><span class="dot accent"></span>Cuándo cambia</h3>
+      <p>El job corre todos los días a las 20:00, pero el saldo solo sube cuando el empleado cumple un año más de antigüedad.</p>
+    </div>
+    <div class="card">
+      <h3><span class="dot soft"></span>Si falla</h3>
+      <p>Guarda número, mensaje y línea en la bitácora, manda correo a 21@ y 6@, y relanza el error para que el job se marque en rojo.</p>
+    </div>
+  </section>
+
+  <div class="balance">dias_pendientes = dias_generados + dias_compensados + dias_ajustados − dias_vencidos − dias_tomados</div>
+
+  <footer>
+    Fuente: Asistencias.dbo.vwEmpleados · fn_ObtenerAñosTranscurridos · rh.sp_sincroniza_saldos_vacaciones<br>
+    Bitácora: Lefarma.rh.log_sincronizacion_saldos · job SP_Jobs_SincronizaSaldosVacaciones (diario 20:00)
+  </footer>
+
+</main>
+</body>
+</html>

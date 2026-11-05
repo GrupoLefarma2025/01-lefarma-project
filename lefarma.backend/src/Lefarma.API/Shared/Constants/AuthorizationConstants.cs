@@ -21,6 +21,7 @@ public static class Permissions
         public const string Edit = "ordenes.edit";
         public const string Delete = "ordenes.delete";
         public const string Approve = "ordenes.approve";
+        public const string CambiarEmpresa = "orden_compra.puede_cambiar_empresa";
     }
 
     public static class Usuarios
