@@ -8,6 +8,7 @@ import { API } from '@/shared/api/apiClient';
 import type { ApiResponse } from '@/types/api.types';
 import { DataTable } from '@/components/ui/data-table';
 import type { ColumnDef } from '@/components/ui/data-table';
+import { TiempoAtencion } from '@/components/ordenes/TiempoAtencion';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -1671,7 +1672,7 @@ export default function AutorizacionesOC() {
             columns={columns}
             data={filtered}
             title="Órdenes pendientes para autorización"
-            subtitle={`Total: ${filtered.length}`}
+            subtitle={loadingOrdenes ? 'Cargando…' : `Total: ${filtered.length}`}
             pagination
             pageSize={10}
             loading={loadingOrdenes}
@@ -2426,6 +2427,11 @@ export default function AutorizacionesOC() {
                               const isActualCancelada = isActual && selectedOrden?.idEstado === 9;
                               const eventosPaso = eventosPorPaso.get(paso.idPaso) || [];
                               const ultimoEvento = eventosPaso[eventosPaso.length - 1];
+                              // Solo pasos completados (verde) y el actual (azul)
+                              // muestran tiempo de atención; el paso 1 y los grises
+                              // conservan la fecha de creación.
+                              const mostrarTiempoAtencion =
+                                !paso.esInicio && (isActual || isCompletado);
                               const responsablesPaso = (paso.participantes ?? [])
                                 .map((p) =>
                                   p.nombreUsuario ||
@@ -2463,11 +2469,16 @@ export default function AutorizacionesOC() {
                                   : null;
                               })();
 
-                              // Fecha de la autorización propia de este paso: el evento
-                              // que salió del paso (snapshot.idPasoAnterior = este paso).
-                              // En el paso actual todavía no existe: queda "Pendiente".
-                              const fechaAutorizacionPaso = (() => {
-                                let fecha: string | null = null;
+                              // Fechas de salida del paso (snapshot.idPasoAnterior = este paso):
+                              // - fechaSalidaPaso: cualquier acción que lo sacó (incluye
+                              //   CERRAR, MARCAR_PAGADA, devoluciones, etc.). Se usa para
+                              //   el tiempo de atención.
+                              // - fechaAutorizacionPaso: solo autorizaciones, aprobaciones
+                              //   y envíos. Es la que se muestra como "Fecha de autorización".
+                              // En el paso actual todavía no existen.
+                              const { fechaAutorizacionPaso, fechaSalidaPaso } = (() => {
+                                let autorizacion: string | null = null;
+                                let salida: string | null = null;
                                 for (const ev of historial) {
                                   if (!ev.datosSnapshot) continue;
                                   try {
@@ -2475,6 +2486,15 @@ export default function AutorizacionesOC() {
                                       idPasoAnterior?: number | null;
                                     };
                                     if (snap.idPasoAnterior !== paso.idPaso) continue;
+
+                                    if (
+                                      !salida ||
+                                      new Date(ev.fechaEvento).getTime() >
+                                        new Date(salida).getTime()
+                                    ) {
+                                      salida = ev.fechaEvento;
+                                    }
+
                                     const nombre = (ev.nombreAccion || '').trim().toLowerCase();
                                     // AUTORIZAR/APROBAR y también ENVIAR ("Envio a
                                     // aprobación"): el envío de un paso también
@@ -2486,17 +2506,22 @@ export default function AutorizacionesOC() {
                                     ) {
                                       continue;
                                     }
+
                                     if (
-                                      !fecha ||
-                                      new Date(ev.fechaEvento).getTime() > new Date(fecha).getTime()
+                                      !autorizacion ||
+                                      new Date(ev.fechaEvento).getTime() >
+                                        new Date(autorizacion).getTime()
                                     ) {
-                                      fecha = ev.fechaEvento;
+                                      autorizacion = ev.fechaEvento;
                                     }
                                   } catch {
                                     // snapshot inválido: se ignora
                                   }
                                 }
-                                return fecha;
+                                return {
+                                  fechaAutorizacionPaso: autorizacion,
+                                  fechaSalidaPaso: salida,
+                                };
                               })();
 
                               // Visual del dot
@@ -2619,11 +2644,21 @@ export default function AutorizacionesOC() {
                                           <div className="mb-2 grid grid-cols-1 gap-2 rounded-md border bg-background/80 px-3 py-2 sm:grid-cols-3">
                                             <div>
                                               <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                                                Fecha de creación
+                                                {mostrarTiempoAtencion
+                                                  ? 'Tiempo de atención'
+                                                  : 'Fecha de creación'}
                                               </p>
-                                              <p className="text-[11px] font-medium">
-                                                {fmtFechaHora(selectedOrden?.fechaCreacion)}
-                                              </p>
+                                              {mostrarTiempoAtencion ? (
+                                                <TiempoAtencion
+                                                  desde={fechaEnPoderDesdePaso}
+                                                  hasta={isActual ? null : fechaSalidaPaso}
+                                                  enCurso={isActual}
+                                                />
+                                              ) : (
+                                                <p className="text-[11px] font-medium">
+                                                  {fmtFechaHora(selectedOrden?.fechaCreacion)}
+                                                </p>
+                                              )}
                                             </div>
                                             <div>
                                               <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
