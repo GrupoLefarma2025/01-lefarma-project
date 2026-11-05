@@ -1,6 +1,6 @@
 /* ============================================================
    047 — Sucursales: latitud/longitud nunca NULL
-   BD destino: Lefarma / LefarmaDev
+   BD destino: Lefarma / LefarmaDev / LefarmaDev2
 
    POR QUE EXISTE
    --------------
@@ -28,8 +28,11 @@
    ----
    En productivo los NULL se corrigieron el 2026-11-02 (change
    20261102-113341-ff303d) y los defaults se agregaron como
-   20261102-113531-f82f56. Este script deja el mismo resultado en
-   cualquier base donde todavia falte.
+   20261102-113531-f82f56. En LefarmaDev2 se corrigieron el
+   2026-11-05 (changes 20261105-130208-e6e882 para el UPDATE y
+   20261105-130509-c9b3f4 / 20261105-130515-2fbb81 para los
+   defaults). Este script deja el mismo resultado en cualquier
+   base donde todavia falte.
    ============================================================ */
 SET NOCOUNT ON;
 SET XACT_ABORT ON;
