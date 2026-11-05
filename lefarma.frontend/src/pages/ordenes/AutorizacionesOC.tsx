@@ -2435,9 +2435,13 @@ export default function AutorizacionesOC() {
                                     };
                                     if (snap.idPasoAnterior !== paso.idPaso) continue;
                                     const nombre = (ev.nombreAccion || '').trim().toLowerCase();
+                                    // AUTORIZAR/APROBAR y también ENVIAR ("Envio a
+                                    // aprobación"): el envío de un paso también
+                                    // constituye la autorización de ese paso.
                                     if (
                                       !nombre.startsWith('autoriz') &&
-                                      !nombre.startsWith('aprob')
+                                      !nombre.startsWith('aprob') &&
+                                      !nombre.startsWith('envio')
                                     ) {
                                       continue;
                                     }
