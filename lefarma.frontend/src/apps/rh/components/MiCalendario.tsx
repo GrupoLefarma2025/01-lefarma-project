@@ -480,7 +480,7 @@ export function IncidenciaModal({
           </div>
         </div>
 
-        {!incidencia.justificada && !incidencia.enTramite && (
+        {((!incidencia.justificada && !incidencia.enTramite) || incidencias.length > 1) && (
           <div className="flex justify-end gap-2 pt-2">
             <Button size="sm" onClick={onAddSolicitud}>
               <Plus className="mr-1.5 h-4 w-4" />
