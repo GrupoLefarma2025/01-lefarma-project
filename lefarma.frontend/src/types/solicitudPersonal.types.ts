@@ -434,6 +434,7 @@ export interface NotificarIncidenciasResumenResponse {
 
 export interface SolicitudPersonalFilterParams {
   verTodas?: boolean;
+  soloPendientes?: boolean;
   idEmpresa?: number;
   idSucursal?: number;
   idArea?: number;

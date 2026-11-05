@@ -140,7 +140,14 @@ export default function SolicitudesPersonal() {
     try {
       const res = await API.get<ApiResponse<PagedResult<SolicitudPersonalResponse>>>(
         '/solicitudes-personal',
-        { params: { verTodas: false, pageSize: 100, ...buildApiFilters(filters) } }
+        {
+          params: {
+            verTodas: false,
+            pageSize: 100,
+            soloPendientes: targetTab === 'pendientes',
+            ...buildApiFilters(filters),
+          },
+        }
       );
       if (res.data?.success) {
         setData(res.data.data?.items ?? []);

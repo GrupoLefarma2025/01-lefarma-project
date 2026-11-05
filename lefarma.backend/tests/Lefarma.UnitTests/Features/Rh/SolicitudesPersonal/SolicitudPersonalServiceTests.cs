@@ -99,6 +99,37 @@ public class SolicitudPersonalServiceTests
             Mock.Of<IWideEventAccessor>());
     }
 
+    /// <summary>
+    /// La lista incluye navegaciones requeridas (empresa, sucursal, tipo). El proveedor
+    /// InMemory replica el INNER JOIN del Include, así que sin las filas principales la
+    /// materialización devuelve cero aunque el conteo dé uno.
+    /// </summary>
+    private static void SeedCatalogosDeSolicitud(ApplicationDbContext context)
+    {
+        context.Empresas.Add(new Empresa
+        {
+            IdEmpresa = 1,
+            Nombre = "EMPRESA TEST",
+            NombreNormalizado = "empresa test",
+        });
+        context.Sucursales.Add(new Sucursal
+        {
+            IdSucursal = 1,
+            IdEmpresa = 1,
+            Nombre = "SUCURSAL TEST",
+            NombreNormalizado = "sucursal test",
+        });
+        context.TiposSolicitud.Add(new TipoSolicitud
+        {
+            IdTipoSolicitud = 1,
+            Nombre = "Permiso",
+            Descripcion = "Permiso",
+            Clave = "PERMISO",
+            Categoria = CategoriaSolicitud.Permiso,
+            Activo = true,
+        });
+    }
+
     private static (Mock<IWorkflowResolver> Resolver, Mock<ISolicitudPersonalFirmasService> Firmas, WorkflowAccion AccionEnviar)
         PrepararWorkflowConEnviar(int idAccion)
     {
@@ -1073,6 +1104,7 @@ public class SolicitudPersonalServiceTests
     public async Task GetAllAsync_SoloConteo_CuentaTerminadas_SinTraerItems()
     {
         var context = CreateInMemoryContext();
+        SeedCatalogosDeSolicitud(context);
         context.WorkflowEstados.AddRange(
             new WorkflowEstados { IdEstado = 2, Codigo = "APROBACION", Nombre = "Aprobación", Activo = true },
             new WorkflowEstados { IdEstado = 3, Codigo = "CERRADA", Nombre = "Cerrada", Activo = true });
@@ -1122,5 +1154,213 @@ public class SolicitudPersonalServiceTests
         result.IsError.Should().BeFalse();
         result.Value.TotalCount.Should().Be(1);
         result.Value.Items.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task GetAllAsync_SoloPendientes_Incluye_Propias_Del_Mes_Anterior_Fuera_Del_Periodo()
+    {
+        var context = CreateInMemoryContext();
+        SeedCatalogosDeSolicitud(context);
+        context.WorkflowEstados.AddRange(
+            new WorkflowEstados { IdEstado = 2, Codigo = "APROBACION", Nombre = "Aprobación", Activo = true });
+        context.SolicitudesPersonal.Add(new SolicitudPersonal
+        {
+            IdSolicitud = 1,
+            Folio = "SOL-MIA-MES-ANTERIOR",
+            IdEmpresa = 1,
+            IdSucursal = 1,
+            IdUsuarioCreador = 1,
+            IdEstado = 2,
+            IdWorkflow = 1,
+            IdTipoSolicitud = 1,
+            FechaCreacion = DateTime.Today.AddMonths(-1),
+        });
+        context.SaveChanges();
+
+        var repository = new Mock<ISolicitudPersonalRepository>();
+        repository.Setup(r => r.GetQueryable()).Returns(context.SolicitudesPersonal);
+        var service = CreateService(context, repository: repository.Object);
+
+        var result = await service.GetAllAsync(
+            new SolicitudPersonalRequest
+            {
+                SoloPendientes = true,
+                Periodo = "esta-quincena",
+                PageSize = 100,
+            },
+            idUsuario: 1,
+            rolesUsuario: [],
+            puedeVerTodas: false);
+
+        result.IsError.Should().BeFalse();
+        result.Value.Items.Should().ContainSingle(i => i.Folio == "SOL-MIA-MES-ANTERIOR");
+    }
+
+    [Fact]
+    public async Task GetAllAsync_SoloPendientes_Excluye_Propias_De_Hace_Dos_Meses()
+    {
+        var context = CreateInMemoryContext();
+        SeedCatalogosDeSolicitud(context);
+        context.WorkflowEstados.AddRange(
+            new WorkflowEstados { IdEstado = 2, Codigo = "APROBACION", Nombre = "Aprobación", Activo = true });
+        context.SolicitudesPersonal.Add(new SolicitudPersonal
+        {
+            IdSolicitud = 1,
+            Folio = "SOL-MIA-VIEJA",
+            IdEmpresa = 1,
+            IdSucursal = 1,
+            IdUsuarioCreador = 1,
+            IdEstado = 2,
+            IdWorkflow = 1,
+            IdTipoSolicitud = 1,
+            FechaCreacion = DateTime.Today.AddMonths(-2),
+        });
+        context.SaveChanges();
+
+        var repository = new Mock<ISolicitudPersonalRepository>();
+        repository.Setup(r => r.GetQueryable()).Returns(context.SolicitudesPersonal);
+        var service = CreateService(context, repository: repository.Object);
+
+        var result = await service.GetAllAsync(
+            new SolicitudPersonalRequest
+            {
+                SoloPendientes = true,
+                Periodo = "esta-quincena",
+                PageSize = 100,
+            },
+            idUsuario: 1,
+            rolesUsuario: [],
+            puedeVerTodas: false);
+
+        result.IsError.Should().BeFalse();
+        result.Value.Items.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task GetAllAsync_SoloPendientes_Incluye_Por_Firmar_Sin_Limite_De_Fecha()
+    {
+        var context = CreateInMemoryContext();
+        SeedCatalogosDeSolicitud(context);
+        context.WorkflowEstados.AddRange(
+            new WorkflowEstados { IdEstado = 2, Codigo = "APROBACION", Nombre = "Aprobación", Activo = true });
+        context.WorkflowParticipantes.Add(new WorkflowParticipante
+        {
+            IdParticipante = 1,
+            IdPaso = 10,
+            IdUsuario = 1,
+            Activo = true,
+        });
+        context.SolicitudesPersonal.Add(new SolicitudPersonal
+        {
+            IdSolicitud = 1,
+            Folio = "SOL-POR-FIRMAR-VIEJA",
+            IdEmpresa = 1,
+            IdSucursal = 1,
+            IdUsuarioCreador = 99,
+            IdEstado = 2,
+            IdPasoActual = 10,
+            IdWorkflow = 1,
+            IdTipoSolicitud = 1,
+            FechaCreacion = DateTime.Today.AddMonths(-6),
+        });
+        context.SaveChanges();
+
+        var repository = new Mock<ISolicitudPersonalRepository>();
+        repository.Setup(r => r.GetQueryable()).Returns(context.SolicitudesPersonal);
+        var service = CreateService(context, repository: repository.Object);
+
+        var result = await service.GetAllAsync(
+            new SolicitudPersonalRequest
+            {
+                SoloPendientes = true,
+                Periodo = "esta-quincena",
+                PageSize = 100,
+            },
+            idUsuario: 1,
+            rolesUsuario: [],
+            puedeVerTodas: false);
+
+        result.IsError.Should().BeFalse();
+        result.Value.Items.Should().ContainSingle(i => i.Folio == "SOL-POR-FIRMAR-VIEJA");
+    }
+
+    [Fact]
+    public async Task GetAllAsync_SoloPendientes_Excluye_Cerradas_Canceladas_Y_Rechazadas()
+    {
+        var context = CreateInMemoryContext();
+        SeedCatalogosDeSolicitud(context);
+        context.WorkflowEstados.AddRange(
+            new WorkflowEstados { IdEstado = 7, Codigo = "CERRADA", Nombre = "Cerrada", Activo = true },
+            new WorkflowEstados { IdEstado = 8, Codigo = "RECHAZADA", Nombre = "Rechazada", Activo = true },
+            new WorkflowEstados { IdEstado = 9, Codigo = "CANCELADA", Nombre = "Cancelada", Activo = true },
+            new WorkflowEstados { IdEstado = 2, Codigo = "APROBACION", Nombre = "Aprobación", Activo = true });
+        context.SolicitudesPersonal.AddRange(
+            new SolicitudPersonal
+            {
+                IdSolicitud = 1,
+                Folio = "SOL-CERRADA",
+                IdEmpresa = 1,
+                IdSucursal = 1,
+                IdUsuarioCreador = 1,
+                IdEstado = 7,
+                IdWorkflow = 1,
+                IdTipoSolicitud = 1,
+                FechaCreacion = DateTime.Today,
+            },
+            new SolicitudPersonal
+            {
+                IdSolicitud = 2,
+                Folio = "SOL-RECHAZADA",
+                IdEmpresa = 1,
+                IdSucursal = 1,
+                IdUsuarioCreador = 1,
+                IdEstado = 8,
+                IdWorkflow = 1,
+                IdTipoSolicitud = 1,
+                FechaCreacion = DateTime.Today,
+            },
+            new SolicitudPersonal
+            {
+                IdSolicitud = 3,
+                Folio = "SOL-CANCELADA",
+                IdEmpresa = 1,
+                IdSucursal = 1,
+                IdUsuarioCreador = 1,
+                IdEstado = 9,
+                IdWorkflow = 1,
+                IdTipoSolicitud = 1,
+                FechaCreacion = DateTime.Today,
+            },
+            new SolicitudPersonal
+            {
+                IdSolicitud = 4,
+                Folio = "SOL-PENDIENTE",
+                IdEmpresa = 1,
+                IdSucursal = 1,
+                IdUsuarioCreador = 1,
+                IdEstado = 2,
+                IdWorkflow = 1,
+                IdTipoSolicitud = 1,
+                FechaCreacion = DateTime.Today,
+            });
+        context.SaveChanges();
+
+        var repository = new Mock<ISolicitudPersonalRepository>();
+        repository.Setup(r => r.GetQueryable()).Returns(context.SolicitudesPersonal);
+        var service = CreateService(context, repository: repository.Object);
+
+        var result = await service.GetAllAsync(
+            new SolicitudPersonalRequest
+            {
+                SoloPendientes = true,
+                Periodo = "esta-quincena",
+                PageSize = 100,
+            },
+            idUsuario: 1,
+            rolesUsuario: [],
+            puedeVerTodas: false);
+
+        result.IsError.Should().BeFalse();
+        result.Value.Items.Should().ContainSingle(i => i.Folio == "SOL-PENDIENTE");
     }
 }

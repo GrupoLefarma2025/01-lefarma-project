@@ -77,6 +77,11 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal.DTOs
         public int Page { get; set; } = 1;
         public int PageSize { get; set; } = 20;
         public bool SoloConteo { get; set; }
+        /// <summary>
+        /// Lista de la pestaña "En trámite": solo solicitudes no terminales, incluyendo
+        /// las propias de este mes y el anterior y todas las que el usuario debe firmar.
+        /// </summary>
+        public bool SoloPendientes { get; set; }
 
         // Filtros adicionales estilo incidencias de checado
         public string? Periodo { get; set; }

@@ -206,26 +206,38 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                     q = q.Where(x => x.Folio != null && x.Folio.Contains(term));
                 }
 
-                // Filtros de periodo / fechas de creación (estilo incidencias de checado)
+                // Filtros de periodo / fechas de creación (estilo incidencias de checado).
+                // La fecha efectiva es la última edición si existe; si no, la creación.
+                DateTime? periodoDesde = null;
+                DateTime? periodoHasta = null;
                 if (!string.IsNullOrWhiteSpace(request.Periodo) &&
                     !string.Equals(request.Periodo, "personalizado", StringComparison.OrdinalIgnoreCase))
                 {
                     var (inicio, fin) = CalcularRangoPeriodo(request.Periodo);
-                    var desde = inicio.Date;
-                    var hasta = fin.Date;
-                    q = q.Where(x => x.FechaCreacion.Date >= desde && x.FechaCreacion.Date <= hasta);
+                    periodoDesde = inicio.Date;
+                    periodoHasta = fin.Date;
                 }
                 else if (request.FechaInicio.HasValue || request.FechaFin.HasValue)
                 {
-                    if (request.FechaInicio.HasValue)
+                    periodoDesde = request.FechaInicio?.Date;
+                    periodoHasta = request.FechaFin?.Date;
+                }
+
+                // La pestaña "En trámite" arma su propia ventana más abajo: no terminales,
+                // las propias de este mes y el anterior, y todo lo que el usuario debe firmar.
+                var esListaPendientes = request.SoloPendientes && !(puedeVerTodas && request.VerTodas);
+
+                if (!esListaPendientes)
+                {
+                    if (periodoDesde.HasValue)
                     {
-                        var desde = request.FechaInicio.Value.Date;
-                        q = q.Where(x => x.FechaCreacion.Date >= desde);
+                        var desde = periodoDesde.Value;
+                        q = q.Where(x => (x.FechaModificacion ?? x.FechaCreacion).Date >= desde);
                     }
-                    if (request.FechaFin.HasValue)
+                    if (periodoHasta.HasValue)
                     {
-                        var hasta = request.FechaFin.Value.Date;
-                        q = q.Where(x => x.FechaCreacion.Date <= hasta);
+                        var hasta = periodoHasta.Value;
+                        q = q.Where(x => (x.FechaModificacion ?? x.FechaCreacion).Date <= hasta);
                     }
                 }
 
@@ -354,6 +366,42 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                             x.IdEstado != 1 // creada
                         )
                     );
+
+                    if (esListaPendientes)
+                    {
+                        // Bandeja de trabajo: nunca esconder pendientes.
+                        var inicioMesAnterior = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1).AddMonths(-1);
+                        var desdeRango = periodoDesde ?? new DateTime(1900, 1, 1);
+                        var hastaRango = periodoHasta ?? new DateTime(9999, 12, 31);
+                        var estadosTerminales = new[] { "CERRADA", "CANCELADA", "RECHAZADA" };
+
+                        q = q.Where(x =>
+                            x.Estado != null && x.Estado.Codigo != null &&
+                            !estadosTerminales.Contains(x.Estado.Codigo!.ToUpper()) &&
+                            (
+                                // Lo que ya pedía el periodo elegido (si el usuario lo cambia
+                                // a propósito, puede ver pendientes más viejos).
+                                ((x.FechaModificacion ?? x.FechaCreacion).Date >= desdeRango &&
+                                 (x.FechaModificacion ?? x.FechaCreacion).Date <= hastaRango) ||
+                                // Mis pendientes de este mes y el anterior.
+                                (
+                                    (x.IdUsuarioCreador == idUsuario ||
+                                     (x.IdUsuarioSolicitante ?? x.IdUsuarioCreador) == idUsuario) &&
+                                    (x.FechaModificacion ?? x.FechaCreacion).Date >= inicioMesAnterior
+                                ) ||
+                                // Todo lo que yo tengo que firmar, sin límite de fecha.
+                                (
+                                    x.IdPasoActual != null &&
+                                    pasosConJefeInmediatoIds.Contains(x.IdPasoActual.Value) &&
+                                    usuariosDelJefe.Contains(x.IdUsuarioSolicitante ?? x.IdUsuarioCreador)
+                                ) ||
+                                (
+                                    pasosParticipante.Contains(x.IdPasoActual ?? 0) &&
+                                    x.IdEstado != 1
+                                )
+                            )
+                        );
+                    }
                 }
 
                 var page = Math.Max(1, request.Page);
