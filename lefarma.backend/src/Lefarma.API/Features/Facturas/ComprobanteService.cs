@@ -18,7 +18,9 @@ namespace Lefarma.API.Features.Facturas;
 
 public class ComprobanteService : IComprobanteService
 {
-    private const decimal Tolerancia = 0.01m;
+    // Tolerancia monetaria por partida (5 centavos): absorbe diferencias de
+    // redondeo entre OC, CFDI y pago sin bloquear la asignación.
+    private const decimal Tolerancia = 0.05m;
 
     private static readonly JsonSerializerOptions _jsonUtf8 = new()
     {
