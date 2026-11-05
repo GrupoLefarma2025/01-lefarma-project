@@ -1,5 +1,6 @@
 import React from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { cn } from '@/lib/utils';
 
 type ModalSize = 'sm' | 'md' | 'lg' | 'xl' | 'wide' | 'w75' | 'full';
 
@@ -16,6 +17,8 @@ interface ModalProps {
     closeOnOutsideClick?: boolean;
     /** Si retorna false, el cierre (X, Esc, clic fuera) se cancela. */
     beforeClose?: () => boolean;
+    /** Reduce el espacio vertical del marco (encabezado, separadores y relleno). Útil con zoom alto o pantallas bajas. */
+    compact?: boolean;
 }
 
 export const Modal: React.FC<ModalProps> = ({
@@ -29,6 +32,7 @@ export const Modal: React.FC<ModalProps> = ({
     canClose = true,
     closeOnOutsideClick = false,
     beforeClose,
+    compact = false,
 }) => {
     // Estilos basados en el tamaño estándar
     const getSizeStyles = () => {
@@ -63,12 +67,16 @@ export const Modal: React.FC<ModalProps> = ({
             }}
         >
             <DialogContent showCloseButton={canClose}
-                className={`bg-card text-card-foreground border border-border shadow-lg rounded-lg ${sizeStyles}`}
+                className={cn(
+                    'bg-card text-card-foreground border border-border shadow-lg rounded-lg',
+                    sizeStyles,
+                    compact && 'gap-2 p-4'
+                )}
                 onInteractOutside={(e) => { if (!closeOnOutsideClick) e.preventDefault(); }}
             >
                 <DialogHeader className="shrink-0">
                     {title && (
-                        <DialogTitle className="text-lg font-bold">
+                        <DialogTitle className={cn('font-bold', compact ? 'text-base' : 'text-lg')}>
                             {title}
                         </DialogTitle>
                     )}
@@ -77,7 +85,7 @@ export const Modal: React.FC<ModalProps> = ({
                     </DialogDescription>
                 </DialogHeader>
                 <hr className="border-border shrink-0" />
-                <div className="min-h-0 flex-1 overflow-y-auto -mx-6 px-6 py-4">{children}</div>
+                <div className={cn('min-h-0 flex-1 overflow-y-auto', compact ? '-mx-4 px-4 py-2' : '-mx-6 px-6 py-4')}>{children}</div>
                 <hr className="border-border shrink-0" />
                 <DialogFooter className="shrink-0">
                     {footer ? (

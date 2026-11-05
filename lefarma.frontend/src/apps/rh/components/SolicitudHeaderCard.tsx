@@ -8,10 +8,54 @@ interface SolicitudHeaderCardProps {
       | null
       | undefined
   ) => { nombre: string; color: string };
+  /** Versión de una sola línea, para modales densos (p. ej. historial con zoom alto). */
+  compact?: boolean;
 }
 
-export function SolicitudHeaderCard({ solicitud, getEstadoInfo }: SolicitudHeaderCardProps) {
+function EstadoBadge({ nombre, color }: { nombre: string; color: string }) {
+  return (
+    <span
+      className="inline-flex w-fit shrink-0 items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold"
+      style={{
+        borderColor: color,
+        color,
+        backgroundColor: color + '15',
+      }}
+    >
+      {nombre}
+    </span>
+  );
+}
+
+export function SolicitudHeaderCard({
+  solicitud,
+  getEstadoInfo,
+  compact = false,
+}: SolicitudHeaderCardProps) {
   const info = getEstadoInfo(solicitud);
+
+  if (compact) {
+    return (
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border bg-muted/20 px-3 py-1.5">
+        <span className="text-sm font-semibold">{solicitud.folio}</span>
+        {solicitud.pasoActual && (
+          <span className="text-xs text-muted-foreground">
+            Paso actual:{' '}
+            <span className="font-medium text-foreground">{solicitud.pasoActual}</span>
+          </span>
+        )}
+        <span className="text-xs text-muted-foreground">
+          {solicitud.tipoSolicitudNombre || '—'}
+          {solicitud.solicitanteNombre && (
+            <span className="ml-2">· Solicitante: {solicitud.solicitanteNombre}</span>
+          )}
+        </span>
+        <span className="ml-auto">
+          <EstadoBadge nombre={info.nombre} color={info.color} />
+        </span>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-muted/20 rounded-lg border p-3">
@@ -33,16 +77,7 @@ export function SolicitudHeaderCard({ solicitud, getEstadoInfo }: SolicitudHeade
             )}
           </p>
         </div>
-        <span
-          className="inline-flex w-fit shrink-0 items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold"
-          style={{
-            borderColor: info.color,
-            color: info.color,
-            backgroundColor: info.color + '15',
-          }}
-        >
-          {info.nombre}
-        </span>
+        <EstadoBadge nombre={info.nombre} color={info.color} />
       </div>
     </div>
   );
