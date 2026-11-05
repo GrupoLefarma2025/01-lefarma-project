@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   AlertTriangle,
+  Braces,
   Code2,
   Copy,
   Database,
@@ -17,7 +18,6 @@ import {
   Settings2,
   SlidersHorizontal,
   SquareTerminal,
-  Terminal,
   X,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -84,6 +84,8 @@ import {
   etiquetaTipo,
   formatearFecha,
   mensajeError,
+  namespaceDeClave,
+  namespacesDeVariables,
   nuevoIdOperacion,
   resumirValor,
   tienePermiso,
@@ -94,8 +96,12 @@ import { HistoryDialog } from '../components/HistoryDialog';
 import { IntegracionesPanel } from '../components/IntegracionesPanel';
 import {
   copiarAlPortapapeles,
+  etiquetaLenguajeApi,
   generarSnippet,
+  lenguajeApiPredeterminado,
+  opcionesLenguajeApi,
   opcionesSnippet,
+  type LenguajeApi,
   type SnippetCodigo,
 } from '../snippets';
 
@@ -106,7 +112,7 @@ const ICONO_SNIPPET: Record<SnippetCodigo, typeof Code2> = {
   console: SquareTerminal,
   backend: Server,
   sql: Database,
-  curl: Terminal,
+  api: Braces,
 };
 
 const NOMBRE_SNIPPET: Record<SnippetCodigo, string> = {
@@ -114,13 +120,14 @@ const NOMBRE_SNIPPET: Record<SnippetCodigo, string> = {
   console: 'consola',
   backend: 'backend',
   sql: 'SQL',
-  curl: 'cURL',
+  api: 'API externa',
 };
 
 interface SnippetVisible {
   variable: VariableConfiguracion;
   tipo: SnippetCodigo;
   codigo: string;
+  lenguaje?: LenguajeApi;
 }
 
 export function ConfiguracionVariablesPage() {
@@ -135,6 +142,7 @@ export function ConfiguracionVariablesPage() {
 
   const [buscar, setBuscar] = useState('');
   const [buscarDebounced, setBuscarDebounced] = useState('');
+  const [namespaceFiltro, setNamespaceFiltro] = useState('todos');
   const [tipo, setTipo] = useState('todos');
   const [destino, setDestino] = useState('todos');
   const [activo, setActivo] = useState<FiltroActivo>('todos');
@@ -190,10 +198,25 @@ export function ConfiguracionVariablesPage() {
   }, []);
 
   const hayFiltros =
-    buscar.trim() !== '' || tipo !== 'todos' || destino !== 'todos' || activo !== 'todos';
+    buscar.trim() !== '' ||
+    namespaceFiltro !== 'todos' ||
+    tipo !== 'todos' ||
+    destino !== 'todos' ||
+    activo !== 'todos';
+
+  const namespaces = namespacesDeVariables(variables);
+  if (namespaceFiltro !== 'todos' && !namespaces.includes(namespaceFiltro)) {
+    namespaces.push(namespaceFiltro);
+  }
+
+  const variablesVisibles =
+    namespaceFiltro === 'todos'
+      ? variables
+      : variables.filter((variable) => namespaceDeClave(variable.clave) === namespaceFiltro);
 
   const limpiarFiltros = () => {
     setBuscar('');
+    setNamespaceFiltro('todos');
     setTipo('todos');
     setDestino('todos');
     setActivo('todos');
@@ -214,6 +237,17 @@ export function ConfiguracionVariablesPage() {
     setHistorialVariable(variable);
   };
 
+  const cambiarLenguajeSnippet = (lenguaje: LenguajeApi) => {
+    setSnippetVisible((actual) => {
+      if (!actual || actual.tipo !== 'api') return actual;
+      return {
+        ...actual,
+        lenguaje,
+        codigo: generarSnippet(actual.variable, 'api', lenguaje),
+      };
+    });
+  };
+
   const copiarSnippetVisible = async () => {
     if (!snippetVisible) return;
     const copiado = await copiarAlPortapapeles(snippetVisible.codigo);
@@ -227,8 +261,9 @@ export function ConfiguracionVariablesPage() {
   };
 
   const copiarCodigo = async (variable: VariableConfiguracion, tipo: SnippetCodigo) => {
-    const codigo = generarSnippet(variable, tipo);
-    setSnippetVisible({ variable, tipo, codigo });
+    const lenguaje = tipo === 'api' ? lenguajeApiPredeterminado(variable) : undefined;
+    const codigo = generarSnippet(variable, tipo, lenguaje);
+    setSnippetVisible({ variable, tipo, codigo, lenguaje });
     const copiado = await copiarAlPortapapeles(codigo);
 
     if (copiado) {
@@ -388,11 +423,25 @@ export function ConfiguracionVariablesPage() {
             <Input
               value={buscar}
               onChange={(e) => setBuscar(e.target.value)}
-              placeholder="Buscar por nombre o clave…"
+              placeholder="Buscar por namespace, nombre o clave…"
               className="pl-9"
               aria-label="Buscar variables"
             />
           </div>
+
+          <Select value={namespaceFiltro} onValueChange={setNamespaceFiltro}>
+            <SelectTrigger className="w-[170px]" aria-label="Filtrar por namespace">
+              <SelectValue placeholder="Namespace" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todos">Todos los namespaces</SelectItem>
+              {namespaces.map((namespace) => (
+                <SelectItem key={namespace} value={namespace}>
+                  {namespace}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
           <Select value={tipo} onValueChange={setTipo}>
             <SelectTrigger className="w-[160px]" aria-label="Filtrar por tipo">
@@ -470,7 +519,7 @@ export function ConfiguracionVariablesPage() {
               Reintentar
             </Button>
           </div>
-        ) : variables.length === 0 ? (
+        ) : variablesVisibles.length === 0 ? (
           <EmptyState
             icon={<Settings2 className="h-10 w-10" />}
             title={hayFiltros ? 'Sin resultados' : 'Aún no hay variables'}
@@ -484,10 +533,11 @@ export function ConfiguracionVariablesPage() {
           />
         ) : (
           <div className="overflow-x-auto">
-            <Table className="min-w-[900px]">
+            <Table className="min-w-[1020px]">
               <TableHeader>
                 <TableRow>
                   <TableHead className="min-w-[240px]">Variable</TableHead>
+                  <TableHead>Namespace</TableHead>
                   <TableHead>Tipo</TableHead>
                   <TableHead className="min-w-[180px]">Valor</TableHead>
                   <TableHead>Destinos</TableHead>
@@ -498,7 +548,7 @@ export function ConfiguracionVariablesPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {variables.map((variable) => {
+                {variablesVisibles.map((variable) => {
                   const destinosActivos = DESTINOS.filter(
                     (opcion) => variable[opcion.campo],
                   );
@@ -517,6 +567,14 @@ export function ConfiguracionVariablesPage() {
                             </span>
                           )}
                         </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          variant="outline"
+                          className="whitespace-nowrap font-mono text-[10px]"
+                        >
+                          {namespaceDeClave(variable.clave)}
+                        </Badge>
                       </TableCell>
                       <TableCell>
                         <Badge variant="outline" className="whitespace-nowrap text-[11px]">
@@ -694,8 +752,8 @@ export function ConfiguracionVariablesPage() {
       </div>
 
       <p className="text-[11px] text-muted-foreground">
-        {variables.length} variable{variables.length === 1 ? '' : 's'} mostrada
-        {variables.length === 1 ? '' : 's'}
+        {variablesVisibles.length} variable{variablesVisibles.length === 1 ? '' : 's'} mostrada
+        {variablesVisibles.length === 1 ? '' : 's'}
         {cargando ? ' · actualizando…' : ''}
       </p>
     </div>
@@ -811,7 +869,11 @@ export function ConfiguracionVariablesPage() {
         title="Código de uso"
         subtitle={
           snippetVisible
-            ? `${NOMBRE_SNIPPET[snippetVisible.tipo]} · ${snippetVisible.variable.clave}`
+            ? `${NOMBRE_SNIPPET[snippetVisible.tipo]}${
+                snippetVisible.lenguaje
+                  ? ` · ${etiquetaLenguajeApi(snippetVisible.lenguaje)}`
+                  : ''
+              } · ${snippetVisible.variable.clave}`
             : undefined
         }
         size="wide"
@@ -833,7 +895,43 @@ export function ConfiguracionVariablesPage() {
         }
       >
         {snippetVisible && (
-          <div className="space-y-2">
+          <div className="space-y-3">
+            {snippetVisible.tipo === 'api' && (
+              <div className="flex flex-wrap items-end gap-2">
+                <div className="space-y-1">
+                  <label
+                    htmlFor="snippet-lenguaje"
+                    className="text-xs font-medium text-foreground"
+                  >
+                    Lenguaje
+                  </label>
+                  <Select
+                    value={snippetVisible.lenguaje ?? 'curl'}
+                    onValueChange={(valor) => cambiarLenguajeSnippet(valor as LenguajeApi)}
+                  >
+                    <SelectTrigger
+                      id="snippet-lenguaje"
+                      className="w-[280px]"
+                      aria-label="Lenguaje del ejemplo de consumo"
+                    >
+                      <SelectValue placeholder="Selecciona un lenguaje" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {opcionesLenguajeApi(snippetVisible.variable)
+                        .filter((opcion) => opcion.disponible)
+                        .map((opcion) => (
+                          <SelectItem key={opcion.valor} value={opcion.valor}>
+                            {opcion.etiqueta}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <p className="pb-2 text-[11px] text-muted-foreground">
+                  T-SQL usa la función local; los demás lenguajes consumen la API con API Key.
+                </p>
+              </div>
+            )}
             <Textarea
               readOnly
               autoFocus

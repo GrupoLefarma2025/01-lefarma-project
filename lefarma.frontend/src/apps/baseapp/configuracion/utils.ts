@@ -58,6 +58,24 @@ export function construirClave(namespace: string, nombre: string): string {
   return ns && clave ? `${ns}.${clave}` : '';
 }
 
+/**
+ * Namespace de una clave: la parte anterior al primer punto.
+ * `pruebas.entero` → `pruebas`. Si no hay punto, devuelve la clave completa.
+ */
+export function namespaceDeClave(clave: string): string {
+  const punto = clave.indexOf('.');
+  return punto > 0 ? clave.slice(0, punto) : clave;
+}
+
+/** Namespaces únicos de un listado de variables, ordenados alfabéticamente. */
+export function namespacesDeVariables(
+  variables: ReadonlyArray<{ clave: string }>,
+): string[] {
+  return Array.from(new Set(variables.map((variable) => namespaceDeClave(variable.clave)))).sort(
+    (a, b) => a.localeCompare(b, 'es'),
+  );
+}
+
 export function validarClave(clave: string): string | null {
   if (!clave.trim()) return 'La clave es obligatoria.';
   if (clave.trim().length > 200) return 'La clave no puede exceder 200 caracteres.';

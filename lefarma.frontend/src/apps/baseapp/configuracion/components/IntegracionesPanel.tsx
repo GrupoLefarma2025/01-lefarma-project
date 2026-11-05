@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
   Copy,
@@ -16,6 +16,13 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { MultiSelect, type MultiSelectOption } from '@/components/ui/multi-select';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import {
   Table,
   TableBody,
@@ -52,6 +59,7 @@ import {
   formatearFecha,
   mensajeError,
   mensajeErrorCompleto,
+  namespaceDeClave,
 } from '../utils';
 
 interface IntegracionesPanelProps {
@@ -85,6 +93,7 @@ export function IntegracionesPanel({ puedeGestionar }: IntegracionesPanelProps) 
   const [crearAbierto, setCrearAbierto] = useState(false);
   const [nombre, setNombre] = useState('');
   const [expiracion, setExpiracion] = useState('');
+  const [namespaceSeleccionado, setNamespaceSeleccionado] = useState('');
   const [clavesSeleccionadas, setClavesSeleccionadas] = useState<string[]>([]);
   const [opcionesClaves, setOpcionesClaves] = useState<MultiSelectOption[]>([]);
   const [cargandoClaves, setCargandoClaves] = useState(true);
@@ -159,9 +168,28 @@ export function IntegracionesPanel({ puedeGestionar }: IntegracionesPanelProps) 
     };
   }, []);
 
+  const namespaces = useMemo(
+    () =>
+      Array.from(new Set(opcionesClaves.map((opcion) => namespaceDeClave(opcion.value)))).sort(
+        (a, b) => a.localeCompare(b, 'es'),
+      ),
+    [opcionesClaves],
+  );
+
+  const opcionesClavesVisibles = useMemo(
+    () =>
+      namespaceSeleccionado
+        ? opcionesClaves.filter(
+            (opcion) => namespaceDeClave(opcion.value) === namespaceSeleccionado,
+          )
+        : [],
+    [namespaceSeleccionado, opcionesClaves],
+  );
+
   const limpiarFormulario = () => {
     setNombre('');
     setExpiracion('');
+    setNamespaceSeleccionado('');
     setClavesSeleccionadas([]);
     setErrorCrear(null);
   };
@@ -525,18 +553,55 @@ export function IntegracionesPanel({ puedeGestionar }: IntegracionesPanelProps) 
           </div>
 
           <div className="space-y-1.5">
+            <Label htmlFor="integracion-namespace">Namespace</Label>
+            <Select
+              value={namespaceSeleccionado}
+              onValueChange={setNamespaceSeleccionado}
+              disabled={cargandoClaves || guardando || namespaces.length === 0}
+            >
+              <SelectTrigger
+                id="integracion-namespace"
+                aria-label="Filtrar claves permitidas por namespace"
+              >
+                <SelectValue
+                  placeholder={
+                    cargandoClaves
+                      ? 'Cargando namespaces…'
+                      : namespaces.length === 0
+                        ? 'No hay namespaces disponibles'
+                        : 'Selecciona un namespace'
+                  }
+                />
+              </SelectTrigger>
+              <SelectContent>
+                {namespaces.map((namespace) => (
+                  <SelectItem key={namespace} value={namespace}>
+                    {namespace}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-[11px] text-muted-foreground">
+              Paso 1: elige el namespace. Paso 2: selecciona una o varias claves de ese namespace.
+              Puedes combinar claves de distintos namespaces.
+            </p>
+          </div>
+
+          <div className="space-y-1.5">
             <Label htmlFor="integracion-claves">Claves permitidas (opcional)</Label>
             <MultiSelect
-              options={opcionesClaves}
+              options={opcionesClavesVisibles}
               value={clavesSeleccionadas}
               onChange={setClavesSeleccionadas}
-              disabled={cargandoClaves || guardando}
+              disabled={cargandoClaves || guardando || !namespaceSeleccionado}
               placeholder={
                 cargandoClaves
                   ? 'Cargando variables…'
                   : opcionesClaves.length === 0
                     ? 'No hay variables con destino Integraciones'
-                    : 'Selecciona las variables permitidas…'
+                    : !namespaceSeleccionado
+                      ? 'Selecciona primero un namespace'
+                      : 'Selecciona las claves permitidas…'
               }
               searchPlaceholder="Buscar por clave o nombre…"
               emptyText="No hay variables con ese criterio."
@@ -548,8 +613,8 @@ export function IntegracionesPanel({ puedeGestionar }: IntegracionesPanelProps) 
               </p>
             )}
             <p className="text-[11px] text-muted-foreground">
-              Puedes seleccionar varias variables. Si no seleccionas ninguna, la llave permitirá
-              todas las variables activas con destino Integraciones.
+              Si no seleccionas ninguna clave, la llave permitirá todas las variables activas con
+              destino Integraciones.
             </p>
           </div>
 

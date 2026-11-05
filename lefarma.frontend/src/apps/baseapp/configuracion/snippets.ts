@@ -5,7 +5,37 @@ import {
   normalizarTipoDato,
 } from './utils';
 
-export type SnippetCodigo = 'frontend' | 'console' | 'backend' | 'sql' | 'curl';
+export type SnippetCodigo = 'frontend' | 'console' | 'backend' | 'sql' | 'api';
+
+export type LenguajeApi =
+  | 'curl'
+  | 'powershell'
+  | 'python'
+  | 'csharp'
+  | 'javascript'
+  | 'typescript'
+  | 'vba'
+  | 'tsql';
+
+interface LenguajeApiDefinicion {
+  valor: LenguajeApi;
+  etiqueta: string;
+}
+
+const LENGUAJES_API: readonly LenguajeApiDefinicion[] = [
+  { valor: 'curl', etiqueta: 'cURL' },
+  { valor: 'powershell', etiqueta: 'PowerShell' },
+  { valor: 'python', etiqueta: 'Python' },
+  { valor: 'csharp', etiqueta: 'C#' },
+  { valor: 'javascript', etiqueta: 'JavaScript' },
+  { valor: 'typescript', etiqueta: 'TypeScript' },
+  { valor: 'vba', etiqueta: 'Visual Basic (macro VBA)' },
+  { valor: 'tsql', etiqueta: 'T-SQL (función SQL)' },
+];
+
+export interface OpcionLenguajeApi extends LenguajeApiDefinicion {
+  disponible: boolean;
+}
 
 function tipoFrontendBase(tipo: string): string {
   const canonico = normalizarTipoDato(tipo);
@@ -146,21 +176,168 @@ FROM OPENJSON(config.fn_obtener_variable(N'${variable.clave}'));`;
   return `SELECT config.fn_obtener_variable(N'${variable.clave}') AS valor;`;
 }
 
-function snippetCurl(variable: VariableConfiguracion): string {
+/** URL y encabezado compartidos por todos los ejemplos de API externa. */
+function datosApi(variable: VariableConfiguracion): { url: string; clave: string } {
   const origen =
     typeof window === 'undefined' ? 'https://tu-servidor' : window.location.origin;
+  const url = `${origen}/api/configuracion/integraciones/variables/${encodeURIComponent(
+    variable.clave,
+  )}`;
+
+  return { url, clave: variable.clave };
+}
+
+function snippetCurl(variable: VariableConfiguracion): string {
+  const { url } = datosApi(variable);
   return `curl --request GET \\
-  --url "${origen}/api/configuracion/integraciones/variables/${encodeURIComponent(variable.clave)}" \\
-  --header "X-API-Key: $LEFARMA_CONFIG_API_KEY"`;
+  --url "${url}" \\
+  --header "X-API-Key: TU_API_KEY"`;
+}
+
+function snippetPowerShell(variable: VariableConfiguracion): string {
+  const { url } = datosApi(variable);
+  return `$headers = @{ 'X-API-Key' = 'TU_API_KEY' }
+
+$respuesta = Invoke-RestMethod -Method Get -Uri '${url}' -Headers $headers
+$respuesta.valor`;
+}
+
+function snippetPython(variable: VariableConfiguracion): string {
+  const { url } = datosApi(variable);
+  return `import requests
+
+url = "${url}"
+headers = {"X-API-Key": "TU_API_KEY"}
+
+respuesta = requests.get(url, headers=headers, timeout=15)
+respuesta.raise_for_status()
+datos = respuesta.json()
+print(datos["valor"])`;
+}
+
+function snippetCSharp(variable: VariableConfiguracion): string {
+  const { url } = datosApi(variable);
+  return `using System.Net.Http;
+using System.Net.Http.Json;
+
+using var http = new HttpClient();
+http.DefaultRequestHeaders.Add("X-API-Key", "TU_API_KEY");
+
+var respuesta = await http.GetFromJsonAsync<RespuestaVariable>("${url}");
+Console.WriteLine(respuesta?.Valor);
+
+public sealed record RespuestaVariable(
+    string Clave,
+    string TipoDato,
+    object? Valor,
+    long Revision);`;
+}
+
+function snippetJavaScript(variable: VariableConfiguracion): string {
+  const { url } = datosApi(variable);
+  return `const respuesta = await fetch("${url}", {
+  headers: { "X-API-Key": "TU_API_KEY" },
+});
+
+if (!respuesta.ok) {
+  throw new Error("Error HTTP " + respuesta.status);
+}
+
+const datos = await respuesta.json();
+console.log(datos.valor);`;
+}
+
+function snippetTypeScript(variable: VariableConfiguracion): string {
+  const { url } = datosApi(variable);
+  return `interface RespuestaVariable {
+  clave: string;
+  tipoDato: string;
+  valor: ${tipoFrontend(variable)};
+  revision: number;
+}
+
+const respuesta = await fetch("${url}", {
+  headers: { "X-API-Key": "TU_API_KEY" },
+});
+
+if (!respuesta.ok) {
+  throw new Error("Error HTTP " + respuesta.status);
+}
+
+const datos = (await respuesta.json()) as RespuestaVariable;
+console.log(datos.valor);`;
+}
+
+function snippetVba(variable: VariableConfiguracion): string {
+  const { url } = datosApi(variable);
+  return `' Macro VBA (Excel/Word): herramienta síncrona con WinHTTP
+Dim http As Object
+Set http = CreateObject("WinHttp.WinHttpRequest.5.1")
+
+http.Open "GET", "${url}", False
+http.SetRequestHeader "X-API-Key", "TU_API_KEY"
+http.Send
+
+If http.Status <> 200 Then
+    MsgBox "Error HTTP " & http.Status & ": " & http.ResponseText
+    Exit Sub
+End If
+
+Dim respuesta As String
+respuesta = http.ResponseText
+' respuesta contiene { clave, tipoDato, valor, revision }`;
+}
+
+function snippetApi(variable: VariableConfiguracion, lenguaje: LenguajeApi): string {
+  switch (lenguaje) {
+    case 'curl':
+      return snippetCurl(variable);
+    case 'powershell':
+      return snippetPowerShell(variable);
+    case 'python':
+      return snippetPython(variable);
+    case 'csharp':
+      return snippetCSharp(variable);
+    case 'javascript':
+      return snippetJavaScript(variable);
+    case 'typescript':
+      return snippetTypeScript(variable);
+    case 'vba':
+      return snippetVba(variable);
+    case 'tsql':
+      return snippetSql(variable);
+  }
+}
+
+/** Lenguajes externos y T-SQL local, con disponibilidad según destinos. */
+export function opcionesLenguajeApi(variable: VariableConfiguracion): OpcionLenguajeApi[] {
+  return LENGUAJES_API.map((lenguaje) => ({
+    ...lenguaje,
+    disponible:
+      lenguaje.valor === 'tsql'
+        ? variable.disponibleSql
+        : variable.disponibleIntegraciones,
+  }));
+}
+
+export function etiquetaLenguajeApi(lenguaje: LenguajeApi): string {
+  return LENGUAJES_API.find((opcion) => opcion.valor === lenguaje)?.etiqueta ?? lenguaje;
+}
+
+/** cURL si la variable está expuesta a integraciones; T-SQL si solo tiene destino SQL. */
+export function lenguajeApiPredeterminado(variable: VariableConfiguracion): LenguajeApi {
+  return variable.disponibleIntegraciones ? 'curl' : 'tsql';
 }
 
 /**
  * Los snippets se generan a partir de la variable real y de su tipo declarado.
- * El cURL solo se ofrece cuando la variable está expuesta a integraciones.
+ * El bloque de API solo se ofrece cuando la variable está expuesta a integraciones
+ * o tiene destino SQL.
  */
 export function generarSnippet(
   variable: VariableConfiguracion,
   tipo: SnippetCodigo,
+  lenguaje?: LenguajeApi,
 ): string {
   switch (tipo) {
     case 'frontend':
@@ -171,8 +348,8 @@ export function generarSnippet(
       return snippetBackend(variable);
     case 'sql':
       return snippetSql(variable);
-    case 'curl':
-      return snippetCurl(variable);
+    case 'api':
+      return snippetApi(variable, lenguaje ?? lenguajeApiPredeterminado(variable));
   }
 }
 
@@ -210,10 +387,10 @@ export function opcionesSnippet(variable: VariableConfiguracion): OpcionSnippet[
       disponible: variable.disponibleSql,
     },
     {
-      tipo: 'curl',
-      etiqueta: 'cURL · API externa',
-      descripcion: 'X-API-Key',
-      disponible: variable.disponibleIntegraciones,
+      tipo: 'api',
+      etiqueta: 'API externa · varios lenguajes',
+      descripcion: 'cURL, PowerShell, Python, C#, JS, TS, VBA y T-SQL',
+      disponible: variable.disponibleIntegraciones || variable.disponibleSql,
     },
   ];
 }

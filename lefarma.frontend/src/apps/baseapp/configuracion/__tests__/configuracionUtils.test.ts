@@ -5,6 +5,8 @@ import {
   construirEsquema,
   depurarValorSegunEsquema,
   esquemaACampos,
+  namespaceDeClave,
+  namespacesDeVariables,
   normalizarTipoDato,
   nuevoIdOperacion,
   tipoDatoBackend,
@@ -38,6 +40,19 @@ describe('configuracion utils', () => {
   it('genera claves namespace.clave', () => {
     expect(construirClave('viaticos', 'Días límite')).toBe('viaticos.diasLimite');
     expect(construirClave('', 'Días límite')).toBe('');
+  });
+
+  it('extrae y ordena namespaces únicos desde las claves', () => {
+    expect(namespaceDeClave('pruebas.entero')).toBe('pruebas');
+    expect(namespaceDeClave('macroventas.contrasena')).toBe('macroventas');
+    expect(namespaceDeClave('sinnamespace')).toBe('sinnamespace');
+    expect(
+      namespacesDeVariables([
+        { clave: 'pruebas.entero' },
+        { clave: 'zona.clave' },
+        { clave: 'pruebas.otra' },
+      ]),
+    ).toEqual(['pruebas', 'zona']);
   });
 
   it('genera idOperacion UUID aun cuando randomUUID no está disponible', () => {
