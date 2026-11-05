@@ -34,6 +34,7 @@ public class Solicitud
     public List<SolicitudOpcion> Opciones { get; set; } = new();
     public List<SolicitudAjuste> Ajustes { get; set; } = new();
     public List<SolicitudEvento> Eventos { get; set; } = new();
+    public List<SolicitudOrigenEmVisita> OrigenEmVisitas { get; set; } = new();
 }
 
 /// <summary>

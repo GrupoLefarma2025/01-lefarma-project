@@ -13,6 +13,8 @@ public class SeleccionHospital
     public decimal? LatitudSnapshot { get; set; }
     public decimal? LongitudSnapshot { get; set; }
     public int? IdRegion { get; set; }
+    public int? IdEjecutivo { get; set; }
+    public int? IdEspecialista { get; set; }
     public string? Origen { get; set; }
     public int? IdRankingEjecucion { get; set; }
     public decimal? ScoreSugerencia { get; set; }

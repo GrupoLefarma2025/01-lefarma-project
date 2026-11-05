@@ -10,6 +10,8 @@ resumen: Módulo Matriz de Talleres de Educación Médica — captura de tallere
 
 Proposed
 
+> **Actualización 2026-10-23:** la matriz por gerencia se conserva; la matriz individual pasa de equipo a ejecutivo ([[decisiones/00015_reparto-ejecutivo-rutas-especialista]]). El candado posterior a la autorización es **por taller** y los cambios se gestionan por solicitud de taller ([[decisiones/00018_candado-solicitudes-matriz]]). La vista consolidada de todas las gerencias es de solo lectura.
+
 > Complementa al ADR-00001 (esquema de datos; tablas `talleres`, `taller_recursos` y hermanas ya creadas) y al ADR-00006 (patrón de integración al motor de workflow, bandeja de autorizaciones y componentes compartidos). No modifica ADRs previos.
 
 > **Decisiones del usuario (2026-10-02):** cadena de autorización **según instructivos** (GV → AEM → CA → DC), editable después en el admin de workflows; **matriz individual por equipo de pareo (EV+EP)**; **matriz general por gerencia**, creada automáticamente; al generar la individual se **bloquea** y el GV puede **reabrir**.

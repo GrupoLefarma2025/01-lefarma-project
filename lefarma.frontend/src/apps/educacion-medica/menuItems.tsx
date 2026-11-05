@@ -9,12 +9,10 @@ import {
   CalendarRange,
   FileText,
   CheckSquare,
-  Calendar,
+  CalendarDays,
   ClipboardList,
-  Presentation,
   PenLine,
   MapPin,
-  
   LineChart,
   BarChart3,
   Sparkles,
@@ -56,6 +54,12 @@ export const educacionMedicaMenuItems: SidebarMenuItemConfig[] = [
     isCollapsible: true,
     items: [
       {
+        title: 'Colaboradores',
+        icon: Users,
+        path: '/educacion-medica/personas',
+        permission: { require: PERMISOS.configuracion },
+      },
+      {
         title: 'Hospitales',
         icon: Hospital,
         path: '/educacion-medica/catalogos/hospitales',
@@ -79,12 +83,7 @@ export const educacionMedicaMenuItems: SidebarMenuItemConfig[] = [
         path: '/educacion-medica/catalogos/regiones',
         permission: { require: PERMISOS.configuracion },
       },
-      {
-        title: 'Equipos y pareo',
-        icon: Users,
-        path: '/educacion-medica/catalogos/equipos-pareo',
-        permission: { require: PERMISOS.configuracion },
-      },
+
       {
         title: 'Parámetros',
         icon: Settings,
@@ -92,7 +91,7 @@ export const educacionMedicaMenuItems: SidebarMenuItemConfig[] = [
         permission: { require: PERMISOS.configuracion },
       },
       {
-        title: 'Ranking',
+        title: 'Scoring',
         icon: Sparkles,
         path: '/educacion-medica/catalogos/config-ranking',
         permission: { require: PERMISOS.configuracion },
@@ -117,9 +116,9 @@ export const educacionMedicaMenuItems: SidebarMenuItemConfig[] = [
         permission: { require: PERMISOS.seleccionesVer },
       },
       {
-        title: 'Mi planeación',
-        icon: Calendar,
-        path: '/educacion-medica/calendario',
+        title: 'Panel de rutas',
+        icon: CalendarDays,
+        path: '/educacion-medica/panel-rutas',
         permission: { require: PERMISOS.talleresVer },
       },
     ],
@@ -129,18 +128,6 @@ export const educacionMedicaMenuItems: SidebarMenuItemConfig[] = [
     icon: ClipboardList,
     isCollapsible: true,
     items: [
-      {
-        title: 'Matriz de talleres',
-        icon: Presentation,
-        path: '/educacion-medica/talleres',
-        permission: { require: PERMISOS.talleresVer },
-      },
-      {
-        title: 'Mis talleres',
-        icon: ClipboardList,
-        path: '/educacion-medica/talleres/mis-talleres',
-        permission: { require: PERMISOS.talleresCapturar },
-      },
       {
         title: 'Bandeja de Autorizaciones',
         icon: PenLine,

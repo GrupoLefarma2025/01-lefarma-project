@@ -40,6 +40,7 @@ public class SeleccionMensualService : ISeleccionMensualService
     private readonly IWorkflowQueryService _workflowQuery;
     private readonly IProfileService _profileService;
     private readonly IJefeInmediatoResolver _jefeInmediatoResolver;
+    private readonly IEjecutivoElegibilidadService _elegibilidad;
 
     public SeleccionMensualService(
         ISeleccionMensualRepository repository,
@@ -57,7 +58,8 @@ public class SeleccionMensualService : ISeleccionMensualService
         IWorkflowRepository workflowRepo,
         IWorkflowQueryService workflowQuery,
         IProfileService profileService,
-        IJefeInmediatoResolver jefeInmediatoResolver)
+        IJefeInmediatoResolver jefeInmediatoResolver,
+        IEjecutivoElegibilidadService elegibilidad)
     {
         _repository = repository;
         _rutaRepository = rutaRepository;
@@ -75,6 +77,7 @@ public class SeleccionMensualService : ISeleccionMensualService
         _workflowQuery = workflowQuery;
         _profileService = profileService;
         _jefeInmediatoResolver = jefeInmediatoResolver;
+        _elegibilidad = elegibilidad;
     }
 
     public async Task<List<SeleccionMensualDto>> GetAllAsync(
@@ -96,9 +99,9 @@ public class SeleccionMensualService : ISeleccionMensualService
         var pasos = await _workflowRepo.GetQueryable()
             .SelectMany(w => w.Pasos)
             .Where(p => p.Activo)
-            .Select(p => new { p.IdPaso, p.NombrePaso })
+            .Select(p => new { p.IdPaso, p.NombrePaso, p.PermiteEditar, p.EsFinal, p.Activo })
             .ToListAsync(ct);
-        var pasosDict = pasos.ToDictionary(p => p.IdPaso, p => p.NombrePaso);
+        var pasosDict = pasos.ToDictionary(p => p.IdPaso);
 
         // Nombres de creadores en una sola consulta a Asokam.
         var idsCreadores = selecciones
@@ -134,9 +137,20 @@ public class SeleccionMensualService : ISeleccionMensualService
                 var (totalHospitales, totalRegiones) = conteosDict[s.IdSeleccionMensual];
                 var dto = s.ToResponse(tiposDict, totalHospitales, totalRegiones);
                 dto.TieneRutas = tieneRutasDict[s.IdSeleccionMensual];
-                dto.PasoActualNombre = s.IdPasoActual.HasValue
-                    ? pasosDict.GetValueOrDefault(s.IdPasoActual.Value)
-                    : null;
+                if (s.IdPasoActual.HasValue
+                    && pasosDict.TryGetValue(s.IdPasoActual.Value, out var pasoInfo))
+                {
+                    dto.PasoActualNombre = pasoInfo.NombrePaso;
+                    dto.PermiteEdicion = SeleccionEditablePolicy.EsEditable(
+                        s,
+                        pasoInfo.Activo,
+                        pasoInfo.PermiteEditar,
+                        pasoInfo.EsFinal);
+                }
+                else
+                {
+                    dto.PermiteEdicion = SeleccionEditablePolicy.EsEditable(s, null, null, null);
+                }
                 dto.NombreUsuarioCreacion = s.IdUsuarioCreacion.HasValue
                     ? nombresDict.GetValueOrDefault(s.IdUsuarioCreacion.Value)
                     : null;
@@ -151,7 +165,7 @@ public class SeleccionMensualService : ISeleccionMensualService
         int idUsuario,
         CancellationToken ct)
     {
-        if (seleccion.IdWorkflow is null || seleccion.IdPasoActual is null)
+        if (!await AsegurarWorkflowInicialAsync(seleccion, idUsuario, ct))
         {
             return [];
         }
@@ -182,6 +196,9 @@ public class SeleccionMensualService : ISeleccionMensualService
         var hospitales = await _repository.GetHospitalesAsync(idSeleccionMensual, ct);
         var regiones = await _repository.GetRegionesAsync(idSeleccionMensual, ct);
         var tiposDict = await ObtenerTiposGerenciaAsync(ct);
+        var pasoActual = seleccion.IdPasoActual.HasValue
+            ? await _workflowRepo.GetPasoAsync(seleccion.IdPasoActual.Value, ct)
+            : null;
 
         var idsHospitales = hospitales
             .Where(h => h.IdHospital.HasValue)
@@ -217,6 +234,7 @@ public class SeleccionMensualService : ISeleccionMensualService
             : new Dictionary<int, HospitalExtension>();
 
         var regionesDict = regiones.ToDictionary(z => z.IdRegion, z => z.Nombre ?? $"Región {z.IdRegion}");
+        var regionesPorId = regiones.ToDictionary(z => z.IdRegion);
         // Equipos (nombre para las regiones y EV/EP por hospital) + nombres de sus miembros.
         var equipos = await _equipoRepository.GetAllAsync(null, ct);
         var idsEquiposDetalle = regiones
@@ -232,6 +250,8 @@ public class SeleccionMensualService : ISeleccionMensualService
         var equipoPorId = equipos.ToDictionary(e => e.IdEquipo);
         var idsUsuariosEquipos = equipos
             .SelectMany(e => new[] { e.IdEjecutivo, e.IdEspecialista })
+            .Concat(regiones.SelectMany(z => new[] { z.IdEjecutivo, z.IdEspecialista }).Where(id => id.HasValue).Select(id => id!.Value))
+            .Concat(hospitales.SelectMany(h => new[] { h.IdEjecutivo, h.IdEspecialista }).Where(id => id.HasValue).Select(id => id!.Value))
             .Distinct()
             .ToList();
         var nombresUsuariosEquipos = idsUsuariosEquipos.Count > 0
@@ -254,6 +274,14 @@ public class SeleccionMensualService : ISeleccionMensualService
             Estado = seleccion.Estado,
             FirmaGvFecha = seleccion.FirmaGvFecha,
             FirmaGgFecha = seleccion.FirmaGgFecha,
+            FechaCreacion = seleccion.FechaCreacion,
+            IdWorkflow = seleccion.IdWorkflow,
+            IdPasoActual = seleccion.IdPasoActual,
+            IdEstado = seleccion.IdEstado,
+            EstadoNombre = seleccion.EstadoWorkflow?.Nombre,
+            EstadoColor = seleccion.EstadoWorkflow?.ColorHex,
+            PasoActualNombre = pasoActual?.NombrePaso,
+            PermiteEdicion = SeleccionEditablePolicy.EsEditable(seleccion, pasoActual),
             TotalHospitales = hospitales.Count,
             TotalRegiones = regiones.Count,
             TieneRutas = versionRutasActual.HasValue,
@@ -271,6 +299,11 @@ public class SeleccionMensualService : ISeleccionMensualService
                         && equipoPorId.TryGetValue(idEquipo.Value, out var equipoHospital)
                         ? equipoHospital
                         : null;
+                    var region = h.IdRegion.HasValue
+                        ? regionesPorId.GetValueOrDefault(h.IdRegion.Value)
+                        : null;
+                    var idEjecutivo = h.IdEjecutivo ?? region?.IdEjecutivo ?? equipo?.IdEjecutivo;
+                    var idEspecialista = h.IdEspecialista ?? region?.IdEspecialista ?? equipo?.IdEspecialista;
                     return new SeleccionHospitalDto
                     {
                         IdSeleccionHospital = h.IdSeleccionHospital,
@@ -296,11 +329,13 @@ public class SeleccionMensualService : ISeleccionMensualService
                         NombreRegion = h.IdRegion.HasValue ? regionesDict.GetValueOrDefault(h.IdRegion.Value) : null,
                         ScoreSugerencia = h.ScoreSugerencia,
                         IdEquipo = idEquipo,
-                        NombreEjecutivo = equipo is not null
-                            ? nombresUsuariosEquipos.GetValueOrDefault(equipo.IdEjecutivo)
+                        IdEjecutivo = idEjecutivo,
+                        NombreEjecutivo = idEjecutivo.HasValue
+                            ? nombresUsuariosEquipos.GetValueOrDefault(idEjecutivo.Value)
                             : null,
-                        NombreEspecialista = equipo is not null
-                            ? nombresUsuariosEquipos.GetValueOrDefault(equipo.IdEspecialista)
+                        IdEspecialista = idEspecialista,
+                        NombreEspecialista = idEspecialista.HasValue
+                            ? nombresUsuariosEquipos.GetValueOrDefault(idEspecialista.Value)
                             : null,
                         Origen = h.Origen,
                         TipoAlta = h.IdRankingEjecucion.HasValue ? "Sugerencia" : "Manual",
@@ -308,7 +343,7 @@ public class SeleccionMensualService : ISeleccionMensualService
                 })
                 .ToList(),
             Regiones = regiones
-                .Select(z => z.ToResponse(nombresEquipos))
+                .Select(z => z.ToResponse(nombresEquipos, nombresUsuariosEquipos))
                 .ToList(),
         };
     }
@@ -318,7 +353,7 @@ public class SeleccionMensualService : ISeleccionMensualService
         CancellationToken ct = default)
     {
         var seleccion = await _repository.GetByIdAsync(idSeleccionMensual, ct)
-            ?? throw new InvalidOperationException($"La selección {idSeleccionMensual} no existe.");
+            ?? throw new InvalidOperationException("La selección solicitada no existe.");
 
         if (seleccion.FechaInicioVigencia is null || seleccion.FechaFinVigencia is null)
         {
@@ -471,33 +506,78 @@ public class SeleccionMensualService : ISeleccionMensualService
 
     public async Task<SeleccionMensualDto> CreateAsync(CrearSeleccionMensualRequest request, int idUsuario, CancellationToken ct = default)
     {
-        if (request.FechaFinVigencia < request.FechaInicioVigencia)
+        DateOnly fechaSeleccion;
+        DateOnly inicioVigencia;
+        DateOnly finVigencia;
+
+        if (!string.IsNullOrWhiteSpace(request.Periodo))
         {
-            throw new InvalidOperationException("La fecha de fin de vigencia no puede ser anterior a la de inicio.");
+            var partes = request.Periodo.Split('-');
+            if (partes.Length != 2
+                || !int.TryParse(partes[0], out var anio)
+                || !int.TryParse(partes[1], out var mes)
+                || mes is < 1 or > 12)
+            {
+                throw new InvalidOperationException("El periodo debe tener formato YYYY-MM.");
+            }
+
+            inicioVigencia = new DateOnly(anio, mes, 1);
+            finVigencia = inicioVigencia.AddMonths(1).AddDays(-1);
+            fechaSeleccion = inicioVigencia;
+
+            var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+            var mesActual = new DateOnly(hoy.Year, hoy.Month, 1);
+            if (inicioVigencia <= mesActual)
+            {
+                throw new InvalidOperationException("El periodo de la selección debe ser un mes futuro.");
+            }
+        }
+        else
+        {
+            if (request.FechaFinVigencia < request.FechaInicioVigencia)
+            {
+                throw new InvalidOperationException("La fecha de fin de vigencia no puede ser anterior a la de inicio.");
+            }
+
+            fechaSeleccion = request.FechaSeleccion;
+            inicioVigencia = request.FechaInicioVigencia;
+            finVigencia = request.FechaFinVigencia;
         }
 
         var duplicada = await _repository.ExisteSeleccionActivaAsync(
-            request.FechaInicioVigencia, request.FechaFinVigencia, request.IdTipoGerencia, ct);
+            inicioVigencia, finVigencia, request.IdTipoGerencia, ct);
         if (duplicada)
         {
             throw new InvalidOperationException(
                 "Ya existe una selección activa que se traslapa con este periodo para la misma gerencia.");
         }
 
+        // La selección nace dentro de su workflow: el paso inicial habilita la acción ENVIAR
+        // desde el modal de firma, sin un botón separado de "Enviar a autorización".
+        var workflow = await ResolverWorkflowAsync(request.IdTipoGerencia, ct);
+        var pasoInicio = workflow.Pasos.FirstOrDefault(p => p.EsInicio)
+            ?? throw new InvalidOperationException(
+                "El workflow de selección no tiene paso inicial configurado.");
+
         var seleccion = await _repository.CreateAsync(new SeleccionMensual
         {
-            FechaSeleccion = request.FechaSeleccion,
+            FechaSeleccion = fechaSeleccion,
             IdTipoGerencia = request.IdTipoGerencia,
-            FechaInicioVigencia = request.FechaInicioVigencia,
-            FechaFinVigencia = request.FechaFinVigencia,
+            FechaInicioVigencia = inicioVigencia,
+            FechaFinVigencia = finVigencia,
             TalleresObjetivoMes = request.TalleresObjetivoMes,
             Estado = SeleccionMensual.EstadoCreada,
+            IdWorkflow = workflow.IdWorkflow,
+            IdPasoActual = pasoInicio.IdPaso,
+            IdEstado = pasoInicio.IdEstado,
             IdUsuarioCreacion = idUsuario,
             IdUsuarioModificacion = idUsuario,
         }, ct);
 
         var tiposDict = await ObtenerTiposGerenciaAsync(ct);
-        return seleccion.ToResponse(tiposDict, 0, 0);
+        var dto = seleccion.ToResponse(tiposDict, 0, 0);
+        dto.PermiteEdicion = SeleccionEditablePolicy.EsEditable(seleccion, pasoInicio);
+        return dto;
     }
 
     public async Task<SeleccionHospitalDto> AgregarHospitalAsync(
@@ -532,6 +612,10 @@ public class SeleccionMensualService : ISeleccionMensualService
             IdUsuarioModificacion = idUsuario,
         }, ct);
 
+        // Alta inmediata en la región de catálogo del hospital; si no tiene región,
+        // queda en "Sin región" para que el usuario decida dónde moverlo.
+        await SincronizarRegionesAsync(seleccion, idUsuario, ct);
+
         return new SeleccionHospitalDto
         {
             IdSeleccionHospital = agregado.IdSeleccionHospital,
@@ -546,30 +630,34 @@ public class SeleccionMensualService : ISeleccionMensualService
             LongitudSnapshot = agregado.LongitudSnapshot,
             IdRegion = agregado.IdRegion,
             ScoreSugerencia = null,
-            Origen = null,
+            Origen = agregado.Origen,
             TipoAlta = "Manual",
         };
     }
 
-    public async Task QuitarHospitalAsync(int idSeleccionMensual, int idSeleccionHospital, CancellationToken ct = default)
+    public async Task QuitarHospitalAsync(
+        int idSeleccionMensual,
+        int idSeleccionHospital,
+        int idUsuario,
+        CancellationToken ct = default)
     {
-        _ = await ObtenerSeleccionEditableAsync(idSeleccionMensual, ct);
+        var seleccion = await ObtenerSeleccionEditableAsync(idSeleccionMensual, ct);
 
         var hospital = await _repository.GetHospitalByIdAsync(idSeleccionHospital, ct)
             ?? throw new InvalidOperationException($"El hospital seleccionado {idSeleccionHospital} no existe.");
 
         if (hospital.IdSeleccionMensual != idSeleccionMensual)
         {
-            throw new InvalidOperationException($"El hospital seleccionado {idSeleccionHospital} no pertenece a la selección {idSeleccionMensual}.");
+            throw new InvalidOperationException($"El hospital seleccionado {idSeleccionHospital} no pertenece a esta selección.");
         }
 
         await _repository.RemoveHospitalAsync(hospital, ct);
-        await EliminarRegionesVaciasAsync(idSeleccionMensual, ct);
+        await SincronizarRegionesAsync(seleccion, idUsuario, ct);
     }
 
     public async Task<AgruparSeleccionResponse> AgruparAsync(int idSeleccionMensual, int idUsuario, CancellationToken ct = default)
     {
-        _ = await ObtenerSeleccionEditableAsync(idSeleccionMensual, ct);
+        var seleccion = await ObtenerSeleccionEditableAsync(idSeleccionMensual, ct);
 
         var hospitales = await _repository.GetHospitalesAsync(idSeleccionMensual, ct);
         var avisos = new List<string>();
@@ -623,6 +711,7 @@ public class SeleccionMensualService : ISeleccionMensualService
         var gpsFallback = 0;
         var regionInvalida = 0;
         var sinRegionNiCoordenadas = 0;
+        var overridesLimpiados = 0;
 
         foreach (var hospital in hospitales.OrderBy(h => h.IdSeleccionHospital))
         {
@@ -712,6 +801,26 @@ public class SeleccionMensualService : ISeleccionMensualService
             foreach (var miembro in miembros)
             {
                 miembro.IdRegion = region.IdRegion;
+
+                if (miembro.IdEjecutivo.HasValue)
+                {
+                    var esPrimario = await _elegibilidad.EsEjecutivoPrimarioAsync(
+                        miembro.IdEjecutivo.Value,
+                        region.IdRegionCatalogo,
+                        seleccion.IdTipoGerencia,
+                        ct);
+                    var esSuplente = !esPrimario && await _elegibilidad.EsEjecutivoSuplenteAsync(
+                        miembro.IdEjecutivo.Value,
+                        region.IdRegionCatalogo,
+                        seleccion.IdTipoGerencia,
+                        ct);
+
+                    if (!esPrimario && !esSuplente)
+                    {
+                        miembro.IdEjecutivo = null;
+                        overridesLimpiados++;
+                    }
+                }
             }
 
             await _repository.SaveChangesAsync(ct);
@@ -730,6 +839,10 @@ public class SeleccionMensualService : ISeleccionMensualService
         if (regionesPrevias.Any(z => z.IdEquipo.HasValue))
         {
             avisos.Add("Las asignaciones de equipo se restablecieron al recalcular la agrupación.");
+        }
+        if (overridesLimpiados > 0)
+        {
+            avisos.Add($"{overridesLimpiados} override(s) de ejecutivo por hospital se quitaron porque ya no eran elegibles para la nueva región/gerencia.");
         }
 
         _logger.LogInformation(
@@ -758,7 +871,7 @@ public class SeleccionMensualService : ISeleccionMensualService
 
         if (region.IdSeleccionMensual != idSeleccionMensual)
         {
-            throw new InvalidOperationException($"La región {idRegion} no pertenece a la selección {idSeleccionMensual}.");
+            throw new InvalidOperationException($"La región {idRegion} no pertenece a esta selección.");
         }
 
         var equipo = await _equipoRepository.GetByIdAsync(request.IdEquipo, ct)
@@ -810,7 +923,7 @@ public class SeleccionMensualService : ISeleccionMensualService
 
         if (region.IdSeleccionMensual != idSeleccionMensual)
         {
-            throw new InvalidOperationException($"La región {idRegion} no pertenece a la selección {idSeleccionMensual}.");
+            throw new InvalidOperationException($"La región {idRegion} no pertenece a esta selección.");
         }
 
         var hospitales = (await _repository.GetHospitalesAsync(idSeleccionMensual, ct))
@@ -885,7 +998,7 @@ public class SeleccionMensualService : ISeleccionMensualService
 
         if (hospital.IdSeleccionMensual != idSeleccionMensual)
         {
-            throw new InvalidOperationException($"El hospital {idSeleccionHospital} no pertenece a la selección {idSeleccionMensual}.");
+            throw new InvalidOperationException($"El hospital {idSeleccionHospital} no pertenece a esta selección.");
         }
 
         if (hospital.IdRegion.HasValue)
@@ -899,7 +1012,7 @@ public class SeleccionMensualService : ISeleccionMensualService
 
         if (region.IdSeleccionMensual != idSeleccionMensual)
         {
-            throw new InvalidOperationException($"La región {request.IdRegion} no pertenece a la selección {idSeleccionMensual}.");
+            throw new InvalidOperationException($"La región {request.IdRegion} no pertenece a esta selección.");
         }
 
         hospital.IdRegion = region.IdRegion;
@@ -921,24 +1034,12 @@ public class SeleccionMensualService : ISeleccionMensualService
     {
         var seleccion = await ObtenerSeleccionEditableAsync(idSeleccionMensual, ct);
 
-        var regiones = await _repository.GetRegionesAsync(idSeleccionMensual, ct);
-        if (regiones.Count == 0)
+        if (seleccion.Estado != SeleccionMensual.EstadoCreada)
         {
-            throw new InvalidOperationException(
-                "La selección no tiene regiones; agrega hospitales y recalcula regiones antes de enviar a revisión.");
+            throw new InvalidOperationException("Solo una selección en Creada puede enviarse a autorización.");
         }
 
-        var sinEquipo = regiones.Where(z => !z.IdEquipo.HasValue).ToList();
-        if (sinEquipo.Count > 0)
-        {
-            throw new InvalidOperationException(
-                $"Asigna un equipo de pareo a todas las regiones antes de enviar a revisión; faltan {sinEquipo.Count} región(es).");
-        }
-
-        if (seleccion.IdUsuarioCreacion.HasValue && seleccion.IdUsuarioCreacion.Value != idUsuario)
-        {
-            throw new InvalidOperationException("Solo el creador de la selección puede enviarla a revisión.");
-        }
+        await ValidarSeleccionParaEnvioAsync(seleccion, idUsuario, ct);
 
         // El envío es una acción del motor: Borrador -> Firma Gerencia General (ADR-00006)
         var workflow = await ResolverWorkflowAsync(seleccion.IdTipoGerencia, ct);
@@ -984,7 +1085,7 @@ public class SeleccionMensualService : ISeleccionMensualService
         CancellationToken ct = default)
     {
         var seleccion = await _repository.GetByIdAsync(idSeleccionMensual, ct)
-            ?? throw new InvalidOperationException($"La selección {idSeleccionMensual} no existe.");
+            ?? throw new InvalidOperationException("La selección solicitada no existe.");
 
         if (seleccion.IdWorkflow is null || seleccion.IdPasoActual is null)
         {
@@ -1014,18 +1115,25 @@ public class SeleccionMensualService : ISeleccionMensualService
             await ValidarFirmaUsuarioAsync(idUsuario);
         }
 
-        // Cerrar (autorización completa) exige que TODAS las regiones tengan equipo de pareo.
-        if (codigoAccion == "CERRAR")
-        {
-            await ValidarEquiposRegionesAsync(seleccion.IdSeleccionMensual, ct);
-        }
-
         var validacion = await WorkflowFirmaHelper.ValidarParticipanteAsync(
             pasoActual, workflow.IdWorkflow, idUsuario, seleccion.IdUsuarioCreacion ?? 0,
             _asokamContext, _jefeInmediatoResolver, codigoAccion);
         if (validacion.IsError)
         {
             throw new InvalidOperationException(validacion.FirstError.Description);
+        }
+
+        // Enviar desde el paso inicial repite las validaciones de regiones/cobertura que
+        // antes vivían en EnviarRevisionAsync.
+        if (codigoAccion == "ENVIAR")
+        {
+            await ValidarSeleccionParaEnvioAsync(seleccion, idUsuario, ct);
+        }
+
+        // Cerrar (autorización completa) exige cobertura de todas las regiones.
+        if (codigoAccion == "CERRAR")
+        {
+            await ValidarEquiposRegionesAsync(seleccion, idUsuario, ct);
         }
 
         var resultado = await _engine.EjecutarAccionAsync(new WorkflowContext(
@@ -1061,10 +1169,10 @@ public class SeleccionMensualService : ISeleccionMensualService
         var seleccion = await _repository.GetByIdAsync(idSeleccionMensual, ct);
         if (seleccion is null)
         {
-            return CommonErrors.NotFound("SeleccionMensual", idSeleccionMensual.ToString());
+            return Error.NotFound("SeleccionMensual.NotFound", "La selección solicitada no existe.");
         }
 
-        if (seleccion.IdWorkflow is null || seleccion.IdPasoActual is null)
+        if (!await AsegurarWorkflowInicialAsync(seleccion, idUsuario, ct))
         {
             return ErrorOrFactory.From(Enumerable.Empty<AccionDisponibleResponse>());
         }
@@ -1086,11 +1194,65 @@ public class SeleccionMensualService : ISeleccionMensualService
         var seleccion = await _repository.GetByIdAsync(idSeleccionMensual, ct);
         if (seleccion is null)
         {
-            return CommonErrors.NotFound("SeleccionMensual", idSeleccionMensual.ToString());
+            return Error.NotFound("SeleccionMensual.NotFound", "La selección solicitada no existe.");
         }
 
         return await _workflowQuery.GetHistorialWorkflowAsync(
             seleccion.IdSeleccionMensual, CodigoProceso.EDUCACION_MEDICA_SELECCION, ct);
+    }
+
+    /// <summary>
+    /// Deja la selección dentro de su workflow sin cambiar su estado de dominio. Se usa para
+    /// selecciones Creada creadas antes de que el alta asignara workflow/paso inicial.
+    /// </summary>
+    private async Task<bool> AsegurarWorkflowInicialAsync(
+        SeleccionMensual seleccion,
+        int idUsuario,
+        CancellationToken ct)
+    {
+        if (seleccion.IdWorkflow.HasValue && seleccion.IdPasoActual.HasValue)
+        {
+            return true;
+        }
+
+        if (seleccion.Estado != SeleccionMensual.EstadoCreada
+            || seleccion.IdUsuarioCreacion != idUsuario)
+        {
+            return false;
+        }
+
+        Workflow workflow;
+        try
+        {
+            workflow = await ResolverWorkflowAsync(seleccion.IdTipoGerencia, ct);
+        }
+        catch (InvalidOperationException)
+        {
+            return false;
+        }
+
+        var pasoInicio = workflow.Pasos.FirstOrDefault(p => p.EsInicio);
+        if (pasoInicio is null)
+        {
+            return false;
+        }
+
+        var rastreada = await _repository.GetByIdAsync(seleccion.IdSeleccionMensual, ct);
+        if (rastreada is null)
+        {
+            return false;
+        }
+
+        rastreada.IdWorkflow = workflow.IdWorkflow;
+        rastreada.IdPasoActual = pasoInicio.IdPaso;
+        rastreada.IdEstado = pasoInicio.IdEstado;
+        rastreada.IdUsuarioModificacion = idUsuario;
+        await _repository.SaveChangesAsync(ct);
+
+        seleccion.IdWorkflow = rastreada.IdWorkflow;
+        seleccion.IdPasoActual = rastreada.IdPasoActual;
+        seleccion.IdEstado = rastreada.IdEstado;
+        return true;
     }
 
     private async Task<Workflow> ResolverWorkflowAsync(int? idTipoGerencia, CancellationToken ct)
@@ -1167,21 +1329,90 @@ public class SeleccionMensualService : ISeleccionMensualService
     }
 
     /// <summary>
-    /// Regla de cierre/avance: todas las regiones de la selección deben tener equipo de pareo.
+    /// Reglas para enviar la selección a autorización: debe tener regiones, el creador es quien
+    /// envía y cada región debe quedar con ejecutivo, equipo o suplente vigente.
     /// </summary>
-    private async Task ValidarEquiposRegionesAsync(int idSeleccionMensual, CancellationToken ct)
+    private async Task ValidarSeleccionParaEnvioAsync(
+        SeleccionMensual seleccion,
+        int idUsuario,
+        CancellationToken ct)
     {
-        var regiones = await _repository.GetRegionesAsync(idSeleccionMensual, ct);
-        var sinEquipo = regiones
-            .Where(r => !r.IdEquipo.HasValue)
+        var regiones = await _repository.GetRegionesAsync(seleccion.IdSeleccionMensual, ct);
+        if (regiones.Count == 0)
+        {
+            throw new InvalidOperationException(
+                "La selección no tiene regiones; agrega hospitales antes de enviarla a autorización.");
+        }
+
+        if (seleccion.IdUsuarioCreacion.HasValue && seleccion.IdUsuarioCreacion.Value != idUsuario)
+        {
+            throw new InvalidOperationException("Solo el creador de la selección puede enviarla a autorización.");
+        }
+
+        await AsignarSuplentesFaltantesAsync(seleccion, regiones, idUsuario, ct);
+
+        var sinResponsable = regiones
+            .Where(z => !z.IdEjecutivo.HasValue && !z.IdEquipo.HasValue)
+            .ToList();
+        if (sinResponsable.Count > 0)
+        {
+            throw new InvalidOperationException(
+                $"Asigna un ejecutivo a todas las regiones antes de enviar a autorización; faltan {sinResponsable.Count} región(es).");
+        }
+    }
+
+    /// <summary>
+    /// Regla de cierre/avance: todas las regiones deben tener ejecutivo primario,
+    /// equipo legacy o un suplente activo que cubra la región/gerencia.
+    /// </summary>
+    private async Task ValidarEquiposRegionesAsync(
+        SeleccionMensual seleccion,
+        int idUsuario,
+        CancellationToken ct)
+    {
+        var regiones = await _repository.GetRegionesAsync(seleccion.IdSeleccionMensual, ct);
+        await AsignarSuplentesFaltantesAsync(seleccion, regiones, idUsuario, ct);
+
+        var sinResponsable = regiones
+            .Where(r => !r.IdEjecutivo.HasValue && !r.IdEquipo.HasValue)
             .Select(r => r.Nombre ?? $"Región {r.IdRegion}")
             .ToList();
 
-        if (sinEquipo.Count > 0)
+        if (sinResponsable.Count > 0)
         {
             throw new InvalidOperationException(
-                $"No se puede cerrar la selección: {sinEquipo.Count} región(es) sin equipo de pareo asignado ({string.Join(", ", sinEquipo)}). " +
-                "Asigna un equipo a todas las regiones antes de cerrar; si necesitas corregir, devuélvela a Creada.");
+                $"No se puede cerrar la selección: {sinResponsable.Count} región(es) sin ejecutivo asignado ({string.Join(", ", sinResponsable)}). " +
+                "Asigna un ejecutivo o configura un suplente para esa región/gerencia antes de cerrar; si necesitas corregir, devuélvela a Creada.");
+        }
+    }
+
+    private async Task AsignarSuplentesFaltantesAsync(
+        SeleccionMensual seleccion,
+        List<SeleccionRegion> regiones,
+        int idUsuario,
+        CancellationToken ct)
+    {
+        var sinEjecutivo = regiones
+            .Where(r => !r.IdEjecutivo.HasValue && !r.IdEquipo.HasValue)
+            .ToList();
+
+        foreach (var region in sinEjecutivo)
+        {
+            var idSuplente = await _elegibilidad.BuscarSuplenteAsync(
+                region.IdRegionCatalogo, seleccion.IdTipoGerencia, ct);
+            if (!idSuplente.HasValue)
+            {
+                continue;
+            }
+
+            region.IdEjecutivo = idSuplente.Value;
+            region.IdUsuarioModificacion = idUsuario;
+            region.FechaModificacion = DateTime.UtcNow;
+            await _repository.UpdateRegionAsync(region, ct);
+
+            _logger.LogWarning(
+                "Región {IdRegion} ({Nombre}) sin ejecutivo primario: se asignó el suplente {IdUsuario} para la selección {IdSeleccion}.",
+                region.IdRegion, region.Nombre, idSuplente.Value, seleccion.IdSeleccionMensual);
         }
     }
 
@@ -1190,7 +1421,12 @@ public class SeleccionMensualService : ISeleccionMensualService
         var tiposDict = await ObtenerTiposGerenciaAsync(ct);
         var hospitales = await _repository.GetHospitalesAsync(seleccion.IdSeleccionMensual, ct);
         var regiones = await _repository.GetRegionesAsync(seleccion.IdSeleccionMensual, ct);
-        return seleccion.ToResponse(tiposDict, hospitales.Count, regiones.Count);
+        var paso = seleccion.IdPasoActual.HasValue
+            ? await _workflowRepo.GetPasoAsync(seleccion.IdPasoActual.Value, ct)
+            : null;
+        var dto = seleccion.ToResponse(tiposDict, hospitales.Count, regiones.Count);
+        dto.PermiteEdicion = SeleccionEditablePolicy.EsEditable(seleccion, paso);
+        return dto;
     }
 
     private async Task<(int MaxDia, int MaxSemana)> LeerCapacidadesAsync(CancellationToken ct)
@@ -1206,25 +1442,124 @@ public class SeleccionMensualService : ISeleccionMensualService
     private async Task<SeleccionMensual> ObtenerSeleccionEditableAsync(int idSeleccionMensual, CancellationToken ct)
     {
         var seleccion = await _repository.GetByIdAsync(idSeleccionMensual, ct)
-            ?? throw new InvalidOperationException($"La selección {idSeleccionMensual} no existe.");
+            ?? throw new InvalidOperationException("La selección solicitada no existe.");
 
-        if (seleccion.Estado != SeleccionMensual.EstadoCreada)
+        var paso = seleccion.IdPasoActual.HasValue
+            ? await _workflowRepo.GetPasoAsync(seleccion.IdPasoActual.Value, ct)
+            : null;
+
+        if (!SeleccionEditablePolicy.EsEditable(seleccion, paso))
         {
             throw new InvalidOperationException(
-                $"La selección está {seleccion.Estado.ToLowerInvariant()} y ya no admite cambios; solo una selección en Creada es editable (una devolución la regresa a Creada).");
+                $"La selección ya no admite cambios en su paso actual ({paso?.NombrePaso ?? seleccion.Estado}).");
         }
 
         return seleccion;
     }
 
-    private async Task EliminarRegionesVaciasAsync(int idSeleccionMensual, CancellationToken ct)
+    public async Task SincronizarRegionesAsync(
+        int idSeleccionMensual,
+        int idUsuario,
+        CancellationToken ct = default)
     {
-        var hospitales = await _repository.GetHospitalesAsync(idSeleccionMensual, ct);
-        var regiones = await _repository.GetRegionesAsync(idSeleccionMensual, ct);
+        var seleccion = await _repository.GetByIdAsync(idSeleccionMensual, ct)
+            ?? throw new InvalidOperationException("La selección solicitada no existe.");
 
-        foreach (var region in regiones.Where(z => hospitales.All(h => h.IdRegion != z.IdRegion)))
+        await SincronizarRegionesAsync(seleccion, idUsuario, ct);
+    }
+
+    private async Task SincronizarRegionesAsync(
+        SeleccionMensual seleccion,
+        int idUsuario,
+        CancellationToken ct)
+    {
+        var hospitales = await _repository.GetHospitalesAsync(seleccion.IdSeleccionMensual, ct);
+        var regiones = await _repository.GetRegionesAsync(seleccion.IdSeleccionMensual, ct);
+
+        var sinRegion = hospitales
+            .Where(h => !h.IdRegion.HasValue && h.IdHospital.HasValue)
+            .ToList();
+
+        if (sinRegion.Count > 0)
         {
-            await _repository.RemoveRegionAsync(region, ct);
+            var regionesCatalogo = (await _regionRepository.GetAllAsync(ct))
+                .Where(z => z.Activo)
+                .ToDictionary(z => z.IdRegion);
+            var idsHospitales = sinRegion
+                .Select(h => h.IdHospital!.Value)
+                .Distinct()
+                .ToList();
+            var extensiones = idsHospitales.Count > 0
+                ? (await _extensionRepository.GetByHospitalIdsAsync(idsHospitales, ct))
+                    .ToDictionary(e => e.IdHospital)
+                : new Dictionary<int, HospitalExtension>();
+
+            var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+            var equiposVigentes = await _equipoRepository.GetAllAsync(
+                new EquipoPareoFiltro { SoloVigentes = true }, ct);
+            var equipoPorRegion = equiposVigentes
+                .Where(e => e.FechaFin is null || e.FechaFin >= hoy)
+                .GroupBy(e => e.IdRegion)
+                .ToDictionary(g => g.Key, g => g.First());
+
+            var regionesPorCatalogo = regiones
+                .Where(r => r.IdRegionCatalogo.HasValue)
+                .GroupBy(r => r.IdRegionCatalogo!.Value)
+                .ToDictionary(g => g.Key, g => g.First());
+
+            foreach (var hospital in sinRegion)
+            {
+                if (!extensiones.TryGetValue(hospital.IdHospital!.Value, out var extension)
+                    || !extension.IdRegion.HasValue
+                    || !regionesCatalogo.TryGetValue(extension.IdRegion.Value, out var catalogo))
+                {
+                    continue;
+                }
+
+                if (!regionesPorCatalogo.TryGetValue(catalogo.IdRegion, out var region))
+                {
+                    var equipo = equipoPorRegion.GetValueOrDefault(catalogo.IdRegion);
+                    region = await _repository.CreateRegionAsync(new SeleccionRegion
+                    {
+                        IdSeleccionMensual = seleccion.IdSeleccionMensual,
+                        Nombre = catalogo.Nombre,
+                        IdRegionCatalogo = catalogo.IdRegion,
+                        CentroLatitud = catalogo.CentroLatitud,
+                        CentroLongitud = catalogo.CentroLongitud,
+                        CantidadHospitales = 1,
+                        Algoritmo = AlgoritmoRegionesCatalogo,
+                        FechaCalculo = DateTime.UtcNow,
+                        IdEquipo = equipo?.IdEquipo,
+                        IdUsuarioCreacion = idUsuario,
+                        IdUsuarioModificacion = idUsuario,
+                    }, ct);
+                    regiones.Add(region);
+                    regionesPorCatalogo[catalogo.IdRegion] = region;
+                }
+
+                hospital.IdRegion = region.IdRegion;
+                hospital.Origen = null;
+                hospital.IdUsuarioModificacion = idUsuario;
+            }
+
+            await _repository.SaveChangesAsync(ct);
+        }
+
+        foreach (var region in regiones.ToList())
+        {
+            var miembros = hospitales
+                .Where(h => h.IdRegion == region.IdRegion)
+                .ToList();
+
+            if (miembros.Count == 0)
+            {
+                await _repository.RemoveRegionAsync(region, ct);
+                continue;
+            }
+
+            RecalcularCentroide(region, miembros);
+            region.IdUsuarioModificacion = idUsuario;
+            await _repository.UpdateRegionAsync(region, ct);
         }
     }
 

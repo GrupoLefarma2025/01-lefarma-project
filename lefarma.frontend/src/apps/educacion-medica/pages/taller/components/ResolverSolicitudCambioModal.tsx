@@ -15,16 +15,22 @@ import type {
 
 interface SolicitudDatos {
   antes?: {
+    fechaVisita?: string | null;
     fechaTaller?: string | null;
     horaTaller?: string | null;
     lugar?: string | null;
     numeroParticipantes?: number | null;
+    idEjecutivo?: number | null;
+    idEspecialista?: number | null;
   } | null;
   despues?: {
+    fechaVisita?: string | null;
     fechaTaller?: string | null;
     horaTaller?: string | null;
     lugar?: string | null;
     numeroParticipantes?: number | null;
+    idEjecutivo?: number | null;
+    idEspecialista?: number | null;
   } | null;
   motivoSolicitante?: string | null;
 }
@@ -36,17 +42,21 @@ const fmtFecha = (fecha: string | null | undefined) => {
 };
 
 const fmtValor = (campo: keyof NonNullable<SolicitudDatos['antes']>, valor: unknown) => {
-  if (valor == null || valor === '') return '—';
-  if (campo === 'fechaTaller') return fmtFecha(String(valor));
+  if (valor == null || valor === '') return '-';
+  if (campo === 'fechaVisita' || campo === 'fechaTaller') return fmtFecha(String(valor));
   if (campo === 'horaTaller') return String(valor).slice(0, 5);
+  if (campo === 'idEjecutivo' || campo === 'idEspecialista') return `#${String(valor)}`;
   return String(valor);
 };
 
 const CAMPOS: { campo: keyof NonNullable<SolicitudDatos['antes']>; etiqueta: string }[] = [
-  { campo: 'fechaTaller', etiqueta: 'Fecha' },
+  { campo: 'fechaVisita', etiqueta: 'Fecha de visita' },
+  { campo: 'fechaTaller', etiqueta: 'Fecha del taller' },
   { campo: 'horaTaller', etiqueta: 'Hora' },
   { campo: 'lugar', etiqueta: 'Lugar' },
   { campo: 'numeroParticipantes', etiqueta: 'Participantes' },
+  { campo: 'idEjecutivo', etiqueta: 'Ejecutivo' },
+  { campo: 'idEspecialista', etiqueta: 'Especialista' },
 ];
 
 interface ResolverSolicitudCambioModalProps {
@@ -151,7 +161,7 @@ export function ResolverSolicitudCambioModal({
         </div>
 
         {datos?.motivoSolicitante && (
-          <p className="rounded-md border bg-muted/40 px-3 py-2 text-sm">
+          <p className="bg-muted/40 rounded-md border px-3 py-2 text-sm">
             <span className="text-muted-foreground">Motivo del solicitante: </span>
             {datos.motivoSolicitante}
           </p>

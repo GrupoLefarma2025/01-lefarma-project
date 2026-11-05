@@ -84,6 +84,7 @@ namespace Lefarma.API.Features.Config.Workflows.DTOs
         public bool RequiereComentario { get; set; }
         public bool RequiereAdjunto { get; set; }
         public bool PermiteAdjunto { get; set; }
+        public bool PermiteEditar { get; set; }
         public List<WorkflowAccionResponse> Acciones { get; set; } = new();
         public List<CondicionResponse> Condiciones { get; set; } = new();
         public List<ParticipanteResponse> Participantes { get; set; } = new();
@@ -161,6 +162,7 @@ namespace Lefarma.API.Features.Config.Workflows.DTOs
         public bool RequiereComentario { get; set; }
         public bool RequiereAdjunto { get; set; }
         public bool PermiteAdjunto { get; set; } = true;
+        public bool PermiteEditar { get; set; }
     }
 
     public class CreatePasoRequest
@@ -176,6 +178,7 @@ namespace Lefarma.API.Features.Config.Workflows.DTOs
         public bool RequiereComentario { get; set; }
         public bool RequiereAdjunto { get; set; }
         public bool PermiteAdjunto { get; set; } = true;
+        public bool PermiteEditar { get; set; }
     }
 
     // ============================================================================

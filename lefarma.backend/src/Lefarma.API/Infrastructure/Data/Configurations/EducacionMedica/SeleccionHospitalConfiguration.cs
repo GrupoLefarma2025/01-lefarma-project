@@ -22,6 +22,8 @@ public class SeleccionHospitalConfiguration : IEntityTypeConfiguration<Seleccion
         builder.Property(e => e.LatitudSnapshot).HasColumnName("latitud_snapshot").HasPrecision(10, 7);
         builder.Property(e => e.LongitudSnapshot).HasColumnName("longitud_snapshot").HasPrecision(10, 7);
         builder.Property(e => e.IdRegion).HasColumnName("id_region");
+        builder.Property(e => e.IdEjecutivo).HasColumnName("id_ejecutivo");
+        builder.Property(e => e.IdEspecialista).HasColumnName("id_especialista");
         builder.Property(e => e.Origen).HasColumnName("origen").HasMaxLength(20);
         builder.Property(e => e.IdRankingEjecucion).HasColumnName("id_ranking_ejecucion");
         builder.Property(e => e.ScoreSugerencia).HasColumnName("score_sugerencia").HasPrecision(5, 2);
@@ -44,5 +46,8 @@ public class SeleccionHospitalConfiguration : IEntityTypeConfiguration<Seleccion
             .WithMany()
             .HasForeignKey(e => e.IdRegion)
             .OnDelete(DeleteBehavior.SetNull);
+
+        builder.HasIndex(e => e.IdEjecutivo).HasDatabaseName("IX_sel_hospital_ejecutivo");
+        builder.HasIndex(e => e.IdEspecialista).HasDatabaseName("IX_sel_hospital_especialista");
     }
 }

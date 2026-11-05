@@ -17,25 +17,6 @@ public class FirmarWorkflowRequest
     public Dictionary<string, object>? DatosAdicionales { get; set; }
 }
 
-/// <summary>Estado de autorización de una versión de rutas (para la SPA).</summary>
-public class RutaVersionDto
-{
-    public int IdRutaVersion { get; set; }
-    public int Version { get; set; }
-    public string Estado { get; set; } = string.Empty;
-    /// <summary>Workflow de la versión (para dibujar el flujo en el historial).</summary>
-    public int? IdWorkflow { get; set; }
-    public int? IdPasoActual { get; set; }
-    public string? PasoNombre { get; set; }
-    /// <summary>Estado del workflow (catálogo config.workflow_estados): nombre y color para la UI.</summary>
-    public int? IdEstado { get; set; }
-    public string? EstadoNombre { get; set; }
-    public string? EstadoColor { get; set; }
-    public bool EsEditable { get; set; }
-    public bool EsFinal { get; set; }
-    public List<AccionDisponibleResponse> Acciones { get; set; } = [];
-}
-
 /// <summary>Item de la Bandeja de Autorizaciones del módulo.</summary>
 public class PendienteAprobacionDto
 {
@@ -44,6 +25,7 @@ public class PendienteAprobacionDto
     public int IdSeleccionMensual { get; set; }        // para navegar a la pantalla correspondiente
     /// <summary>Id de la matriz general cuando el documento es de tipo "matriz" (para el deep-link).</summary>
     public int? IdMatrizGeneral { get; set; }
+
     /// <summary>Workflow del documento (para dibujar el flujo en el modal de historial).</summary>
     public int? IdWorkflow { get; set; }
     public int? IdPasoActual { get; set; }
@@ -60,8 +42,6 @@ public class PendienteAprobacionDto
     public string? EstadoColor { get; set; }
     /// <summary>Fecha de creación del documento (convención única para ambos tipos).</summary>
     public DateTime? Fecha { get; set; }
-    /// <summary>Número de versión cuando el documento es de rutas (para abrir el detalle exacto).</summary>
-    public int? VersionRutas { get; set; }
     /// <summary>Acciones del motor disponibles para el usuario en el paso actual; vacío si no es su turno.</summary>
     public List<AccionDisponibleResponse> Acciones { get; set; } = [];
 }

@@ -49,6 +49,11 @@ public class Taller
     // Matriz de talleres (ADR-00007): enlaces a la matriz individual (equipo + mes) y general (gerencia + mes)
     public int? IdMatrizIndividual { get; set; }
     public int? IdMatrizGeneral { get; set; }
+    public int? IdRutaVisita { get; set; }
+    /// <summary>Tipo del taller (catálogo tipo_visita): promoción, informativa, captación de queja, otro.</summary>
+    public int? IdTipoVisita { get; set; }
+    public int? IdTemaTaller { get; set; }
+    public string? Tema { get; set; }
 
     /// <summary>Fecha real de cierre del taller (estado Realizado); indicadores/cobertura (ADR-00008).</summary>
     public DateOnly? FechaRealizado { get; set; }

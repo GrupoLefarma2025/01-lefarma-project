@@ -14,6 +14,7 @@ public class WorkflowPaso
         public bool RequiereComentario { get; set; }
         public bool RequiereAdjunto { get; set; }
         public bool PermiteAdjunto { get; set; } = true;   // Si false, oculta el uploader libre en el modal
+        public bool PermiteEditar { get; set; }
 
         public virtual Workflow? Workflow { get; set; }
         public virtual WorkflowEstados? Estado { get; set; }

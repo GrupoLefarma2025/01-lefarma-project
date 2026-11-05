@@ -3,10 +3,12 @@
 --        NO toca Asokam (roles/permisos viven en el Asokam de producción).
 --
 -- QUÉ HACE (idempotente, transacción única)
---   1) tipo_gerencia            : IMSS, Descentralizado, Privado
+--   1) tipo_gerencia            : IMSS, Descentralizado, Privado, IMSS Bienestar
 --   2) parametros_anestesias    : factores del FOR-002 para el año en curso
 --   3) regiones_cat             : las 7 regiones por gerencia (IMSS y Descentralizado)
 --   4) regiones_estados         : mapeo estado -> región por gerencia (31 estados)
+--   4b) IMSS Bienestar          : gerencia + copia de regiones/estados de
+--                                 Descentralizado (integrado de 0034)
 --   5) hospital_extension       : backfill de id_region + clasificación local/foráneo
 --   6) config_ranking           : configuración "General" v2 (cobertura_taller)
 --   7) hospital_extension       : clasificación de contactos logísticos
@@ -24,7 +26,11 @@
 --   1) 0016  — esquema completo (crea TODAS las tablas, columnas, índices y el
 --              seed de dias_limite_cambio)
 --   2) 0030  — este script (catálogos y backfills; solo Lefarma)
---   3) 0018  — workflows de selección, rutas y matriz (si el entorno no los tiene)
+--   3) 0035  — catálogos de calendario y parámetros
+--   4) 0018  — workflows de selección, rutas y matriz (si el entorno no los tiene)
+--   5) 0037  — limpieza opcional (manual/educacion-medica)
+--   En una BD nueva no es necesario ejecutar 0034: este script ya siembra
+--   IMSS Bienestar.
 --
 -- REQUISITOS
 --   - 0016 aplicado.
@@ -158,6 +164,86 @@ BEGIN TRY
 
     DECLARE @n_mapeos INT = (SELECT COUNT(*) FROM educacion_medica.regiones_estados);
     PRINT CONCAT('Mapeos estado->region: ', @n_mapeos);
+
+    -- =========================================================================
+    -- 4b. Tercera gerencia: IMSS Bienestar (integrado de 0034)
+    --     Copia inicial de regiones y mapeos de Descentralizado. No reclasifica
+    --     hospitales: la clasificación se hace desde la pantalla Hospitales.
+    -- =========================================================================
+    DECLARE @id_imss INT;
+    DECLARE @id_descentralizado INT;
+    DECLARE @id_bienestar INT;
+
+    SELECT @id_imss = id_tipo_gerencia
+    FROM educacion_medica.tipo_gerencia
+    WHERE descripcion = N'IMSS';
+
+    SELECT @id_descentralizado = id_tipo_gerencia
+    FROM educacion_medica.tipo_gerencia
+    WHERE descripcion = N'Descentralizado';
+
+    IF @id_imss IS NULL OR @id_descentralizado IS NULL
+    BEGIN
+        RAISERROR('Faltan los tipos de gerencia base IMSS/Descentralizado.', 16, 1);
+    END;
+
+    SELECT @id_bienestar = id_tipo_gerencia
+    FROM educacion_medica.tipo_gerencia
+    WHERE descripcion = N'IMSS Bienestar';
+
+    IF @id_bienestar IS NULL
+    BEGIN
+        INSERT INTO educacion_medica.tipo_gerencia (descripcion, activo, fecha_creacion, fecha_modificacion)
+        VALUES (N'IMSS Bienestar', 1, SYSUTCDATETIME(), SYSUTCDATETIME());
+
+        SET @id_bienestar = SCOPE_IDENTITY();
+        PRINT CONCAT('Tipo de gerencia [IMSS Bienestar] creado con id ', @id_bienestar, '.');
+    END
+    ELSE
+        PRINT CONCAT('Tipo de gerencia [IMSS Bienestar] ya existe con id ', @id_bienestar, '. Skip.');
+
+    INSERT INTO educacion_medica.regiones_cat
+        (nombre, centro_latitud, centro_longitud, activo, id_tipo_gerencia, fecha_creacion, fecha_modificacion)
+    SELECT
+        rc.nombre,
+        rc.centro_latitud,
+        rc.centro_longitud,
+        1,
+        @id_bienestar,
+        SYSUTCDATETIME(),
+        SYSUTCDATETIME()
+    FROM educacion_medica.regiones_cat rc
+    WHERE rc.id_tipo_gerencia = @id_descentralizado
+      AND NOT EXISTS (
+          SELECT 1
+          FROM educacion_medica.regiones_cat destino
+          WHERE destino.id_tipo_gerencia = @id_bienestar
+            AND destino.nombre = rc.nombre
+      );
+    PRINT CONCAT('Regiones copiadas a IMSS Bienestar: ', @@ROWCOUNT, ' fila(s).');
+
+    INSERT INTO educacion_medica.regiones_estados
+        (codigo_estado, id_region, id_tipo_gerencia, fecha_creacion, fecha_modificacion)
+    SELECT
+        re.codigo_estado,
+        destino.id_region,
+        @id_bienestar,
+        SYSUTCDATETIME(),
+        SYSUTCDATETIME()
+    FROM educacion_medica.regiones_estados re
+    JOIN educacion_medica.regiones_cat origen
+        ON origen.id_region = re.id_region
+       AND origen.id_tipo_gerencia = @id_descentralizado
+    JOIN educacion_medica.regiones_cat destino
+        ON destino.id_tipo_gerencia = @id_bienestar
+       AND destino.nombre = origen.nombre
+    WHERE NOT EXISTS (
+        SELECT 1
+        FROM educacion_medica.regiones_estados x
+        WHERE x.id_tipo_gerencia = @id_bienestar
+          AND x.codigo_estado = re.codigo_estado
+    );
+    PRINT CONCAT('Mapeos estado->region copiados a IMSS Bienestar: ', @@ROWCOUNT, ' fila(s).');
 
     -- =========================================================================
     -- 5. hospital_extension: backfill de id_region (por gerencia del hospital)

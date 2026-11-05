@@ -3,7 +3,7 @@ import { DataTable } from '@/components/ui/data-table';
 import type { ColumnDef } from '@/components/ui/data-table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Eye, LockOpen } from 'lucide-react';
+import { Eye } from 'lucide-react';
 import type {
   ConcentracionEquipo,
   Taller,
@@ -12,19 +12,13 @@ import type {
 const fmtMoneda = (valor: number) =>
   valor.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
 
-const fmtFecha = (fecha: string | null) => {
-  if (!fecha) return null;
-  return new Date(fecha).toLocaleDateString('es-MX');
-};
-
 interface MatrizEquiposTableProps {
   equipos: ConcentracionEquipo[];
   /** Talleres de la matriz general (para calcular el costo por equipo). */
   talleres: Taller[];
   loading?: boolean;
-  /** Puede reabrir capturas (GV/CA) y la general está en Creada. */
-  puedeReabrir: boolean;
-  onReabrir: (equipo: ConcentracionEquipo) => void;
+  /** Visitas planeadas sin taller confirmado para el equipo. */
+  visitasSinTaller?: (equipo: ConcentracionEquipo) => number;
   onVerDetalle: (equipo: ConcentracionEquipo) => void;
 }
 
@@ -33,8 +27,7 @@ export function MatrizEquiposTable({
   equipos,
   talleres,
   loading,
-  puedeReabrir,
-  onReabrir,
+  visitasSinTaller,
   onVerDetalle,
 }: MatrizEquiposTableProps) {
   const costoPorEquipo = useMemo(() => {
@@ -73,20 +66,29 @@ export function MatrizEquiposTable({
         cell: ({ row }) => row.original.nombreRegion ?? '—',
       },
       {
-        id: 'captura',
-        header: 'Captura',
-        cell: ({ row }) => (
-          <Badge variant={row.original.esBloqueado ? 'default' : 'outline'}>
-            {row.original.esBloqueado ? 'Bloqueada' : 'En captura'}
-          </Badge>
-        ),
-      },
-      {
         id: 'talleres',
         header: 'Talleres',
         cell: ({ row }) => (
           <span className="tabular-nums">{row.original.totalTalleres}</span>
         ),
+      },
+      {
+        id: 'visitasSinTaller',
+        header: 'Planeadas sin taller',
+        cell: ({ row }) => {
+          const total = visitasSinTaller?.(row.original) ?? 0;
+          if (total === 0) {
+            return <span className="text-muted-foreground">-</span>;
+          }
+          return (
+            <Badge
+              variant="outline"
+              className="border-slate-300 text-[10px] text-slate-600 dark:border-slate-700 dark:text-slate-300"
+            >
+              {total}
+            </Badge>
+          );
+        },
       },
       {
         id: 'costo',
@@ -96,21 +98,6 @@ export function MatrizEquiposTable({
             {fmtMoneda(costoPorEquipo.get(row.original.idMatrizIndividual) ?? 0)}
           </span>
         ),
-      },
-      {
-        id: 'fecha',
-        header: 'Fecha',
-        cell: ({ row }) => {
-          const fecha = row.original.esBloqueado
-            ? fmtFecha(row.original.fechaBloqueo)
-            : fmtFecha(row.original.fechaDesbloqueo);
-          if (!fecha) return '—';
-          return (
-            <span className="text-xs text-muted-foreground">
-              {row.original.esBloqueado ? `Bloqueada el ${fecha}` : `Reabierta el ${fecha}`}
-            </span>
-          );
-        },
       },
       {
         id: 'acciones',
@@ -126,22 +113,11 @@ export function MatrizEquiposTable({
             >
               <Eye className="h-3.5 w-3.5" />
             </Button>
-            {puedeReabrir && row.original.esBloqueado && (
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-7 text-xs"
-                onClick={() => onReabrir(row.original)}
-              >
-                <LockOpen className="mr-1 h-3.5 w-3.5" />
-                Reabrir captura
-              </Button>
-            )}
           </div>
         ),
       },
     ],
-    [costoPorEquipo, puedeReabrir, onReabrir, onVerDetalle]
+    [costoPorEquipo, onVerDetalle, visitasSinTaller]
   );
 
   return (

@@ -74,7 +74,7 @@ public class MatrizTalleresController : ControllerBase
     [HttpGet("{idMatrizGeneral:int}/concentracion")]
     [SwaggerOperation(
         Summary = "Panel Matrices por equipo",
-        Description = "Estado de la matriz individual de cada equipo con talleres en la general (Generada/EnCaptura).")]
+        Description = "Concentración de cada equipo con talleres en la matriz general: integrantes, región, total de talleres y costo.")]
     [SwaggerResponse(200, "Concentración", typeof(ApiResponse<List<ConcentracionEquipoDto>>))]
     public async Task<IActionResult> GetConcentracion(int idMatrizGeneral, CancellationToken ct)
     {
@@ -86,6 +86,33 @@ public class MatrizTalleresController : ControllerBase
                 Success = true,
                 Message = "Concentración obtenida exitosamente.",
                 Data = concentracion
+            });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(new ApiResponse<object> { Success = false, Message = ex.Message });
+        }
+    }
+
+    [HttpGet("{idMatrizGeneral:int}/revision")]
+    [SwaggerOperation(
+        Summary = "Revisión previa al envío de la matriz",
+        Description = "Compara las visitas tipo taller de la versión de rutas activa contra los talleres de la matriz. Devuelve conteos, visitas sin taller, talleres sin recursos/costo, talleres fuera de la versión activa y advertencias no bloqueantes.")]
+    [SwaggerResponse(200, "Revisión", typeof(ApiResponse<MatrizRevisionDto>))]
+    [SwaggerResponse(409, "Matriz o versión de rutas inválida")]
+    public async Task<IActionResult> GetRevision(
+        int idMatrizGeneral,
+        [FromQuery] int? idRutaVersion,
+        CancellationToken ct)
+    {
+        try
+        {
+            var revision = await _service.GetRevisionAsync(idMatrizGeneral, idRutaVersion, ct);
+            return Ok(new ApiResponse<MatrizRevisionDto>
+            {
+                Success = true,
+                Message = "Revisión obtenida exitosamente.",
+                Data = revision
             });
         }
         catch (InvalidOperationException ex)
@@ -122,7 +149,7 @@ public class MatrizTalleresController : ControllerBase
     [HttpPost("{idMatrizGeneral:int}/firmar")]
     [SwaggerOperation(
         Summary = "Ejecutar una acción del workflow sobre la matriz",
-        Description = "ENVIAR (Concentración -> firma GV; AEM -> CA), AUTORIZAR (GV, CA y DC, con firma digital) y DEVOLVER (comentario), según las acciones del paso actual. Salvaguarda: a partir de la revisión de costos del CA ningún AUTORIZAR avanza con talleres sin costos. Al autorizar DC, los talleres pasan a Autorizado.")]
+        Description = "ENVIAR (Concentración -> firma GV; AEM -> CA), AUTORIZAR (GV, CA y DC, con firma digital) y DEVOLVER (comentario), según las acciones del paso actual. Si la matriz tiene visitas tipo taller sin taller, ENVIAR exige datosAdicionales.confirmarVisitasSinTaller = true. Salvaguarda: a partir de la revisión de costos del CA ningún AUTORIZAR avanza con talleres sin costos. Al autorizar DC, los talleres pasan a Autorizado.")]
     [SwaggerResponse(200, "Acción registrada", typeof(ApiResponse<MatrizTalleresDetalleDto>))]
     [SwaggerResponse(409, "Acción no disponible, sin firma digital o salvaguarda de costos")]
     public async Task<IActionResult> Firmar(int idMatrizGeneral, [FromBody] FirmarWorkflowRequest request, CancellationToken ct)

@@ -14,6 +14,7 @@ public class AjustePostCierre
 
     public const string AccionMoverVisita = "MOVER_VISITA";
     public const string AccionEditarHoras = "EDITAR_HORAS";
+    public const string AccionEditarEjecutivo = "EDITAR_EJECUTIVO";
     public const string AccionAltaVisita = "ALTA_VISITA";
     public const string AccionBajaVisita = "BAJA_VISITA";
     public const string AccionEditarTaller = "EDITAR_TALLER";

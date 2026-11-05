@@ -1,18 +1,47 @@
 import { API } from '@/shared/api/apiClient';
 import type { ApiResponse } from '@/types/api.types';
 import type {
+  CrearSolicitudDesdeEducacionMedicaPayload,
   CalculoViaje,
   CrearSolicitudPayload,
   OpcionCotizacion,
   Solicitud,
+  SolicitudDesdeEducacionMedicaResponse,
+  SolicitudOrigenEmResumen,
 } from '../types/solicitud.types';
 
 const BASE = '/viaticos/solicitudes';
+
+/**
+ * Total cotizado = suma de las opciones elegidas con precio. Se persiste en
+ * `datos.total` (ADR-00014) para que Educación Médica muestre el costo sin
+ * recalcular el motor. Si todas las opciones son estimadas (precio null), se
+ * omite y la cotización queda "Sin cotización".
+ */
+const totalDeOpciones = (opciones: OpcionCotizacion[]): number | undefined => {
+  const precios = opciones
+    .map((opcion) => opcion.precio)
+    .filter(
+      (precio): precio is number =>
+        typeof precio === 'number' && Number.isFinite(precio)
+    );
+
+  return precios.length > 0 ? precios.reduce((suma, precio) => suma + precio, 0) : undefined;
+};
 
 export const solicitudesApi = {
   /** POST /viaticos/solicitudes: crea el borrador de la solicitud. */
   crear: (payload: CrearSolicitudPayload) =>
     API.post<ApiResponse<Solicitud>>(BASE, payload),
+  /** POST /viaticos/solicitudes/desde-educacion-medica: crea o reutiliza por ruta. */
+  crearDesdeEducacionMedica: (payload: CrearSolicitudDesdeEducacionMedicaPayload) =>
+    API.post<ApiResponse<SolicitudDesdeEducacionMedicaResponse>>(
+      `${BASE}/desde-educacion-medica`,
+      payload
+    ),
+  /** GET /viaticos/solicitudes/por-ruta/{idRuta}: todas las cotizaciones de la ruta. */
+  porRuta: (idRuta: number) =>
+    API.get<ApiResponse<SolicitudOrigenEmResumen[]>>(`${BASE}/por-ruta/${idRuta}`),
   /** GET /viaticos/solicitudes/mis */
   misSolicitudes: () => API.get<ApiResponse<Solicitud[]>>(`${BASE}/mis`),
   /** GET /viaticos/solicitudes/gerencia-sugerida: última gerencia del usuario. */
@@ -29,9 +58,15 @@ export const solicitudesApi = {
   enviar: (id: number, calculo?: CalculoViaje) =>
     API.post<ApiResponse<Solicitud>>(`${BASE}/${id}/enviar`, calculo ? { calculo } : {}),
   /** PUT /viaticos/solicitudes/{id}/opciones: persiste la cotización elegida. */
-  guardarOpciones: (id: number, opciones: OpcionCotizacion[], calculo?: CalculoViaje) =>
-    API.put<ApiResponse<Solicitud>>(`${BASE}/${id}/opciones`, {
-      cotizacion: { opciones },
+
+    guardarOpciones: (id: number, opciones: OpcionCotizacion[], calculo?: CalculoViaje) => {
+    const total = totalDeOpciones(opciones);
+    return API.put<ApiResponse<Solicitud>>(`${BASE}/${id}/opciones`, {
+      cotizacion: {
+        opciones,
+        ...(total === undefined ? {} : { total }),
+      },
       ...(calculo ? { calculo } : {}),
-    }),
+    });
+  },
 };

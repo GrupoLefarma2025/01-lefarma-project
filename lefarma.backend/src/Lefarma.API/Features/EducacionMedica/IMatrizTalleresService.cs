@@ -11,6 +11,7 @@ public interface IMatrizTalleresService
     Task<List<ConcentracionEquipoDto>> GetConcentracionAsync(int idMatrizGeneral, CancellationToken ct = default);
     Task<TallerDto> ActualizarCostosAsync(int idMatrizGeneral, int idTaller, ActualizarCostosTallerRequest request, int idUsuario, CancellationToken ct = default);
     Task<MatrizTalleresDetalleDto> FirmarAsync(int idMatrizGeneral, FirmarWorkflowRequest request, int idUsuario, CancellationToken ct = default);
+    Task<MatrizRevisionDto> GetRevisionAsync(int idMatrizGeneral, int? idRutaVersion, CancellationToken ct = default);
     Task<ErrorOr<IEnumerable<AccionDisponibleResponse>>> GetAccionesDisponiblesAsync(int idMatrizGeneral, int idUsuario, CancellationToken ct = default);
     Task<ErrorOr<IEnumerable<HistorialWorkflowItemResponse>>> GetHistorialAsync(int idMatrizGeneral, CancellationToken ct = default);
     Task<MatrizDocumentoDto> GetDocumentoAsync(int idMatrizGeneral, CancellationToken ct = default);

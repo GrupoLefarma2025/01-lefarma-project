@@ -8,6 +8,8 @@ public class RutaDto
     public int IdSeleccionMensual { get; set; }
     public int IdEquipo { get; set; }
     public string NombreEquipo { get; set; } = string.Empty;
+    public int? IdEspecialista { get; set; }
+    public string? NombreEspecialista { get; set; }
     public int Version { get; set; }
     public string? Nombre { get; set; }
     public string Estado { get; set; } = string.Empty;
@@ -22,6 +24,9 @@ public class RutaVisitaDto
     public int? IdSeleccionHospital { get; set; }
     public int? IdHospital { get; set; }
     public string? NombreHospital { get; set; }
+    public int? IdEjecutivo { get; set; }
+    public int? IdEspecialista { get; set; }
+    public int? IdTipoVisita { get; set; }
     public DateOnly FechaVisita { get; set; }
     public int Orden { get; set; }
     public TimeOnly? HoraSalida { get; set; }
@@ -31,6 +36,10 @@ public class RutaVisitaDto
     public bool EsExtraordinaria { get; set; }
     public int? IdRegion { get; set; }
     public string? NombreRegion { get; set; }
+    public string? EntidadFederativa { get; set; }
+    public string? CiudadMunicipio { get; set; }
+    public decimal? Latitud { get; set; }
+    public decimal? Longitud { get; set; }
 
     /// <summary>Aviso de intervención humana (p. ej. alta manual de hospital sin región/equipo asignado).</summary>
     public string? Aviso { get; set; }
@@ -52,6 +61,7 @@ public class GenerarRutasRequest
 public class GenerarRutasResponse
 {
     public int Version { get; set; }
+    public int IdRutaVersion { get; set; }
     public string Estrategia { get; set; } = string.Empty;
     public List<RutaDto> Rutas { get; set; } = [];
     public List<string> Avisos { get; set; } = [];
@@ -76,6 +86,9 @@ public class AgregarVisitaRequest
     [Range(1, int.MaxValue, ErrorMessage = "El hospital seleccionado es obligatorio.")]
     public int IdSeleccionHospital { get; set; }
 
+    /// <summary>Tipo de visita (taller, informativa, captación de queja, otro).</summary>
+    public int? IdTipoVisita { get; set; }
+
     [Required(ErrorMessage = "La fecha de visita es obligatoria.")]
     public DateOnly FechaVisita { get; set; }
 
@@ -88,6 +101,16 @@ public class AgregarVisitaRequest
 }
 
 /// <summary>Edición de horas de una visita (normal en Creada; ajuste auditado en Cerrada; ADR-00010).</summary>
+public class AsignarEjecutivoVisitaRequest
+{
+    /// <summary>Ejecutivo de la visita; null = heredar del hospital/región.</summary>
+    public int? IdEjecutivo { get; set; }
+
+    /// <summary>Motivo obligatorio cuando la ruta está Cerrada (ajuste auditado; ADR-00010).</summary>
+    [MaxLength(500)]
+    public string? Motivo { get; set; }
+}
+
 public class EditarHorasVisitaRequest
 {
     public TimeOnly? HoraSalida { get; set; }

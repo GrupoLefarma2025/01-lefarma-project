@@ -24,5 +24,6 @@ namespace Lefarma.API.Features.Config.Workflows.DTOs
         public bool RequiereComentario { get; set; }
         public bool RequiereAdjunto { get; set; }
         public bool PermiteAdjunto { get; set; }
+        public bool PermiteEditar { get; set; }
     }
 }

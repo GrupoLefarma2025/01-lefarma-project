@@ -1,16 +1,19 @@
 namespace Lefarma.API.Domain.Entities.EducacionMedica;
 
 /// <summary>
-/// Matriz de talleres por equipo de pareo (EV+EP) y mes (FOR-005). La captura se
-/// bloquea al generarla (es_bloqueado = 1) y el GV puede reabrirla (es_bloqueado = 0)
-/// mientras la matriz general siga en el paso inicial (ADR-00007).
+/// Matriz de talleres por ejecutivo y mes (FOR-005, ADR-00015). La captura se
+/// bloquea cuando la matriz general sale del paso inicial (ADR-00018); el flag
+/// EsBloqueado se conserva como dato histórico y ya no gobierna la edición.
 /// </summary>
 public class MatrizIndividual
 {
     public int IdMatrizIndividual { get; set; }
-    public int IdEquipo { get; set; }
+    /// <summary>Legacy (ADR-00015): equipo de pareo del modelo anterior.</summary>
+    public int? IdEquipo { get; set; }
+    /// <summary>Ejecutivo dueño de la matriz individual.</summary>
+    public int? IdEjecutivo { get; set; }
     public DateOnly Periodo { get; set; }   // primer día del mes
-    /// <summary>0 = captura abierta; 1 = captura bloqueada (generada por el equipo).</summary>
+    /// <summary>0 = captura abierta; 1 = captura bloqueada (generada por el ejecutivo).</summary>
     public bool EsBloqueado { get; set; }
     /// <summary>Último bloqueo de la captura (UTC).</summary>
     public DateTime? FechaBloqueo { get; set; }

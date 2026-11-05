@@ -10,6 +10,8 @@ resumen: Integración del motor genérico de workflow del sistema (config.workfl
 
 Proposed
 
+> **Actualización 2026-10-23:** la **ruta deja de ser entidad del workflow** (draft sin firmas) según [[decisiones/00015_reparto-ejecutivo-rutas-especialista]] y [[decisiones/00018_candado-solicitudes-matriz]]. La **selección** y la **matriz** conservan su autorización. Se agrega una tercera variante de gerencia (IMSS Bienestar) según [[decisiones/00017_tercera-gerencia-imss-bienestar]].
+
 > Complementa al ADR-00001 (esquema de datos) y al ADR-00004 (reparto y planificación de rutas; su decisión 12 definió los estados separados de selección y rutas, que este ADR ahora gobierna con el motor de workflow). Sustituye la **doble firma casera** de `SeleccionMensualService` (endpoint `POST /autorizar` con `{rol: 'GV'|'GG'}`) y la confirmación directa de rutas (`POST /confirmar` sin firmas).
 
 > **Contexto técnico:** el sistema ya opera un motor de workflow configurable (`config.workflows`, usado por Órdenes de Compra y Solicitudes de Personal) con pasos, acciones, participantes, condiciones, campos dinámicos, notificaciones y bitácora. Este ADR decide **cómo Educación Médica se integra a ese motor** en lugar de seguir con máquinas de estado y validaciones propias.

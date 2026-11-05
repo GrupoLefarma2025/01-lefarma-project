@@ -122,7 +122,8 @@ public class WorkflowService : BaseService, IWorkflowService
                             RequiereFirma = p.RequiereFirma,
                             RequiereComentario = p.RequiereComentario,
                             RequiereAdjunto = p.RequiereAdjunto,
-                            PermiteAdjunto = p.PermiteAdjunto
+                            PermiteAdjunto = p.PermiteAdjunto,
+                            PermiteEditar = p.PermiteEditar
                         }).ToList()
                 }).ToList();
 
@@ -510,11 +511,11 @@ public class WorkflowService : BaseService, IWorkflowService
                 if (!request.Activo)
                 {
                     if (workflow.Pasos.Count(p => p.Activo) <= 1)
-                        return CommonErrors.Conflict("paso", "No se puede inactivar el �ltimo paso activo del workflow.");
+                        return CommonErrors.Conflict("paso", "No se puede inactivar el último paso activo del workflow.");
 
                     var tieneOrdenesEnPaso = await _context.OrdenesCompra.AnyAsync(o => o.IdPasoActual == idPaso);
                     if (tieneOrdenesEnPaso)
-                        return CommonErrors.Conflict("paso", "No se puede inactivar un paso usado por �rdenes de compra.");
+                        return CommonErrors.Conflict("paso", "No se puede inactivar un paso usado por órdenes de compra.");
 
                 var accionesQueApuntanAlPaso = workflow.Pasos
                     .Where(p => p.IdPaso != idPaso && p.Activo)
@@ -544,6 +545,7 @@ public class WorkflowService : BaseService, IWorkflowService
                 paso.RequiereComentario = request.RequiereComentario;
                 paso.RequiereAdjunto = request.RequiereAdjunto;
                 paso.PermiteAdjunto = request.PermiteAdjunto;
+                paso.PermiteEditar = request.PermiteEditar;
 
                 await _repo.UpdateAsync(workflow);
 
@@ -561,6 +563,7 @@ public class WorkflowService : BaseService, IWorkflowService
                     RequiereComentario = paso.RequiereComentario,
                     RequiereAdjunto = paso.RequiereAdjunto,
                     PermiteAdjunto = paso.PermiteAdjunto,
+                    PermiteEditar = paso.PermiteEditar,
                     Acciones = paso.AccionesOrigen.Select(a => new WorkflowAccionResponse
                     {
                         IdAccion = a.IdAccion,
@@ -611,7 +614,8 @@ public class WorkflowService : BaseService, IWorkflowService
                     RequiereFirma = request.RequiereFirma,
                     RequiereComentario = request.RequiereComentario,
                     RequiereAdjunto = request.RequiereAdjunto,
-                    PermiteAdjunto = request.PermiteAdjunto
+                    PermiteAdjunto = request.PermiteAdjunto,
+                    PermiteEditar = request.PermiteEditar
                 };
 
                 workflow.Pasos.Add(paso);
@@ -637,6 +641,7 @@ public class WorkflowService : BaseService, IWorkflowService
                     RequiereComentario = paso.RequiereComentario,
                     RequiereAdjunto = paso.RequiereAdjunto,
                     PermiteAdjunto = paso.PermiteAdjunto,
+                    PermiteEditar = paso.PermiteEditar,
                     Acciones = new List<WorkflowAccionResponse>()
                 };
             }
@@ -676,7 +681,8 @@ public class WorkflowService : BaseService, IWorkflowService
                     RequiereFirma = paso.RequiereFirma,
                     RequiereComentario = paso.RequiereComentario,
                     RequiereAdjunto = paso.RequiereAdjunto,
-                    PermiteAdjunto = paso.PermiteAdjunto
+                    PermiteAdjunto = paso.PermiteAdjunto,
+                    PermiteEditar = paso.PermiteEditar
                 };
 
                 var inactivarResult = await UpdatePasoAsync(idWorkflow, idPaso, updateRequest);
@@ -760,7 +766,7 @@ public class WorkflowService : BaseService, IWorkflowService
             catch (Exception ex)
             {
                 EnrichWideEvent("CreateAccion", entityId: idWorkflow, exception: ex);
-                return CommonErrors.DatabaseError("crear acci�n");
+                return CommonErrors.DatabaseError("crear acción");
             }
         }
 
@@ -789,10 +795,10 @@ public class WorkflowService : BaseService, IWorkflowService
                 if (accion == null)
                 {
                     EnrichWideEvent("UpdateAccion", entityId: idWorkflow, additionalContext: new Dictionary<string, object> { ["pasoId"] = idPaso, ["accionId"] = idAccion, ["notFound"] = true });
-                    return CommonErrors.NotFound("Acci�n", idAccion.ToString());
+                    return CommonErrors.NotFound("Acción", idAccion.ToString());
                 }
                 if (!request.Activo && accion.Bitacora.Any())
-                    return CommonErrors.Conflict("accion", "No se puede inactivar una acci�n con eventos en bit�cora.");
+                    return CommonErrors.Conflict("accion", "No se puede inactivar una acción con eventos en bitácora.");
 
                 var tipoAccion = await _context.WorkflowTiposAccion
                     .AsNoTracking()
@@ -847,7 +853,7 @@ public class WorkflowService : BaseService, IWorkflowService
             catch (Exception ex)
             {
                 EnrichWideEvent("UpdateAccion", entityId: idWorkflow, exception: ex);
-                return CommonErrors.DatabaseError("actualizar acci�n");
+                return CommonErrors.DatabaseError("actualizar acción");
             }
         }
 
@@ -878,10 +884,10 @@ public class WorkflowService : BaseService, IWorkflowService
                 if (accion == null)
                 {
                     EnrichWideEvent("DeleteAccion", entityId: idWorkflow, additionalContext: new Dictionary<string, object> { ["pasoId"] = idPaso, ["accionId"] = idAccion, ["notFound"] = true });
-                    return CommonErrors.NotFound("Acci�n", idAccion.ToString());
+                    return CommonErrors.NotFound("Acción", idAccion.ToString());
                 }
                 if (accion.Bitacora.Any())
-                    return CommonErrors.Conflict("accion", "No se puede inactivar una acci�n con eventos en bit�cora.");
+                    return CommonErrors.Conflict("accion", "No se puede inactivar una acción con eventos en bitácora.");
                 accion.Activo = false;
                 await _repo.UpdateAsync(workflow);
 
@@ -891,7 +897,7 @@ public class WorkflowService : BaseService, IWorkflowService
             catch (Exception ex)
             {
                 EnrichWideEvent("DeleteAccion", entityId: idWorkflow, exception: ex);
-                return CommonErrors.DatabaseError("eliminar acci�n");
+                return CommonErrors.DatabaseError("eliminar acción");
             }
         }
 
@@ -1598,12 +1604,12 @@ public class WorkflowService : BaseService, IWorkflowService
                 if (accion == null)
                 {
                     EnrichWideEvent("CreateNotificacion", entityId: idWorkflow, additionalContext: new Dictionary<string, object> { ["accionId"] = idAccion, ["notFound"] = true });
-                    return CommonErrors.NotFound("Acci�n", idAccion.ToString());
+                    return CommonErrors.NotFound("Acción", idAccion.ToString());
                 }
                 if (!accion.Activo)
-                    return CommonErrors.Conflict("accion", "No se pueden crear notificaciones en una acci�n inactiva.");
+                    return CommonErrors.Conflict("accion", "No se pueden crear notificaciones en una acción inactiva.");
                 if (!accion.Activo)
-                    return CommonErrors.Conflict("accion", "No se pueden crear notificaciones en una acci�n inactiva.");
+                    return CommonErrors.Conflict("accion", "No se pueden crear notificaciones en una acción inactiva.");
 
                 var notificacion = new WorkflowNotificacion
                 {
@@ -1664,7 +1670,7 @@ public class WorkflowService : BaseService, IWorkflowService
             catch (Exception ex)
             {
                 EnrichWideEvent("CreateNotificacion", entityId: idWorkflow, exception: ex);
-                return CommonErrors.DatabaseError("crear notificaci�n");
+                return CommonErrors.DatabaseError("crear notificación");
             }
         }
 
@@ -1692,17 +1698,17 @@ public class WorkflowService : BaseService, IWorkflowService
                 if (accion == null)
                 {
                     EnrichWideEvent("UpdateNotificacion", entityId: idWorkflow, additionalContext: new Dictionary<string, object> { ["accionId"] = idAccion, ["notFound"] = true });
-                    return CommonErrors.NotFound("Acci�n", idAccion.ToString());
+                    return CommonErrors.NotFound("Acción", idAccion.ToString());
                 }
 
                 var notificacion = accion.Notificaciones.FirstOrDefault(n => n.IdNotificacion == idNotificacion);
                 if (notificacion == null)
                 {
                     EnrichWideEvent("UpdateNotificacion", entityId: idWorkflow, additionalContext: new Dictionary<string, object> { ["accionId"] = idAccion, ["notificacionId"] = idNotificacion, ["notFound"] = true });
-                    return CommonErrors.NotFound("Notificaci�n", idNotificacion.ToString());
+                    return CommonErrors.NotFound("Notificación", idNotificacion.ToString());
                 }
                 if (!accion.Activo && request.Activo)
-                    return CommonErrors.Conflict("notificacion", "No se puede reactivar una notificaci�n en una acci�n inactiva.");
+                    return CommonErrors.Conflict("notificacion", "No se puede reactivar una notificación en una acción inactiva.");
 
                 notificacion.EnviarEmail = request.EnviarEmail;
                 notificacion.EnviarWhatsapp = request.EnviarWhatsapp;
@@ -1780,7 +1786,7 @@ public class WorkflowService : BaseService, IWorkflowService
             catch (Exception ex)
             {
                 EnrichWideEvent("UpdateNotificacion", entityId: idWorkflow, exception: ex);
-                return CommonErrors.DatabaseError("actualizar notificaci�n");
+                return CommonErrors.DatabaseError("actualizar notificación");
             }
         }
 
@@ -1807,14 +1813,14 @@ public class WorkflowService : BaseService, IWorkflowService
                 if (accion == null)
                 {
                     EnrichWideEvent("DeleteNotificacion", entityId: idWorkflow, additionalContext: new Dictionary<string, object> { ["accionId"] = idAccion, ["notFound"] = true });
-                    return CommonErrors.NotFound("Acci�n", idAccion.ToString());
+                    return CommonErrors.NotFound("Acción", idAccion.ToString());
                 }
 
                 var notificacion = accion.Notificaciones.FirstOrDefault(n => n.IdNotificacion == idNotificacion);
                 if (notificacion == null)
                 {
                     EnrichWideEvent("DeleteNotificacion", entityId: idWorkflow, additionalContext: new Dictionary<string, object> { ["accionId"] = idAccion, ["notificacionId"] = idNotificacion, ["notFound"] = true });
-                    return CommonErrors.NotFound("Notificaci�n", idNotificacion.ToString());
+                    return CommonErrors.NotFound("Notificación", idNotificacion.ToString());
                 }
                 notificacion.Activo = false;
                 await _repo.UpdateAsync(workflow);
@@ -1825,7 +1831,7 @@ public class WorkflowService : BaseService, IWorkflowService
             catch (Exception ex)
             {
                 EnrichWideEvent("DeleteNotificacion", entityId: idWorkflow, exception: ex);
-                return CommonErrors.DatabaseError("eliminar notificaci�n");
+                return CommonErrors.DatabaseError("eliminar notificación");
             }
         }
 
@@ -2012,6 +2018,7 @@ public class WorkflowService : BaseService, IWorkflowService
                 RequiereComentario = p.RequiereComentario,
                 RequiereAdjunto = p.RequiereAdjunto,
                 PermiteAdjunto = p.PermiteAdjunto,
+                PermiteEditar = p.PermiteEditar,
                 Acciones = p.AccionesOrigen.Select(a => new WorkflowAccionResponse
                 {
                     IdAccion = a.IdAccion,

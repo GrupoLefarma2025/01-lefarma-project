@@ -22,6 +22,9 @@ public class TallerRecursoDto
 public class TallerDto
 {
     public int IdTaller { get; set; }
+    public int? IdRutaVisita { get; set; }
+    public int? IdTipoVisita { get; set; }
+    public string? TipoVisita { get; set; }
     public int? IdSeleccionHospital { get; set; }
     public int? IdHospital { get; set; }
     public string? NombreHospital { get; set; }
@@ -43,6 +46,7 @@ public class TallerDto
     public string? Observaciones { get; set; }
     public int? IdMatrizIndividual { get; set; }
     public int? IdMatrizGeneral { get; set; }
+    public string? Tema { get; set; }
     /// <summary>Fecha real de cierre (estado Realizado; ADR-00008).</summary>
     public DateOnly? FechaRealizado { get; set; }
     /// <summary>1 = taller extraordinario (ADR-00011): hospital del catálogo fuera de la selección.</summary>
@@ -58,16 +62,12 @@ public class TallerDto
     public decimal CostoTotal { get; set; }
 }
 
-/// <summary>Matriz individual de un equipo de pareo (equipo + mes).</summary>
+/// <summary>Matriz individual por ejecutivo (ejecutivo + mes).</summary>
 public class MatrizIndividualDto
 {
     public int IdMatrizIndividual { get; set; }
     public int IdEquipo { get; set; }
     public DateOnly Periodo { get; set; }
-    /// <summary>0 = captura abierta; 1 = captura bloqueada (generada por el equipo).</summary>
-    public bool EsBloqueado { get; set; }
-    public DateTime? FechaBloqueo { get; set; }
-    public DateTime? FechaDesbloqueo { get; set; }
     public int? IdEjecutivo { get; set; }
     public string? NombreEjecutivo { get; set; }
     public int? IdEspecialista { get; set; }
@@ -119,6 +119,12 @@ public class GuardarTallerRecursoRequest
 /// <summary>Alta de un taller (campos FOR-005 1–12; hospital/región se derivan de la selección).</summary>
 public class CrearTallerRequest
 {
+    /// <summary>Visita de la ruta desde la que se crea el taller; hereda hospital, ejecutivo, especialista, fecha y hora.</summary>
+    public int? IdRutaVisita { get; set; }
+
+    /// <summary>Tipo de visita (taller, informativa, captación de queja, otro).</summary>
+    public int? IdTipoVisita { get; set; }
+
     /// <summary>Hospital de la selección; obligatorio en el modo normal (null en extraordinario).</summary>
     [Range(1, int.MaxValue, ErrorMessage = "El hospital de la selección es obligatorio.")]
     public int? IdSeleccionHospital { get; set; }
@@ -147,6 +153,11 @@ public class CrearTallerRequest
 
     public DateOnly? FechaTaller { get; set; }
     public TimeOnly? HoraTaller { get; set; }
+
+    /// <summary>Motivo obligatorio cuando la fecha del taller obliga a crear una visita en una ruta cerrada.</summary>
+    [MaxLength(500)]
+    public string? MotivoAjuste { get; set; }
+
     public bool? RequiereEquipoProyeccion { get; set; }
 
     [MaxLength(10)]
@@ -155,13 +166,19 @@ public class CrearTallerRequest
     [MaxLength(500)]
     public string? Observaciones { get; set; }
 
+
+    [MaxLength(200)]
+    public string? Tema { get; set; }
     public List<GuardarTallerRecursoRequest>? Recursos { get; set; }
 }
 
 /// <summary>Edición de un taller (la liga a la selección/hospital no cambia).</summary>
 public class ActualizarTallerRequest
 {
-    [Range(0, int.MaxValue, ErrorMessage = "El número de participantes no puede ser negativo.")]
+    /// <summary>Tipo del taller (catálogo tipo_visita); null = no cambiar.</summary>
+    public int? IdTipoVisita { get; set; }
+
+    [Range(0, int.MaxValue, ErrorMessage = "El n�mero de participantes no puede ser negativo.")]
     public int? NumeroParticipantes { get; set; }
 
     [MaxLength(160)]
@@ -179,6 +196,9 @@ public class ActualizarTallerRequest
 
     [MaxLength(500)]
     public string? Observaciones { get; set; }
+
+    [MaxLength(200)]
+    public string? Tema { get; set; }
 
     /// <summary>Motivo del ajuste post-cierre (obligatorio con el taller Autorizado/Programado; ADR-00010).</summary>
     [MaxLength(500)]

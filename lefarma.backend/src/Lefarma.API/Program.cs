@@ -259,10 +259,16 @@ builder.Services.AddScoped<Lefarma.API.Features.EducacionMedica.IProductoService
 builder.Services.AddScoped<Lefarma.API.Features.EducacionMedica.ITipoGerenciaService, Lefarma.API.Features.EducacionMedica.TipoGerenciaService>();
 builder.Services.AddScoped<Lefarma.API.Features.EducacionMedica.IParametroAnestesiaService, Lefarma.API.Features.EducacionMedica.ParametroAnestesiaService>();
 builder.Services.AddScoped<Lefarma.API.Features.EducacionMedica.IEquipoPareoService, Lefarma.API.Features.EducacionMedica.EquipoPareoService>();
+builder.Services.AddScoped<Lefarma.API.Features.EducacionMedica.IPersonasService, Lefarma.API.Features.EducacionMedica.PersonasService>();
+builder.Services.AddScoped<Lefarma.API.Features.EducacionMedica.ISeleccionEjecutivoService, Lefarma.API.Features.EducacionMedica.SeleccionEjecutivoService>();
+builder.Services.AddScoped<Lefarma.API.Features.EducacionMedica.IAsignadorEspecialistasService, Lefarma.API.Features.EducacionMedica.AsignadorEspecialistasService>();
+builder.Services.AddScoped<Lefarma.API.Features.EducacionMedica.ICalendarioService, Lefarma.API.Features.EducacionMedica.CalendarioService>();
+builder.Services.AddScoped<Lefarma.API.Features.EducacionMedica.IEjecutivoElegibilidadService, Lefarma.API.Features.EducacionMedica.EjecutivoElegibilidadService>();
         builder.Services.AddScoped<Lefarma.API.Features.EducacionMedica.ISeleccionMensualService, Lefarma.API.Features.EducacionMedica.SeleccionMensualService>();
         builder.Services.AddScoped<Lefarma.API.Features.EducacionMedica.IRutasService, Lefarma.API.Features.EducacionMedica.RutasService>();
         builder.Services.AddScoped<Lefarma.API.Features.EducacionMedica.IAprobacionesService, Lefarma.API.Features.EducacionMedica.AprobacionesService>();
         builder.Services.AddScoped<Lefarma.API.Features.EducacionMedica.ITalleresService, Lefarma.API.Features.EducacionMedica.TalleresService>();
+        builder.Services.AddScoped<Lefarma.API.Features.EducacionMedica.ITalleresVisitaService, Lefarma.API.Features.EducacionMedica.TalleresVisitaService>();
 builder.Services.AddScoped<Lefarma.API.Features.EducacionMedica.ITallerImparticionService, Lefarma.API.Features.EducacionMedica.TallerImparticionService>();
 builder.Services.AddScoped<Lefarma.API.Features.EducacionMedica.IAjustePostCierreService, Lefarma.API.Features.EducacionMedica.AjustePostCierreService>();
         builder.Services.AddScoped<Lefarma.API.Features.EducacionMedica.IMatrizTalleresService, Lefarma.API.Features.EducacionMedica.MatrizTalleresService>();
@@ -426,6 +432,7 @@ builder.Services.AddScoped<UserPermissionService>();
 // Scoped: PermissionHandler consumes UserPermissionService (Scoped) which consumes AsokamDbContext (Scoped).
 // Singleton here would be a captive dependency — ASP.NET Core rejects it at startup validation.
 builder.Services.AddScoped<IAuthorizationHandler, PermissionHandler>();
+builder.Services.AddScoped<IAuthorizationHandler, AnyPermissionHandler>();
 
 // Controllers
 builder.Services.AddControllers(options =>
