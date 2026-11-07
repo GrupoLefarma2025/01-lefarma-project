@@ -68,7 +68,7 @@ function RedirectMatrizLegacy() {
 }
 
 function RedirectEquiposLegacy() {
-  return <Navigate replace to="/educacion-medica/personas" />;
+  return <Navigate replace to="/educacion-medica/colaboradores" />;
 }
 
 /**
@@ -110,12 +110,16 @@ export function EducacionMedicaRoutes({ variant, loginPath }: SubtreeRoutesProps
         <Route path="perfil" element={<Perfil />} />
 
         <Route
-          path="personas"
+          path="colaboradores"
           element={
             <PermissionGuard blockedPath={resolvedBlockedPath} require={PERMISOS.configuracion}>
               <ColaboradoresPage />
             </PermissionGuard>
           }
+        />
+        <Route
+          path="personas"
+          element={<Navigate replace to="/educacion-medica/colaboradores" />}
         />
 
         <Route

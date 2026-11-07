@@ -1,14 +1,9 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
   BriefcaseBusiness,
-  Building2,
-  Globe2,
-  Loader2,
   MapPin,
   Pencil,
   Plus,
-  PowerOff,
-  RefreshCcw,
   Search,
   ShieldCheck,
   Sparkles,
@@ -16,22 +11,12 @@ import {
   UsersRound,
 } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { EmptyState } from '@/components/ui/EmptyState';
+import { DataTable } from '@/components/ui/data-table';
+import type { ColumnDef } from '@/components/ui/data-table';
 import { Input } from '@/components/ui/input';
-import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
 import {
   Select,
@@ -40,14 +25,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { cn } from '@/lib/utils';
@@ -216,12 +193,6 @@ export default function ColaboradoresPage() {
   const [suplenteModal, setSuplenteModal] = useState<EditState<EjecutivoSuplente>>(emptyEdit());
   const [especialistaModal, setEspecialistaModal] =
     useState<EditState<EspecialistaPersona>>(emptyEdit());
-  const [desactivar, setDesactivar] = useState<{
-    tipo: 'ejecutivo' | 'suplente';
-    id: number;
-    nombre: string;
-  } | null>(null);
-  const [desactivando, setDesactivando] = useState(false);
 
   const cargarTodo = useCallback(async (silencioso = false) => {
     if (silencioso) setRefreshing(true);
@@ -274,9 +245,212 @@ export default function ColaboradoresPage() {
   );
 
   const regionesFiltradas = useMemo(
-    () =>
-      idGerencia ? regiones.filter((region) => region.idTipoGerencia === idGerencia) : regiones,
+    () => (idGerencia ? regiones.filter((region) => region.idTipoGerencia === idGerencia) : []),
     [regiones, idGerencia]
+  );
+
+  const columnasEjecutivos = useMemo<ColumnDef<EjecutivoRegion>[]>(
+    () => [
+      {
+        id: 'persona',
+        header: 'Persona',
+        cell: ({ row }) => {
+          const usuario = usuariosPorId.get(row.original.idUsuario);
+          return (
+            <PersonaCell
+              idUsuario={row.original.idUsuario}
+              nombre={row.original.nombreUsuario}
+              correo={usuario?.correo}
+            />
+          );
+        },
+      },
+      {
+        id: 'gerencia',
+        header: 'Gerencia',
+        cell: ({ row }) => (
+          <Badge
+            variant="outline"
+            className="border-sky-100 bg-sky-50 text-sky-700 dark:border-sky-900/40 dark:bg-sky-950/20 dark:text-sky-200"
+          >
+            {row.original.nombreGerencia}
+          </Badge>
+        ),
+      },
+      {
+        id: 'region',
+        header: 'Región',
+        cell: ({ row }) => (
+          <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
+            <MapPin className="h-3.5 w-3.5" />
+            {row.original.nombreRegion}
+          </span>
+        ),
+      },
+      {
+        id: 'estado',
+        header: 'Estado',
+        cell: ({ row }) => <EstadoBadge activo={row.original.activo} />,
+      },
+      {
+        id: 'acciones',
+        header: '',
+        cell: ({ row }) => (
+          <div className="flex justify-end">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 rounded-lg"
+              title="Editar"
+              onClick={() => setEjecutivoModal({ open: true, item: row.original })}
+            >
+              <Pencil className="h-4 w-4" />
+            </Button>
+          </div>
+        ),
+      },
+    ],
+    [usuariosPorId]
+  );
+
+  const columnasSuplentes = useMemo<ColumnDef<EjecutivoSuplente>[]>(
+    () => [
+      {
+        id: 'persona',
+        header: 'Persona',
+        cell: ({ row }) => {
+          const usuario = usuariosPorId.get(row.original.idUsuario);
+          return (
+            <PersonaCell
+              idUsuario={row.original.idUsuario}
+              nombre={row.original.nombreUsuario}
+              correo={usuario?.correo}
+            />
+          );
+        },
+      },
+      {
+        id: 'cobertura',
+        header: 'Cobertura',
+        cell: ({ row }) => (
+          <div className="flex flex-wrap items-center gap-1.5">
+            <Badge
+              variant="outline"
+              className={cn(
+                'border-violet-100 bg-violet-50 text-violet-700 dark:border-violet-900/40 dark:bg-violet-950/20 dark:text-violet-200',
+                row.original.idTipoGerencia === null &&
+                  'border-amber-100 bg-amber-50 text-amber-700 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-200'
+              )}
+            >
+              {row.original.nombreGerencia}
+            </Badge>
+            <span className="text-muted-foreground">·</span>
+            <span className="flex items-center gap-1 text-sm text-muted-foreground">
+              <MapPin className="h-3.5 w-3.5" />
+              {row.original.nombreRegion}
+            </span>
+          </div>
+        ),
+      },
+      {
+        id: 'estado',
+        header: 'Estado',
+        cell: ({ row }) => <EstadoBadge activo={row.original.activo} />,
+      },
+      {
+        id: 'acciones',
+        header: '',
+        cell: ({ row }) => (
+          <div className="flex justify-end">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 rounded-lg"
+              title="Editar"
+              onClick={() => setSuplenteModal({ open: true, item: row.original })}
+            >
+              <Pencil className="h-4 w-4" />
+            </Button>
+          </div>
+        ),
+      },
+    ],
+    [usuariosPorId]
+  );
+
+  const columnasEspecialistas = useMemo<ColumnDef<EspecialistaPersona>[]>(
+    () => [
+      {
+        id: 'persona',
+        header: 'Persona',
+        cell: ({ row }) => {
+          const usuario = usuariosPorId.get(row.original.idUsuario);
+          return (
+            <PersonaCell
+              idUsuario={row.original.idUsuario}
+              nombre={row.original.nombreUsuario}
+              correo={usuario?.correo}
+            />
+          );
+        },
+      },
+      {
+        id: 'gerencias',
+        header: 'Gerencias',
+        cell: ({ row }) => (
+          <div className="flex max-w-60 flex-wrap gap-1">
+            {row.original.gerencias
+              .filter((gerencia) => gerencia.activo)
+              .map((gerencia) => (
+                <Badge
+                  key={gerencia.idEspecialistaGerencia}
+                  variant="outline"
+                  className="border-emerald-100 bg-emerald-50 text-[10px] text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-950/20 dark:text-emerald-200"
+                >
+                  {gerencia.nombreGerencia ||
+                    gerenciasPorId.get(gerencia.idTipoGerencia)?.descripcion}
+                </Badge>
+              ))}
+          </div>
+        ),
+      },
+      {
+        id: 'regionPreferida',
+        header: 'Región preferida',
+        cell: ({ row }) =>
+          row.original.regionPreferida?.activo ? (
+            <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
+              <MapPin className="h-3.5 w-3.5" />
+              {row.original.regionPreferida.nombreRegion}
+            </span>
+          ) : (
+            <span className="text-xs text-muted-foreground">Sin preferencia</span>
+          ),
+      },
+      {
+        id: 'estado',
+        header: 'Estado',
+        cell: ({ row }) => <EstadoBadge activo={row.original.activo} />,
+      },
+      {
+        id: 'acciones',
+        header: '',
+        cell: ({ row }) => (
+          <div className="flex justify-end">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 rounded-lg"
+              title="Editar"
+              onClick={() => setEspecialistaModal({ open: true, item: row.original })}
+            >
+              <Pencil className="h-4 w-4" />
+            </Button>
+          </div>
+        ),
+      },
+    ],
+    [usuariosPorId, gerenciasPorId]
   );
 
   const termino = busqueda.trim().toLowerCase();
@@ -360,12 +534,8 @@ export default function ColaboradoresPage() {
   }, [ejecutivos, suplentes, especialistas]);
 
   const cambiarGerencia = (value: string) => {
-    const nueva = value === TODAS ? null : Number(value);
-    setIdGerencia(nueva);
-    if (nueva && idRegion) {
-      const region = regiones.find((item) => item.idRegion === idRegion);
-      if (region && region.idTipoGerencia !== nueva) setIdRegion(null);
-    }
+    setIdGerencia(value === TODAS ? null : Number(value));
+    setIdRegion(null);
   };
 
   const abrirNuevo = () => {
@@ -374,33 +544,7 @@ export default function ColaboradoresPage() {
     if (activeTab === 'especialistas') setEspecialistaModal({ open: true, item: null });
   };
 
-  const confirmarDesactivar = async () => {
-    if (!desactivar) return;
-    setDesactivando(true);
-    try {
-      if (desactivar.tipo === 'ejecutivo') {
-        await educacionMedicaApi.personas.ejecutivos.desactivar(desactivar.id);
-        toast.success('Ejecutivo desactivado.');
-      } else {
-        await educacionMedicaApi.personas.suplentes.desactivar(desactivar.id);
-        toast.success('Ejecutivo suplente desactivado.');
-      }
-      setDesactivar(null);
-      await cargarTodo(true);
-    } catch (error: unknown) {
-      toast.error(toApiError(error).message ?? 'No se pudo desactivar.');
-    } finally {
-      setDesactivando(false);
-    }
-  };
-
   const tabActual = tabs.find((tab) => tab.key === activeTab) ?? tabs[0];
-  const totalVisible =
-    activeTab === 'ejecutivos'
-      ? ejecutivosFiltrados.length
-      : activeTab === 'suplentes'
-        ? suplentesFiltrados.length
-        : especialistasFiltrados.length;
 
   const actionLabel =
     activeTab === 'ejecutivos'
@@ -411,26 +555,6 @@ export default function ColaboradoresPage() {
 
   return (
     <div className="mx-auto w-full max-w-[1500px] space-y-6">
-      <div className="flex flex-col gap-5 rounded-2xl border bg-card p-5 shadow-sm lg:flex-row lg:items-center lg:justify-between lg:p-6">
-        <div className="max-w-2xl">
-          <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-            <ShieldCheck className="h-3.5 w-3.5" />
-            Catálogos · Colaboradores
-          </div>
-          <h1 className="mt-2 text-2xl font-semibold tracking-tight text-foreground">
-            Colaboradores del módulo
-          </h1>
-          <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-            Administra ejecutivos, suplentes y especialistas. La vigencia se controla con el estado
-            activo: si una persona sale de la operación, se desactiva.
-          </p>
-        </div>
-        <Button className="rounded-xl px-4 shadow-sm" onClick={abrirNuevo}>
-          <Plus className="mr-2 h-4 w-4" />
-          {actionLabel}
-        </Button>
-      </div>
-
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
           icon={<BriefcaseBusiness className="h-4 w-4" />}
@@ -464,7 +588,7 @@ export default function ColaboradoresPage() {
 
       <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
         <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as TabKey)}>
-          <TabsList className="bg-muted/60 h-11 rounded-xl p-1">
+          <TabsList className="bg-muted/60 grid h-12 w-full max-w-2xl grid-cols-3 gap-1 rounded-xl p-1">
             {tabs.map((tab) => {
               const count =
                 tab.key === 'ejecutivos'
@@ -476,370 +600,147 @@ export default function ColaboradoresPage() {
                 <TabsTrigger
                   key={tab.key}
                   value={tab.key}
-                  className="gap-2 rounded-lg px-3 text-sm data-[state=active]:bg-card data-[state=active]:shadow-sm sm:px-4"
+                  className="group gap-1.5 rounded-lg border-0 px-2 text-xs font-semibold text-muted-foreground transition-colors data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm sm:gap-2 sm:px-4 sm:text-sm"
                 >
                   {tab.label}
-                  <Badge variant="secondary" className="h-5 min-w-5 rounded-md px-1.5 text-[10px]">
+                  <span className="bg-background/70 inline-flex min-w-5 items-center justify-center rounded-full px-2 py-0.5 text-xs font-bold text-foreground group-data-[state=active]:bg-black/20 group-data-[state=active]:text-primary-foreground">
                     {count}
-                  </Badge>
+                  </span>
                 </TabsTrigger>
               );
             })}
           </TabsList>
         </Tabs>
 
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" />
-          Cambios auditados · sin vigencia
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="hidden items-center gap-2 text-xs text-muted-foreground sm:flex">
+            <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" />
+            Cambios auditados · sin vigencia
+          </div>
+          <Button className="rounded-xl px-4 shadow-sm" onClick={abrirNuevo}>
+            <Plus className="mr-2 h-4 w-4" />
+            {actionLabel}
+          </Button>
         </div>
       </div>
 
       <Card className="border-0 shadow-sm">
         <CardContent className="p-3">
-          <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-[minmax(220px,1.4fr)_minmax(180px,1fr)_minmax(180px,1fr)_auto]">
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                value={busqueda}
-                onChange={(event) => setBusqueda(event.target.value)}
-                placeholder="Buscar por nombre, región o gerencia..."
-                className="bg-muted/50 h-10 rounded-xl border-transparent pl-9 focus-visible:bg-background"
-              />
+          <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-[minmax(220px,1.4fr)_minmax(180px,1fr)_minmax(180px,1fr)_auto] xl:items-end">
+            <div className="space-y-1.5">
+              <label
+                htmlFor="filtro-colaboradores"
+                className="text-xs font-medium text-muted-foreground"
+              >
+                Buscar
+              </label>
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  id="filtro-colaboradores"
+                  value={busqueda}
+                  onChange={(event) => setBusqueda(event.target.value)}
+                  placeholder="Nombre, región o gerencia..."
+                  className="bg-muted/50 h-10 rounded-xl border-transparent pl-9 focus-visible:bg-background"
+                />
+              </div>
             </div>
 
-            <Select value={idGerencia ? String(idGerencia) : TODAS} onValueChange={cambiarGerencia}>
-              <SelectTrigger className="bg-muted/50 h-10 rounded-xl border-transparent">
-                <span className="flex items-center gap-2">
-                  <Building2 className="h-4 w-4 text-muted-foreground" />
-                  <SelectValue placeholder="Gerencia" />
-                </span>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={TODAS}>Todas las gerencias</SelectItem>
-                {gerencias.map((gerencia) => (
-                  <SelectItem key={gerencia.idTipoGerencia} value={String(gerencia.idTipoGerencia)}>
-                    {gerencia.descripcion}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            <Select
-              value={idRegion ? String(idRegion) : TODAS}
-              onValueChange={(value) => setIdRegion(value === TODAS ? null : Number(value))}
-            >
-              <SelectTrigger className="bg-muted/50 h-10 rounded-xl border-transparent">
-                <span className="flex items-center gap-2">
-                  <Globe2 className="h-4 w-4 text-muted-foreground" />
-                  <SelectValue placeholder="Región" />
-                </span>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={TODAS}>Todas las regiones</SelectItem>
-                {regionesFiltradas.map((region) => (
-                  <SelectItem key={region.idRegion} value={String(region.idRegion)}>
-                    {region.nombre}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            <div className="bg-muted/50 flex items-center justify-between gap-3 rounded-xl border border-transparent px-3 py-2">
-              <div className="flex items-center gap-2">
-                <Switch checked={soloActivos} onCheckedChange={setSoloActivos} />
-                <span className="text-sm font-medium">Solo activos</span>
-              </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 rounded-lg"
-                onClick={() => void cargarTodo(true)}
-                disabled={refreshing}
-                aria-label="Actualizar colaboradores"
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">Gerencia</label>
+              <Select
+                value={idGerencia ? String(idGerencia) : TODAS}
+                onValueChange={cambiarGerencia}
               >
-                <RefreshCcw className={cn('h-4 w-4', refreshing && 'animate-spin')} />
-              </Button>
+                <SelectTrigger className="bg-muted/50 h-10 rounded-xl border-transparent">
+                  <SelectValue placeholder="Todas las gerencias" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={TODAS}>Todas las gerencias</SelectItem>
+                  {gerencias.map((gerencia) => (
+                    <SelectItem
+                      key={gerencia.idTipoGerencia}
+                      value={String(gerencia.idTipoGerencia)}
+                    >
+                      {gerencia.descripcion}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">Región</label>
+              <Select
+                value={idRegion ? String(idRegion) : TODAS}
+                onValueChange={(value) => setIdRegion(value === TODAS ? null : Number(value))}
+                disabled={!idGerencia}
+              >
+                <SelectTrigger className="bg-muted/50 h-10 rounded-xl border-transparent">
+                  <SelectValue
+                    placeholder={idGerencia ? 'Todas las regiones' : 'Selecciona una gerencia'}
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={TODAS}>Todas las regiones</SelectItem>
+                  {regionesFiltradas.map((region) => (
+                    <SelectItem key={region.idRegion} value={String(region.idRegion)}>
+                      {region.nombre}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="bg-muted/50 flex h-10 items-center gap-3 rounded-xl border border-transparent px-3">
+              <Switch checked={soloActivos} onCheckedChange={setSoloActivos} />
+              <span className="text-sm font-medium">Solo activos</span>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      <Card className="overflow-hidden border-0 shadow-sm">
-        <div className="flex flex-col gap-1 border-b px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h2 className="text-base font-semibold tracking-tight">{tabActual.label}</h2>
-            <p className="text-xs text-muted-foreground">{tabActual.description}</p>
-          </div>
-          <Badge variant="secondary" className="w-fit rounded-lg px-2.5 py-1 text-[11px]">
-            {totalVisible} {totalVisible === 1 ? 'registro' : 'registros'}
-          </Badge>
-        </div>
+      {activeTab === 'ejecutivos' && (
+        <DataTable
+          columns={columnasEjecutivos}
+          data={ejecutivosFiltrados}
+          title={tabActual.label}
+          subtitle={tabActual.description}
+          showRowCount
+          showRefreshButton
+          onRefresh={() => void cargarTodo(true)}
+          loading={loading || refreshing}
+          globalFilter={false}
+        />
+      )}
 
-        {loading ? (
-          <div className="space-y-3 p-5">
-            {Array.from({ length: 5 }).map((_, index) => (
-              <div key={index} className="flex items-center gap-3">
-                <Skeleton className="h-9 w-9 rounded-full" />
-                <div className="flex-1 space-y-2">
-                  <Skeleton className="h-3.5 w-1/3" />
-                  <Skeleton className="h-3 w-1/5" />
-                </div>
-                <Skeleton className="h-6 w-20 rounded-full" />
-              </div>
-            ))}
-          </div>
-        ) : totalVisible === 0 ? (
-          <EmptyState
-            title="Sin colaboradores para mostrar"
-            description="Ajusta los filtros o agrega una nueva persona a este catálogo."
-            icon={<UsersRound className="h-9 w-9" />}
-          />
-        ) : (
-          <div className="overflow-x-auto">
-            {activeTab === 'ejecutivos' && (
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-muted/20 hover:bg-muted/20 border-b">
-                    <TableHead className="pl-5 text-[11px] uppercase tracking-wide">
-                      Persona
-                    </TableHead>
-                    <TableHead className="text-[11px] uppercase tracking-wide">Gerencia</TableHead>
-                    <TableHead className="text-[11px] uppercase tracking-wide">Región</TableHead>
-                    <TableHead className="text-[11px] uppercase tracking-wide">Estado</TableHead>
-                    <TableHead className="w-24 pr-5 text-right text-[11px] uppercase tracking-wide">
-                      Acciones
-                    </TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {ejecutivosFiltrados.map((ejecutivo) => {
-                    const usuario = usuariosPorId.get(ejecutivo.idUsuario);
-                    return (
-                      <TableRow key={ejecutivo.idEjecutivoRegion} className="group">
-                        <TableCell className="pl-5">
-                          <PersonaCell
-                            idUsuario={ejecutivo.idUsuario}
-                            nombre={ejecutivo.nombreUsuario}
-                            correo={usuario?.correo}
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <Badge
-                            variant="outline"
-                            className="border-sky-100 bg-sky-50 text-sky-700 dark:border-sky-900/40 dark:bg-sky-950/20 dark:text-sky-200"
-                          >
-                            {ejecutivo.nombreGerencia}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                            <MapPin className="h-3.5 w-3.5" />
-                            {ejecutivo.nombreRegion}
-                          </span>
-                        </TableCell>
-                        <TableCell>
-                          <EstadoBadge activo={ejecutivo.activo} />
-                        </TableCell>
-                        <TableCell className="pr-5 text-right">
-                          <div className="flex justify-end gap-1 opacity-70 transition-opacity group-hover:opacity-100">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 rounded-lg"
-                              title="Editar"
-                              onClick={() => setEjecutivoModal({ open: true, item: ejecutivo })}
-                            >
-                              <Pencil className="h-4 w-4" />
-                            </Button>
-                            {ejecutivo.activo && (
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 rounded-lg text-muted-foreground hover:text-destructive"
-                                title="Desactivar"
-                                onClick={() =>
-                                  setDesactivar({
-                                    tipo: 'ejecutivo',
-                                    id: ejecutivo.idEjecutivoRegion,
-                                    nombre: ejecutivo.nombreUsuario,
-                                  })
-                                }
-                              >
-                                <PowerOff className="h-4 w-4" />
-                              </Button>
-                            )}
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            )}
+      {activeTab === 'suplentes' && (
+        <DataTable
+          columns={columnasSuplentes}
+          data={suplentesFiltrados}
+          title={tabActual.label}
+          subtitle={tabActual.description}
+          showRowCount
+          showRefreshButton
+          onRefresh={() => void cargarTodo(true)}
+          loading={loading || refreshing}
+          globalFilter={false}
+        />
+      )}
 
-            {activeTab === 'suplentes' && (
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-muted/20 hover:bg-muted/20 border-b">
-                    <TableHead className="pl-5 text-[11px] uppercase tracking-wide">
-                      Persona
-                    </TableHead>
-                    <TableHead className="text-[11px] uppercase tracking-wide">Cobertura</TableHead>
-                    <TableHead className="text-[11px] uppercase tracking-wide">Estado</TableHead>
-                    <TableHead className="w-24 pr-5 text-right text-[11px] uppercase tracking-wide">
-                      Acciones
-                    </TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {suplentesFiltrados.map((suplente) => {
-                    const usuario = usuariosPorId.get(suplente.idUsuario);
-                    return (
-                      <TableRow key={suplente.idEjecutivoSuplente} className="group">
-                        <TableCell className="pl-5">
-                          <PersonaCell
-                            idUsuario={suplente.idUsuario}
-                            nombre={suplente.nombreUsuario}
-                            correo={usuario?.correo}
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex flex-wrap items-center gap-1.5">
-                            <Badge
-                              variant="outline"
-                              className={cn(
-                                'border-violet-100 bg-violet-50 text-violet-700 dark:border-violet-900/40 dark:bg-violet-950/20 dark:text-violet-200',
-                                suplente.idTipoGerencia === null &&
-                                  'border-amber-100 bg-amber-50 text-amber-700 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-200'
-                              )}
-                            >
-                              {suplente.nombreGerencia}
-                            </Badge>
-                            <span className="text-muted-foreground">·</span>
-                            <span className="flex items-center gap-1 text-sm text-muted-foreground">
-                              <MapPin className="h-3.5 w-3.5" />
-                              {suplente.nombreRegion}
-                            </span>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <EstadoBadge activo={suplente.activo} />
-                        </TableCell>
-                        <TableCell className="pr-5 text-right">
-                          <div className="flex justify-end gap-1 opacity-70 transition-opacity group-hover:opacity-100">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 rounded-lg"
-                              title="Editar"
-                              onClick={() => setSuplenteModal({ open: true, item: suplente })}
-                            >
-                              <Pencil className="h-4 w-4" />
-                            </Button>
-                            {suplente.activo && (
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 rounded-lg text-muted-foreground hover:text-destructive"
-                                title="Desactivar"
-                                onClick={() =>
-                                  setDesactivar({
-                                    tipo: 'suplente',
-                                    id: suplente.idEjecutivoSuplente,
-                                    nombre: suplente.nombreUsuario,
-                                  })
-                                }
-                              >
-                                <PowerOff className="h-4 w-4" />
-                              </Button>
-                            )}
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            )}
-
-            {activeTab === 'especialistas' && (
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-muted/20 hover:bg-muted/20 border-b">
-                    <TableHead className="pl-5 text-[11px] uppercase tracking-wide">
-                      Persona
-                    </TableHead>
-                    <TableHead className="text-[11px] uppercase tracking-wide">Gerencias</TableHead>
-                    <TableHead className="text-[11px] uppercase tracking-wide">
-                      Región preferida
-                    </TableHead>
-                    <TableHead className="text-[11px] uppercase tracking-wide">Estado</TableHead>
-                    <TableHead className="w-16 pr-5 text-right text-[11px] uppercase tracking-wide">
-                      Acciones
-                    </TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {especialistasFiltrados.map((especialista) => {
-                    const usuario = usuariosPorId.get(especialista.idUsuario);
-                    return (
-                      <TableRow key={especialista.idUsuario} className="group">
-                        <TableCell className="pl-5">
-                          <PersonaCell
-                            idUsuario={especialista.idUsuario}
-                            nombre={especialista.nombreUsuario}
-                            correo={usuario?.correo}
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex max-w-60 flex-wrap gap-1">
-                            {especialista.gerencias
-                              .filter((gerencia) => gerencia.activo)
-                              .map((gerencia) => (
-                                <Badge
-                                  key={gerencia.idEspecialistaGerencia}
-                                  variant="outline"
-                                  className="border-emerald-100 bg-emerald-50 text-[10px] text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-950/20 dark:text-emerald-200"
-                                >
-                                  {gerencia.nombreGerencia ||
-                                    gerenciasPorId.get(gerencia.idTipoGerencia)?.descripcion}
-                                </Badge>
-                              ))}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          {especialista.regionPreferida?.activo ? (
-                            <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                              <MapPin className="h-3.5 w-3.5" />
-                              {especialista.regionPreferida.nombreRegion}
-                            </span>
-                          ) : (
-                            <span className="text-xs text-muted-foreground">Sin preferencia</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <EstadoBadge activo={especialista.activo} />
-                        </TableCell>
-                        <TableCell className="pr-5 text-right">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 rounded-lg opacity-70 transition-opacity group-hover:opacity-100"
-                            title="Editar"
-                            onClick={() => setEspecialistaModal({ open: true, item: especialista })}
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            )}
-          </div>
-        )}
-      </Card>
+      {activeTab === 'especialistas' && (
+        <DataTable
+          columns={columnasEspecialistas}
+          data={especialistasFiltrados}
+          title={tabActual.label}
+          subtitle={tabActual.description}
+          showRowCount
+          showRefreshButton
+          onRefresh={() => void cargarTodo(true)}
+          loading={loading || refreshing}
+          globalFilter={false}
+        />
+      )}
 
       {ejecutivoModal.open && (
         <EjecutivoFormModal
@@ -878,32 +779,6 @@ export default function ColaboradoresPage() {
           onSaved={() => void cargarTodo(true)}
         />
       )}
-
-      <AlertDialog open={desactivar !== null} onOpenChange={(open) => !open && setDesactivar(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Desactivar persona</AlertDialogTitle>
-            <AlertDialogDescription>
-              {desactivar?.nombre} dejará de aparecer como candidato activo. El histórico se
-              conserva y puedes reactivarlo después.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={desactivando}>Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              className="hover:bg-destructive/90 bg-destructive text-destructive-foreground"
-              onClick={(event) => {
-                event.preventDefault();
-                void confirmarDesactivar();
-              }}
-              disabled={desactivando}
-            >
-              {desactivando && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Desactivar
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 }

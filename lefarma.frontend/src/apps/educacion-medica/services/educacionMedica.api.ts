@@ -266,8 +266,6 @@ export const educacionMedicaApi = {
           `${BASE}/personas/ejecutivos/${idEjecutivoRegion}`,
           payload
         ),
-      desactivar: (idEjecutivoRegion: number) =>
-        API.delete<ApiResponse<unknown>>(`${BASE}/personas/ejecutivos/${idEjecutivoRegion}`),
     },
     suplentes: {
       getAll: (filtros: PersonasSuplentesFiltros = {}) => {
@@ -287,10 +285,6 @@ export const educacionMedicaApi = {
         API.put<ApiResponse<EjecutivoSuplente>>(
           `${BASE}/personas/ejecutivos-suplentes/${idEjecutivoSuplente}`,
           payload
-        ),
-      desactivar: (idEjecutivoSuplente: number) =>
-        API.delete<ApiResponse<unknown>>(
-          `${BASE}/personas/ejecutivos-suplentes/${idEjecutivoSuplente}`
         ),
     },
     especialistas: {
@@ -637,9 +631,12 @@ export const educacionMedicaApi = {
         `${BASE}/matrices-talleres/${idMatrizGeneral}/concentracion`
       ),
     revision: (idMatrizGeneral: number, idRutaVersion?: number | null) =>
-      API.get<ApiResponse<MatrizRevision>>(`${BASE}/matrices-talleres/${idMatrizGeneral}/revision`, {
-        params: idRutaVersion ? { idRutaVersion } : undefined,
-      }),
+      API.get<ApiResponse<MatrizRevision>>(
+        `${BASE}/matrices-talleres/${idMatrizGeneral}/revision`,
+        {
+          params: idRutaVersion ? { idRutaVersion } : undefined,
+        }
+      ),
     actualizarCostos: (
       idMatrizGeneral: number,
       idTaller: number,

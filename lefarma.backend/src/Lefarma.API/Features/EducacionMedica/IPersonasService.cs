@@ -21,11 +21,6 @@ public interface IPersonasService
         int idUsuario,
         CancellationToken ct = default);
 
-    Task<bool> DesactivarEjecutivoAsync(
-        int idEjecutivoRegion,
-        int idUsuario,
-        CancellationToken ct = default);
-
     Task<List<EjecutivoSuplenteDto>> GetEjecutivosSuplentesAsync(
         string? busqueda,
         int? idTipoGerencia,
@@ -40,11 +35,6 @@ public interface IPersonasService
     Task<EjecutivoSuplenteDto?> ActualizarEjecutivoSuplenteAsync(
         int idEjecutivoSuplente,
         ActualizarEjecutivoSuplenteRequest request,
-        int idUsuario,
-        CancellationToken ct = default);
-
-    Task<bool> DesactivarEjecutivoSuplenteAsync(
-        int idEjecutivoSuplente,
         int idUsuario,
         CancellationToken ct = default);
 

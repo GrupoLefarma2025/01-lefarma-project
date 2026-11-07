@@ -105,25 +105,6 @@ public class PersonasController : ControllerBase
         }
     }
 
-    [HttpDelete("ejecutivos/{idEjecutivoRegion:int}")]
-    [HasPermission(Permissions.EducacionMedica.ConfiguracionGestionar)]
-    [SwaggerOperation(
-        Summary = "Desactivar asignación de ejecutivo",
-        Description = "Marca la asignación como inactiva.")]
-    [SwaggerResponse(204, "Asignación desactivada")]
-    [SwaggerResponse(404, "Asignación no encontrada")]
-    public async Task<IActionResult> DesactivarEjecutivo(int idEjecutivoRegion, CancellationToken ct)
-    {
-        var desactivada = await _service.DesactivarEjecutivoAsync(idEjecutivoRegion, User.GetUserId(), ct);
-        return desactivada
-            ? NoContent()
-            : NotFound(new ApiResponse<object>
-            {
-                Success = false,
-                Message = $"Asignación {idEjecutivoRegion} no encontrada.",
-            });
-    }
-
     [HttpGet("ejecutivos-suplentes")]
     [HasPermission(Permissions.EducacionMedica.TalleresVer)]
     [SwaggerOperation(
@@ -210,28 +191,6 @@ public class PersonasController : ControllerBase
         {
             return Conflict(new ApiResponse<object> { Success = false, Message = ex.Message });
         }
-    }
-
-    [HttpDelete("ejecutivos-suplentes/{idEjecutivoSuplente:int}")]
-    [HasPermission(Permissions.EducacionMedica.ConfiguracionGestionar)]
-    [SwaggerOperation(
-        Summary = "Desactivar ejecutivo suplente",
-        Description = "Marca el suplente como inactivo; deja de usarse en sugerencias y cierres.")]
-    [SwaggerResponse(204, "Suplente desactivado")]
-    [SwaggerResponse(404, "Suplente no encontrado")]
-    public async Task<IActionResult> DesactivarEjecutivoSuplente(
-        int idEjecutivoSuplente,
-        CancellationToken ct)
-    {
-        var desactivado = await _service.DesactivarEjecutivoSuplenteAsync(
-            idEjecutivoSuplente, User.GetUserId(), ct);
-        return desactivado
-            ? NoContent()
-            : NotFound(new ApiResponse<object>
-            {
-                Success = false,
-                Message = $"Ejecutivo suplente {idEjecutivoSuplente} no encontrado.",
-            });
     }
 
     [HttpGet("especialistas")]

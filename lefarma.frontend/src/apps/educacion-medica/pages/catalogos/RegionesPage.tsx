@@ -1,10 +1,12 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { DataTable } from '@/components/ui/data-table';
 import type { ColumnDef } from '@/components/ui/data-table';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Modal } from '@/components/ui/modal';
 import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
@@ -27,8 +29,22 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { Plus, Pencil, Loader2, Map, ListChecks } from 'lucide-react';
+import {
+  Building2,
+  Globe2,
+  Info,
+  Layers3,
+  ListChecks,
+  Loader2,
+  Map,
+  MapPin,
+  Pencil,
+  Plus,
+  RefreshCcw,
+  Search,
+} from 'lucide-react';
 import { usePageTitle } from '@/hooks/usePageTitle';
+import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { toApiError } from '@/utils/errors';
 import { educacionMedicaApi } from '@/apps/educacion-medica/services/educacionMedica.api';
@@ -84,12 +100,68 @@ function parseCoordenada(
   return n;
 }
 
+function StatCard({
+  icon,
+  label,
+  value,
+  hint,
+  tone,
+}: {
+  icon: ReactNode;
+  label: string;
+  value: number | string;
+  hint: string;
+  tone: string;
+}) {
+  return (
+    <Card className={cn('border-0 shadow-sm', tone)}>
+      <CardContent className="flex items-start justify-between gap-3 p-4">
+        <div>
+          <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
+            {label}
+          </p>
+          <p className="mt-1 text-2xl font-semibold tracking-tight text-foreground">{value}</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">{hint}</p>
+        </div>
+        <div className="rounded-xl bg-white/70 p-2 text-muted-foreground shadow-sm dark:bg-black/10">
+          {icon}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function EstadoBadge({ activo }: { activo: boolean }) {
+  return (
+    <Badge
+      variant="outline"
+      className={cn(
+        'gap-1.5 border-0 px-2 py-0.5 text-[11px] font-medium',
+        activo
+          ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'
+          : 'bg-muted text-muted-foreground'
+      )}
+    >
+      <span
+        className={cn(
+          'h-1.5 w-1.5 rounded-full',
+          activo ? 'bg-emerald-500' : 'bg-muted-foreground/50'
+        )}
+      />
+      {activo ? 'Activa' : 'Inactiva'}
+    </Badge>
+  );
+}
+
 export default function RegionesPage() {
   usePageTitle('Regiones', 'Catálogo de Educación Médica');
 
   const [regiones, setRegiones] = useState<Region[]>([]);
+  const [conteoPorGerencia, setConteoPorGerencia] = useState<Record<number, number>>({});
   const [catalogoEstados, setCatalogoEstados] = useState<EstadoCatalogo[]>([]);
   const [loadingRegiones, setLoadingRegiones] = useState(true);
+  const [busqueda, setBusqueda] = useState('');
+  const [soloActivas, setSoloActivas] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Region | null>(null);
   const [saving, setSaving] = useState(false);
@@ -122,6 +194,32 @@ export default function RegionesPage() {
   // región usa las de la pestaña activa.
   const regionesMapa = mapaTodas ? mapaRegionesTodas : regiones;
 
+  const termino = busqueda.trim().toLowerCase();
+
+  const regionesFiltradas = useMemo(
+    () =>
+      regiones.filter((region) => {
+        if (soloActivas && !region.activo) return false;
+        if (!termino) return true;
+        return [
+          region.nombre,
+          region.nombreGerencia ?? '',
+          ...region.estados.map((estado) => estado.nombreEstado ?? String(estado.codigoEstado)),
+        ].some((valor) => valor.toLowerCase().includes(termino));
+      }),
+    [regiones, soloActivas, termino]
+  );
+
+  const stats = useMemo(
+    () => ({
+      total: regiones.length,
+      activas: regiones.filter((region) => region.activo).length,
+      estados: regiones.reduce((acc, region) => acc + region.estados.length, 0),
+      hospitales: regiones.reduce((acc, region) => acc + region.cantidadHospitales, 0),
+    }),
+    [regiones]
+  );
+
   const form = useForm<RegionFormValues>({
     resolver: zodResolver(regionSchema),
     defaultValues: {
@@ -145,6 +243,21 @@ export default function RegionesPage() {
     }
   }, []);
 
+  const fetchConteos = useCallback(async () => {
+    try {
+      const response = await educacionMedicaApi.regiones.getAll();
+      if (response.data.success) {
+        const conteos: Record<number, number> = {};
+        for (const region of response.data.data ?? []) {
+          conteos[region.idTipoGerencia] = (conteos[region.idTipoGerencia] ?? 0) + 1;
+        }
+        setConteoPorGerencia(conteos);
+      }
+    } catch {
+      // Los conteos son informativos; no bloquean la página.
+    }
+  }, []);
+
   // Catálogo de gerencias: solo IMSS y Descentralizado participan de la logística.
   useEffect(() => {
     let cancelado = false;
@@ -157,6 +270,7 @@ export default function RegionesPage() {
         );
         setGerencias(permitidas);
         setIdTipoGerencia((prev) => prev ?? permitidas[0]?.idTipoGerencia ?? null);
+        void fetchConteos();
       } catch (error: unknown) {
         if (!cancelado) {
           toast.error(toApiError(error).message ?? 'Error al cargar las gerencias');
@@ -167,7 +281,7 @@ export default function RegionesPage() {
     return () => {
       cancelado = true;
     };
-  }, []);
+  }, [fetchConteos]);
 
   // Carga de regiones + catálogo de estados de la gerencia activa.
   useEffect(() => {
@@ -231,9 +345,7 @@ export default function RegionesPage() {
 
   const toggleEstado = (codigoEstado: number) => {
     setEstadosSeleccionados((prev) =>
-      prev.includes(codigoEstado)
-        ? prev.filter((c) => c !== codigoEstado)
-        : [...prev, codigoEstado]
+      prev.includes(codigoEstado) ? prev.filter((c) => c !== codigoEstado) : [...prev, codigoEstado]
     );
   };
 
@@ -273,10 +385,13 @@ export default function RegionesPage() {
             'Región guardada. Los hospitales conservan su región actual; usa "Aplicar mapeo a hospitales" para reasignarlas según el mapeo.'
           );
         } else {
-          toast.success(editing ? 'Región actualizada correctamente' : 'Región creada correctamente');
+          toast.success(
+            editing ? 'Región actualizada correctamente' : 'Región creada correctamente'
+          );
         }
         setModalOpen(false);
         await fetchRegiones(idTipoGerencia);
+        void fetchConteos();
       } else {
         toast.error(response.data.message ?? 'Error al guardar la región');
       }
@@ -345,9 +460,7 @@ export default function RegionesPage() {
     setLoadingPreview(true);
     setPreviewMapeo(null);
     try {
-      const response = await educacionMedicaApi.regiones.previewAplicarMapeo(
-        gerenciaMapeoParam()
-      );
+      const response = await educacionMedicaApi.regiones.previewAplicarMapeo(gerenciaMapeoParam());
       if (response.data.success) {
         // Normaliza: un backend aún sin el pase GPS no envía los campos nuevos.
         const data: Partial<AplicarMapeoResponse> | undefined = response.data.data;
@@ -381,6 +494,7 @@ export default function RegionesPage() {
         setMapeoAbierto(false);
         setPreviewMapeo(null);
         await fetchRegiones(idTipoGerencia);
+        void fetchConteos();
       } else {
         toast.error(response.data.message ?? 'Error al aplicar el mapeo');
       }
@@ -420,11 +534,16 @@ export default function RegionesPage() {
         id: 'cantidadHospitales',
         accessorKey: 'cantidadHospitales',
         header: 'Hospitales',
+        cell: ({ row }) => (
+          <Badge variant="secondary" className="rounded-md px-2 py-0.5 text-[11px]">
+            {row.original.cantidadHospitales.toLocaleString('es-MX')}
+          </Badge>
+        ),
       },
       {
         id: 'activo',
-        header: 'Activo',
-        cell: ({ row }) => (row.original.activo ? 'Sí' : 'No'),
+        header: 'Estado',
+        cell: ({ row }) => <EstadoBadge activo={row.original.activo} />,
       },
       {
         id: 'acciones',
@@ -457,74 +576,149 @@ export default function RegionesPage() {
   );
 
   return (
-    <div className="space-y-6">
-      <Tabs
-        value={idTipoGerencia != null ? String(idTipoGerencia) : undefined}
-        onValueChange={(v) => {
-          setLoadingRegiones(true);
-          setIdTipoGerencia(Number(v));
-        }}
-      >
-        <TabsList>
-          {gerencias.map((g) => (
-            <TabsTrigger key={g.idTipoGerencia} value={String(g.idTipoGerencia)}>
-              {g.descripcion}
-            </TabsTrigger>
-          ))}
-        </TabsList>
-      </Tabs>
-
-      <div className="flex items-center justify-end gap-2">
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={() => void openMapaTodas()}
-          disabled={loadingMapa}
+    <div className="mx-auto w-full max-w-[1500px] space-y-6">
+      <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+        <Tabs
+          value={idTipoGerencia != null ? String(idTipoGerencia) : undefined}
+          onValueChange={(v) => {
+            setLoadingRegiones(true);
+            setIdTipoGerencia(Number(v));
+          }}
         >
-          <Map className="mr-2 h-4 w-4" />
-          Ver mapa
-        </Button>
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={abrirModalMapeo}
-          disabled={loadingPreview}
-        >
-          {loadingPreview ? (
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          ) : (
-            <ListChecks className="mr-2 h-4 w-4" />
-          )}
-          Aplicar mapeo a hospitales
-        </Button>
-        <Button size="sm" onClick={openNueva}>
-          <Plus className="mr-2 h-4 w-4" />
-          Nueva región
-        </Button>
+          <TabsList className="bg-muted/60 grid h-12 w-full max-w-2xl grid-cols-2 gap-1 rounded-xl p-1">
+            {gerencias.map((g) => (
+              <TabsTrigger
+                key={g.idTipoGerencia}
+                value={String(g.idTipoGerencia)}
+                className="group gap-2 rounded-lg border-0 text-sm font-semibold text-muted-foreground transition-colors data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm"
+              >
+                {g.descripcion}
+                <span className="bg-background/70 inline-flex min-w-5 items-center justify-center rounded-full px-2 py-0.5 text-xs font-bold text-foreground group-data-[state=active]:bg-black/20 group-data-[state=active]:text-primary-foreground">
+                  {conteoPorGerencia[g.idTipoGerencia] ?? 0}
+                </span>
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            variant="outline"
+            className="rounded-xl border-sky-200 bg-sky-50 text-sky-700 hover:bg-sky-100 hover:text-sky-800 dark:border-sky-900/40 dark:bg-sky-950/20 dark:text-sky-200 dark:hover:bg-sky-950/40"
+            onClick={() => void openMapaTodas()}
+            disabled={loadingMapa}
+          >
+            <Map className="mr-2 h-4 w-4" />
+            Ver mapa
+          </Button>
+          <Button
+            variant="outline"
+            className="rounded-xl border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 hover:text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-200 dark:hover:bg-amber-950/40"
+            onClick={abrirModalMapeo}
+            disabled={loadingPreview}
+          >
+            {loadingPreview ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <ListChecks className="mr-2 h-4 w-4" />
+            )}
+            Aplicar mapeo
+          </Button>
+          <Button className="rounded-xl" onClick={openNueva}>
+            <Plus className="mr-2 h-4 w-4" />
+            Nueva región
+          </Button>
+        </div>
       </div>
+
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard
+          icon={<Globe2 className="h-4 w-4" />}
+          label="Regiones"
+          value={loadingRegiones ? '—' : stats.total}
+          hint="en la gerencia activa"
+          tone="bg-gradient-to-br from-sky-50 to-white dark:from-sky-950/30 dark:to-card"
+        />
+        <StatCard
+          icon={<Layers3 className="h-4 w-4" />}
+          label="Activas"
+          value={loadingRegiones ? '—' : stats.activas}
+          hint="disponibles para asignar"
+          tone="bg-gradient-to-br from-emerald-50 to-white dark:from-emerald-950/30 dark:to-card"
+        />
+        <StatCard
+          icon={<MapPin className="h-4 w-4" />}
+          label="Estados mapeados"
+          value={loadingRegiones ? '—' : stats.estados}
+          hint="estado → región"
+          tone="bg-gradient-to-br from-violet-50 to-white dark:from-violet-950/30 dark:to-card"
+        />
+        <StatCard
+          icon={<Building2 className="h-4 w-4" />}
+          label="Hospitales"
+          value={loadingRegiones ? '—' : stats.hospitales.toLocaleString('es-MX')}
+          hint="asignados a regiones"
+          tone="bg-gradient-to-br from-amber-50 to-white dark:from-amber-950/30 dark:to-card"
+        />
+      </div>
+
+      <Card className="border-0 shadow-sm">
+        <CardContent className="p-3">
+          <div className="grid gap-2 md:grid-cols-[minmax(220px,1.6fr)_auto_auto]">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={busqueda}
+                onChange={(event) => setBusqueda(event.target.value)}
+                placeholder="Buscar por región o estado..."
+                className="bg-muted/50 h-10 rounded-xl border-transparent pl-9 focus-visible:bg-background"
+              />
+            </div>
+            <div className="bg-muted/50 flex items-center justify-between gap-3 rounded-xl border border-transparent px-3 py-2">
+              <div className="flex items-center gap-2">
+                <Switch checked={soloActivas} onCheckedChange={setSoloActivas} />
+                <span className="text-sm font-medium">Solo activas</span>
+              </div>
+            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-10 w-10 rounded-xl"
+              onClick={() => {
+                setLoadingRegiones(true);
+                void fetchRegiones(idTipoGerencia).finally(() => setLoadingRegiones(false));
+                void fetchConteos();
+              }}
+              disabled={loadingRegiones}
+              aria-label="Actualizar regiones"
+            >
+              <RefreshCcw className={cn('h-4 w-4', loadingRegiones && 'animate-spin')} />
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
       <DataTable
         columns={columnsRegiones}
-        data={regiones}
-        title={`Regiones - ${gerenciaActual?.descripcion ?? 'Gerencia'}`}
-        subtitle="Regiones para la segmentación logística de hospitales (catálogo editable por gerencia)"
+        data={regionesFiltradas}
+        title={`Regiones · ${gerenciaActual?.descripcion ?? 'Gerencia'}`}
+        subtitle="Segmentación logística de hospitales (catálogo editable por gerencia)"
         showRowCount
-        showRefreshButton
-        onRefresh={() => {
-          setLoadingRegiones(true);
-          void fetchRegiones(idTipoGerencia).finally(() => setLoadingRegiones(false));
-        }}
         loading={loadingRegiones}
       />
 
-      <p className="text-xs text-muted-foreground">
-        Cada gerencia (IMSS y Descentralizado) maneja su propio catálogo de regiones y su propio
-        mapeo de estados: un mismo estado puede pertenecer a una región de IMSS y a una de
-        Descentralizado a la vez. La Ciudad de México (CDMX) no tiene región asignada por estado:
-        sus hospitales se asignan manualmente desde el catálogo de Hospitales. Editar los estados de
-        una región no mueve hospitales; usa &quot;Aplicar mapeo a hospitales&quot; para reasignarlas
-        según el mapeo de la gerencia elegida.
-      </p>
+      <Card className="bg-muted/40 border shadow-none">
+        <CardContent className="flex gap-3 p-4 text-xs leading-relaxed text-muted-foreground">
+          <Info className="mt-0.5 h-4 w-4 shrink-0" />
+          <p>
+            Cada gerencia (IMSS y Descentralizado) maneja su propio catálogo de regiones y su propio
+            mapeo de estados: un mismo estado puede pertenecer a una región de IMSS y a una de
+            Descentralizado a la vez. La Ciudad de México (CDMX) no tiene región asignada por
+            estado: sus hospitales se asignan manualmente desde el catálogo de Hospitales. Editar
+            los estados de una región no mueve hospitales; usa &quot;Aplicar mapeo a
+            hospitales&quot; para reasignarlas según el mapeo de la gerencia elegida.
+          </p>
+        </CardContent>
+      </Card>
 
       <Modal
         id="modal-region"
@@ -537,11 +731,7 @@ export default function RegionesPage() {
             <Button type="button" variant="outline" onClick={() => setModalOpen(false)}>
               Cancelar
             </Button>
-            <Button
-              type="button"
-              disabled={saving}
-              onClick={form.handleSubmit(handleSave)}
-            >
+            <Button type="button" disabled={saving} onClick={form.handleSubmit(handleSave)}>
               {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Guardar
             </Button>
@@ -673,10 +863,7 @@ export default function RegionesPage() {
               render={({ field }) => (
                 <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
                   <FormControl>
-                    <Checkbox
-                      checked={field.value ?? false}
-                      onCheckedChange={field.onChange}
-                    />
+                    <Checkbox checked={field.value ?? false} onCheckedChange={field.onChange} />
                   </FormControl>
                   <div className="space-y-1 leading-none">
                     <FormLabel>Región activa</FormLabel>
@@ -708,40 +895,44 @@ export default function RegionesPage() {
         ) : (
           <div className="space-y-3">
             <div className="flex flex-wrap items-center gap-3">
-              {(mapaTodas ? regionesMapa : regionesMapa.filter((z) => z.idRegion === mapaRegion?.idRegion)).map(
-                (region) => (
-                  <span key={region.idRegion} className="flex items-center gap-1.5 text-xs">
-                    <span
-                      className="inline-block h-3 w-3 rounded-full border border-white shadow"
-                      style={{ backgroundColor: colorDeRegion(regionesMapa, region.idRegion) }}
-                    />
-                    {region.nombre}
-                    {mapaTodas && region.nombreGerencia && (
-                      <span className="text-muted-foreground">({region.nombreGerencia})</span>
-                    )}
-                  </span>
-                )
-              )}
-              {!mapaTodas && mapaRegion?.centroLatitud != null && mapaRegion?.centroLongitud != null && (
-                <span className="flex items-center gap-1.5 text-xs">
-                  <span className="flex h-3.5 w-3.5 items-center justify-center rounded-sm bg-[#eb6c36] text-[8px] font-bold text-white">
-                    Z
-                  </span>
-                  Centroide de {mapaRegion.nombre}
+              {(mapaTodas
+                ? regionesMapa
+                : regionesMapa.filter((z) => z.idRegion === mapaRegion?.idRegion)
+              ).map((region) => (
+                <span key={region.idRegion} className="flex items-center gap-1.5 text-xs">
+                  <span
+                    className="inline-block h-3 w-3 rounded-full border border-white shadow"
+                    style={{ backgroundColor: colorDeRegion(regionesMapa, region.idRegion) }}
+                  />
+                  {region.nombre}
+                  {mapaTodas && region.nombreGerencia && (
+                    <span className="text-muted-foreground">({region.nombreGerencia})</span>
+                  )}
                 </span>
-              )}
+              ))}
+              {!mapaTodas &&
+                mapaRegion?.centroLatitud != null &&
+                mapaRegion?.centroLongitud != null && (
+                  <span className="flex items-center gap-1.5 text-xs">
+                    <span className="flex h-3.5 w-3.5 items-center justify-center rounded-sm bg-[#eb6c36] text-[8px] font-bold text-white">
+                      Z
+                    </span>
+                    Centroide de {mapaRegion.nombre}
+                  </span>
+                )}
             </div>
             <HospitalesMap
               hospitales={mapaHospitales}
               colorPorRegion={Object.fromEntries(
-                regionesMapa.map((z) => [z.idRegion, colorDeRegion(regionesMapa, z.idRegion) ?? '#2d3142'])
+                regionesMapa.map((z) => [
+                  z.idRegion,
+                  colorDeRegion(regionesMapa, z.idRegion) ?? '#2d3142',
+                ])
               )}
               centroides={
                 mapaTodas
                   ? regionesMapa
-                      .filter(
-                        (z) => z.centroLatitud != null && z.centroLongitud != null
-                      )
+                      .filter((z) => z.centroLatitud != null && z.centroLongitud != null)
                       .map((z) => ({
                         idRegion: z.idRegion,
                         nombre: z.nombre,
@@ -807,12 +998,12 @@ export default function RegionesPage() {
                 onClick={() => void handleAplicarMapeo()}
                 disabled={
                   aplicandoMapeo ||
-                  ((previewMapeo?.totalHospitales ?? 0) + (previewMapeo?.totalPorGps ?? 0)) === 0
+                  (previewMapeo?.totalHospitales ?? 0) + (previewMapeo?.totalPorGps ?? 0) === 0
                 }
               >
                 {aplicandoMapeo && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Aplicar (
-                {(previewMapeo?.totalHospitales ?? 0) + (previewMapeo?.totalPorGps ?? 0)}{' '}
+                Aplicar ({(previewMapeo?.totalHospitales ?? 0) +
+                  (previewMapeo?.totalPorGps ?? 0)}{' '}
                 hospital(es))
               </Button>
             </div>
@@ -827,7 +1018,7 @@ export default function RegionesPage() {
             </p>
             <RadioGroup value={mapeoGerencia} onValueChange={setMapeoGerencia} className="gap-2">
               {idTipoGerencia != null && (
-                <Label className="flex cursor-pointer items-center gap-3 rounded-md border px-3 py-2.5 hover:bg-muted/50">
+                <Label className="hover:bg-muted/50 flex cursor-pointer items-center gap-3 rounded-md border px-3 py-2.5">
                   <RadioGroupItem value={String(idTipoGerencia)} />
                   <span className="text-sm">
                     Solo {gerenciaActual?.descripcion ?? 'la gerencia de la pestaña actual'}
@@ -839,13 +1030,13 @@ export default function RegionesPage() {
                 .map((g) => (
                   <Label
                     key={g.idTipoGerencia}
-                    className="flex cursor-pointer items-center gap-3 rounded-md border px-3 py-2.5 hover:bg-muted/50"
+                    className="hover:bg-muted/50 flex cursor-pointer items-center gap-3 rounded-md border px-3 py-2.5"
                   >
                     <RadioGroupItem value={String(g.idTipoGerencia)} />
                     <span className="text-sm">Solo {g.descripcion}</span>
                   </Label>
                 ))}
-              <Label className="flex cursor-pointer items-center gap-3 rounded-md border px-3 py-2.5 hover:bg-muted/50">
+              <Label className="hover:bg-muted/50 flex cursor-pointer items-center gap-3 rounded-md border px-3 py-2.5">
                 <RadioGroupItem value="ambas" />
                 <span className="text-sm">Ambas gerencias</span>
               </Label>
@@ -911,8 +1102,8 @@ export default function RegionesPage() {
                   <span className="font-medium text-foreground">
                     Pase 2 · por coordenadas (GPS)
                   </span>{' '}
-                  — hospitales sin región y sin mapeo de estado se asignan a la región con
-                  centroide más cercano (no toca los que ya tienen región):
+                  — hospitales sin región y sin mapeo de estado se asignan a la región con centroide
+                  más cercano (no toca los que ya tienen región):
                 </p>
                 <div className="max-h-56 overflow-y-auto rounded-md border">
                   <table className="w-full text-sm">

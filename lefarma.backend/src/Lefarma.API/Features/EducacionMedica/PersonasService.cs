@@ -175,25 +175,6 @@ public class PersonasService : IPersonasService
         };
     }
 
-    public async Task<bool> DesactivarEjecutivoAsync(
-        int idEjecutivoRegion,
-        int idUsuario,
-        CancellationToken ct = default)
-    {
-        var fila = await _context.EjecutivosRegion
-            .FirstOrDefaultAsync(e => e.IdEjecutivoRegion == idEjecutivoRegion, ct);
-        if (fila is null)
-        {
-            return false;
-        }
-
-        fila.Activo = false;
-        fila.FechaModificacion = DateTime.UtcNow;
-        fila.IdUsuarioModificacion = idUsuario;
-        await _context.SaveChangesAsync(ct);
-        return true;
-    }
-
     public async Task<List<EjecutivoSuplenteDto>> GetEjecutivosSuplentesAsync(
         string? busqueda,
         int? idTipoGerencia,
@@ -315,25 +296,6 @@ public class PersonasService : IPersonasService
         await _context.SaveChangesAsync(ct);
 
         return await ArmarSuplenteDtoAsync(fila.IdEjecutivoSuplente, ct);
-    }
-
-    public async Task<bool> DesactivarEjecutivoSuplenteAsync(
-        int idEjecutivoSuplente,
-        int idUsuario,
-        CancellationToken ct = default)
-    {
-        var fila = await _context.EjecutivosSuplentes
-            .FirstOrDefaultAsync(e => e.IdEjecutivoSuplente == idEjecutivoSuplente, ct);
-        if (fila is null)
-        {
-            return false;
-        }
-
-        fila.Activo = false;
-        fila.FechaModificacion = DateTime.UtcNow;
-        fila.IdUsuarioModificacion = idUsuario;
-        await _context.SaveChangesAsync(ct);
-        return true;
     }
 
     private async Task<(int? IdTipoGerencia, int? IdRegionCatalogo)> NormalizarCoberturaSuplenteAsync(

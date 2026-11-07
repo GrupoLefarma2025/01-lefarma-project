@@ -56,7 +56,7 @@ export const educacionMedicaMenuItems: SidebarMenuItemConfig[] = [
       {
         title: 'Colaboradores',
         icon: Users,
-        path: '/educacion-medica/personas',
+        path: '/educacion-medica/colaboradores',
         permission: { require: PERMISOS.configuracion },
       },
       {
