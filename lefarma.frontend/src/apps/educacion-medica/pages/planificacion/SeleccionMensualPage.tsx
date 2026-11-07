@@ -533,14 +533,16 @@ export default function SeleccionMensualPage() {
     setHospitalElegidoId(null);
     try {
       const acumulado: Hospital[] = [];
-      for (let page = 1; page <= 10; page++) {
+      for (let page = 1; page <= 50; page++) {
         const response = await educacionMedicaApi.hospitales.getAll({
           idTipoGerencia: idGerencia,
           tieneCoordenadas: true,
           // Excluye contactos logísticos (almacenes/farmacias): solo sedes de taller.
           filtroSede: 'sedes',
+          mostrarEducacionMedica: true,
           page,
-          pageSize: 100,
+          // IMSS Bienestar supera las 4 mil sedes; 500 evita cortar el catálogo.
+          pageSize: 500,
         });
         if (!response.data.success) {
           toast.error(response.data.message ?? 'Error al cargar hospitales');

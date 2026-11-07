@@ -60,6 +60,9 @@ const extensionSchema = z.object({
   esAlmacen: z.boolean().optional(),
   esFarmacia: z.boolean().optional(),
   esSedeTaller: z.boolean().optional(),
+  mostrarEducacionMedica: z.boolean().optional(),
+  motivoClasificacion: z.string().optional(),
+  requiereRevision: z.boolean().optional(),
 });
 
 type ExtensionFormValues = z.infer<typeof extensionSchema>;
@@ -99,6 +102,8 @@ interface Filters {
   anestesiasTotalesMin: string;
   activo: string;
   filtroSede: string;
+  mostrarEducacionMedica: string;
+  requiereRevision: string;
 }
 
 const initialFilters: Filters = {
@@ -111,6 +116,8 @@ const initialFilters: Filters = {
   anestesiasTotalesMin: '',
   activo: 'true',
   filtroSede: NONE_VALUE,
+  mostrarEducacionMedica: 'true',
+  requiereRevision: NONE_VALUE,
 };
 
 const PAGE_SIZE = 20;
@@ -165,12 +172,19 @@ export default function HospitalesPage() {
       esAlmacen: false,
       esFarmacia: false,
       esSedeTaller: true,
+      mostrarEducacionMedica: true,
+      motivoClasificacion: '',
+      requiereRevision: false,
     },
   });
 
   // Las regiones son por gerencia: el select de región del formulario solo
   // muestra las de la gerencia elegida (o todas si aún no se elige).
   const gerenciaFormulario = useWatch({ control: form.control, name: 'idTipoGerencia' });
+  const mostrarFormulario = useWatch({
+    control: form.control,
+    name: 'mostrarEducacionMedica',
+  });
 
   const fetchTiposGerencia = async () => {
     try {
@@ -219,6 +233,12 @@ export default function HospitalesPage() {
       }
       if (filters.activo !== NONE_VALUE) params.activo = filters.activo === 'true';
       if (filters.filtroSede !== NONE_VALUE) params.filtroSede = filters.filtroSede;
+      if (filters.mostrarEducacionMedica !== NONE_VALUE) {
+        params.mostrarEducacionMedica = filters.mostrarEducacionMedica === 'true';
+      }
+      if (filters.requiereRevision !== NONE_VALUE) {
+        params.requiereRevision = filters.requiereRevision === 'true';
+      }
       return params;
     },
     [filters, busquedaServer]
@@ -246,6 +266,12 @@ export default function HospitalesPage() {
     }
     if (filters.activo !== NONE_VALUE) params.activo = filters.activo === 'true';
     if (filters.filtroSede !== NONE_VALUE) params.filtroSede = filters.filtroSede;
+    if (filters.mostrarEducacionMedica !== NONE_VALUE) {
+      params.mostrarEducacionMedica = filters.mostrarEducacionMedica === 'true';
+    }
+    if (filters.requiereRevision !== NONE_VALUE) {
+      params.requiereRevision = filters.requiereRevision === 'true';
+    }
     return params;
   }, [filters, busquedaServer]);
 
@@ -293,9 +319,9 @@ export default function HospitalesPage() {
     try {
       const response = await educacionMedicaApi.hospitales.sincronizar();
       if (response.data.success && response.data.data) {
-        const { creadas, yaExistian } = response.data.data;
+        const { creadas, yaExistian, ocultasNoHospital, pendientesRevision } = response.data.data;
         toast.success(
-          `Sincronización completada: ${creadas} extensión(es) creada(s), ${yaExistian} ya existían.`
+          `Sincronización completada: ${creadas} extensión(es) creada(s), ${yaExistian} ya existían, ${ocultasNoHospital} oculta(s) del catálogo y ${pendientesRevision} pendiente(s) de revisión.`
         );
         void buscar(pagination.pageIndex, pagination.pageSize);
       } else {
@@ -366,6 +392,9 @@ export default function HospitalesPage() {
       esAlmacen: hospital.extension?.esAlmacen ?? false,
       esFarmacia: hospital.extension?.esFarmacia ?? false,
       esSedeTaller: hospital.extension?.esSedeTaller ?? true,
+      mostrarEducacionMedica: hospital.extension?.mostrarEducacionMedica ?? true,
+      motivoClasificacion: hospital.extension?.motivoClasificacion ?? '',
+      requiereRevision: hospital.extension?.requiereRevision ?? false,
     });
     setIsOpen(true);
   }, [form]);
@@ -448,6 +477,9 @@ export default function HospitalesPage() {
       return;
     }
 
+    const mostrarEducacionMedica = values.mostrarEducacionMedica ?? true;
+    const esSedeTaller = mostrarEducacionMedica ? (values.esSedeTaller ?? true) : false;
+
     const payload: UpsertHospitalExtensionRequest = {
       fecha: values.fecha ?? null,
       idTipoGerencia,
@@ -458,7 +490,10 @@ export default function HospitalesPage() {
       esZonaMetropolitana: selectedHospital.extension?.esZonaMetropolitana ?? null,
       esAlmacen: values.esAlmacen ?? false,
       esFarmacia: values.esFarmacia ?? false,
-      esSedeTaller: values.esSedeTaller ?? true,
+      esSedeTaller,
+      mostrarEducacionMedica,
+      motivoClasificacion: values.motivoClasificacion?.trim() || null,
+      requiereRevision: values.requiereRevision ?? false,
     };
 
     setSaving(true);
@@ -534,6 +569,46 @@ export default function HospitalesPage() {
                 </Badge>
               ))}
             </div>
+          );
+        },
+      },
+      {
+        id: 'educacionMedica',
+        header: 'Educación Médica',
+        cell: ({ row }) => {
+          const mostrar = row.original.extension?.mostrarEducacionMedica;
+          if (mostrar === undefined || mostrar === null) return '-';
+          return (
+            <Badge
+              variant={mostrar ? 'default' : 'secondary'}
+              className="text-[10px]"
+            >
+              {mostrar ? 'Visible' : 'Oculto'}
+            </Badge>
+          );
+        },
+      },
+      {
+        id: 'revision',
+        header: 'Revisión',
+        cell: ({ row }) => {
+          const ext = row.original.extension;
+          if (!ext) return '-';
+          if (!ext.requiereRevision) {
+            return (
+              <Badge variant="outline" className="text-[10px]">
+                OK
+              </Badge>
+            );
+          }
+          return (
+            <Badge
+              variant="destructive"
+              className="text-[10px]"
+              title={ext.motivoClasificacion ?? 'Pendiente de revisión manual'}
+            >
+              Pendiente
+            </Badge>
           );
         },
       },
@@ -717,6 +792,40 @@ export default function HospitalesPage() {
                       {option.label}
                     </SelectItem>
                   ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">Educación Médica</label>
+              <Select
+                value={filters.mostrarEducacionMedica}
+                onValueChange={(v) => setFilter('mostrarEducacionMedica', v)}
+              >
+                <SelectTrigger className="h-9">
+                  <SelectValue placeholder="Visibles" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NONE_VALUE}>Todos</SelectItem>
+                  <SelectItem value="true">Solo visibles</SelectItem>
+                  <SelectItem value="false">Solo ocultos</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">Revisión</label>
+              <Select
+                value={filters.requiereRevision}
+                onValueChange={(v) => setFilter('requiereRevision', v)}
+              >
+                <SelectTrigger className="h-9">
+                  <SelectValue placeholder="Todos" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NONE_VALUE}>Todos</SelectItem>
+                  <SelectItem value="true">Pendientes</SelectItem>
+                  <SelectItem value="false">Revisados</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -1081,7 +1190,13 @@ export default function HospitalesPage() {
                     <FormControl>
                       <Checkbox
                         checked={field.value ?? true}
-                        onCheckedChange={field.onChange}
+                        disabled={mostrarFormulario === false}
+                        onCheckedChange={(checked) => {
+                          field.onChange(checked);
+                          if (checked === true) {
+                            form.setValue('mostrarEducacionMedica', true);
+                          }
+                        }}
                       />
                     </FormControl>
                     <div className="space-y-1 leading-none">
@@ -1089,6 +1204,71 @@ export default function HospitalesPage() {
                         Es sede de taller (seleccionable en Selección Mensual y ranking)
                       </FormLabel>
                     </div>
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="mostrarEducacionMedica"
+                render={({ field }) => (
+                  <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
+                    <FormControl>
+                      <Checkbox
+                        checked={field.value ?? true}
+                        onCheckedChange={(checked) => {
+                          field.onChange(checked);
+                          if (checked !== true) {
+                            form.setValue('esSedeTaller', false);
+                          }
+                        }}
+                      />
+                    </FormControl>
+                    <div className="space-y-1 leading-none">
+                      <FormLabel>
+                        Mostrar en Educación Médica (catálogo, mapas y conteos)
+                      </FormLabel>
+                    </div>
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="requiereRevision"
+                render={({ field }) => (
+                  <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
+                    <FormControl>
+                      <Checkbox
+                        checked={field.value ?? false}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
+                    <div className="space-y-1 leading-none">
+                      <FormLabel>Requiere revisión manual</FormLabel>
+                    </div>
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="motivoClasificacion"
+                render={({ field }) => (
+                  <FormItem className="md:col-span-2">
+                    <FormLabel>Motivo de clasificación</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="Opcional: explica por qué se oculta o clasifica así"
+                        value={field.value ?? ''}
+                        onChange={(e) => field.onChange(e.target.value)}
+                      />
+                    </FormControl>
+                    <p className="text-xs text-muted-foreground">
+                      Al guardar se marca la clasificación como manual y se limpia la revisión
+                      pendiente, salvo que marques "Requiere revisión manual".
+                    </p>
+                    <FormMessage />
                   </FormItem>
                 )}
               />

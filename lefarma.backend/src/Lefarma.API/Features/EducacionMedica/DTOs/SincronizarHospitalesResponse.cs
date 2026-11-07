@@ -11,4 +11,10 @@ public class SincronizarHospitalesResponse
 
     /// <summary>Hospitales que ya tenían extensión (no se tocaron).</summary>
     public int YaExistian { get; set; }
+
+    /// <summary>Nuevas extensiones que nacieron ocultas por no ser unidades de atención.</summary>
+    public int OcultasNoHospital { get; set; }
+
+    /// <summary>Nuevas extensiones que requieren revisión manual.</summary>
+    public int PendientesRevision { get; set; }
 }

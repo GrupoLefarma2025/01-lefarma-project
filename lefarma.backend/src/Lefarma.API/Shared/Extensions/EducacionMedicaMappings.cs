@@ -74,7 +74,11 @@ public static class EducacionMedicaMappings
             AnestesiasMixtasNoObesos = extension.AnestesiasMixtasNoObesos,
             EsAlmacen = extension.EsAlmacen,
             EsFarmacia = extension.EsFarmacia,
-            EsSedeTaller = extension.EsSedeTaller
+            EsSedeTaller = extension.EsSedeTaller,
+            MostrarEducacionMedica = extension.MostrarEducacionMedica,
+            MotivoClasificacion = extension.MotivoClasificacion,
+            RequiereRevision = extension.RequiereRevision,
+            ClasificacionManual = extension.ClasificacionManual
         };
     }
 

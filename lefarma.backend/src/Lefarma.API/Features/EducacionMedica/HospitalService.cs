@@ -109,6 +109,7 @@ public class HospitalService : IHospitalService
         CancellationToken ct = default)
     {
         filter ??= new HospitalFilterParams();
+        filter.MostrarEducacionMedica ??= true;
         var hospitales = await ObtenerHospitalesFiltradosAsync(filter, ct);
 
         return hospitales
@@ -131,6 +132,20 @@ public class HospitalService : IHospitalService
 
     private static List<HospitalDto> AplicarFiltrosExtension(List<HospitalDto> hospitales, HospitalFilterParams filter)
     {
+        if (filter.MostrarEducacionMedica.HasValue)
+        {
+            hospitales = filter.MostrarEducacionMedica.Value
+                ? hospitales.Where(h => h.Extension?.MostrarEducacionMedica == true).ToList()
+                : hospitales.Where(h => h.Extension is null || !h.Extension.MostrarEducacionMedica).ToList();
+        }
+
+        if (filter.RequiereRevision.HasValue)
+        {
+            hospitales = hospitales
+                .Where(h => (h.Extension?.RequiereRevision ?? false) == filter.RequiereRevision.Value)
+                .ToList();
+        }
+
         if (!string.IsNullOrWhiteSpace(filter.FiltroSede))
         {
             hospitales = filter.FiltroSede.ToLowerInvariant() switch
@@ -267,6 +282,35 @@ public class HospitalService : IHospitalService
             }
         }
 
+        var mostrarEducacionMedica =
+            request.MostrarEducacionMedica ?? existing?.MostrarEducacionMedica ?? true;
+        var esSedeTaller = request.EsSedeTaller ?? existing?.EsSedeTaller;
+
+        if (!mostrarEducacionMedica)
+        {
+            esSedeTaller = false;
+        }
+        else if (esSedeTaller == true)
+        {
+            mostrarEducacionMedica = true;
+        }
+
+        var motivoClasificacion = string.IsNullOrWhiteSpace(request.MotivoClasificacion)
+            ? existing?.MotivoClasificacion
+            : request.MotivoClasificacion.Trim();
+
+        if (string.IsNullOrWhiteSpace(motivoClasificacion))
+        {
+            motivoClasificacion = "Clasificación manual";
+        }
+
+        if (motivoClasificacion.Length > 200)
+        {
+            motivoClasificacion = motivoClasificacion[..200];
+        }
+
+        var requiereRevision = request.RequiereRevision ?? false;
+
         if (existing is null)
         {
             var created = await _extensionRepository.CreateAsync(new Domain.Entities.EducacionMedica.HospitalExtension
@@ -280,7 +324,11 @@ public class HospitalService : IHospitalService
                 EsZonaMetropolitana = request.EsZonaMetropolitana,
                 EsAlmacen = request.EsAlmacen,
                 EsFarmacia = request.EsFarmacia,
-                EsSedeTaller = request.EsSedeTaller,
+                EsSedeTaller = esSedeTaller,
+                MostrarEducacionMedica = mostrarEducacionMedica,
+                MotivoClasificacion = motivoClasificacion,
+                RequiereRevision = requiereRevision,
+                ClasificacionManual = true,
                 IdUsuarioCreacion = idUsuario,
                 IdUsuarioModificacion = idUsuario
             }, ct);
@@ -299,7 +347,11 @@ public class HospitalService : IHospitalService
         existing.EsZonaMetropolitana = request.EsZonaMetropolitana;
         existing.EsAlmacen = request.EsAlmacen;
         existing.EsFarmacia = request.EsFarmacia;
-        existing.EsSedeTaller = request.EsSedeTaller;
+        existing.EsSedeTaller = esSedeTaller;
+        existing.MostrarEducacionMedica = mostrarEducacionMedica;
+        existing.MotivoClasificacion = motivoClasificacion;
+        existing.RequiereRevision = requiereRevision;
+        existing.ClasificacionManual = true;
         existing.IdUsuarioModificacion = idUsuario;
 
         AnestesiaCalculator.Calcular(existing, factores);
@@ -347,34 +399,53 @@ public class HospitalService : IHospitalService
         }
 
         var ids = hospitales.Select(h => h.CodigoContacto).ToList();
-        var existentes = await _extensionRepository.GetByHospitalIdsAsync(ids, ct);
+        var existentes = await _extensionRepository.GetByHospitalIdsIncludingInactiveAsync(ids, ct);
         var idsConExtension = existentes.Select(e => e.IdHospital).ToHashSet();
 
         // Gerencia por jerarquía institucional (espeja el script 0019).
         var tiposGerencia = await _tipoGerenciaRepository.GetAllAsync(ct);
         var idsPorGerencia = tiposGerencia.ToDictionary(t => t.Descripcion, t => t.IdTipoGerencia);
 
-        // Solo altas: las extensiones existentes no se insertan ni actualizan.
-        var nuevas = hospitales
-            .Where(h => !idsConExtension.Contains(h.CodigoContacto))
-            .Select(h =>
+        // Mapeo estado -> región por gerencia para asignar región al crear.
+        var mapeos = await _regionRepository.GetMapeosAsync(ct);
+        var regionPorEstado = mapeos
+            .GroupBy(m => (m.IdTipoGerencia, m.CodigoEstado))
+            .ToDictionary(g => g.Key, g => g.First().IdRegion);
+
+        var hospitalesPorId = hospitales.ToDictionary(h => h.CodigoContacto);
+        var nuevas = new List<HospitalExtension>();
+
+        foreach (var h in hospitales.Where(h => !idsConExtension.Contains(h.CodigoContacto)))
+        {
+            var clasificacion = ClasificarContacto(h, hospitales, hospitalesPorId);
+            var gerenciaNombre = ClasificarTipoGerencia(h);
+            var idGerencia = idsPorGerencia.TryGetValue(gerenciaNombre, out var idG) ? idG : (int?)null;
+
+            int? idRegion = null;
+            if (idGerencia.HasValue
+                && int.TryParse(h.CodigoEstado, out var codigoEstado)
+                && regionPorEstado.TryGetValue((idGerencia.Value, codigoEstado), out var idR))
             {
-                var (esAlmacen, esFarmacia, esSedeTaller) = ClasificarContacto(h, hospitales);
-                return new HospitalExtension
-                {
-                    IdHospital = h.CodigoContacto,
-                    IdTipoGerencia = idsPorGerencia.TryGetValue(ClasificarTipoGerencia(h), out var idGerencia)
-                        ? idGerencia
-                        : null,
-                    EsZonaMetropolitana = ClasificarZonaMetropolitana(h),
-                    EsAlmacen = esAlmacen,
-                    EsFarmacia = esFarmacia,
-                    EsSedeTaller = esSedeTaller,
-                    IdUsuarioCreacion = idUsuario,
-                    IdUsuarioModificacion = idUsuario,
-                };
-            })
-            .ToList();
+                idRegion = idR;
+            }
+
+            nuevas.Add(new HospitalExtension
+            {
+                IdHospital = h.CodigoContacto,
+                IdTipoGerencia = idGerencia,
+                IdRegion = idRegion,
+                EsZonaMetropolitana = ClasificarZonaMetropolitana(h),
+                EsAlmacen = clasificacion.EsAlmacen,
+                EsFarmacia = clasificacion.EsFarmacia,
+                EsSedeTaller = clasificacion.EsSedeTaller,
+                MostrarEducacionMedica = clasificacion.MostrarEducacionMedica,
+                MotivoClasificacion = clasificacion.MotivoClasificacion,
+                RequiereRevision = clasificacion.RequiereRevision,
+                ClasificacionManual = false,
+                IdUsuarioCreacion = idUsuario,
+                IdUsuarioModificacion = idUsuario,
+            });
+        }
 
         if (nuevas.Count > 0)
         {
@@ -386,16 +457,23 @@ public class HospitalService : IHospitalService
             TotalHospitales = hospitales.Count,
             Creadas = nuevas.Count,
             YaExistian = idsConExtension.Count,
+            OcultasNoHospital = nuevas.Count(n => !n.MostrarEducacionMedica),
+            PendientesRevision = nuevas.Count(n => n.RequiereRevision),
         };
     }
 
     /// <summary>
     /// Gerencia por jerarquía institucional (espeja vw_hospitales_clasificados y el
-    /// script 0019): 364 o hijo de 364 -> IMSS; tipo Privado -> Privado; todo lo demás
-    /// (Gobierno, Bienestar 385, ISSSTE 370, tipo NULL) -> Descentralizado.
+    /// script 0019): 385 o hijo de 385 -> IMSS Bienestar; 364 o hijo de 364 -> IMSS;
+    /// tipo Privado -> Privado; el resto (Gobierno, ISSSTE 370, tipo NULL) -> Descentralizado.
     /// </summary>
     private static string ClasificarTipoGerencia(Hospital hospital)
     {
+        if (hospital.CodigoContacto == 385 || hospital.CodigoContactoPrincipal == 385)
+        {
+            return "IMSS Bienestar";
+        }
+
         if (hospital.CodigoContacto == 364 || hospital.CodigoContactoPrincipal == 364)
         {
             return "IMSS";
@@ -404,45 +482,155 @@ public class HospitalService : IHospitalService
         return hospital.Tipo == "Privado" ? "Privado" : "Descentralizado";
     }
 
+    private sealed record ClasificacionContacto(
+        bool EsAlmacen,
+        bool EsFarmacia,
+        bool EsSedeTaller,
+        bool MostrarEducacionMedica,
+        string MotivoClasificacion,
+        bool RequiereRevision);
+
     /// <summary>
-    /// Clasificación del contacto como sede/logístico (espeja el script 0024): almacenes
-    /// delegacionales/subdelegacionales y BIRMEX no son sede; el sub-almacén es la sede
-    /// preferente de su UMAE; la farmacia es sede solo si no existe sub-almacén del mismo
-    /// prefijo; el resto es sede.
+    /// Clasificación del contacto como unidad de atención, sede logística o contacto
+    /// no hospitalario. Reproduce la depuración aplicada en hospital_extension.
     /// </summary>
-    private static (bool EsAlmacen, bool EsFarmacia, bool EsSedeTaller) ClasificarContacto(
+    private static ClasificacionContacto ClasificarContacto(
         Hospital hospital,
-        IReadOnlyCollection<Hospital> universo)
+        IReadOnlyCollection<Hospital> universo,
+        IReadOnlyDictionary<int, Hospital> hospitalesPorId)
     {
         var nombre = (hospital.NombreContacto ?? string.Empty).Trim().ToUpperInvariant();
+        var id = hospital.CodigoContacto;
+        var principal = hospital.CodigoContactoPrincipal ?? 0;
 
-        var esAlmacenDistribucion =
-            nombre.Contains("BIRMEX")
-            || (nombre.Contains("ALMAC") && (nombre.Contains("DELEGACIONAL") || nombre.Contains("DELEGACION")));
-        if (esAlmacenDistribucion)
+        var esRaizInstitucion = id is 364 or 370 or 385;
+        var esHijoInstitucion = principal is 364 or 370 or 385;
+
+        var esEntrega = nombre.Contains("ENTREGA", StringComparison.Ordinal);
+        var esSubAlmacen =
+            Contiene(nombre, "SUB-ALMAC", "SUB ALMAC", "SUBDELEGACIONAL");
+        var esFarmacia = nombre.Contains("FARMACIA", StringComparison.Ordinal);
+        var esBirmex = nombre.Contains("BIRMEX", StringComparison.Ordinal);
+        var esAlmacen = !esSubAlmacen
+            && !esFarmacia
+            && (nombre.Contains("ALMAC", StringComparison.Ordinal)
+                || nombre.Contains("CEDIS", StringComparison.Ordinal)
+                || esBirmex);
+
+        var esProveedor = Contiene(
+            nombre,
+            "DISTRIBUIDORA",
+            "COMERCIALIZADORA",
+            "INSUMOS",
+            "PHARMA",
+            "TRANSPORT",
+            "TRASPORT",
+            "OFICINA",
+            "ADMINISTRATIV",
+            "PRUEBA",
+            "FALSE",
+            "COPIA",
+            "ASOKAM",
+            "HOSPITALES Y QUIROFANOS");
+
+        var padreProveedor = false;
+        if (hospitalesPorId.TryGetValue(principal, out var padre))
         {
-            return (true, false, false);
+            var nombrePadre = (padre.NombreContacto ?? string.Empty).Trim().ToUpperInvariant();
+            padreProveedor =
+                padre.Tipo is "Privado" or "Distribuidor"
+                || Contiene(
+                    nombrePadre,
+                    "DISTRIBUIDORA",
+                    "COMERCIALIZADORA",
+                    "INSUMOS",
+                    "PHARMA",
+                    "TRANSPORT",
+                    "TRASPORT",
+                    "PROVEEDOR",
+                    "COMERCIAL",
+                    "CORPORATIVO",
+                    "COMERLAT");
         }
 
-        if (nombre.Contains("SUB-ALMAC") || nombre.Contains("SUB ALMAC"))
+        var esHospitalario = esHijoInstitucion
+            || Contiene(
+                nombre,
+                "HOSPITAL",
+                "CLINICA",
+                "CENTRO MEDICO",
+                "CENTRO REGIONAL",
+                "INSTITUTO NACIONAL",
+                "UMAE",
+                "UNIDAD MEDICA",
+                "CENTRO DE SALUD",
+                "UMM");
+
+        if (esEntrega || esProveedor || padreProveedor)
         {
-            return (true, false, true);
+            return new ClasificacionContacto(
+                false, false, false, false,
+                "Logístico/proveedor: entrega/transporte/distribuidor",
+                false);
         }
 
-        if (nombre.Contains("FARMACIA"))
+        if (esRaizInstitucion)
+        {
+            return new ClasificacionContacto(
+                false, false, false, false,
+                "Institución raíz",
+                false);
+        }
+
+        if (esAlmacen)
+        {
+            return new ClasificacionContacto(
+                true, false, false, false,
+                "Logístico: almacén/CEDIS/BIRMEX",
+                false);
+        }
+
+        if (esSubAlmacen)
+        {
+            return new ClasificacionContacto(
+                true, false, true, true,
+                "Sede logística (sub-almacén)",
+                false);
+        }
+
+        if (esFarmacia)
         {
             var baseNombre = nombre.Replace(" - FARMACIA", string.Empty);
             var tieneSubAlmacen = universo.Any(o =>
             {
                 var n = (o.NombreContacto ?? string.Empty).Trim().ToUpperInvariant();
-                return (n.Contains("SUB-ALMAC") || n.Contains("SUB ALMAC"))
+                return (n.Contains("SUB-ALMAC", StringComparison.Ordinal)
+                    || n.Contains("SUB ALMAC", StringComparison.Ordinal))
                     && n.StartsWith(baseNombre, StringComparison.Ordinal);
             });
-            return (false, true, !tieneSubAlmacen);
+
+            return new ClasificacionContacto(
+                false, true, !tieneSubAlmacen, true,
+                "Sede logística (farmacia)",
+                false);
         }
 
-        return (false, false, true);
+        if (esHospitalario)
+        {
+            return new ClasificacionContacto(
+                false, false, true, true,
+                "Unidad de atención",
+                false);
+        }
+
+        return new ClasificacionContacto(
+            false, false, false, false,
+            "Pendiente de revisión: no hospitalario",
+            true);
     }
+
+    private static bool Contiene(string valor, params string[] terminos) =>
+        terminos.Any(t => valor.Contains(t, StringComparison.Ordinal));
 
     /// <summary>
     /// ZMVM: CDMX (493) y municipios conurbados de Edomex (501); espeja la regla

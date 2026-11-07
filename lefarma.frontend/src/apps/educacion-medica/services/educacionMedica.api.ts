@@ -131,6 +131,12 @@ function buildHospitalFilters(filters: HospitalFilterParams): Record<string, unk
     params.tieneCoordenadas = filters.tieneCoordenadas;
   }
   if (filters.filtroSede) params.filtroSede = filters.filtroSede;
+  if (filters.mostrarEducacionMedica !== undefined && filters.mostrarEducacionMedica !== null) {
+    params.mostrarEducacionMedica = filters.mostrarEducacionMedica;
+  }
+  if (filters.requiereRevision !== undefined && filters.requiereRevision !== null) {
+    params.requiereRevision = filters.requiereRevision;
+  }
   if (filters.orderBy) params.orderBy = filters.orderBy;
   if (filters.orderDirection) params.orderDirection = filters.orderDirection;
   if (filters.page !== undefined && filters.page !== null) params.page = filters.page;

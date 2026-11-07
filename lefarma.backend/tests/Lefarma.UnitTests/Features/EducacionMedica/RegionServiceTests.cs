@@ -149,6 +149,12 @@ public class RegionServiceTests
             return Task.FromResult(Extensiones.Where(e => set.Contains(e.IdHospital)).ToList());
         }
 
+        public Task<List<HospitalExtension>> GetByHospitalIdsIncludingInactiveAsync(IEnumerable<int> idsHospital, CancellationToken cancellationToken = default)
+        {
+            var set = idsHospital.ToHashSet();
+            return Task.FromResult(Extensiones.Where(e => set.Contains(e.IdHospital)).ToList());
+        }
+
         public Task<HospitalExtension> CreateAsync(HospitalExtension extension, CancellationToken cancellationToken = default)
         {
             extension.IdHospitalExtension = _siguiente++;

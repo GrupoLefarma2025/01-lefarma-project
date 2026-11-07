@@ -924,6 +924,42 @@ public class SeleccionMensualServiceTests
             .WithMessage("*no existe*");
     }
 
+    [Theory]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, null)]
+    public async Task AgregarHospitalAsync_NoVisibleONoSede_Debe_Lanzar(bool mostrar, bool? esSede)
+    {
+        var repo = new FakeSeleccionRepository();
+        var seleccion = new SeleccionMensual { Estado = SeleccionMensual.EstadoCreada, Activo = true };
+        repo.Selecciones.Add(seleccion);
+        seleccion.IdSeleccionMensual = repo.Selecciones.Count;
+
+        var hospitalMock = new Mock<IHospitalRepository>();
+        hospitalMock
+            .Setup(r => r.GetByIdAsync(100, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Hospital { CodigoContacto = 100, NombreContacto = "Hospital 100" });
+
+        var extensionMock = new Mock<IHospitalExtensionRepository>();
+        extensionMock
+            .Setup(r => r.GetByHospitalIdAsync(100, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new HospitalExtension
+            {
+                IdHospital = 100,
+                Activo = true,
+                MostrarEducacionMedica = mostrar,
+                EsSedeTaller = esSede,
+            });
+
+        var service = CreateService(repo, hospitalMock, extensionRepository: extensionMock);
+        var request = new AgregarHospitalSeleccionRequest { IdHospital = 100 };
+
+        var act = () => service.AgregarHospitalAsync(seleccion.IdSeleccionMensual, request, idUsuario: 99);
+
+        await act.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("*no está visible*");
+    }
+
     [Fact]
     public async Task AgregarHospitalAsync_Debe_AsignarRegionDeExtension()
     {
@@ -947,6 +983,16 @@ public class SeleccionMensualServiceTests
             });
 
         var extensionMock = new Mock<IHospitalExtensionRepository>();
+        extensionMock
+            .Setup(r => r.GetByHospitalIdAsync(100, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new HospitalExtension
+            {
+                IdHospital = 100,
+                IdRegion = 1,
+                Activo = true,
+                MostrarEducacionMedica = true,
+                EsSedeTaller = true,
+            });
         extensionMock
             .Setup(r => r.GetByHospitalIdsAsync(It.IsAny<IEnumerable<int>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync([
@@ -1032,7 +1078,21 @@ public class SeleccionMensualServiceTests
                 Longitud = -100.31m,
             });
 
-        var service = CreateService(repo, hospitalMock);
+        var extensionMock = new Mock<IHospitalExtensionRepository>();
+        extensionMock
+            .Setup(r => r.GetByHospitalIdAsync(100, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new HospitalExtension
+            {
+                IdHospital = 100,
+                Activo = true,
+                MostrarEducacionMedica = true,
+                EsSedeTaller = true,
+            });
+        extensionMock
+            .Setup(r => r.GetByHospitalIdsAsync(It.IsAny<IEnumerable<int>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+
+        var service = CreateService(repo, hospitalMock, extensionRepository: extensionMock);
 
         var dto = await service.AgregarHospitalAsync(
             seleccion.IdSeleccionMensual,

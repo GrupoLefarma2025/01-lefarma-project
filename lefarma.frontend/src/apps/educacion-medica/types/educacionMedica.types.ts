@@ -27,6 +27,14 @@ export interface HospitalExtension {
   esFarmacia: boolean | null;
   /** 1 = sede de taller seleccionable; 0 = logístico; NULL = sin clasificar. */
   esSedeTaller: boolean | null;
+  /** 1 = aparece en el catálogo de Educación Médica. */
+  mostrarEducacionMedica: boolean;
+  /** Motivo de la clasificación del contacto. */
+  motivoClasificacion: string | null;
+  /** 1 = pendiente de revisión manual. */
+  requiereRevision: boolean;
+  /** 1 = clasificación ajustada manualmente. */
+  clasificacionManual: boolean;
 }
 
 export interface Hospital {
@@ -50,6 +58,8 @@ export interface SincronizarHospitalesResponse {
   totalHospitales: number;
   creadas: number;
   yaExistian: number;
+  ocultasNoHospital: number;
+  pendientesRevision: number;
 }
 
 export interface HospitalUbicacion {
@@ -86,6 +96,10 @@ export interface HospitalFilterParams {
   tieneCoordenadas?: boolean | null;
   /** "sedes" = solo sedes de taller (excluye logísticos 0, conserva NULL) | "logisticos" | "sin-clasificar" */
   filtroSede?: string;
+  /** true = solo visibles en Educación Médica; false = solo ocultos; null/undefined = todos. */
+  mostrarEducacionMedica?: boolean | null;
+  /** true = solo pendientes de revisión; false = solo revisados. */
+  requiereRevision?: boolean | null;
   orderBy?: string;
   orderDirection?: string;
   page?: number;
@@ -207,6 +221,9 @@ export interface UpsertHospitalExtensionRequest {
   esAlmacen: boolean | null;
   esFarmacia: boolean | null;
   esSedeTaller: boolean | null;
+  mostrarEducacionMedica: boolean | null;
+  motivoClasificacion: string | null;
+  requiereRevision: boolean | null;
 }
 
 export interface ParametroAnestesia {

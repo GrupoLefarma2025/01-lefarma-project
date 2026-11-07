@@ -433,6 +433,12 @@ public class TalleresService : ITalleresService
         var extension = await _context.HospitalesExtension.AsNoTracking()
             .FirstOrDefaultAsync(x => x.IdHospital == idHospital, ct);
 
+        if (extension is null || !extension.MostrarEducacionMedica || extension.EsSedeTaller != true)
+        {
+            throw new InvalidOperationException(
+                "El hospital seleccionado no está visible en Educación Médica o no es sede de taller.");
+        }
+
         string? nombreRegion = null;
         if (extension?.IdRegion is int idRegion)
         {

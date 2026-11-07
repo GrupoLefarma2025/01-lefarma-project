@@ -24,6 +24,15 @@ public class HospitalFilterParams
     /// </summary>
     public bool? TieneCoordenadas { get; set; }
 
+    /// <summary>
+    /// true = solo visibles en Educación Médica; false = solo ocultos; null = sin filtro.
+    /// Los consumidores operativos deben enviar true.
+    /// </summary>
+    public bool? MostrarEducacionMedica { get; set; }
+
+    /// <summary>true = solo pendientes de revisión; false = solo revisados; null = sin filtro.</summary>
+    public bool? RequiereRevision { get; set; }
+
     /// <summary>Valores de Tipo a excluir (regla de elegibilidad explícita por consumidor).</summary>
     public List<string>? ExcluirTipos { get; set; }
 

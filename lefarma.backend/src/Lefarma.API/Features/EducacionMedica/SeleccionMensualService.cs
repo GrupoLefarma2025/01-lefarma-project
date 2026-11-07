@@ -597,6 +597,13 @@ public class SeleccionMensualService : ISeleccionMensualService
         var hospital = await _hospitalRepository.GetByIdAsync(request.IdHospital, ct)
             ?? throw new InvalidOperationException($"El hospital {request.IdHospital} no existe en el catálogo de Asokam.");
 
+        var extension = await _extensionRepository.GetByHospitalIdAsync(request.IdHospital, ct);
+        if (extension is null || !extension.MostrarEducacionMedica || extension.EsSedeTaller != true)
+        {
+            throw new InvalidOperationException(
+                "El hospital seleccionado no está visible en Educación Médica o no es sede de taller.");
+        }
+
         var agregado = await _repository.AddHospitalAsync(new SeleccionHospital
         {
             IdSeleccionMensual = seleccion.IdSeleccionMensual,

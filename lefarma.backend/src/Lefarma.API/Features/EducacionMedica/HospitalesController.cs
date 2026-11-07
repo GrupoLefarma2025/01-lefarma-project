@@ -41,6 +41,9 @@ public class HospitalesController : ControllerBase
             AnestesiasTotalesMin = request.AnestesiasTotalesMin,
             Activo = request.Activo,
             TieneCoordenadas = request.TieneCoordenadas,
+            FiltroSede = request.FiltroSede,
+            MostrarEducacionMedica = request.MostrarEducacionMedica,
+            RequiereRevision = request.RequiereRevision,
             OrderBy = request.OrderBy,
             OrderDirection = request.OrderDirection,
             Page = request.Page,
@@ -73,6 +76,10 @@ public class HospitalesController : ControllerBase
             NumeroQuirofanosMin = request.NumeroQuirofanosMin,
             AnestesiasTotalesMin = request.AnestesiasTotalesMin,
             Activo = request.Activo,
+            TieneCoordenadas = request.TieneCoordenadas,
+            FiltroSede = request.FiltroSede,
+            MostrarEducacionMedica = request.MostrarEducacionMedica,
+            RequiereRevision = request.RequiereRevision,
         };
 
         var ubicaciones = await _service.GetUbicacionesAsync(filter, ct);

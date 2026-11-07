@@ -11,6 +11,7 @@ public class HospitalServiceTests
     private const int IdGerenciaImss = 1;
     private const int IdGerenciaDescentralizado = 2;
     private const int IdGerenciaPrivado = 3;
+    private const int IdGerenciaBienestar = 4;
 
     private static Hospital Hospital(
         int id,
@@ -45,9 +46,13 @@ public class HospitalServiceTests
                 new TipoGerencia { IdTipoGerencia = IdGerenciaImss, Descripcion = "IMSS", Activo = true },
                 new TipoGerencia { IdTipoGerencia = IdGerenciaDescentralizado, Descripcion = "Descentralizado", Activo = true },
                 new TipoGerencia { IdTipoGerencia = IdGerenciaPrivado, Descripcion = "Privado", Activo = true },
+                new TipoGerencia { IdTipoGerencia = IdGerenciaBienestar, Descripcion = "IMSS Bienestar", Activo = true },
             ]);
 
         regiones.Setup(r => r.GetAllAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+
+        regiones.Setup(r => r.GetMapeosAsync(It.IsAny<CancellationToken>(), It.IsAny<int?>()))
             .ReturnsAsync([]);
 
         var servicio = new HospitalService(
@@ -68,8 +73,21 @@ public class HospitalServiceTests
 
     private static void ConfigurarExistentes(Mock<IHospitalExtensionRepository> mock, params int[] ids)
     {
+        var existentes = ids
+            .Select(id => new HospitalExtension
+            {
+                IdHospital = id,
+                NumeroQuirofanos = 3,
+                MostrarEducacionMedica = true,
+                EsSedeTaller = true,
+            })
+            .ToList();
+
         mock.Setup(e => e.GetByHospitalIdsAsync(It.IsAny<IEnumerable<int>>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(ids.Select(id => new HospitalExtension { IdHospital = id, NumeroQuirofanos = 3 }).ToList());
+            .ReturnsAsync(existentes);
+
+        mock.Setup(e => e.GetByHospitalIdsIncludingInactiveAsync(It.IsAny<IEnumerable<int>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(existentes);
     }
 
     [Fact]
@@ -109,7 +127,7 @@ public class HospitalServiceTests
             hospitales,
             Hospital(364, tipo: "Gobierno"),                          // institucion IMSS -> IMSS
             Hospital(10, tipo: "Gobierno", codigoContactoPrincipal: 364), // hijo de IMSS -> IMSS
-            Hospital(20, tipo: "Gobierno", codigoContactoPrincipal: 385), // Bienestar -> Descentralizado
+            Hospital(20, tipo: "Gobierno", codigoContactoPrincipal: 385), // Bienestar -> IMSS Bienestar
             Hospital(30, tipo: "Gobierno", codigoContactoPrincipal: 370), // ISSSTE -> Descentralizado
             Hospital(40, tipo: "Gobierno"),                            // Gobierno sin padre -> Descentralizado
             Hospital(50, tipo: null),                                 // tipo NULL -> Descentralizado
@@ -127,7 +145,7 @@ public class HospitalServiceTests
         var porHospital = creadas.ToDictionary(c => c.IdHospital, c => c.IdTipoGerencia);
         porHospital[364].Should().Be(IdGerenciaImss);
         porHospital[10].Should().Be(IdGerenciaImss);
-        porHospital[20].Should().Be(IdGerenciaDescentralizado);
+        porHospital[20].Should().Be(IdGerenciaBienestar);
         porHospital[30].Should().Be(IdGerenciaDescentralizado);
         porHospital[40].Should().Be(IdGerenciaDescentralizado);
         porHospital[50].Should().Be(IdGerenciaDescentralizado);

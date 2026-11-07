@@ -397,6 +397,20 @@ public class TalleresServiceAjustesTests
             CodigoEstado = "15",
         });
         _workflow.Asokam.SaveChanges();
+
+        _workflow.Context.HospitalesExtension.Add(new Lefarma.API.Domain.Entities.EducacionMedica.HospitalExtension
+        {
+            IdHospital = 200,
+            IdTipoGerencia = 1,
+            IdRegion = 1,
+            MostrarEducacionMedica = true,
+            EsSedeTaller = true,
+            Activo = true,
+            FechaCreacion = DateTime.UtcNow,
+            FechaModificacion = DateTime.UtcNow,
+        });
+        _workflow.Context.SaveChanges();
+
         var servicio = CrearServicio();
 
         var dto = await servicio.CrearAsync(new CrearTallerRequest

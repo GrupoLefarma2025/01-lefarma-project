@@ -409,6 +409,8 @@ export default function RegionesPage() {
     try {
       const response = await educacionMedicaApi.hospitales.getUbicaciones({
         idRegion: region.idRegion,
+        mostrarEducacionMedica: true,
+        filtroSede: 'sedes',
       });
       if (response.data.success) {
         setMapaHospitales(response.data.data ?? []);
@@ -428,7 +430,10 @@ export default function RegionesPage() {
     setLoadingMapa(true);
     try {
       const [rUbicaciones, rRegiones] = await Promise.all([
-        educacionMedicaApi.hospitales.getUbicaciones(),
+        educacionMedicaApi.hospitales.getUbicaciones({
+          mostrarEducacionMedica: true,
+          filtroSede: 'sedes',
+        }),
         educacionMedicaApi.regiones.getAll(),
       ]);
       if (rUbicaciones.data.success) {

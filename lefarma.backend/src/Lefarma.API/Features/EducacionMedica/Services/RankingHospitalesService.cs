@@ -514,8 +514,10 @@ public class RankingHospitalesService : IRankingHospitalesService
         foreach (var hospital in hospitales)
         {
             var extension = extensionesDict.GetValueOrDefault(hospital.CodigoContacto);
-            // Candidato = gerencia correcta y contacto no logístico (es_sede_taller != 0; NULL se conserva).
-            if (extension?.IdTipoGerencia == idTipoGerencia && extension.EsSedeTaller != false)
+            // Candidato = gerencia correcta, visible en EM y seleccionable como sede.
+            if (extension?.IdTipoGerencia == idTipoGerencia
+                && extension.MostrarEducacionMedica
+                && extension.EsSedeTaller == true)
             {
                 candidatos.Add(hospital);
             }
@@ -909,6 +911,25 @@ public class RankingHospitalesService : IRankingHospitalesService
 
         var hospitalesAsokam = await _hospitalRepository.GetByIdsAsync(idsSolicitados, cancellationToken);
         var nombresHospitales = hospitalesAsokam.ToDictionary(h => h.CodigoContacto);
+
+        var extensionesSolicitadas = await _extensionRepository.GetByHospitalIdsAsync(
+            idsSolicitados, cancellationToken);
+        var extensionesSolicitadasDict = extensionesSolicitadas.ToDictionary(e => e.IdHospital);
+        var noOperables = idsSolicitados
+            .Where(id =>
+            {
+                var extension = extensionesSolicitadasDict.GetValueOrDefault(id);
+                return extension is null
+                    || !extension.MostrarEducacionMedica
+                    || extension.EsSedeTaller != true;
+            })
+            .ToList();
+
+        if (noOperables.Count > 0)
+        {
+            throw new InvalidOperationException(
+                $"Los hospitales {string.Join(", ", noOperables)} no están visibles en Educación Médica o no son sede de taller.");
+        }
 
         var nuevos = new List<SeleccionHospital>();
         foreach (var item in request.Hospitales)
