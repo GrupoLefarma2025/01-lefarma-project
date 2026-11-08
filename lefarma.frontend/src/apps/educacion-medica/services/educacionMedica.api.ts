@@ -150,6 +150,7 @@ export const educacionMedicaApi = {
     getAll: (filters: HospitalFilterParams = {}) =>
       API.get<ApiResponse<PagedResult<Hospital>>>(`${BASE}/hospitales`, {
         params: buildHospitalFilters(filters),
+        timeout: 120000,
       }),
     getUbicaciones: (filters: Omit<HospitalFilterParams, 'page' | 'pageSize'> = {}) => {
       const params = buildHospitalFilters({ ...filters, page: undefined, pageSize: undefined });
@@ -157,6 +158,7 @@ export const educacionMedicaApi = {
       delete params.pageSize;
       return API.get<ApiResponse<HospitalUbicacion[]>>(`${BASE}/hospitales/ubicaciones`, {
         params,
+        timeout: 120000,
       });
     },
     getById: (id: number) => API.get<ApiResponse<Hospital>>(`${BASE}/hospitales/${id}`),

@@ -64,14 +64,53 @@ public class HospitalService : IHospitalService
         // Regla de negocio explícita: el buscador/catálogo no ofrece Privados ni Distribuidores.
         filter.ExcluirTipos = ["Privado", "Distribuidor"];
 
+        var extensiones = await _extensionRepository.GetAllAsync(ct);
+
+        var usaFiltrosExtension =
+            filter.MostrarEducacionMedica.HasValue ||
+            filter.RequiereRevision.HasValue ||
+            !string.IsNullOrWhiteSpace(filter.FiltroSede);
+
+        if (usaFiltrosExtension)
+        {
+            var candidatos = extensiones.AsEnumerable();
+
+            if (filter.MostrarEducacionMedica.HasValue)
+            {
+                candidatos = filter.MostrarEducacionMedica.Value
+                    ? candidatos.Where(e => e.MostrarEducacionMedica)
+                    : candidatos.Where(e => !e.MostrarEducacionMedica);
+            }
+
+            if (filter.RequiereRevision.HasValue)
+            {
+                candidatos = candidatos.Where(e => e.RequiereRevision == filter.RequiereRevision.Value);
+            }
+
+            if (!string.IsNullOrWhiteSpace(filter.FiltroSede))
+            {
+                candidatos = filter.FiltroSede.ToLowerInvariant() switch
+                {
+                    "sedes" => candidatos.Where(e => e.EsSedeTaller != false),
+                    "logisticos" => candidatos.Where(e => e.EsSedeTaller == false),
+                    "sin-clasificar" => candidatos.Where(e => e.EsSedeTaller == null),
+                    _ => candidatos,
+                };
+            }
+
+            filter.Ids = candidatos.Select(e => e.IdHospital).Distinct().ToList();
+            if (filter.Ids.Count == 0)
+            {
+                return [];
+            }
+        }
+
         var hospitales = await _hospitalRepository.GetHospitalesAsync(filter, ct);
         if (hospitales.Count == 0)
         {
             return [];
         }
 
-        var ids = hospitales.Select(h => h.CodigoContacto).ToList();
-        var extensiones = await _extensionRepository.GetByHospitalIdsAsync(ids, ct);
         var tipos = await _tipoGerenciaRepository.GetAllAsync(ct);
         var tiposDict = tipos.ToDictionary(t => t.IdTipoGerencia, t => t.Descripcion);
         var regionesDict = (await _regionRepository.GetAllAsync(ct)).ToDictionary(r => r.IdRegion, r => r.Nombre);

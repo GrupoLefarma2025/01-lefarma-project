@@ -3,7 +3,6 @@ import {
   HelpCircle,
   Hospital,
   Package,
-  Building2,
   Users,
   Settings,
   CalendarRange,
@@ -70,12 +69,6 @@ export const educacionMedicaMenuItems: SidebarMenuItemConfig[] = [
         icon: Package,
         path: '/educacion-medica/catalogos/productos',
         permission: { require: PERMISOS.productosVer },
-      },
-      {
-        title: 'Tipo de Gerencia',
-        icon: Building2,
-        path: '/educacion-medica/catalogos/tipo-gerencia',
-        permission: { require: PERMISOS.configuracion },
       },
       {
         title: 'Regiones',

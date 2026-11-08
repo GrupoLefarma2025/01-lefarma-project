@@ -10,7 +10,6 @@ import ColaboradoresPage from './pages/personas/PersonasPage';
 import Perfil from '@/pages/Perfil';
 import HospitalesPage from './pages/catalogos/HospitalesPage';
 import ProductosPage from './pages/catalogos/ProductosPage';
-import TipoGerenciaPage from './pages/catalogos/TipoGerenciaPage';
 import RegionesPage from './pages/catalogos/RegionesPage';
 import ParametrosPage from './pages/catalogos/ParametrosPage';
 import ConfigRankingPage from './pages/catalogos/ConfigRankingPage';
@@ -140,11 +139,7 @@ export function EducacionMedicaRoutes({ variant, loginPath }: SubtreeRoutesProps
         />
         <Route
           path="catalogos/tipo-gerencia"
-          element={
-            <PermissionGuard blockedPath={resolvedBlockedPath} require={PERMISOS.configuracion}>
-              <TipoGerenciaPage />
-            </PermissionGuard>
-          }
+          element={<Navigate replace to="/educacion-medica/catalogos/hospitales" />}
         />
         <Route
           path="catalogos/regiones"

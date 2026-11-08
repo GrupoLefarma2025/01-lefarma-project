@@ -24,6 +24,8 @@ import {
   RefreshCwIcon,
   Settings2Icon,
   SearchIcon,
+  Rows3Icon,
+  CheckIcon,
 } from 'lucide-react';
 import {
   Table,
@@ -79,6 +81,7 @@ export interface DataTableProps<TData> {
   showExportButton?: boolean;
   showRefreshButton?: boolean;
   showColumnToggle?: boolean;
+  showDensityToggle?: boolean;
   /** Texto del botón de exportación (por defecto "Exportar"). */
   exportLabel?: string;
 
@@ -103,6 +106,12 @@ export interface DataTableProps<TData> {
 
   // Configuración de filtros
   filterConfig?: FilterConfigType;
+  /** Chips de filtros gestionados fuera de la tabla (búsqueda, selects, etc.). */
+  extraFilters?: Array<{ id: string; label: string }>;
+  onRemoveExtraFilter?: (id: string) => void;
+  onClearExtraFilters?: () => void;
+  /** Estado vacío personalizado cuando no hay filas. */
+  emptyState?: ReactNode;
 
   loading?: boolean;
   density?: 'compact' | 'standard' | 'comfortable';
@@ -155,6 +164,7 @@ export function DataTable<TData>({
   showExportButton = false,
   showRefreshButton = false,
   showColumnToggle = false,
+  showDensityToggle = false,
   exportLabel = 'Exportar',
   onExport,
   onRefresh,
@@ -162,6 +172,10 @@ export function DataTable<TData>({
   rowTestId,
   isRowSelected,
   filterConfig,
+  extraFilters = [],
+  onRemoveExtraFilter,
+  onClearExtraFilters,
+  emptyState,
   enableRowSelection = false,
   onSelectionChange,
   getRowId,
@@ -173,7 +187,7 @@ export function DataTable<TData>({
   paginationState: paginationStateProp,
   onPaginationChange,
 }: DataTableProps<TData>) {
-  const { ui } = useConfigStore();
+  const { ui, updateComponentPreferences } = useConfigStore();
 
   // Usa la configuración si no se proporciona explícitamente
   const tableDensity = density || ui.componentes.tables.density;
@@ -240,6 +254,7 @@ export function DataTable<TData>({
 
   const [collapsed, setCollapsed] = useState(defaultCollapsed);
   const [showColMenu, setShowColMenu] = useState(false);
+  const [showDensityMenu, setShowDensityMenu] = useState(false);
 
   // Lógica de filtrado
   const filterEnabled = !!filterConfig;
@@ -263,6 +278,31 @@ export function DataTable<TData>({
     defaultVisibleColumns: filterConfig?.defaultVisibleColumns,
     columnFilterConfigs: filterConfig?.columnFilterConfigs,
   });
+
+  const extraFilterPrefix = 'extra:';
+  const allActiveFilterChips = [
+    ...activeFilters.map((filter) => ({
+      id: filter.columnId,
+      label: filter.displayLabel,
+    })),
+    ...extraFilters.map((filter) => ({
+      id: `${extraFilterPrefix}${filter.id}`,
+      label: filter.label,
+    })),
+  ];
+  const handleRemoveFilter = (id: string) => {
+    if (id.startsWith(extraFilterPrefix)) {
+      onRemoveExtraFilter?.(id.slice(extraFilterPrefix.length));
+    } else {
+      removeFilter(id);
+    }
+  };
+  const handleClearAllFilters = () => {
+    if (filterEnabled) {
+      clearAllFilters();
+    }
+    onClearExtraFilters?.();
+  };
 
   // Manejador de guardado que recibe los valores actuales de FilterConfig y guarda inmediatamente
   const handleSave = useCallback(
@@ -407,18 +447,61 @@ export function DataTable<TData>({
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {showDensityToggle && !collapsed && (
+            <div className="relative">
+              <Button
+                size="icon"
+                variant="outline"
+                className="h-8 w-8"
+                onClick={() => setShowDensityMenu((p) => !p)}
+                title="Densidad de la tabla"
+                aria-label="Densidad de la tabla"
+              >
+                <Rows3Icon className="h-3.5 w-3.5" />
+              </Button>
+              {showDensityMenu && (
+                <div className="absolute right-0 top-9 z-10 w-40 rounded-lg border bg-card p-1 shadow-lg">
+                  {[
+                    { value: 'compact' as const, label: 'Compacta' },
+                    { value: 'standard' as const, label: 'Estándar' },
+                    { value: 'comfortable' as const, label: 'Cómoda' },
+                  ].map((option) => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      className="flex w-full items-center justify-between rounded px-2 py-1.5 text-left text-sm hover:bg-muted"
+                      onClick={() => {
+                        updateComponentPreferences({
+                          tables: {
+                            density: option.value,
+                            defaultPageSize: ui.componentes.tables.defaultPageSize,
+                          },
+                        });
+                        setShowDensityMenu(false);
+                      }}
+                    >
+                      {option.label}
+                      {tableDensity === option.value && <CheckIcon className="h-3.5 w-3.5" />}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Column visibility toggle */}
           {showColumnToggle && !collapsed && (
             <div className="relative">
               <Button
-                size="sm"
+                size="icon"
                 variant="outline"
-                className="h-8 gap-1.5 text-xs"
+                className="h-8 w-8"
                 onClick={() => setShowColMenu((p) => !p)}
+                title="Configurar columnas"
+                aria-label="Configurar columnas"
               >
                 <Settings2Icon className="h-3.5 w-3.5" />
-                Configuración
               </Button>
               {showColMenu && (
                 <div className="absolute right-0 top-9 z-10 min-w-[160px] rounded-lg border bg-card p-2 shadow-lg">
@@ -479,9 +562,14 @@ export function DataTable<TData>({
           )}
 
           {showExportButton && (
-            <Button size="sm" className="h-8 gap-1.5 text-xs" onClick={onExport}>
+            <Button
+              size="icon"
+              className="h-8 w-8"
+              onClick={onExport}
+              title={exportLabel}
+              aria-label={exportLabel}
+            >
               <DownloadIcon className="h-3.5 w-3.5" />
-              {exportLabel}
             </Button>
           )}
         </div>
@@ -490,11 +578,11 @@ export function DataTable<TData>({
       {/* ── Table body ── */}
       {!collapsed && (
         <>
-          {filterEnabled && (
+          {(filterEnabled || extraFilters.length > 0) && (
             <ActiveFiltersBar
-              filters={activeFilters}
-              onRemoveFilter={removeFilter}
-              onClearAll={clearAllFilters}
+              filters={allActiveFilterChips}
+              onRemoveFilter={handleRemoveFilter}
+              onClearAll={handleClearAllFilters}
             />
           )}
           {globalFilter && !collapsed && (
@@ -601,7 +689,7 @@ export function DataTable<TData>({
                         colSpan={displayColumns.length}
                         className="h-24 text-center text-sm text-muted-foreground"
                       >
-                        Sin resultados.
+                        {emptyState ?? 'Sin resultados.'}
                       </TableCell>
                     </TableRow>
                   )}

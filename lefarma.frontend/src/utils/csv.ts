@@ -218,6 +218,14 @@ export function downloadCsv(blob: Blob, filename: string): void {
   URL.revokeObjectURL(url);
 }
 
+export function exportRowsToCsv(
+  rows: Array<Record<string, string | number | boolean | null | undefined>>,
+  filename: string,
+): void {
+  const csv = BOM + Papa.unparse(rows);
+  downloadCsv(new Blob([csv], { type: 'text/csv;charset=utf-8' }), filename);
+}
+
 export interface ParseCsvResult {
   headers: string[];
   rows: Record<string, string>[];

@@ -1,23 +1,21 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  BriefcaseBusiness,
   MapPin,
+  MoreHorizontal,
   Pencil,
   Plus,
   Search,
   ShieldCheck,
-  Sparkles,
-  UserRoundCog,
   UsersRound,
 } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 import { DataTable } from '@/components/ui/data-table';
 import type { ColumnDef } from '@/components/ui/data-table';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
+import { EmptyState } from '@/components/ui/EmptyState';
 import {
   Select,
   SelectContent,
@@ -26,11 +24,21 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { toApiError } from '@/utils/errors';
+import { exportRowsToCsv } from '@/utils/csv';
 import { educacionMedicaApi } from '@/apps/educacion-medica/services/educacionMedica.api';
+import { ResponsiveFilters } from '@/components/common/ResponsiveFilters';
+import { CatalogoToolbar } from '@/apps/educacion-medica/components/CatalogoToolbar';
+import { ResumenCompacto } from '@/apps/educacion-medica/components/ResumenCompacto';
+import { numericParam, useQueryState } from '@/apps/educacion-medica/hooks/useQueryState';
 import type {
   EjecutivoRegion,
   EjecutivoSuplente,
@@ -42,6 +50,7 @@ import type {
 import { EjecutivoFormModal } from './components/EjecutivoFormModal';
 import { EspecialistaFormModal } from './components/EspecialistaFormModal';
 import { SuplenteFormModal } from './components/SuplenteFormModal';
+import { ActionMenuItem } from '@/apps/educacion-medica/components/ActionMenuItem';
 
 type TabKey = 'ejecutivos' | 'suplentes' | 'especialistas';
 
@@ -133,37 +142,6 @@ function EstadoBadge({ activo }: { activo: boolean }) {
   );
 }
 
-function StatCard({
-  icon,
-  label,
-  value,
-  hint,
-  tone,
-}: {
-  icon: ReactNode;
-  label: string;
-  value: number | string;
-  hint: string;
-  tone: string;
-}) {
-  return (
-    <Card className={cn('border-0 shadow-sm', tone)}>
-      <CardContent className="flex items-start justify-between gap-3 p-4">
-        <div>
-          <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
-            {label}
-          </p>
-          <p className="mt-1 text-2xl font-semibold tracking-tight text-foreground">{value}</p>
-          <p className="mt-0.5 text-xs text-muted-foreground">{hint}</p>
-        </div>
-        <div className="rounded-xl bg-white/70 p-2 text-muted-foreground shadow-sm dark:bg-black/10">
-          {icon}
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
 interface EditState<T> {
   open: boolean;
   item: T | null;
@@ -174,7 +152,15 @@ const emptyEdit = <T,>(): EditState<T> => ({ open: false, item: null });
 export default function ColaboradoresPage() {
   usePageTitle('Colaboradores', 'Catálogos de Educación Médica');
 
-  const [activeTab, setActiveTab] = useState<TabKey>('ejecutivos');
+  const { searchParams, setParams } = useQueryState();
+  const tabParam = searchParams.get('tab');
+  const activeTab: TabKey =
+    tabParam === 'suplentes' || tabParam === 'especialistas' ? tabParam : 'ejecutivos';
+  const busqueda = searchParams.get('q') ?? '';
+  const idGerencia = numericParam(searchParams.get('gerencia'));
+  const idRegion = numericParam(searchParams.get('region'));
+  const soloActivos = searchParams.get('activos') !== '0';
+
   const [usuarios, setUsuarios] = useState<UsuarioCatalogo[]>([]);
   const [gerencias, setGerencias] = useState<TipoGerencia[]>([]);
   const [regiones, setRegiones] = useState<Region[]>([]);
@@ -184,10 +170,6 @@ export default function ColaboradoresPage() {
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [busqueda, setBusqueda] = useState('');
-  const [idGerencia, setIdGerencia] = useState<number | null>(null);
-  const [idRegion, setIdRegion] = useState<number | null>(null);
-  const [soloActivos, setSoloActivos] = useState(true);
 
   const [ejecutivoModal, setEjecutivoModal] = useState<EditState<EjecutivoRegion>>(emptyEdit());
   const [suplenteModal, setSuplenteModal] = useState<EditState<EjecutivoSuplente>>(emptyEdit());
@@ -297,20 +279,31 @@ export default function ColaboradoresPage() {
         header: '',
         cell: ({ row }) => (
           <div className="flex justify-end">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 rounded-lg"
-              title="Editar"
-              onClick={() => setEjecutivoModal({ open: true, item: row.original })}
-            >
-              <Pencil className="h-4 w-4" />
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 rounded-lg"
+                  aria-label="Acciones del ejecutivo"
+                  title="Acciones"
+                >
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-40">
+                <ActionMenuItem
+                  label="Editar"
+                  icon={Pencil}
+                  onClick={() => setEjecutivoModal({ open: true, item: row.original })}
+                />
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         ),
       },
     ],
-    [usuariosPorId]
+    [usuariosPorId, setEjecutivoModal]
   );
 
   const columnasSuplentes = useMemo<ColumnDef<EjecutivoSuplente>[]>(
@@ -362,20 +355,31 @@ export default function ColaboradoresPage() {
         header: '',
         cell: ({ row }) => (
           <div className="flex justify-end">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 rounded-lg"
-              title="Editar"
-              onClick={() => setSuplenteModal({ open: true, item: row.original })}
-            >
-              <Pencil className="h-4 w-4" />
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 rounded-lg"
+                  aria-label="Acciones del suplente"
+                  title="Acciones"
+                >
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-40">
+                <ActionMenuItem
+                  label="Editar"
+                  icon={Pencil}
+                  onClick={() => setSuplenteModal({ open: true, item: row.original })}
+                />
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         ),
       },
     ],
-    [usuariosPorId]
+    [usuariosPorId, setSuplenteModal]
   );
 
   const columnasEspecialistas = useMemo<ColumnDef<EspecialistaPersona>[]>(
@@ -437,20 +441,31 @@ export default function ColaboradoresPage() {
         header: '',
         cell: ({ row }) => (
           <div className="flex justify-end">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 rounded-lg"
-              title="Editar"
-              onClick={() => setEspecialistaModal({ open: true, item: row.original })}
-            >
-              <Pencil className="h-4 w-4" />
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 rounded-lg"
+                  aria-label="Acciones del especialista"
+                  title="Acciones"
+                >
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-40">
+                <ActionMenuItem
+                  label="Editar"
+                  icon={Pencil}
+                  onClick={() => setEspecialistaModal({ open: true, item: row.original })}
+                />
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         ),
       },
     ],
-    [usuariosPorId, gerenciasPorId]
+    [usuariosPorId, gerenciasPorId, setEspecialistaModal]
   );
 
   const termino = busqueda.trim().toLowerCase();
@@ -534,9 +549,61 @@ export default function ColaboradoresPage() {
   }, [ejecutivos, suplentes, especialistas]);
 
   const cambiarGerencia = (value: string) => {
-    setIdGerencia(value === TODAS ? null : Number(value));
-    setIdRegion(null);
+    setParams({
+      gerencia: value === TODAS ? null : value,
+      region: null,
+    });
   };
+
+  const cambiarRegion = (value: string) => {
+    setParams({ region: value === TODAS ? null : value });
+  };
+
+  const cambiarSoloActivos = (checked: boolean) => {
+    setParams({ activos: checked ? null : '0' });
+  };
+
+  const limpiarFiltros = () => {
+    setParams({ q: null, gerencia: null, region: null, activos: null });
+  };
+
+  const quitarFiltro = (id: string) => {
+    if (id === 'search') setParams({ q: null });
+    if (id === 'gerencia') setParams({ gerencia: null, region: null });
+    if (id === 'region') setParams({ region: null });
+    if (id === 'activos') setParams({ activos: null });
+  };
+
+  const extraFilters = useMemo(() => {
+    const chips: Array<{ id: string; label: string }> = [];
+    if (busqueda.trim()) {
+      chips.push({ id: 'search', label: `Buscar: ${busqueda.trim()}` });
+    }
+    if (idGerencia) {
+      chips.push({
+        id: 'gerencia',
+        label: gerenciasPorId.get(idGerencia)?.descripcion ?? `Gerencia ${idGerencia}`,
+      });
+    }
+    if (idRegion) {
+      const region = regiones.find((item) => item.idRegion === idRegion);
+      chips.push({
+        id: 'region',
+        label: region?.nombre ?? `Región ${idRegion}`,
+      });
+    }
+    if (!soloActivos) {
+      chips.push({ id: 'activos', label: 'Incluye inactivos' });
+    }
+    return chips;
+  }, [busqueda, gerenciasPorId, idGerencia, idRegion, regiones, soloActivos]);
+
+  const resumenItems = [
+    { label: 'ejecutivos', value: stats.ejecutivosActivos, dotClassName: 'bg-sky-500' },
+    { label: 'suplentes', value: stats.suplentesActivos, dotClassName: 'bg-violet-500' },
+    { label: 'especialistas', value: stats.especialistasActivos, dotClassName: 'bg-emerald-500' },
+    { label: 'cobertura total', value: stats.coberturaTotal, dotClassName: 'bg-amber-500' },
+  ];
 
   const abrirNuevo = () => {
     if (activeTab === 'ejecutivos') setEjecutivoModal({ open: true, item: null });
@@ -553,152 +620,202 @@ export default function ColaboradoresPage() {
         ? 'Nuevo suplente'
         : 'Nuevo especialista';
 
-  return (
-    <div className="mx-auto w-full max-w-[1500px] space-y-6">
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard
-          icon={<BriefcaseBusiness className="h-4 w-4" />}
-          label="Ejecutivos"
-          value={loading ? '—' : stats.ejecutivosActivos}
-          hint="con al menos una región"
-          tone="bg-gradient-to-br from-sky-50 to-white dark:from-sky-950/30 dark:to-card"
-        />
-        <StatCard
-          icon={<UsersRound className="h-4 w-4" />}
-          label="Suplentes"
-          value={loading ? '—' : stats.suplentesActivos}
-          hint="coberturas activas"
-          tone="bg-gradient-to-br from-violet-50 to-white dark:from-violet-950/30 dark:to-card"
-        />
-        <StatCard
-          icon={<UserRoundCog className="h-4 w-4" />}
-          label="Especialistas"
-          value={loading ? '—' : stats.especialistasActivos}
-          hint="elegibles por gerencia"
-          tone="bg-gradient-to-br from-emerald-50 to-white dark:from-emerald-950/30 dark:to-card"
-        />
-        <StatCard
-          icon={<Sparkles className="h-4 w-4" />}
-          label="Cobertura total"
-          value={loading ? '—' : stats.coberturaTotal}
-          hint="suplentes para todo el país"
-          tone="bg-gradient-to-br from-amber-50 to-white dark:from-amber-950/30 dark:to-card"
-        />
-      </div>
-
-      <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-        <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as TabKey)}>
-          <TabsList className="bg-muted/60 grid h-12 w-full max-w-2xl grid-cols-3 gap-1 rounded-xl p-1">
-            {tabs.map((tab) => {
-              const count =
-                tab.key === 'ejecutivos'
-                  ? ejecutivosFiltrados.length
-                  : tab.key === 'suplentes'
-                    ? suplentesFiltrados.length
-                    : especialistasFiltrados.length;
-              return (
-                <TabsTrigger
-                  key={tab.key}
-                  value={tab.key}
-                  className="group gap-1.5 rounded-lg border-0 px-2 text-xs font-semibold text-muted-foreground transition-colors data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm sm:gap-2 sm:px-4 sm:text-sm"
-                >
-                  {tab.label}
-                  <span className="bg-background/70 inline-flex min-w-5 items-center justify-center rounded-full px-2 py-0.5 text-xs font-bold text-foreground group-data-[state=active]:bg-black/20 group-data-[state=active]:text-primary-foreground">
-                    {count}
-                  </span>
-                </TabsTrigger>
-              );
-            })}
-          </TabsList>
-        </Tabs>
-
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="hidden items-center gap-2 text-xs text-muted-foreground sm:flex">
-            <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" />
-            Cambios auditados · sin vigencia
-          </div>
-          <Button className="rounded-xl px-4 shadow-sm" onClick={abrirNuevo}>
-            <Plus className="mr-2 h-4 w-4" />
+  const emptyState = (
+    <EmptyState
+      icon={<UsersRound className="h-8 w-8" />}
+      title="Sin colaboradores"
+      description={
+        extraFilters.length > 0
+          ? 'Ajusta o limpia los filtros para ver más resultados.'
+          : 'Agrega el primer colaborador de esta sección.'
+      }
+      action={
+        extraFilters.length > 0 ? (
+          <Button variant="outline" size="sm" className="h-8 rounded-lg" onClick={limpiarFiltros}>
+            Limpiar filtros
+          </Button>
+        ) : (
+          <Button size="sm" className="h-8 rounded-lg" onClick={abrirNuevo}>
+            <Plus className="mr-1.5 h-3.5 w-3.5" />
             {actionLabel}
           </Button>
-        </div>
-      </div>
+        )
+      }
+    />
+  );
 
-      <Card className="border-0 shadow-sm">
-        <CardContent className="p-3">
-          <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-[minmax(220px,1.4fr)_minmax(180px,1fr)_minmax(180px,1fr)_auto] xl:items-end">
-            <div className="space-y-1.5">
-              <label
-                htmlFor="filtro-colaboradores"
-                className="text-xs font-medium text-muted-foreground"
-              >
-                Buscar
-              </label>
-              <div className="relative">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  id="filtro-colaboradores"
-                  value={busqueda}
-                  onChange={(event) => setBusqueda(event.target.value)}
-                  placeholder="Nombre, región o gerencia..."
-                  className="bg-muted/50 h-10 rounded-xl border-transparent pl-9 focus-visible:bg-background"
-                />
-              </div>
-            </div>
+  const exportar = () => {
+    if (activeTab === 'ejecutivos') {
+      exportRowsToCsv(
+        ejecutivosFiltrados.map((fila) => ({
+          Persona: fila.nombreUsuario,
+          Gerencia: fila.nombreGerencia,
+          Region: fila.nombreRegion,
+          Estado: fila.activo ? 'Activo' : 'Inactivo',
+        })),
+        'colaboradores-ejecutivos.csv'
+      );
+      return;
+    }
 
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground">Gerencia</label>
-              <Select
-                value={idGerencia ? String(idGerencia) : TODAS}
-                onValueChange={cambiarGerencia}
-              >
-                <SelectTrigger className="bg-muted/50 h-10 rounded-xl border-transparent">
-                  <SelectValue placeholder="Todas las gerencias" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={TODAS}>Todas las gerencias</SelectItem>
-                  {gerencias.map((gerencia) => (
-                    <SelectItem
-                      key={gerencia.idTipoGerencia}
-                      value={String(gerencia.idTipoGerencia)}
+    if (activeTab === 'suplentes') {
+      exportRowsToCsv(
+        suplentesFiltrados.map((fila) => ({
+          Persona: fila.nombreUsuario,
+          Cobertura: fila.nombreGerencia,
+          Region: fila.nombreRegion,
+          Estado: fila.activo ? 'Activo' : 'Inactivo',
+        })),
+        'colaboradores-suplentes.csv'
+      );
+      return;
+    }
+
+    exportRowsToCsv(
+      especialistasFiltrados.map((fila) => ({
+        Persona: fila.nombreUsuario,
+        Gerencias: fila.gerencias
+          .filter((gerencia) => gerencia.activo)
+          .map(
+            (gerencia) =>
+              gerencia.nombreGerencia ||
+              gerenciasPorId.get(gerencia.idTipoGerencia)?.descripcion ||
+              ''
+          )
+          .join(' | '),
+        RegionPreferida: fila.regionPreferida?.nombreRegion ?? 'Sin preferencia',
+        Estado: fila.activo ? 'Activo' : 'Inactivo',
+      })),
+      'colaboradores-especialistas.csv'
+    );
+  };
+
+  return (
+    <div className="mx-auto w-full max-w-[1500px] space-y-4 pb-8">
+      <ResumenCompacto items={resumenItems} loading={loading} />
+
+      <CatalogoToolbar
+        left={
+          <>
+            <Tabs
+              value={activeTab}
+              onValueChange={(value) =>
+                setParams({ tab: value === 'ejecutivos' ? null : value })
+              }
+            >
+              <TabsList className="grid h-9 w-full max-w-md grid-cols-3 gap-1 rounded-lg bg-muted/60 p-1">
+                {tabs.map((tab) => {
+                  const count =
+                    tab.key === 'ejecutivos'
+                      ? ejecutivosFiltrados.length
+                      : tab.key === 'suplentes'
+                        ? suplentesFiltrados.length
+                        : especialistasFiltrados.length;
+                  return (
+                    <TabsTrigger
+                      key={tab.key}
+                      value={tab.key}
+                      className="group gap-1.5 rounded-lg border-0 px-2 text-xs font-semibold text-muted-foreground transition-colors data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm"
                     >
-                      {gerencia.descripcion}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                      {tab.label}
+                      <span className="bg-background/70 inline-flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-bold text-foreground group-data-[state=active]:bg-black/20 group-data-[state=active]:text-primary-foreground">
+                        {count}
+                      </span>
+                    </TabsTrigger>
+                  );
+                })}
+              </TabsList>
+            </Tabs>
+            <span className="hidden items-center gap-1.5 text-[11px] text-muted-foreground 2xl:inline-flex">
+              <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" />
+              Cambios auditados · sin vigencia
+            </span>
+          </>
+        }
+        right={
+          <>
+            <div className="relative w-full sm:w-60">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+              <Input
+                value={busqueda}
+                onChange={(event) => setParams({ q: event.target.value || null })}
+                placeholder="Buscar nombre, región o gerencia..."
+                className="h-9 rounded-lg border-slate-200 bg-slate-50/60 pl-8 text-xs dark:border-slate-800 dark:bg-slate-900/40"
+              />
             </div>
 
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground">Región</label>
-              <Select
-                value={idRegion ? String(idRegion) : TODAS}
-                onValueChange={(value) => setIdRegion(value === TODAS ? null : Number(value))}
-                disabled={!idGerencia}
-              >
-                <SelectTrigger className="bg-muted/50 h-10 rounded-xl border-transparent">
-                  <SelectValue
-                    placeholder={idGerencia ? 'Todas las regiones' : 'Selecciona una gerencia'}
-                  />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={TODAS}>Todas las regiones</SelectItem>
-                  {regionesFiltradas.map((region) => (
-                    <SelectItem key={region.idRegion} value={String(region.idRegion)}>
-                      {region.nombre}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            <ResponsiveFilters
+              activeCount={extraFilters.length}
+              onClear={limpiarFiltros}
+              title="Filtros de colaboradores"
+              description="Acota por gerencia, región o estado."
+              desktopWidthClassName="w-[340px]"
+            >
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">Gerencia</label>
+                <Select
+                  value={idGerencia ? String(idGerencia) : TODAS}
+                  onValueChange={cambiarGerencia}
+                >
+                  <SelectTrigger className="h-9 rounded-lg border-slate-200 bg-slate-50/60 text-xs dark:border-slate-800 dark:bg-slate-900/40">
+                    <SelectValue placeholder="Todas las gerencias" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={TODAS}>Todas las gerencias</SelectItem>
+                    {gerencias.map((gerencia) => (
+                      <SelectItem
+                        key={gerencia.idTipoGerencia}
+                        value={String(gerencia.idTipoGerencia)}
+                      >
+                        {gerencia.descripcion}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
-            <div className="bg-muted/50 flex h-10 items-center gap-3 rounded-xl border border-transparent px-3">
-              <Switch checked={soloActivos} onCheckedChange={setSoloActivos} />
-              <span className="text-sm font-medium">Solo activos</span>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">Región</label>
+                <Select
+                  value={idRegion ? String(idRegion) : TODAS}
+                  onValueChange={cambiarRegion}
+                  disabled={!idGerencia}
+                >
+                  <SelectTrigger className="h-9 rounded-lg border-slate-200 bg-slate-50/60 text-xs dark:border-slate-800 dark:bg-slate-900/40">
+                    <SelectValue
+                      placeholder={idGerencia ? 'Todas las regiones' : 'Selecciona una gerencia'}
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={TODAS}>Todas las regiones</SelectItem>
+                    {regionesFiltradas.map((region) => (
+                      <SelectItem key={region.idRegion} value={String(region.idRegion)}>
+                        {region.nombre}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex items-center justify-between gap-3 rounded-lg border border-slate-200/70 bg-slate-50/60 px-3 py-2.5 dark:border-slate-800 dark:bg-slate-900/40">
+                <div>
+                  <p className="text-xs font-medium">Solo activos</p>
+                  <p className="text-[10px] text-muted-foreground">Oculta registros inactivos</p>
+                </div>
+                <Switch checked={soloActivos} onCheckedChange={cambiarSoloActivos} />
+              </div>
+            </ResponsiveFilters>
+
+            <Button size="sm" className="h-9 gap-1.5 rounded-lg px-3" onClick={abrirNuevo}>
+              <Plus className="h-3.5 w-3.5" />
+              {actionLabel}
+            </Button>
+          </>
+        }
+        onRefresh={() => void cargarTodo(true)}
+        refreshing={loading || refreshing}
+        refreshLabel="Actualizar colaboradores"
+      />
 
       {activeTab === 'ejecutivos' && (
         <DataTable
@@ -707,10 +824,16 @@ export default function ColaboradoresPage() {
           title={tabActual.label}
           subtitle={tabActual.description}
           showRowCount
-          showRefreshButton
-          onRefresh={() => void cargarTodo(true)}
           loading={loading || refreshing}
           globalFilter={false}
+          extraFilters={extraFilters}
+          onRemoveExtraFilter={quitarFiltro}
+          onClearExtraFilters={limpiarFiltros}
+          emptyState={emptyState}
+          showDensityToggle
+          showColumnToggle
+          showExportButton
+          onExport={exportar}
         />
       )}
 
@@ -721,10 +844,16 @@ export default function ColaboradoresPage() {
           title={tabActual.label}
           subtitle={tabActual.description}
           showRowCount
-          showRefreshButton
-          onRefresh={() => void cargarTodo(true)}
           loading={loading || refreshing}
           globalFilter={false}
+          extraFilters={extraFilters}
+          onRemoveExtraFilter={quitarFiltro}
+          onClearExtraFilters={limpiarFiltros}
+          emptyState={emptyState}
+          showDensityToggle
+          showColumnToggle
+          showExportButton
+          onExport={exportar}
         />
       )}
 
@@ -735,10 +864,16 @@ export default function ColaboradoresPage() {
           title={tabActual.label}
           subtitle={tabActual.description}
           showRowCount
-          showRefreshButton
-          onRefresh={() => void cargarTodo(true)}
           loading={loading || refreshing}
           globalFilter={false}
+          extraFilters={extraFilters}
+          onRemoveExtraFilter={quitarFiltro}
+          onClearExtraFilters={limpiarFiltros}
+          emptyState={emptyState}
+          showDensityToggle
+          showColumnToggle
+          showExportButton
+          onExport={exportar}
         />
       )}
 

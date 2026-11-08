@@ -33,6 +33,9 @@ public class HospitalFilterParams
     /// <summary>true = solo pendientes de revisión; false = solo revisados; null = sin filtro.</summary>
     public bool? RequiereRevision { get; set; }
 
+    /// <summary>IDs de hospital ya filtrados por extensión (evita escanear todo Asokam).</summary>
+    public List<int>? Ids { get; set; }
+
     /// <summary>Valores de Tipo a excluir (regla de elegibilidad explícita por consumidor).</summary>
     public List<string>? ExcluirTipos { get; set; }
 

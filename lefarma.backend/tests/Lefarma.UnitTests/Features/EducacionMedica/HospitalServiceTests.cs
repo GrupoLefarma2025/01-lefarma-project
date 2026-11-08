@@ -85,6 +85,8 @@ public class HospitalServiceTests
 
         mock.Setup(e => e.GetByHospitalIdsAsync(It.IsAny<IEnumerable<int>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(existentes);
+        mock.Setup(e => e.GetAllAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(existentes);
 
         mock.Setup(e => e.GetByHospitalIdsIncludingInactiveAsync(It.IsAny<IEnumerable<int>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(existentes);
@@ -261,7 +263,7 @@ public class HospitalServiceTests
         var (servicio, hospitales, extensiones) = Crear();
         ConfigurarHospitales(hospitales, Hospital(1), Hospital(2), Hospital(3), Hospital(4));
         extensiones
-            .Setup(e => e.GetByHospitalIdsAsync(It.IsAny<IEnumerable<int>>(), It.IsAny<CancellationToken>()))
+            .Setup(e => e.GetAllAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync([
                 new HospitalExtension { IdHospital = 1, EsSedeTaller = true },
                 new HospitalExtension { IdHospital = 2, EsSedeTaller = false, EsAlmacen = true },

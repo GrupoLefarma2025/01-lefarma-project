@@ -26,9 +26,20 @@ import { usePageTitle } from '@/hooks/usePageTitle';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { toApiError } from '@/utils/errors';
-import { Calculator, ChevronDown, Info, Loader2, RefreshCcw, Save } from 'lucide-react';
+import {
+  Calculator,
+  CalendarRange,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Info,
+  Loader2,
+  RefreshCcw,
+  Save,
+} from 'lucide-react';
 import { educacionMedicaApi } from '@/apps/educacion-medica/services/educacionMedica.api';
 import { ParametrosPlanificacionCard } from '@/apps/educacion-medica/components/ParametrosPlanificacionCard';
+import { CatalogBanner } from '@/components/common/CatalogBanner';
 import type { ParametroAnestesia } from '@/apps/educacion-medica/types/educacionMedica.types';
 
 const CLAVE_A_NOMBRE: Record<string, string> = {
@@ -335,20 +346,46 @@ export default function ParametrosPage() {
         </TabsList>
 
         <TabsContent value="anestesias" className="mt-4 space-y-4">
-          <Card className="border-0 shadow-sm">
+          <Card className="sticky top-0 z-20 border border-slate-200/80 bg-card/95 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-card/80 dark:border-slate-800">
             <CardContent className="flex flex-col gap-3 p-4 lg:flex-row lg:items-end lg:justify-between">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
                 <div className="space-y-1.5">
                   <label htmlFor="anio" className="text-xs font-medium text-muted-foreground">
                     Año de configuración
                   </label>
-                  <Input
-                    id="anio"
-                    type="number"
-                    value={anio}
-                    onChange={(e) => setAnio(Number(e.target.value))}
-                    className="bg-muted/50 h-10 rounded-xl sm:w-32"
-                  />
+                  <div
+                    className="flex items-center gap-1 rounded-lg border border-slate-200/70 bg-slate-50/70 p-1 dark:border-slate-800 dark:bg-slate-900/40"
+                    role="group"
+                    aria-label="Año de configuración"
+                  >
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 rounded-md"
+                      onClick={() => setAnio((actual) => actual - 1)}
+                      aria-label="Año anterior"
+                    >
+                      <ChevronLeft className="h-3.5 w-3.5" />
+                    </Button>
+                    <CalendarRange className="h-3.5 w-3.5 text-slate-400" />
+                    <span
+                      id="anio"
+                      className="min-w-14 text-center text-xs font-semibold tabular-nums"
+                    >
+                      {anio}
+                    </span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 rounded-md"
+                      onClick={() => setAnio((actual) => actual + 1)}
+                      aria-label="Año siguiente"
+                    >
+                      <ChevronRight className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
                 </div>
                 <p className="text-xs text-muted-foreground">
                   {loading
@@ -383,6 +420,27 @@ export default function ParametrosPage() {
               </div>
             </CardContent>
           </Card>
+
+          {hayCambiosSinGuardar && (
+            <CatalogBanner
+              tone="warning"
+              title={`${cambiosPendientes} ${
+                cambiosPendientes === 1 ? 'cambio sin guardar' : 'cambios sin guardar'
+              }`}
+              action={
+                <Button size="sm" className="h-8 rounded-lg" onClick={handleSave} disabled={saving}>
+                  {saving ? (
+                    <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Save className="mr-1.5 h-3.5 w-3.5" />
+                  )}
+                  Guardar
+                </Button>
+              }
+            >
+              Los cambios no se aplicarán al recálculo hasta que los guardes.
+            </CatalogBanner>
+          )}
 
           <Collapsible>
             <Card className="border bg-card shadow-sm">
