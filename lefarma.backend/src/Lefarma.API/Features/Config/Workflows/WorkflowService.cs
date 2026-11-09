@@ -153,7 +153,7 @@ public class WorkflowService : BaseService, IWorkflowService
                             RequiereComentario = p.RequiereComentario,
                             RequiereAdjunto = p.RequiereAdjunto,
                             PermiteAdjunto = p.PermiteAdjunto,
-                            PermiteEditar = p.PermiteEditar
+                            PermiteEditar = p.PermiteEditar,
                             Participantes = p.Participantes
                                 .Where(pa => pa.Activo)
                                 .Select(pa => new WorkflowPasoParticipanteFlowResponse
