@@ -36,6 +36,7 @@ using Lefarma.API.Features.Notifications.Services;
 using Lefarma.API.Features.Notifications.Services.Channels;
 using Lefarma.API.Features.OrdenesCompra.Captura;
 using Lefarma.API.Features.OrdenesCompra.Firmas;
+using Lefarma.API.Features.OrdenesCompra.Visibilidad;
 using Lefarma.API.Features.Profile;
 using Lefarma.API.Features.Firmas;
 using Lefarma.API.Features.Rh.IncidenciasChecado;
@@ -227,6 +228,7 @@ builder.Services.AddScoped<Lefarma.API.Features.Config.EmpleadoJefes.IEmpleadoJe
                        Lefarma.API.Features.Config.EmpleadoJefes.EmpleadoJefesConfigService>();
 
 builder.Services.AddScoped<IOrdenCompraService, OrdenCompraService>();
+builder.Services.AddScoped<IOrdenCompraVisibilidadService, OrdenCompraVisibilidadService>();
 builder.Services.AddScoped<IOrdenCompraFirmasService, OrdenCompraFirmasService>();
 
 builder.Services.Configure<SolicitudesPersonalSettings>(

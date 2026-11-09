@@ -192,11 +192,12 @@ export default function EnvioConcentrado() {
   const isSingleOrden = ordenesSeleccionadas.length === 1;
   const singleOrden = isSingleOrden ? ordenesSeleccionadas[0] : null;
 
-  // Firmas del concentrado: ya no son URLs públicas; se descargan como blobs
-  // autenticados ("elaboró" = mi firma; "revisó" = usuario 73, Marco Polo).
-  const REVISO_USUARIO_ID = 73;
-  const [firmaElaboroUrl, setFirmaElaboroUrl] = useState<string | undefined>(undefined);
+  // Firmas del concentrado: se descargan como blobs autenticados y siempre
+  // corresponden a los firmantes fijos, sin depender del usuario logueado.
+  const REVISO_USUARIO_ID = 73; // Marco Polo
+  const AUTORIZO_USUARIO_ID = 63; // Diego
   const [firmaRevisoUrl, setFirmaRevisoUrl] = useState<string | undefined>(undefined);
+  const [firmaAutorizoUrl, setFirmaAutorizoUrl] = useState<string | undefined>(undefined);
   // Precarga: generarPdfBlob espera a que ambas firmas estén resueltas.
   const firmasListasRef = useRef<Promise<void>>(Promise.resolve());
 
@@ -204,26 +205,26 @@ export default function EnvioConcentrado() {
     let cancelled = false;
     const created: string[] = [];
     firmasListasRef.current = (async () => {
-      const [elaboro, reviso] = await Promise.all([
-        user?.id ? fetchFirmaObjectUrl(firmasEndpoints.miFirma) : Promise.resolve(null),
+      const [reviso, autorizo] = await Promise.all([
         fetchFirmaObjectUrl(firmasEndpoints.firmaUsuario(REVISO_USUARIO_ID)),
+        fetchFirmaObjectUrl(firmasEndpoints.firmaUsuario(AUTORIZO_USUARIO_ID)),
       ]);
       if (cancelled) {
-        [elaboro, reviso].forEach((u) => u && URL.revokeObjectURL(u));
+        [reviso, autorizo].forEach((u) => u && URL.revokeObjectURL(u));
         return;
       }
-      if (elaboro) created.push(elaboro);
       if (reviso) created.push(reviso);
-      setFirmaElaboroUrl(elaboro ?? undefined);
+      if (autorizo) created.push(autorizo);
       setFirmaRevisoUrl(reviso ?? undefined);
+      setFirmaAutorizoUrl(autorizo ?? undefined);
     })();
     return () => {
       cancelled = true;
       created.forEach((u) => URL.revokeObjectURL(u));
     };
-  }, [user?.id]);
+  }, []);
 
-  // ── Nombres completos de Revisó (44) y Autorizó (41) para etiquetas ──────
+  // ── Nombres completos de Revisó (73) y Autorizó (63) para etiquetas ──────
   const [nombresFirmas, setNombresFirmas] = useState<{ reviso?: string; autorizo?: string }>({});
 
   useEffect(() => {
@@ -373,7 +374,7 @@ setNombresFirmas({
       ordenes: ordenesSeleccionadas,
       agrupacion,
       generadoPor: user?.nombre ?? user?.username,
-      firmaAutorizo: firmaElaboroUrl,
+      firmaAutorizo: firmaAutorizoUrl,
       firmaReviso: firmaRevisoUrl,
       nombreAutorizo: nombresFirmas.autorizo,
       nombreReviso: nombresFirmas.reviso,
@@ -705,11 +706,9 @@ setNombresFirmas({
               <div className="bg-white shadow-sm rounded overflow-hidden">
                 <OrdenCompraConcentradoPDF 
                   orden={singleOrden} 
-                  firmaSolicitante={firmaElaboroUrl}
-                  nombreSolicitante={user?.nombre ?? user?.username}
                   firmaReviso={firmaRevisoUrl}
                   nombreReviso={nombresFirmas.reviso}
-                  firmaAutorizo={firmaElaboroUrl}
+                  firmaAutorizo={firmaAutorizoUrl}
                   nombreAutorizo={nombresFirmas.autorizo}
                   proveedoresMap={proveedoresMap} 
                 />
@@ -721,7 +720,7 @@ setNombresFirmas({
                   ordenes={ordenesSeleccionadas}
                   agrupacion={agrupacion}
                   generadoPor={user?.nombre ?? user?.username}
-                  firmaAutorizo={firmaElaboroUrl}
+                  firmaAutorizo={firmaAutorizoUrl}
                   firmaReviso={firmaRevisoUrl}
                   nombreAutorizo={nombresFirmas.autorizo}
                   nombreReviso={nombresFirmas.reviso}
@@ -752,11 +751,9 @@ setNombresFirmas({
               <OrdenCompraConcentradoPDF
                 id="envio-concentrado-pdf-preview"
                 orden={singleOrden}
-                firmaSolicitante={firmaElaboroUrl}
-                nombreSolicitante={user?.nombre ?? user?.username}
                 firmaReviso={firmaRevisoUrl}
                 nombreReviso={nombresFirmas.reviso}
-                firmaAutorizo={firmaElaboroUrl}
+                firmaAutorizo={firmaAutorizoUrl}
                 nombreAutorizo={nombresFirmas.autorizo}
                 proveedoresMap={proveedoresMap}
               />
@@ -766,7 +763,7 @@ setNombresFirmas({
                 ordenes={ordenesSeleccionadas}
                 agrupacion={agrupacion}
                 generadoPor={user?.nombre ?? user?.username}
-                firmaAutorizo={firmaElaboroUrl}
+                firmaAutorizo={firmaAutorizoUrl}
                 firmaReviso={firmaRevisoUrl}
                 nombreAutorizo={nombresFirmas.autorizo}
                 nombreReviso={nombresFirmas.reviso}
@@ -900,11 +897,9 @@ setNombresFirmas({
           {isSingleOrden && singleOrden && (
             <OrdenCompraConcentradoPDF
               orden={singleOrden}
-              firmaSolicitante={firmaElaboroUrl}
-              nombreSolicitante={user?.nombre ?? user?.username}
               firmaReviso={firmaRevisoUrl}
               nombreReviso={nombresFirmas.reviso}
-              firmaAutorizo={firmaElaboroUrl}
+              firmaAutorizo={firmaAutorizoUrl}
               nombreAutorizo={nombresFirmas.autorizo}
               proveedoresMap={proveedoresMap}
             />

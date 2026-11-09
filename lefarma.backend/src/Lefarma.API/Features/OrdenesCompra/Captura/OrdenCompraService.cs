@@ -4,8 +4,8 @@ using Lefarma.API.Domain.Entities.Operaciones;
 using Lefarma.API.Domain.Entities.Config;
 using Lefarma.API.Domain.Interfaces.Operaciones;
 using Lefarma.API.Domain.Interfaces.Config;
-using Lefarma.API.Domain.ValueObjects.Config;
 using Lefarma.API.Features.OrdenesCompra.Captura.DTOs;
+using Lefarma.API.Features.OrdenesCompra.Visibilidad;
 using Lefarma.API.Features.Profile;
 using Lefarma.API.Infrastructure.Data;
 using Lefarma.API.Shared.Constants;
@@ -29,9 +29,9 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
         private readonly AsokamDbContext _asokamContext;
         private readonly AsistenciasDbContext _asistenciasContext;
         private readonly ILogger<OrdenCompraService> _logger;
-        private readonly IJefeInmediatoResolver _jefeInmediatoResolver;
         private readonly IProfileService _profileService;
         private readonly UserPermissionService _permissionService;
+        private readonly IOrdenCompraVisibilidadService _visibilidad;
         protected override string EntityName => "OrdenCompra";
 
         internal record UsuarioInfo(string Nombre, string? Puesto, string? Correo = null, string? Departamento = null);
@@ -43,9 +43,9 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
             ApplicationDbContext context,
             AsokamDbContext asokamContext,
             AsistenciasDbContext asistenciasContext,
-            IJefeInmediatoResolver jefeInmediatoResolver,
             IProfileService profileService,
             UserPermissionService permissionService,
+            IOrdenCompraVisibilidadService visibilidad,
             IWideEventAccessor wideEventAccessor,
             ILogger<OrdenCompraService> logger)
             : base(wideEventAccessor)
@@ -57,12 +57,12 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
             _asokamContext = asokamContext;
             _asistenciasContext = asistenciasContext;
             _logger = logger;
-            _jefeInmediatoResolver = jefeInmediatoResolver;
             _profileService = profileService;
             _permissionService = permissionService;
+            _visibilidad = visibilidad;
         }
 
-        public async Task<ErrorOr<IEnumerable<OrdenCompraResponse>>> GetAllAsync(OrdenCompraRequest query, int idUsuario, IEnumerable<int> rolesUsuario, bool puedeVerTodas)
+        public async Task<ErrorOr<IEnumerable<OrdenCompraResponse>>> GetAllAsync(OrdenCompraRequest query, int idUsuario, AlcanceOrdenCompra alcance, CancellationToken ct = default)
         {
             try
             {
@@ -71,6 +71,8 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                 if (query.IdEmpresa.HasValue) q = q.Where(o => o.IdEmpresa == query.IdEmpresa.Value);
                 if (query.IdSucursal.HasValue) q = q.Where(o => o.IdSucursal == query.IdSucursal.Value);
                 if (query.IdEstado.HasValue) q = q.Where(o => o.IdEstado == query.IdEstado.Value);
+                if (query.IdWorkflow.HasValue) q = q.Where(o => o.IdWorkflow == query.IdWorkflow.Value);
+                if (query.IdUsuarioCreador.HasValue) q = q.Where(o => o.IdUsuarioCreador == query.IdUsuarioCreador.Value);
 
                 if (query.SoloEnvioConcentrado == true)
                 {
@@ -83,71 +85,10 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                     q = q.Where(o => o.IdPasoActual.HasValue && pasosConEnvioConcentrado.Contains(o.IdPasoActual.Value));
                 }
 
-                // Si NO tiene el permiso de ver todas, filtrar por usuario/rol participante
-                if (!puedeVerTodas)
-                {
-                    var rolesLista = rolesUsuario.ToList();
-
-                    // Obtener los pasos del workflow donde el usuario es participante ya sea directamente (id_usuario) o por rol (id_rol)
-                    var pasosParticipante = await _context.WorkflowParticipantes
-                        .Where(p => p.Activo && (
-                            p.IdUsuario == idUsuario ||
-                            (p.IdRol != null && rolesLista.Contains(p.IdRol.Value))
-                        ))
-                        .Select(p => p.IdPaso)
-                        .Distinct()
-                        .ToListAsync();
-
-                    var pasosConJefeInmediato = await _context.WorkflowParticipantes
-                        .Where(p => p.Activo && p.RequiereJefeInmediato)
-                        .GroupBy(p => p.IdPaso)
-                        .Select(g => new { IdPaso = g.Key, Nivel = g.Min(p => p.NivelJefe ?? 1) })
-                        .ToListAsync();
-
-                    var nivelPorPaso = pasosConJefeInmediato.ToDictionary(x => x.IdPaso, x => x.Nivel);
-
-                    var creadoresPosibles = new HashSet<int>();
-
-                    if (nivelPorPaso.Count > 0)
-                    {
-                        // Traer IdWorkflow, IdPasoActual e IdUsuarioCreador de cada orden en pasos de jefe
-                        var ordenesEnPasosJefe = await _context.OrdenesCompra
-                            .Where(o => nivelPorPaso.Keys.Contains(o.IdPasoActual ?? 0))
-                            .Select(o => new { o.IdUsuarioCreador, o.IdPasoActual, o.IdWorkflow })
-                            .Distinct()
-                            .ToListAsync();
-
-                        // Caché por (workflow, creador, nivel) para no repetir queries
-                        var jefeCache = new Dictionary<(int, int, int), JefeEfectivoResult>();
-
-                        foreach (var o in ordenesEnPasosJefe)
-                        {
-                            if (!o.IdPasoActual.HasValue)
-                                continue;
-                            if (!nivelPorPaso.TryGetValue(o.IdPasoActual.Value, out var nivel))
-                                continue;
-
-                            var key = (o.IdWorkflow, o.IdUsuarioCreador, nivel);
-                            if (!jefeCache.TryGetValue(key, out var jefe))
-                            {
-                                jefe = await _jefeInmediatoResolver.ResolverJefeEfectivoAsync(
-                                    o.IdWorkflow, o.IdUsuarioCreador, nivel);
-                                jefeCache[key] = jefe;
-                            }
-
-                            if (jefe.IdUsuario.HasValue && jefe.IdUsuario.Value == idUsuario)
-                                creadoresPosibles.Add(o.IdUsuarioCreador);
-                        }
-                    }
-
-                    q = q.Where(o =>
-                        o.IdUsuarioCreador == idUsuario ||
-                        creadoresPosibles.Contains(o.IdUsuarioCreador) ||
-                        (pasosParticipante.Contains(o.IdPasoActual ?? 0) &&
-                         o.IdEstado != 1 && // Creada
-                         o.IdEstado != 7 && // Rechazada
-                         o.IdEstado != 9)); // Cancelada
-                }
+                // La visibilidad (permisos, empresas, flujos, pasos y jefe inmediato) se
+                // resuelve en un único servicio y se combina con los filtros por AND:
+                // ningún filtro del request puede ampliar el conjunto permitido.
+                q = _visibilidad.Aplicar(q, alcance);
 
                 q = query.OrderBy?.ToLower() switch
                 {
@@ -166,6 +107,30 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                 var usuariosInfo = await _asokamContext.Usuarios.AsNoTracking()
                     .Where(u => userIds.Contains(u.IdUsuario))
                     .ToDictionaryAsync(u => u.IdUsuario, u => new UsuarioInfo(u.NombreCompleto ?? u.SamAccountName ?? $"Usuario {u.IdUsuario}", u.Puesto, u.Correo));
+
+                // El "solicitante" impreso es el jefe (segundo autorizador) cuando el creador
+                // usa correo @grupolefarma. Su puesto y área también salen de Asistencias.
+                var autorizadores = new Dictionary<int, SegundoAutorizadorInfo>();
+                foreach (var o in items)
+                    autorizadores[o.IdOrden] = await ResolverSegundoAutorizadorAsync(o);
+
+                var idsAutorizadores = autorizadores.Values
+                    .Where(a => a.IdUsuario.HasValue && !usuariosInfo.ContainsKey(a.IdUsuario.Value))
+                    .Select(a => a.IdUsuario!.Value)
+                    .Distinct()
+                    .ToList();
+
+                if (idsAutorizadores.Count > 0)
+                {
+                    var infoAutorizadores = await _asokamContext.Usuarios.AsNoTracking()
+                        .Where(u => idsAutorizadores.Contains(u.IdUsuario))
+                        .Select(u => new { u.IdUsuario, Nombre = u.NombreCompleto ?? u.SamAccountName ?? $"Usuario {u.IdUsuario}", u.Puesto, u.Correo })
+                        .ToListAsync();
+
+                    foreach (var u in infoAutorizadores)
+                        usuariosInfo[u.IdUsuario] = new UsuarioInfo(u.Nombre, u.Puesto, u.Correo);
+                }
+
                 await AsignarPuestosDesdeAsistenciasAsync(usuariosInfo);
 
                 var uomIds = items.SelectMany(o => o.Partidas ?? Enumerable.Empty<OrdenCompraPartida>())
@@ -198,9 +163,25 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                         .ToDictionaryAsync(e => e.CodigoEnvio, e => e.NombreTraslado!)
                     : new Dictionary<int, string>();
 
-                var response = items.Select(o => ToResponse(o, usuariosInfo, uomNombres, formasPagoNombres, nombresTraslados)).ToList();
+                // Nombres de workflow en lote (evita N+1 al rotular el filtro de flujo).
+                var workflowsIds = items.Select(o => o.IdWorkflow).Where(id => id > 0).Distinct().ToList();
+                var nombresWorkflow = workflowsIds.Count > 0
+                    ? await _context.Workflows.AsNoTracking()
+                        .Where(w => workflowsIds.Contains(w.IdWorkflow))
+                        .ToDictionaryAsync(w => w.IdWorkflow, w => w.Nombre, ct)
+                    : new Dictionary<int, string>();
+
+                var response = items.Select(o => ToResponse(o, usuariosInfo, uomNombres, formasPagoNombres, nombresTraslados, nombresWorkflow)).ToList();
                 for (var i = 0; i < items.Count; i++)
-                    response[i].SegundoAutorizador = await ResolverSegundoAutorizadorAsync(items[i]);
+                {
+                    if (!autorizadores.TryGetValue(items[i].IdOrden, out var autorizador)) continue;
+                    response[i].SegundoAutorizador = autorizador.Nombre;
+                    if (autorizador.IdUsuario is int idAutorizador && usuariosInfo.TryGetValue(idAutorizador, out var infoAutorizador))
+                    {
+                        response[i].SegundoAutorizadorPuesto = infoAutorizador.Puesto;
+                        response[i].SegundoAutorizadorArea = infoAutorizador.Departamento;
+                    }
+                }
 
                 EnrichWideEvent("GetAll", count: response.Count);
                 return response;
@@ -223,12 +204,21 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                     return CommonErrors.NotFound("OrdenCompra", id.ToString());
                 }
 
+                var autorizador = await ResolverSegundoAutorizadorAsync(item);
+
                 var usuariosInfo = new Dictionary<int, UsuarioInfo>();
-                var uInfo = await _asokamContext.Usuarios.AsNoTracking()
-                    .Where(u => u.IdUsuario == item.IdUsuarioCreador)
+                var idsInfo = new List<int> { item.IdUsuarioCreador };
+                if (autorizador.IdUsuario is int idAutorizadorInfo && idAutorizadorInfo != item.IdUsuarioCreador)
+                    idsInfo.Add(idAutorizadorInfo);
+
+                var infos = await _asokamContext.Usuarios.AsNoTracking()
+                    .Where(u => idsInfo.Contains(u.IdUsuario))
                     .Select(u => new { u.IdUsuario, Nombre = u.NombreCompleto ?? u.SamAccountName ?? $"Usuario {u.IdUsuario}", u.Puesto, u.Correo })
-                    .FirstOrDefaultAsync();
-                if (uInfo != null) usuariosInfo[uInfo.IdUsuario] = new UsuarioInfo(uInfo.Nombre, uInfo.Puesto, uInfo.Correo);
+                    .ToListAsync();
+
+                foreach (var u in infos)
+                    usuariosInfo[u.IdUsuario] = new UsuarioInfo(u.Nombre, u.Puesto, u.Correo);
+
                 await AsignarPuestosDesdeAsistenciasAsync(usuariosInfo);
 
                 var uomIds = (item.Partidas ?? Enumerable.Empty<OrdenCompraPartida>()).Select(p => p.IdUnidadMedida).Distinct().ToList();
@@ -271,9 +261,20 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                         .ToDictionaryAsync(e => e.CodigoEnvio, e => e.NombreTraslado!)
                     : new Dictionary<int, string>();
 
-                var response = ToResponse(item, usuariosInfo, uomNombres, formasPagoNombres, nombresTrasladosById);
+                var nombresWorkflow = item.IdWorkflow > 0
+                    ? await _context.Workflows.AsNoTracking()
+                        .Where(w => w.IdWorkflow == item.IdWorkflow)
+                        .ToDictionaryAsync(w => w.IdWorkflow, w => w.Nombre)
+                    : new Dictionary<int, string>();
+
+                var response = ToResponse(item, usuariosInfo, uomNombres, formasPagoNombres, nombresTrasladosById, nombresWorkflow);
                 await EnriquecerNombresHistorialAsync(response.Historial);
-                response.SegundoAutorizador = await ResolverSegundoAutorizadorAsync(item);
+                response.SegundoAutorizador = autorizador.Nombre;
+                if (autorizador.IdUsuario is int idAutorizador && usuariosInfo.TryGetValue(idAutorizador, out var infoAutorizador))
+                {
+                    response.SegundoAutorizadorPuesto = infoAutorizador.Puesto;
+                    response.SegundoAutorizadorArea = infoAutorizador.Departamento;
+                }
                 return response;
             }
             catch (Exception ex)
@@ -283,41 +284,44 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
             }
         }
 
-        // Resuelve el nombre del segundo autorizador: el primer paso del workflow siempre es EsInicio
+        internal sealed record SegundoAutorizadorInfo(int? IdUsuario, string? Nombre);
+
+        // Resuelve al segundo autorizador (jefe): el primer paso del workflow siempre es EsInicio
         // (quien crea la orden), se toma el siguiente paso y se trae su participante.
-        private async Task<string?> ResolverSegundoAutorizadorAsync(OrdenCompra o)
+        private async Task<SegundoAutorizadorInfo> ResolverSegundoAutorizadorAsync(OrdenCompra o)
         {
-            if (o.IdWorkflow == 0) return null;
+            if (o.IdWorkflow == 0) return new SegundoAutorizadorInfo(null, null);
 
             var workflow = await _context.Workflows
                 .AsNoTracking()
                 .Include(w => w.Pasos)
                     .ThenInclude(p => p.Participantes)
                 .FirstOrDefaultAsync(w => w.IdWorkflow == o.IdWorkflow);
-            if (workflow is null) return null;
+            if (workflow is null) return new SegundoAutorizadorInfo(null, null);
 
             // Ordenar pasos y omitir el paso inicial (EsInicio) donde actúa quien creó la orden.
             var pasos = workflow.Pasos
                 .Where(p => p.Activo && !p.EsInicio)
                 .OrderBy(p => p.Orden)
                 .ToList();
-            if (pasos.Count == 0) return null;
+            if (pasos.Count == 0) return new SegundoAutorizadorInfo(null, null);
 
             var pasoObjetivo = pasos.FirstOrDefault(p => p.Participantes.Any(pt => pt.Activo && (pt.IdUsuario != null || pt.IdRol != null)));
-            if (pasoObjetivo is null) return null;
+            if (pasoObjetivo is null) return new SegundoAutorizadorInfo(null, null);
 
             var participante = pasoObjetivo.Participantes
                 .Where(p => p.Activo)
                 .OrderByDescending(p => p.IdUsuario != null)
                 .FirstOrDefault();
-            if (participante is null) return null;
+            if (participante is null) return new SegundoAutorizadorInfo(null, null);
 
             if (participante.IdUsuario is int idUsuario)
             {
-                return await _asokamContext.Usuarios.AsNoTracking()
+                var nombre = await _asokamContext.Usuarios.AsNoTracking()
                     .Where(u => u.IdUsuario == idUsuario)
                     .Select(u => u.NombreCompleto ?? u.SamAccountName)
                     .FirstOrDefaultAsync();
+                return new SegundoAutorizadorInfo(idUsuario, nombre);
             }
 
             if (participante.IdRol is int idRol)
@@ -328,14 +332,15 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                     .FirstOrDefaultAsync();
                 if (primerUsuarioRol > 0)
                 {
-                    return await _asokamContext.Usuarios.AsNoTracking()
+                    var nombre = await _asokamContext.Usuarios.AsNoTracking()
                         .Where(u => u.IdUsuario == primerUsuarioRol)
                         .Select(u => u.NombreCompleto ?? u.SamAccountName)
                         .FirstOrDefaultAsync();
+                    return new SegundoAutorizadorInfo(primerUsuarioRol, nombre);
                 }
             }
 
-            return null;
+            return new SegundoAutorizadorInfo(null, null);
         }
 
         // ponytail: los nombres de usuario del historial se resuelven solo en el detalle (GetById);
@@ -883,7 +888,8 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
             Dictionary<int, UsuarioInfo>? usuariosInfo = null,
             Dictionary<int, string>? uomNombres = null,
             Dictionary<int, string>? formasPagoNombres = null,
-            Dictionary<int, string>? nombresTraslados = null) => new()
+            Dictionary<int, string>? nombresTraslados = null,
+            IReadOnlyDictionary<int, string>? nombresWorkflow = null) => new()
         {
             IdOrden = o.IdOrden,
             Folio = o.Folio,
@@ -916,6 +922,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
             EstadoNombre = o.Estado?.Nombre,
             EstadoColor = o.Estado?.ColorHex,
             IdWorkflow = o.IdWorkflow,
+            NombreWorkflow = nombresWorkflow != null && nombresWorkflow.TryGetValue(o.IdWorkflow, out var nombreWorkflow) ? nombreWorkflow : null,
             IdPasoActual = o.IdPasoActual,
             IdProveedor = o.IdProveedor,
             RazonSocialProveedor = o.Proveedor?.RazonSocial,

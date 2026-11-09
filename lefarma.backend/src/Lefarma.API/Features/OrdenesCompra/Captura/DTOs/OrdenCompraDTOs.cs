@@ -49,6 +49,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura.DTOs
         public string? EstadoNombre { get; set; }
         public string? EstadoColor { get; set; }
         public int? IdWorkflow { get; set; }
+        public string? NombreWorkflow { get; set; }
         public int? IdPasoActual { get; set; }
         public int IdUsuarioCreador { get; set; }
         public string? SolicitanteNombre { get; set; }
@@ -57,6 +58,10 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura.DTOs
         public string? SolicitanteArea { get; set; }
         public string? SolicitanteCorreo { get; set; }
         public string? SegundoAutorizador { get; set; }
+        /// <summary>Puesto del segundo autorizador según Asistencias.dbo.vwEmpleados.</summary>
+        public string? SegundoAutorizadorPuesto { get; set; }
+        /// <summary>Área (departamento) del segundo autorizador según Asistencias.dbo.vwEmpleados.</summary>
+        public string? SegundoAutorizadorArea { get; set; }
         public bool SinDatosFiscales { get; set; }
         public string? NotaFormaPago { get; set; }
         public string? NotasGenerales { get; set; }
@@ -95,6 +100,8 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura.DTOs
         public int? IdEmpresa { get; set; }
         public int? IdSucursal { get; set; }
         public int? IdEstado { get; set; }
+        public int? IdWorkflow { get; set; }
+        public int? IdUsuarioCreador { get; set; }
         public bool? SoloEnvioConcentrado { get; set; }
         public int? Max { get; set; }
         public string? OrderBy { get; set; } = "FechaCreacion";

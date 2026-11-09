@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { render, within } from '@testing-library/react';
-import { ConcentradoDocumentoPreview } from './ConcentradoDocumentoPreview';
+import {
+  ConcentradoDocumentoPreview,
+  type FormatoConcentrado,
+} from './ConcentradoDocumentoPreview';
 import type { SolicitudConcentrado } from '../costos/ConcentradoViaticosPrint';
+import type { SolicitudVuelo } from '../costos/ConcentradoVuelosPrint';
 
 /**
  * Vista previa del FOR-008: el contenedor decide las filas (no hay fetch) y el
@@ -61,11 +65,35 @@ const seleccion: SolicitudConcentrado[] = [
   },
 ];
 
-function renderPreview(props: { soloAutorizadas?: boolean; solicitudes?: SolicitudConcentrado[] } = {}) {
+const vuelos: SolicitudVuelo[] = [
+  {
+    id_solicitud: 1,
+    nombre: 'ANA AUTORIZADA',
+    puesto: 'Coordinadora',
+    fecha_solicitud: '2026-09-23',
+    fecha_nacimiento: '1990-05-17',
+    motivo: 'Taller de marca',
+    trayectos: [
+      { fecha: '2026-10-05', hora: '18:30', origen: 'CDMX', destino: 'CANCÚN' },
+      { fecha: '2026-10-09', hora: '13:00', origen: 'CANCÚN', destino: 'CDMX' },
+    ],
+  },
+];
+
+function renderPreview(
+  props: {
+    soloAutorizadas?: boolean;
+    solicitudes?: SolicitudConcentrado[];
+    formato?: FormatoConcentrado;
+    vuelos?: SolicitudVuelo[];
+  } = {},
+) {
   return render(
     <ConcentradoDocumentoPreview
       abierto
       solicitudes={props.solicitudes ?? seleccion}
+      vuelos={props.vuelos ?? vuelos}
+      formato={props.formato}
       titulo="Octubre 2026"
       onCerrar={() => {}}
       soloAutorizadas={props.soloAutorizadas}
@@ -124,5 +152,23 @@ describe('ConcentradoDocumentoPreview FOR-008', () => {
     expect(
       within(document.body).getByRole('button', { name: /imprimir/i }),
     ).toBeDisabled();
+  });
+
+  it('en formato vuelos arma la solicitud de avión y no el FOR-008', () => {
+    renderPreview({ formato: 'vuelos' });
+
+    const doc = document.querySelector('#concentrado-vuelos-print') as HTMLElement;
+    expect(doc).not.toBeNull();
+    expect(doc).toHaveTextContent('Solicitud de avión');
+    expect(doc).toHaveTextContent('ANA AUTORIZADA');
+    expect(doc).toHaveTextContent('Coordinadora');
+    expect(doc).toHaveTextContent('17/05/1990');
+    expect(doc).toHaveTextContent('CANCÚN');
+    expect(doc).toHaveTextContent('Taller de marca');
+    // El portal del FOR-008 ni siquiera se monta en este formato.
+    expect(document.querySelector('#concentrado-viaticos-print')).toBeNull();
+    expect(
+      within(document.body).getByRole('button', { name: /imprimir/i }),
+    ).not.toBeDisabled();
   });
 });

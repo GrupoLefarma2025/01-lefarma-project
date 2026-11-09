@@ -201,4 +201,79 @@ public class SolicitudBandejaDto
     /// </summary>
     [JsonPropertyName("recalculada")]
     public bool Recalculada { get; set; }
+
+    /// <summary>
+    /// Medio de transporte del viaje, ya resuelto por el servidor:
+    /// <c>aereo</c> | <c>autobus</c> | <c>propio</c> | <c>solicitado</c> |
+    /// <c>sin-clasificar</c>. El wizard no escribe <c>$.avion</c> ni
+    /// <c>$.autobus</c> en el snapshot: el medio real vive en la opción
+    /// FUE_ELEGIDA (<c>vuelo</c>, <c>autobus</c>, <c>auto</c>, <c>renta</c>) y
+    /// el modo en <c>datos.transporte.modo</c>. <c>solicitado</c> significa
+    /// "la empresa gestiona el viaje y aún no se elige medio"; no es
+    /// "sin clasificar", que se reserva para cuando no hay ningún dato.
+    /// </summary>
+    [JsonPropertyName("tipo_transporte")]
+    public string TipoTransporte { get; set; } = "sin-clasificar";
+
+    /// <summary>
+    /// Nombre de la persona que viaja (<c>datos.persona.nombre</c>), que puede
+    /// diferir del solicitante. <c>null</c> cae al nombre del directorio.
+    /// </summary>
+    [JsonPropertyName("persona_nombre")]
+    public string? PersonaNombre { get; set; }
+
+    /// <summary>Motivo del viaje (<c>datos.persona.motivo</c>); null imprime "—".</summary>
+    [JsonPropertyName("motivo")]
+    public string? Motivo { get; set; }
+
+    /// <summary>
+    /// Puesto del viajero según <c>Asistencias.vwEmpleados</c> (la misma fuente
+    /// que usan las órdenes de compra; <c>app.Usuarios.Puesto</c> está en
+    /// "Sin asignar" en producción). Solo se resuelve cuando la persona que
+    /// viaja es el solicitante; en otro caso queda null y el documento imprime
+    /// "—". No es un dato de la solicitud: es del directorio de personal.
+    /// </summary>
+    [JsonPropertyName("puesto")]
+    public string? Puesto { get; set; }
+
+    /// <summary>
+    /// Fecha de nacimiento del viajero (ISO <c>aaaa-mm-dd</c>) desde
+    /// <c>vwEmpleados</c>; el formato de solicitud de avión la pide la agencia
+    /// para emitir el boleto. Null imprime "—".
+    /// </summary>
+    [JsonPropertyName("fecha_nacimiento")]
+    public string? FechaNacimiento { get; set; }
+
+    /// <summary>
+    /// Itinerario imprimible del formato "Solicitud de avión": ida y vuelta
+    /// (máximo dos). Sale de <c>datos.calculo_autorizado</c> y, si no existe,
+    /// de <c>datos.calculo</c>; sin cálculo se compone del rango y los destinos
+    /// del snapshot. Lista vacía cuando no hay ningún dato legible.
+    /// </summary>
+    [JsonPropertyName("trayectos")]
+    public List<TrayectoBandejaDto> Trayectos { get; set; } = new();
+}
+
+/// <summary>
+/// Un tramo imprimible del formato "Solicitud de avión" (ida o vuelta). Todos
+/// los campos son opcionales: el documento imprime "—" cuando faltan, nunca un
+/// dato inventado.
+/// </summary>
+public class TrayectoBandejaDto
+{
+    /// <summary>Fecha de salida ISO (<c>aaaa-mm-dd</c>).</summary>
+    [JsonPropertyName("fecha")]
+    public string? Fecha { get; set; }
+
+    /// <summary>Hora planeada de salida (<c>HH:mm</c>).</summary>
+    [JsonPropertyName("hora")]
+    public string? Hora { get; set; }
+
+    /// <summary>Ciudad/punto de origen.</summary>
+    [JsonPropertyName("origen")]
+    public string? Origen { get; set; }
+
+    /// <summary>Ciudad/punto de destino.</summary>
+    [JsonPropertyName("destino")]
+    public string? Destino { get; set; }
 }

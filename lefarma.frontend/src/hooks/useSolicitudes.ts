@@ -37,7 +37,7 @@ export interface UseSolicitudesAutorizacionesReturn {
 
   selectedId: number | null;
   selectedSolicitud: SolicitudPersonalResponse | null;
-  selectSolicitud: (id: number | null) => void;
+  selectSolicitud: (id: number | null, fallback?: SolicitudPersonalResponse | null) => void;
 
   loadingDetalle: boolean;
   fetchDetalleCompleto: (id: number) => Promise<void>;
@@ -229,10 +229,11 @@ export function useSolicitudesAutorizaciones(): UseSolicitudesAutorizacionesRetu
   );
 
   const selectSolicitud = useCallback(
-    (id: number | null) => {
+    (id: number | null, fallback?: SolicitudPersonalResponse | null) => {
       setSelectedId(id);
       if (id != null) {
         const fromList =
+          fallback ??
           solicitudesPropias.find((s) => s.idSolicitud === id) ??
           solicitudesTodas.find((s) => s.idSolicitud === id) ??
           null;

@@ -1,6 +1,7 @@
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import type { OrdenCompraResponse } from '@/types/ordenCompra.types';
+import { datosSolicitanteDocumento } from '@/utils/datosSolicitanteDocumento';
 import logoImage from '@/assets/logo.png';
 
 export type AgrupacionKey = 'sucursal' | 'empresa' | 'area' | 'proveedor';
@@ -67,13 +68,7 @@ function getGroupKey(orden: OrdenCompraResponse, agrupacion: AgrupacionKey): str
 }
 
 function nombreSolicitanteMostrar(o: OrdenCompraResponse): string {
-  const esCorreoGrupolefarma = (o.solicitanteCorreo ?? '')
-    .toLowerCase()
-    .trim()
-    .endsWith('@grupolefarma.com.mx');
-  return esCorreoGrupolefarma
-    ? (o.segundoAutorizador ?? o.solicitanteNombre ?? '—')
-    : (o.solicitanteNombre ?? '—');
+  return datosSolicitanteDocumento(o).nombre;
 }
 
 interface OrdenRow {

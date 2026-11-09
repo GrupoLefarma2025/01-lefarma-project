@@ -284,4 +284,70 @@ describe('ConcentradoPage', () => {
     // Un subtotal por bloque; el total general sigue en el pie.
     expect(documento.querySelectorAll('.concentrado-subtotal-grupo')).toHaveLength(2);
   });
+
+  it('la columna Transporte muestra el medio que resolvió el servidor', async () => {
+    mocks.bandeja.mockResolvedValue({
+      data: {
+        success: true,
+        data: [
+          { ...fila, id_solicitud: 31, folio: 'VIA-AEREO', tipo_transporte: 'aereo' },
+          { ...fila, id_solicitud: 32, folio: 'VIA-POR-DEFINIR', tipo_transporte: 'solicitado' },
+          { ...fila, id_solicitud: 33, folio: 'VIA-SIN-DATO', tipo_transporte: 'sin-clasificar' },
+        ],
+      },
+    });
+    render(<ConcentradoPage />);
+    await waitFor(() => expect(screen.getByTestId('concentrado-31')).toBeInTheDocument());
+
+    expect(within(screen.getByTestId('concentrado-31')).getByText('Aéreo')).toBeInTheDocument();
+    // "Solicitado" es un estado del viaje, no un dato faltante.
+    expect(within(screen.getByTestId('concentrado-32')).getByText('Solicitado')).toBeInTheDocument();
+    expect(within(screen.getByTestId('concentrado-33')).getByText('Sin clasificar')).toBeInTheDocument();
+  });
+
+  it('el formato Vuelos permite incluir una enviada y genera la solicitud de avión', async () => {
+    const usuario = userEvent.setup();
+    mocks.bandeja.mockResolvedValue({
+      data: {
+        success: true,
+        data: [
+          {
+            ...fila,
+            persona_nombre: 'Persona Viajera',
+            puesto: 'Coordinadora',
+            fecha_nacimiento: '1990-05-17',
+            motivo: 'Impartición de talleres',
+            trayectos: [
+              { fecha: '2026-11-10', hora: '08:00', origen: 'CDMX', destino: 'Puebla' },
+            ],
+          },
+        ],
+      },
+    });
+    render(<ConcentradoPage />);
+    await waitFor(() => expect(screen.getByTestId('concentrado-5')).toBeInTheDocument());
+
+    // El FOR-008 es de lo autorizado: la enviada no se puede marcar.
+    expect(screen.getByRole('checkbox', { name: /aún no está autorizada/i })).toBeDisabled();
+
+    await usuario.selectOptions(screen.getByLabelText(/formato de impresión/i), 'vuelos');
+
+    // La solicitud a la agencia va antes de autorizar: la enviada ya se marca.
+    const casilla = screen.getByRole('checkbox', { name: /incluir VIA-TEST-0005 en el concentrado/i });
+    expect(casilla).not.toBeDisabled();
+    await usuario.click(casilla);
+    await usuario.click(screen.getByRole('button', { name: /generar vuelos \(1\)/i }));
+
+    const documento = document.querySelector('#concentrado-vuelos-print') as HTMLElement;
+    expect(documento).not.toBeNull();
+    expect(documento).toHaveTextContent('Solicitud de avión');
+    expect(documento).toHaveTextContent('Persona Viajera');
+    expect(documento).toHaveTextContent('Coordinadora');
+    expect(documento).toHaveTextContent('17/05/1990');
+    expect(documento).toHaveTextContent('10/11/2026');
+    expect(documento).toHaveTextContent('Puebla');
+    expect(documento).toHaveTextContent('Impartición de talleres');
+    // El portal del FOR-008 no se monta en este formato.
+    expect(document.querySelector('#concentrado-viaticos-print')).toBeNull();
+  });
 });

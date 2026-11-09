@@ -340,11 +340,13 @@ export default function SolicitudesPersonal() {
       });
       return;
     }
-    selectSolicitud(s.idSolicitud);
+    // Abre el modal de inmediato con la fila como respaldo: así el usuario ve
+    // el progreso (loader) mientras llegan detalle, historial y acciones.
+    selectSolicitud(s.idSolicitud, s);
+    toggleModal('firma', true);
+    fetchAcciones(s.idSolicitud);
     await fetchDetalleCompleto(s.idSolicitud);
     await fetchHistorial(s.idSolicitud);
-    fetchAcciones(s.idSolicitud);
-    toggleModal('firma', true);
   };
 
   const handleOpenArchivos = async (s: SolicitudPersonalResponse) => {
@@ -579,7 +581,7 @@ export default function SolicitudesPersonal() {
       <SolicitudAccionesModal
         open={modalStates.firma}
         onClose={() => closeModal('firma')}
-        loading={loadingAcciones}
+        loading={loadingAcciones || loadingDetalle || loadingHistorial}
         solicitud={selectedSolicitud}
         acciones={acciones}
         historial={historial}

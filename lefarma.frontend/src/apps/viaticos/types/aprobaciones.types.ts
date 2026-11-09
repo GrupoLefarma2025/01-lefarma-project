@@ -45,6 +45,27 @@ export interface SolicitudBandeja {
   comida?: number | null;
   taxi?: number | null;
   total: number | null;
+  /**
+   * Medio de transporte ya resuelto por el servidor: `aereo`, `autobus`,
+   * `propio`, `solicitado` o `sin-clasificar`. El wizard no escribe
+   * `$.avion`/`$.autobus`; el medio vive en la opción elegida y el modo en
+   * `datos.transporte.modo`. `solicitado` = la empresa gestiona el viaje y aún
+   * no se elige medio. Opcional para respuestas viejas.
+   */
+  tipo_transporte?: TipoTransporteConcentrado;
+  /** Nombre de la persona que viaja (`datos.persona.nombre`); puede diferir del solicitante. */
+  persona_nombre?: string | null;
+  /** Motivo del viaje (`datos.persona.motivo`). */
+  motivo?: string | null;
+  /** Puesto del viajero según el directorio de personal; `null` si no resuelve. */
+  puesto?: string | null;
+  /** Fecha de nacimiento del viajero en ISO (`aaaa-mm-dd`); la pide la agencia de vuelos. */
+  fecha_nacimiento?: string | null;
+  /**
+   * Itinerario imprimible del formato «Solicitud de avión»: ida y vuelta (máx.
+   * dos), desde `datos.calculo_autorizado` o `datos.calculo`.
+   */
+  trayectos?: TrayectoBandeja[];
   fecha_creacion: string;
   /** Última modificación: con ella se filtra "última actualización". */
   fecha_modificacion?: string | null;
@@ -53,6 +74,24 @@ export interface SolicitudBandeja {
    * hoteles). Es lo que el concentrado necesita para autorizar.
    */
   recalculada?: boolean;
+}
+
+/** Medio de transporte del concentrado; ver `tipo_transporte`. */
+export type TipoTransporteConcentrado =
+  | 'aereo'
+  | 'autobus'
+  | 'propio'
+  | 'solicitado'
+  | 'sin-clasificar';
+
+/** Un tramo del itinerario imprimible (ida o vuelta). */
+export interface TrayectoBandeja {
+  /** Fecha de salida ISO (`aaaa-mm-dd`). */
+  fecha?: string | null;
+  /** Hora planeada de salida (`HH:mm`). */
+  hora?: string | null;
+  origen?: string | null;
+  destino?: string | null;
 }
 
 /**

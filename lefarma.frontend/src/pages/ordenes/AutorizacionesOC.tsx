@@ -1,4 +1,4 @@
-﻿import { Fragment, useEffect, useMemo, useCallback, useRef, useState } from 'react';
+import { Fragment, useEffect, useMemo, useCallback, useRef, useState } from 'react';
 
 import { createPortal } from 'react-dom';
 import {useNavigate, useSearchParams } from 'react-router-dom';
@@ -448,6 +448,35 @@ function FirmaEventoRow({
   );
 }
 
+// ── Helpers de archivos adjuntos (pestaña e historial) ───────────────────────
+interface MetaArchivoAdjunto {
+  modulo?: string; origen?: string; tipo?: string; observaciones?: string;
+  paso?: string; nombrePaso?: string; nombreAccion?: string;
+  monto?: number; idComprobante?: number; subtipo?: string; archivo?: string;
+}
+
+const parseMetaArchivo = (meta: unknown): MetaArchivoAdjunto => {
+  if (!meta) return {};
+  if (typeof meta === 'string') {
+    try { return JSON.parse(meta); } catch { return { observaciones: meta }; }
+  }
+  if (typeof meta === 'object') return meta as MetaArchivoAdjunto;
+  return {};
+};
+
+const EXT_BADGE: Record<string, string> = {
+  pdf:  'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300',
+  xlsx: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300',
+  xls:  'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300',
+  docx: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
+  doc:  'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
+  png:  'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300',
+  jpg:  'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300',
+  jpeg: 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300',
+  webp: 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300',
+  gif:  'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300',
+};
+
 export default function AutorizacionesOC() {
   usePageTitle('Autorizaciones OC', 'Bandeja de firmas y detalle de autorización');
   const navigate = useNavigate();
@@ -471,6 +500,8 @@ export default function AutorizacionesOC() {
 
   const [search, setSearch] = useState('');
   const [creadorFilter, setCreadorFilter] = useState<number | 'all'>('all');
+  const [empresaFilter, setEmpresaFilter] = useState<number | 'all'>('all');
+  const [flujoFilter, setFlujoFilter] = useState<number | 'all'>('all');
   const [estadoFilter, setEstadoFilter] = useState('all');
   const [isFirmarModalOpen, setIsFirmarModalOpen] = useState(false);
   const [isSubmittingFirma, setIsSubmittingFirma] = useState(false);
@@ -492,6 +523,9 @@ export default function AutorizacionesOC() {
   // Archivos adjuntos de la orden seleccionada
   const [archivosOrden, setArchivosOrden] = useState<ArchivoListItem[]>([]);
   const [loadingArchivos, setLoadingArchivos] = useState(false);
+  const [isHistorialArchivosOpen, setIsHistorialArchivosOpen] = useState(false);
+  const [archivosHistorial, setArchivosHistorial] = useState<ArchivoListItem[]>([]);
+  const [loadingHistorialArchivos, setLoadingHistorialArchivos] = useState(false);
   const [viewerArchivoId, setViewerArchivoId] = useState<number | null>(null);
 
   // Estado del tab de facturación
@@ -525,6 +559,10 @@ export default function AutorizacionesOC() {
 
   //Permisos
   const puedeVerTodas = usePermission({ require: 'orden_compra.puede_ver_todas_las_ordenes' });
+  const puedeVerPorEmpresa = usePermission({ require: 'orden_compra.puede_ver_por_empresa' });
+  const puedeVerPorFlujo = usePermission({ require: 'orden_compra.puede_ver_por_flujo' });
+  const mostrarFiltroFlujo = puedeVerTodas || puedeVerPorFlujo;
+  const mostrarFiltroCreador = puedeVerTodas || puedeVerPorEmpresa || puedeVerPorFlujo;
 
   const estados = useMemo(() => {
     const values = workflowEstados.filter(e => e.activo).sort((a, b) => a.idEstado - b.idEstado);
@@ -536,6 +574,30 @@ export default function AutorizacionesOC() {
     ordenes.forEach((o) => {
       if (o.idUsuarioCreador && o.solicitanteNombre) {
         map.set(o.idUsuarioCreador, o.solicitanteNombre);
+      }
+    });
+    return Array.from(map.entries())
+      .sort((a, b) => a[1].localeCompare(b[1]))
+      .map(([id, nombre]) => ({ id, nombre }));
+  }, [ordenes]);
+
+  const empresas = useMemo(() => {
+    const map = new Map<number, string>();
+    ordenes.forEach((o) => {
+      if (o.empresaNombre) {
+        map.set(o.idEmpresa, o.empresaNombre);
+      }
+    });
+    return Array.from(map.entries())
+      .sort((a, b) => a[1].localeCompare(b[1]))
+      .map(([id, nombre]) => ({ id, nombre }));
+  }, [ordenes]);
+
+  const flujos = useMemo(() => {
+    const map = new Map<number, string>();
+    ordenes.forEach((o) => {
+      if (o.idWorkflow) {
+        map.set(o.idWorkflow, o.nombreWorkflow || `#${o.idWorkflow}`);
       }
     });
     return Array.from(map.entries())
@@ -710,6 +772,28 @@ export default function AutorizacionesOC() {
     } finally {
       setLoadingArchivos(false);
     }
+  };
+
+  const fetchArchivosHistorial = async (idOrden: number) => {
+    try {
+      setLoadingHistorialArchivos(true);
+      const archivos = await archivoService.getAll({
+        entidadTipo: 'OrdenCompra',
+        entidadId: idOrden,
+        soloActivos: false,
+      });
+      setArchivosHistorial(archivos.filter((a) => !a.activo));
+    } catch {
+      setArchivosHistorial([]);
+    } finally {
+      setLoadingHistorialArchivos(false);
+    }
+  };
+
+  const abrirHistorialArchivos = () => {
+    if (!selectedOrden) return;
+    setIsHistorialArchivosOpen(true);
+    void fetchArchivosHistorial(selectedOrden.idOrden);
   };
 
   const handleEliminarArchivo = async (idArchivo: number) => {
@@ -1491,6 +1575,8 @@ export default function AutorizacionesOC() {
     return ordenes.filter((o) => {
       const matchEstado = estadoFilter === 'all' || o.idEstado === Number(estadoFilter);
       const matchCreador = creadorFilter === 'all' || o.idUsuarioCreador === creadorFilter;
+      const matchEmpresa = empresaFilter === 'all' || o.idEmpresa === empresaFilter;
+      const matchFlujo = flujoFilter === 'all' || o.idWorkflow === flujoFilter;
       const proveedores = [o.idProveedor, ...o.partidas.map((p) => p.idProveedor)]
         .map((id) => (id ? allProveedoresMap.get(id) : undefined));
       const matchSearch =
@@ -1503,9 +1589,17 @@ export default function AutorizacionesOC() {
           ...proveedores.flatMap((p) => [p?.razonSocial, p?.detalle?.personaContactoNombre]),
           ...o.partidas.map((p) => p.descripcion),
         ].some((value) => value?.toLowerCase().includes(q));
-      return matchEstado && matchCreador && matchSearch;
+      return matchEstado && matchCreador && matchEmpresa && matchFlujo && matchSearch;
     });
-  }, [ordenes, estadoFilter, creadorFilter, search, allProveedoresMap]);
+  }, [
+    ordenes,
+    estadoFilter,
+    creadorFilter,
+    empresaFilter,
+    flujoFilter,
+    search,
+    allProveedoresMap,
+  ]);
 
   const columns: ColumnDef<OrdenCompraResponse>[] = useMemo(() => [
     {
@@ -1524,6 +1618,16 @@ export default function AutorizacionesOC() {
           </div>
         );
       },
+    },
+    {
+      accessorKey: 'empresaNombre',
+      header: 'Empresa',
+      cell: ({ row }) => (
+        <span className="text-xs">
+          {row.original.empresaNombre ?? '-'}
+        </span>
+      ),
+      size: 140,
     },
     {
       accessorKey: 'total',
@@ -1621,6 +1725,15 @@ export default function AutorizacionesOC() {
     },
   ], [workflowEstados, navigate, allProveedoresMap]);
 
+  const alcanceAplicado = puedeVerTodas
+    ? 'todas'
+    : [
+        puedeVerPorEmpresa ? 'por empresa' : null,
+        puedeVerPorFlujo ? 'por flujo' : null,
+      ]
+        .filter(Boolean)
+        .join(' y ');
+
   return (
     <div className="space-y-6">
       {sinFirma && <SignatureAlert />}
@@ -1628,7 +1741,7 @@ export default function AutorizacionesOC() {
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
         <div className="space-y-4 xl:col-span-12">
           <Card>
-            <CardContent className="grid grid-cols-1 gap-3 pt-6 md:grid-cols-4">
+            <CardContent className="grid grid-cols-1 gap-3 pt-6 md:grid-cols-4 2xl:grid-cols-6">
               <div className="relative md:col-span-2">
                 <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -1651,7 +1764,7 @@ export default function AutorizacionesOC() {
                   </option>
                 ))}
               </select>
-              {puedeVerTodas && (
+              {mostrarFiltroCreador && (
                 <select
                   className="h-10 rounded-md border border-input bg-background px-3 text-sm"
                   value={creadorFilter}
@@ -1665,6 +1778,32 @@ export default function AutorizacionesOC() {
                   ))}
                 </select>
               )}
+              <select
+                className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+                value={empresaFilter}
+                onChange={(e) => setEmpresaFilter(e.target.value === 'all' ? 'all' : Number(e.target.value))}
+              >
+                <option value="all">Todas las empresas</option>
+                {empresas.map((emp) => (
+                  <option key={emp.id} value={emp.id}>
+                    {emp.nombre}
+                  </option>
+                ))}
+              </select>
+              {mostrarFiltroFlujo && (
+                <select
+                  className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+                  value={flujoFilter}
+                  onChange={(e) => setFlujoFilter(e.target.value === 'all' ? 'all' : Number(e.target.value))}
+                >
+                  <option value="all">Todos los flujos</option>
+                  {flujos.map((f) => (
+                    <option key={f.id} value={f.id}>
+                      {f.nombre}
+                    </option>
+                  ))}
+                </select>
+              )}
             </CardContent>
           </Card>
 
@@ -1672,7 +1811,11 @@ export default function AutorizacionesOC() {
             columns={columns}
             data={filtered}
             title="Órdenes pendientes para autorización"
-            subtitle={loadingOrdenes ? 'Cargando…' : `Total: ${filtered.length}`}
+            subtitle={
+              loadingOrdenes
+                ? 'Cargando…'
+                : `Total: ${filtered.length}${alcanceAplicado ? ` · Alcance: ${alcanceAplicado}` : ''}`
+            }
             pagination
             pageSize={10}
             loading={loadingOrdenes}
@@ -1680,7 +1823,9 @@ export default function AutorizacionesOC() {
             showRefreshButton
             onRefresh={fetchOrdenes}
             filterConfig={{
-              tableId: 'autorizaciones-oc',
+              // v2: agrega la columna Empresa; el id nuevo evita que una
+              // configuración guardada (sin esa columna) la oculte.
+              tableId: 'autorizaciones-oc-v2',
               searchableColumns: ['folio'],
               defaultSearchColumns: ['folio'],
             }}
@@ -1699,23 +1844,15 @@ export default function AutorizacionesOC() {
           if (!open) setSelectedId(null);
         }}
         title={
-          <div className="flex flex-col gap-1">
-            <div className="flex items-center gap-1">
-              <FileText className="h-5 w-5" />
-              <span>Detalle de orden de compra</span>
-            </div>
-            {selectedOrden && (
-              <span className="text-sm text-muted-foreground ml-3">
-                {selectedOrden.folio} — {selectedOrden.idProveedor && proveedoresMap.has(selectedOrden.idProveedor)
-                  ? proveedoresMap.get(selectedOrden.idProveedor)?.razonSocial
-                  : 'Sin proveedor'}
-              </span>
-            )}
+          <div className="flex items-center gap-2">
+            <FileText className="h-4 w-4" />
+            <span>Detalle de orden de compra</span>
           </div>
         }
         size="full"
+        compact
       >
-        <div className="-mx-6 px-4 py-2">
+        <div className="-mx-4 px-4">
           {loadingDetail && (
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" /> Cargando detalle...
@@ -1733,13 +1870,13 @@ export default function AutorizacionesOC() {
           {!loadingDetail && selectedOrden && (
             <>
               <Tabs defaultValue="detalle" className="flex h-full min-h-0 flex-col">
-                      <div className="bg-muted/20 rounded-lg border p-3">
+                      <div className="bg-muted/20 rounded-lg border px-3 py-2">
                       <div className="flex items-center justify-between gap-3">
                         <div className="min-w-0 flex-1">
-                          <p className="font-semibold">{selectedOrden.folio}</p>
+                          <p className="text-sm font-semibold">{selectedOrden.folio}</p>
                           {selectedOrden.idProveedor && proveedoresMap.has(selectedOrden.idProveedor) ? (
-                            <div className="text-xs text-muted-foreground">
-                              <p className="truncate font-medium text-foreground">
+                            <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
+                              <p className="min-w-0 truncate font-medium text-foreground">
                                 {proveedoresMap.get(selectedOrden.idProveedor)?.razonSocial}
                               </p>
                               <p className="text-[10px]">
@@ -1769,21 +1906,21 @@ export default function AutorizacionesOC() {
                         })()}
                       </div>
 
-                      <div className="mt-3 grid grid-cols-2 gap-2">
-                        <div className="rounded-md border bg-background px-2 py-1.5">
+                      <div className="mt-2 grid grid-cols-2 gap-2">
+                        <div className="rounded-md border bg-background px-2 py-1">
                           <p className="text-[11px] text-muted-foreground">Subtotal</p>
                           <p className="text-sm font-semibold">
                             {formatCurrency(selectedOrden.subtotal)}
                           </p>
                         </div>
-                        <div className="rounded-md border bg-background px-2 py-1.5">
+                        <div className="rounded-md border bg-background px-2 py-1">
                           <p className="text-[11px] text-muted-foreground">Total</p>
                           <p className="text-sm font-semibold">
                             {formatCurrency(selectedOrden.total)}
                           </p>
                         </div>
                         {selectedOrden.nombreTraslado && (
-                          <div className="rounded-md border bg-background px-2 py-1.5">
+                          <div className="rounded-md border bg-background px-2 py-1">
                             <p className="text-[11px] text-muted-foreground">Folio de transporte</p>
                             <p className="text-sm font-semibold">{selectedOrden.nombreTraslado}</p>
                           </div>
@@ -1835,7 +1972,7 @@ export default function AutorizacionesOC() {
                       </div>
                     )}
 
-                    <TabsList className="bg-background sticky top-0 z-10 mt-3 grid h-10 w-full grid-cols-4 border p-1">
+                    <TabsList className="bg-background sticky top-0 z-10 mt-2 grid h-9 w-full grid-cols-4 border p-1">
                       <TabsTrigger
                         value="detalle"
                         className="border border-transparent text-xs font-semibold data-[state=active]:border-primary data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm"
@@ -3000,35 +3137,8 @@ export default function AutorizacionesOC() {
                       className="mt-3 xl:min-h-0 xl:flex-1 xl:overflow-y-auto xl:pr-1"
                     >
                       {(() => {
-                        // ── helpers locales ────────────────────────────────
-                        const parseMetaArchivo = (meta: unknown): {
-                          modulo?: string; origen?: string; tipo?: string; observaciones?: string;
-                          paso?: string; nombrePaso?: string; nombreAccion?: string;
-                          monto?: number; idComprobante?: number; subtipo?: string; archivo?: string;
-                        } => {
-                          if (!meta) return {};
-                          if (typeof meta === 'string') {
-                            try { return JSON.parse(meta); } catch { return { observaciones: meta }; }
-                          }
-                          if (typeof meta === 'object') return meta as ReturnType<typeof parseMetaArchivo>;
-                          return {};
-                        };
-
                         const fmtSize = (b: number) =>
                           b < 1024 ? `${b} B` : b < 1048576 ? `${(b / 1024).toFixed(1)} KB` : `${(b / 1048576).toFixed(1)} MB`;
-
-                        const EXT_BADGE: Record<string, string> = {
-                          pdf:  'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300',
-                          xlsx: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300',
-                          xls:  'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300',
-                          docx: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
-                          doc:  'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
-                          png:  'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300',
-                          jpg:  'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300',
-                          jpeg: 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300',
-                          webp: 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300',
-                          gif:  'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300',
-                        };
 
                         // ── lista plana de archivos (sin agrupar por paso) ─────
                         return (
@@ -3043,14 +3153,25 @@ export default function AutorizacionesOC() {
                                   </span>
                                 )}
                               </p>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => setIsSubirAdjuntoOpen(!isSubirAdjuntoOpen)}
-                              >
-                                <Paperclip className="mr-1 h-3.5 w-3.5" />
-                                Subir
-                              </Button>
+                              <div className="flex items-center gap-2">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={abrirHistorialArchivos}
+                                  title="Ver archivos eliminados o reemplazados"
+                                >
+                                  <History className="mr-1 h-3.5 w-3.5" />
+                                  Historial
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => setIsSubirAdjuntoOpen(!isSubirAdjuntoOpen)}
+                                >
+                                  <Paperclip className="mr-1 h-3.5 w-3.5" />
+                                  Subir
+                                </Button>
+                              </div>
                             </div>
 
                             {/* Uploader desplegable */}
@@ -3772,6 +3893,117 @@ export default function AutorizacionesOC() {
               </div>
             </>
           )}
+        </div>
+      </Modal>
+
+      {/* ── Modal historial de archivos eliminados ── */}
+      <Modal
+        id="modal-historial-archivos"
+        open={isHistorialArchivosOpen}
+        setOpen={setIsHistorialArchivosOpen}
+        title="Historial de cambios · Documentos adjuntos"
+        size="lg"
+      >
+        <div className="space-y-3">
+          <p className="text-xs text-muted-foreground">
+            Se muestran únicamente los archivos eliminados o reemplazados. Esta vista es de solo lectura.
+          </p>
+
+          {loadingHistorialArchivos ? (
+            <div className="flex items-center justify-center py-8 text-muted-foreground">
+              <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+              <span className="text-sm">Cargando historial...</span>
+            </div>
+          ) : archivosHistorial.length === 0 ? (
+            <div className="flex flex-col items-center justify-center gap-2 py-10 text-muted-foreground">
+              <History className="h-8 w-8 opacity-40" />
+              <p className="text-sm">Sin archivos eliminados.</p>
+            </div>
+          ) : (
+            <div className="space-y-1">
+              {archivosHistorial.map((archivo) => {
+                const meta = parseMetaArchivo(archivo.metadata);
+                const ext = archivo.extension?.toLowerCase().replace('.', '') ?? '';
+                const esComprobante = meta.tipo === 'comprobante_pago' || meta.tipo === 'comprobante_gasto';
+                let tipoLabel: string | undefined;
+                if (esComprobante) {
+                  const subLabel = meta.subtipo ? meta.subtipo.toUpperCase() : '';
+                  const archLabel = meta.archivo === 'xml' ? 'XML' : meta.archivo === 'pdf' ? 'PDF' : '';
+                  tipoLabel = [subLabel, archLabel].filter(Boolean).join(' · ') || (meta.tipo === 'comprobante_pago' ? 'Pago' : 'Gasto');
+                } else {
+                  tipoLabel = meta.tipo ?? meta.observaciones;
+                }
+
+                return (
+                  <div
+                    key={archivo.id}
+                    className="flex items-start gap-2.5 rounded-lg border border-red-200 bg-red-50/30 px-2.5 py-2 text-xs dark:border-red-900/40 dark:bg-red-950/10"
+                  >
+                    <span className={`mt-0.5 shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold uppercase ${EXT_BADGE[ext] ?? 'bg-muted text-muted-foreground'}`}>
+                      {ext || '?'}
+                    </span>
+
+                    <div className="min-w-0 flex-1 space-y-0.5">
+                      <div className="flex items-center gap-2">
+                        <p className="truncate font-medium leading-tight" title={archivo.nombreOriginal}>
+                          {archivo.nombreOriginal}
+                        </p>
+                        <span className="shrink-0 rounded-full bg-red-100 px-1.5 py-0.5 text-[9px] font-semibold text-red-600 dark:bg-red-900/30 dark:text-red-400">
+                          Eliminado
+                        </span>
+                      </div>
+                      {meta.observaciones && (
+                        <p className="rounded border border-blue-200 bg-blue-50 px-2 py-1 text-xs leading-tight text-blue-800 dark:border-blue-800 dark:bg-blue-950/30 dark:text-blue-200">
+                          {meta.observaciones}
+                        </p>
+                      )}
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        {tipoLabel && (
+                          <span className="inline-flex items-center rounded-full bg-orange-100 px-1.5 py-0.5 text-[10px] font-medium text-orange-800 dark:bg-orange-900/30 dark:text-orange-300">
+                            {tipoLabel}
+                          </span>
+                        )}
+                        {archivo.usuarioSubioNombre && (
+                          <span className="text-[10px] text-muted-foreground/60">
+                            {archivo.usuarioSubioNombre}
+                          </span>
+                        )}
+                        <span className="text-[10px] text-muted-foreground/40">
+                          {fmtFecha(archivo.fechaCreacion)}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex shrink-0 items-center gap-0.5">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                        title="Ver documento"
+                        onClick={() => setViewerArchivoId(archivo.id)}
+                      >
+                        <Eye className="h-3.5 w-3.5" />
+                      </Button>
+                      <a
+                        href={archivoService.getDownloadUrl(archivo.id)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        title="Descargar"
+                      >
+                        <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-foreground">
+                          <Download className="h-3.5 w-3.5" />
+                        </Button>
+                      </a>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          <p className="text-[11px] text-muted-foreground">
+            El sistema no registra quién eliminó el archivo ni la fecha del borrado; se muestra la fecha en que se subió.
+          </p>
         </div>
       </Modal>
 

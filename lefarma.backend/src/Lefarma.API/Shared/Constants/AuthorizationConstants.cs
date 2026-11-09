@@ -22,6 +22,9 @@ public static class Permissions
         public const string Delete = "ordenes.delete";
         public const string Approve = "ordenes.approve";
         public const string CambiarEmpresa = "orden_compra.puede_cambiar_empresa";
+        public const string VerTodas = "orden_compra.puede_ver_todas_las_ordenes";
+        public const string VerPorEmpresa = "orden_compra.puede_ver_por_empresa";
+        public const string VerPorFlujo = "orden_compra.puede_ver_por_flujo";
     }
 
     public static class Usuarios

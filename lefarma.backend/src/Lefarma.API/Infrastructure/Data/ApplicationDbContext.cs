@@ -56,6 +56,7 @@ public class ApplicationDbContext : DbContext
         public DbSet<WorkflowMapping> WorkflowMappings { get; set; }
         public DbSet<WorkflowEstados> WorkflowEstados { get; set; }
         public DbSet<WorkflowTipoAccion> WorkflowTiposAccion { get; set; }
+        public DbSet<UsuarioAlcanceEmpresa> UsuariosAlcanceEmpresa { get; set; }
 
         // DbSets - Configuración (variables globales)
         public DbSet<ConfigVariable> ConfigVariables { get; set; }

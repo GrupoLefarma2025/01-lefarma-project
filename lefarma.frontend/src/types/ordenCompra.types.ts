@@ -62,6 +62,8 @@ export interface OrdenCompraResponse {
   estadoNombre?: string | null;
   estadoColor?: string | null;
   idWorkflow?: number | null;
+  /** Nombre del flujo de la orden; lo resuelve el backend en la lista. */
+  nombreWorkflow?: string | null;
   idPasoActual?: number | null;
   idProveedor?: number | null;
   idsCuentasBancarias?: number[] | null;
@@ -82,6 +84,10 @@ export interface OrdenCompraResponse {
   solicitanteArea?: string | null;
   solicitanteCorreo?: string | null;
   segundoAutorizador?: string | null;
+  /** Puesto del segundo autorizador (jefe) según Asistencias.dbo.vwEmpleados. */
+  segundoAutorizadorPuesto?: string | null;
+  /** Área (departamento) del segundo autorizador (jefe) según Asistencias.dbo.vwEmpleados. */
+  segundoAutorizadorArea?: string | null;
   notaFormaPago?: string | null;
   notasGenerales?: string | null;
   facturarA?: string | null;

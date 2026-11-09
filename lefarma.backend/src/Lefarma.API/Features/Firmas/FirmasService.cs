@@ -4,6 +4,7 @@ using Lefarma.API.Domain.Interfaces;
 using Lefarma.API.Features.Archivos.Settings;
 using Lefarma.API.Features.Firmas.DTOs;
 using Lefarma.API.Features.Notifications.DTOs;
+using Lefarma.API.Features.OrdenesCompra.Visibilidad;
 using Lefarma.API.Infrastructure.Data;
 using Lefarma.API.Infrastructure.Files;
 using Lefarma.API.Shared.Constants;
@@ -30,6 +31,7 @@ public class FirmasService : BaseService, IFirmasService
     private readonly INotificationService _notificationService;
     private readonly IOptions<ArchivosSettings> _archivosSettings;
     private readonly IFileCipher _cipher;
+    private readonly IOrdenCompraVisibilidadService _visibilidadOrdenCompra;
     protected override string EntityName => "Firmas";
 
     public FirmasService(
@@ -38,6 +40,7 @@ public class FirmasService : BaseService, IFirmasService
         INotificationService notificationService,
         IOptions<ArchivosSettings> archivosSettings,
         IFileCipher cipher,
+        IOrdenCompraVisibilidadService visibilidadOrdenCompra,
         IWideEventAccessor wideEventAccessor)
         : base(wideEventAccessor)
     {
@@ -46,6 +49,7 @@ public class FirmasService : BaseService, IFirmasService
         _notificationService = notificationService;
         _archivosSettings = archivosSettings;
         _cipher = cipher;
+        _visibilidadOrdenCompra = visibilidadOrdenCompra;
     }
 
     private string FirmasDir => Path.Combine(_archivosSettings.Value.PrivatePath, "firmas");
@@ -510,6 +514,46 @@ public class FirmasService : BaseService, IFirmasService
     }
 
     /// <summary>
+    /// Firma vigente para el concentrado de órdenes. Prefiere la firma cifrada
+    /// de RH; si no existe o no se puede leer, usa la firma legacy de CxP.
+    /// </summary>
+    public async Task<ErrorOr<ArchivoProtegidoResponse>> GetFirmaVigenteConLegacyAsync(
+        int idUsuario, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var firmas = await _appContext.UsuariosDetalle
+                .AsNoTracking()
+                .Where(d => d.IdUsuario == idUsuario)
+                .Select(d => new { d.FirmaPathCifrada, d.FirmaPath })
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (!string.IsNullOrWhiteSpace(firmas?.FirmaPathCifrada))
+            {
+                var cifrada = await ServirFirmaAsync(
+                    "GetFirmaVigenteConLegacy", idUsuario, firmas.FirmaPathCifrada, cancellationToken);
+                if (!cifrada.IsError)
+                    return cifrada;
+            }
+
+            if (!string.IsNullOrWhiteSpace(firmas?.FirmaPath))
+            {
+                var legacy = await ServirFirmaLegacyAsync(
+                    "GetFirmaVigenteConLegacy", idUsuario, firmas.FirmaPath, cancellationToken);
+                if (!legacy.IsError)
+                    return legacy;
+            }
+
+            return CommonErrors.NotFound("Firma", $"Usuario {idUsuario}");
+        }
+        catch (Exception ex)
+        {
+            EnrichWideEvent(action: "GetFirmaVigenteConLegacy", entityId: idUsuario, exception: ex);
+            return CommonErrors.DatabaseError("obtener la firma vigente");
+        }
+    }
+
+    /// <summary>
     /// Firma usada en un evento de la bitácora del workflow. Autorización estricta:
     /// solo quien puede ver el documento del evento (SP/OC). Si el evento no tiene
     /// firmaArchivo capturado (documentos anteriores a la captura), se sirve la
@@ -737,27 +781,10 @@ public class FirmasService : BaseService, IFirmasService
                 && b.IdEntidad == idSolicitud && b.IdUsuario == idUsuario, cancellationToken);
     }
 
-    // Quien puede ver la orden: creador, participante del flujo o "ver todas las órdenes".
+    // Quien puede ver la orden: política única de visibilidad (servicio de órdenes de compra).
     private async Task<bool> PuedeVerOrdenAsync(int idOrden, int idUsuario, IReadOnlyCollection<string> permisos, CancellationToken cancellationToken)
     {
-        if (permisos.Contains("orden_compra.puede_ver_todas_las_ordenes"))
-            return true;
-
-        var idCreador = await _appContext.OrdenesCompra
-            .AsNoTracking()
-            .Where(o => o.IdOrden == idOrden)
-            .Select(o => (int?)o.IdUsuarioCreador)
-            .FirstOrDefaultAsync(cancellationToken);
-
-        if (idCreador == null)
-            return false;
-        if (idCreador == idUsuario)
-            return true;
-
-        return await _appContext.WorkflowBitacoras
-            .AsNoTracking()
-            .AnyAsync(b => b.TipoEntidad == CodigoProceso.ORDEN_COMPRA
-                && b.IdEntidad == idOrden && b.IdUsuario == idUsuario, cancellationToken);
+        return await _visibilidadOrdenCompra.PuedeVerAsync(idOrden, idUsuario, cancellationToken);
     }
 
     private static string? ExtraerFirmaArchivo(string? datosSnapshot, string clave = "firmaArchivo")

@@ -29,10 +29,18 @@ import {
 } from '../../types/aprobaciones.types';
 import type { Solicitud } from '../../types/solicitud.types';
 import type { PropuestaRuta } from '../../types/solicitud.types';
-import { esEstadoConcentrado, filaConcentrado } from '../aprobaciones/ConcentradoViaticosView';
+import {
+  esEstadoConcentrado,
+  filaConcentrado,
+} from '../aprobaciones/ConcentradoViaticosView';
+import { esEstadoVuelos, filaVuelos } from './filaVuelos';
 import { VistaDetalle } from '../mis-viajes/MisViajesPage';
-import { ConcentradoDocumentoPreview } from './ConcentradoDocumentoPreview';
+import {
+  ConcentradoDocumentoPreview,
+  type FormatoConcentrado,
+} from './ConcentradoDocumentoPreview';
 import { ConcentradoViaticosPrint } from '../costos/ConcentradoViaticosPrint';
+import { ConcentradoVuelosPrint } from '../costos/ConcentradoVuelosPrint';
 import { CalculosViajeModal } from '../../components/CalculosViajeModal';
 import { GRUPO_LABELS, type GrupoConcentrado } from '../../constants/grupos';
 import { gerenciaVisible } from '../../constants/gerencias';
@@ -65,6 +73,7 @@ const TIPOS = [
   { id: 'aereo', etiqueta: 'Aéreo' },
   { id: 'autobus', etiqueta: 'Autobús' },
   { id: 'propio', etiqueta: 'Carro propio' },
+  { id: 'solicitado', etiqueta: 'Solicitado (sin medio elegido)' },
   { id: 'sin-clasificar', etiqueta: 'Sin clasificar' },
 ] as const;
 
@@ -72,6 +81,7 @@ const ETIQUETA_TRANSPORTE: Record<string, string> = {
   aereo: 'Aéreo',
   autobus: 'Autobús',
   propio: 'Carro propio',
+  solicitado: 'Solicitado',
   'sin-clasificar': 'Sin clasificar',
 };
 
@@ -88,20 +98,35 @@ function colorEstado(estado: string): string {
   return COLOR_POR_ESTADO[estado] ?? '#64748b';
 }
 
-/** Fecha larga al estilo de mis-viajes: "23 de octubre de 2026". */
-function fechaLarga(fecha: string): string {
-  if (!fecha) return '—';
-  const d = new Date(fecha);
-  return Number.isNaN(d.getTime())
-    ? fecha
-    : d.toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric' });
+/** Fecha de creación en dd/mm/aaaa. La versión larga ("29 de octubre de 2026")
+ *  ensanchaba la columna del folio sin aportar nada al concentrado. */
+function fechaCreadaCorta(fecha: string): string {
+  const dia = fecha.slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(dia) ? fechaCorta(dia) : fecha;
 }
+
+/**
+ * Encabezado que puede partirse en dos líneas. La tabla del concentrado vive
+ * en media pantalla: reservar el ancho completo de "Fecha del viaje" y "Costo
+ * del viaje" en una sola línea era lo que empujaba el resto de las columnas al
+ * scroll horizontal.
+ */
+const ENCABEZADO_PARTIDO = 'whitespace-normal leading-tight';
 
 function tipoDeFila(f: SolicitudBandeja): string {
   if (f.avion !== null && f.avion !== undefined) return 'aereo';
   if (f.autobus !== null && f.autobus !== undefined) return 'autobus';
   if (f.gasolina !== null && f.gasolina !== undefined) return 'propio';
   return 'sin-clasificar';
+}
+
+/**
+ * Medio de transporte de una fila. El servidor lo resuelve (opción elegida y
+ * modo del wizard) porque el snapshot no guarda `$.avion`/`$.autobus`; el
+ * heurístico local queda solo como respaldo de respuestas viejas.
+ */
+function tipoTransporteDeFila(f: SolicitudBandeja): string {
+  return f.tipo_transporte ?? tipoDeFila(f);
 }
 
 export function ConcentradoPage() {
@@ -123,6 +148,8 @@ export function ConcentradoPage() {
   const [accionando, setAccionando] = useState(false);
   const [documentoAbierto, setDocumentoAbierto] = useState(false);
   const [seleccionadasIds, setSeleccionadasIds] = useState<Set<number>>(() => new Set());
+  /** Formato que se previsualiza e imprime: concentrado de costos o de vuelos. */
+  const [formato, setFormato] = useState<FormatoConcentrado>('for-008');
   const [calculoAbierto, setCalculoAbierto] = useState(false);
   /** Última propuesta calculada en esta revisión; no se persiste hasta autorizar. */
   const [propuesta, setPropuesta] = useState<(PropuestaRuta & { id_solicitud: number }) | null>(null);
@@ -168,7 +195,7 @@ export function ConcentradoPage() {
           ? creacionEnRango(f, rango)
           : modificacionEnRango(f, rango)) &&
       (estadosActivos.length === 0 || estadosActivos.includes(f.estado)) &&
-      (tipo === 'todos' || tipoDeFila(f) === tipo),
+      (tipo === 'todos' || tipoTransporteDeFila(f) === tipo),
   );
 
   /** Llave con la que se agrupa una fila; la gerencia vacía cae a «Sin asignar». */
@@ -283,11 +310,17 @@ export function ConcentradoPage() {
     [revisandoId],
   );
 
-  // La selección de la tabla significa «incluir en el concentrado». Solo las
-  // autorizadas son elegibles: una enviada todavía no tiene ruta definitiva.
-  const seleccionables = filasOrdenadas.filter((fila) => esEstadoConcentrado(fila.estado));
+  // La selección de la tabla significa «incluir en el concentrado». Qué filas
+  // son elegibles depende del formato: el FOR-008 es de lo autorizado (una
+  // enviada todavía no tiene ruta definitiva) y el concentrado de vuelos se
+  // manda a la agencia antes de autorizar, así que incluye las enviadas.
+  const esElegible = useCallback(
+    (estado: string) => (formato === 'vuelos' ? esEstadoVuelos(estado) : esEstadoConcentrado(estado)),
+    [formato],
+  );
+  const seleccionables = filasOrdenadas.filter((fila) => esElegible(fila.estado));
   const seleccionadas = filas.filter(
-    (fila) => seleccionadasIds.has(fila.id_solicitud) && esEstadoConcentrado(fila.estado),
+    (fila) => seleccionadasIds.has(fila.id_solicitud) && esElegible(fila.estado),
   );
   const importesSeleccionados = seleccionadas
     .map((fila) => fila.total)
@@ -319,6 +352,28 @@ export function ConcentradoPage() {
     });
   }, [seleccionables, todasSeleccionadas]);
 
+  /**
+   * Cambiar de formato cambia qué filas son elegibles: se depuran las que
+   * dejaron de serlo para que «Generar concentrado (N)» cuente lo que de
+   * verdad se va a imprimir.
+   */
+  const cambiarFormato = useCallback(
+    (nuevo: FormatoConcentrado) => {
+      setFormato(nuevo);
+      setSeleccionadasIds((previas) => {
+        const siguientes = new Set<number>();
+        for (const fila of filas) {
+          const elegible = nuevo === 'vuelos'
+            ? esEstadoVuelos(fila.estado)
+            : esEstadoConcentrado(fila.estado);
+          if (previas.has(fila.id_solicitud) && elegible) siguientes.add(fila.id_solicitud);
+        }
+        return siguientes;
+      });
+    },
+    [filas],
+  );
+
   // Encabezado del documento: el filtro activo y cuántas filas lo componen.
   // La gerencia se toma de las filas seleccionadas (o, sin selección, de las
   // visibles) solo cuando todas coinciden; si hay varias se declara "VARIAS".
@@ -333,25 +388,28 @@ export function ConcentradoPage() {
     () => [
       {
         id: 'seleccion',
-        header: () => (
-          <button
-            type="button"
-            className="flex items-center justify-center"
-            aria-label={todasSeleccionadas ? 'Deseleccionar todas las autorizadas' : 'Seleccionar todas las autorizadas'}
-            title={todasSeleccionadas ? 'Deseleccionar todas las autorizadas' : 'Seleccionar todas las autorizadas'}
-            disabled={seleccionables.length === 0}
-            onClick={alternarTodas}
-          >
-            {todasSeleccionadas ? (
-              <CheckSquare className="h-4 w-4 text-primary" aria-hidden />
-            ) : (
-              <Square className="h-4 w-4 text-muted-foreground" aria-hidden />
-            )}
-          </button>
-        ),
+        header: () => {
+          const etiqueta = formato === 'vuelos' ? 'elegibles' : 'autorizadas';
+          return (
+            <button
+              type="button"
+              className="flex items-center justify-center"
+              aria-label={todasSeleccionadas ? `Deseleccionar todas las ${etiqueta}` : `Seleccionar todas las ${etiqueta}`}
+              title={todasSeleccionadas ? `Deseleccionar todas las ${etiqueta}` : `Seleccionar todas las ${etiqueta}`}
+              disabled={seleccionables.length === 0}
+              onClick={alternarTodas}
+            >
+              {todasSeleccionadas ? (
+                <CheckSquare className="h-4 w-4 text-primary" aria-hidden />
+              ) : (
+                <Square className="h-4 w-4 text-muted-foreground" aria-hidden />
+              )}
+            </button>
+          );
+        },
         enableSorting: false,
         cell: ({ row }) => {
-          const habilitada = esEstadoConcentrado(row.original.estado);
+          const habilitada = esElegible(row.original.estado);
           return (
             <div onClick={(evento) => evento.stopPropagation()}>
               <Checkbox
@@ -360,7 +418,9 @@ export function ConcentradoPage() {
                 aria-label={
                   habilitada
                     ? `Incluir ${row.original.folio ?? `#${row.original.id_solicitud}`} en el concentrado`
-                    : `La solicitud ${row.original.folio ?? `#${row.original.id_solicitud}`} aún no está autorizada`
+                    : formato === 'vuelos'
+                      ? `La solicitud ${row.original.folio ?? `#${row.original.id_solicitud}`} no se puede enviar a la agencia`
+                      : `La solicitud ${row.original.folio ?? `#${row.original.id_solicitud}`} aún no está autorizada`
                 }
                 onCheckedChange={() => alternarSeleccion(row.original.id_solicitud)}
               />
@@ -373,9 +433,9 @@ export function ConcentradoPage() {
         header: 'Folio',
         accessorFn: (fila) => fila.folio ?? fila.id_solicitud,
         cell: ({ row }) => (
-          <div className="flex flex-col">
+          <div className="flex flex-col whitespace-nowrap">
             <span className="font-medium">{row.original.folio ?? `#${row.original.id_solicitud}`}</span>
-            <span className="text-xs text-muted-foreground">{fechaLarga(row.original.fecha_creacion)}</span>
+            <span className="text-xs text-muted-foreground">{fechaCreadaCorta(row.original.fecha_creacion)}</span>
           </div>
         ),
       },
@@ -400,23 +460,27 @@ export function ConcentradoPage() {
       },
       {
         id: 'fechas',
-        header: 'Fecha del viaje',
+        header: () => <span className={ENCABEZADO_PARTIDO}>Fecha del viaje</span>,
         accessorFn: (fila) => fila.fecha ?? '',
         cell: ({ row }) => <span className="text-xs">{row.original.fecha ?? '—'}</span>,
       },
       {
         id: 'transporte',
         header: 'Transporte',
-        accessorFn: (fila) => ETIQUETA_TRANSPORTE[tipoDeFila(fila)] ?? 'Sin clasificar',
+        accessorFn: (fila) => ETIQUETA_TRANSPORTE[tipoTransporteDeFila(fila)] ?? 'Sin clasificar',
         cell: ({ getValue }) => <span className="text-xs">{getValue<string>()}</span>,
       },
       {
         id: 'costo',
-        header: 'Costo del viaje',
+        header: () => <span className={ENCABEZADO_PARTIDO}>Costo del viaje</span>,
         accessorFn: (fila) => fila.total ?? 0,
         cell: ({ row }) => {
           const total = row.original.total;
-          return <span className="text-sm font-medium">{total !== null ? importeFormateado(total, 'MXN') : '—'}</span>;
+          return (
+            <span className="whitespace-nowrap text-sm font-medium tabular-nums">
+              {total !== null ? importeFormateado(total, 'MXN') : '—'}
+            </span>
+          );
         },
       },
       {
@@ -454,19 +518,21 @@ export function ConcentradoPage() {
         enableSorting: false,
         cell: ({ row }) => (
           <div className="flex items-center justify-end">
+            {/* Solo el icono: el botón con texto empujaba la tabla al scroll
+                horizontal. El nombre accesible conserva la acción explícita. */}
             <Button
               type="button"
               variant="outline"
-              size="sm"
-              className="gap-1.5"
+              size="icon"
+              className="h-8 w-8"
               aria-label={`Ver detalle ${row.original.folio ?? `#${row.original.id_solicitud}`}`}
+              title={`Ver detalle ${row.original.folio ?? `#${row.original.id_solicitud}`}`}
               onClick={(evento) => {
                 evento.stopPropagation();
                 void revisar(row.original.id_solicitud);
               }}
             >
               <Eye className="h-4 w-4" aria-hidden />
-              Ver detalle
             </Button>
           </div>
         ),
@@ -479,6 +545,8 @@ export function ConcentradoPage() {
       seleccionables,
       alternarSeleccion,
       alternarTodas,
+      esElegible,
+      formato,
     ],
   );
 
@@ -487,8 +555,8 @@ export function ConcentradoPage() {
       <div>
         <h1 className="text-xl font-semibold tracking-tight">Concentrado de viáticos</h1>
         <p className="mt-0.5 text-sm text-muted-foreground">
-          Revisa y autoriza la última ruta calculada de cada viaje. Después selecciona las
-          autorizadas para generar el FOR-008.
+          Revisa y autoriza la última ruta calculada de cada viaje. Selecciona las solicitudes y
+          genera el concentrado de costos (FOR-008) o el de vuelos (solicitud de avión).
         </p>
       </div>
       <Card>
@@ -633,9 +701,16 @@ export function ConcentradoPage() {
             data={filasOrdenadas}
             title="Solicitudes para el concentrado"
             subtitle={
-              `${seleccionables.length} autorizada${seleccionables.length === 1 ? '' : 's'} · ` +
-              `${visibles.length} visibles`
+              formato === 'vuelos'
+                ? `${seleccionables.length} elegible${seleccionables.length === 1 ? '' : 's'} · ` +
+                  `${visibles.length} visibles`
+                : `${seleccionables.length} autorizada${seleccionables.length === 1 ? '' : 's'} · ` +
+                  `${visibles.length} visibles`
             }
+            // La tabla comparte el ancho con la vista previa del FOR-008:
+            // 6px de relleno lateral (en vez de 8) recupera ~44px sin perder
+            // legibilidad y evita el scroll horizontal.
+            className="[&_td]:px-1.5 [&_th]:px-1.5"
             pagination
             pageSize={10}
             height={520}
@@ -643,9 +718,14 @@ export function ConcentradoPage() {
             showRefreshButton
             onRefresh={() => { void cargar(); }}
             filterConfig={{
-              // v2: agrega la columna Gerencia; el id nuevo evita que una
-              // configuración guardada (sin esa columna) la oculte.
-              tableId: 'viaticos-concentrado-v2',
+              // v3: el rediseño agregó la columna de selección y retiró
+              // Periodo y Calculo. Con el id v2, una configuración guardada
+              // escondía las casillas (la pantalla no dejaba marcar
+              // solicitudes para el concentrado) y conservaba columnas que ya
+              // no existen. El id nuevo parte de la configuración curada;
+              // Periodo sigue disponible en «Configurar tabla» y Transporte se
+              // queda visible porque es un dato que se revisa en esta pantalla.
+              tableId: 'viaticos-concentrado-v3',
               searchableColumns: ['destino', 'solicitante', 'estado', 'gerencia'],
               defaultSearchColumns: ['destino'],
               defaultVisibleColumns: [
@@ -653,6 +733,7 @@ export function ConcentradoPage() {
                 'solicitud',
                 'destino',
                 'fechas',
+                'transporte',
                 'costo',
                 'solicitante',
                 'gerencia',
@@ -661,6 +742,9 @@ export function ConcentradoPage() {
               ],
             }}
             rowTestId={(fila) => `concentrado-${fila.id_solicitud}`}
+            // Mismo realce de fila que /cxp/ordenes/envio-concentrado: la
+            // selección se ve en la tabla, no solo en la casilla.
+            isRowSelected={(fila) => seleccionadasIds.has(fila.id_solicitud)}
             onRowClick={(fila) => { void revisar(fila.id_solicitud); }}
           />
 
@@ -677,7 +761,11 @@ export function ConcentradoPage() {
                 {seleccionadas.length}
               </span>{' '}
               {seleccionadas.length === 1 ? 'solicitud seleccionada' : 'solicitudes seleccionadas'}
-              {seleccionadas.length === 0 ? ' · marca solicitudes autorizadas' : ''}
+              {seleccionadas.length === 0
+                ? formato === 'vuelos'
+                  ? ' · marca solicitudes enviadas o autorizadas'
+                  : ' · marca solicitudes autorizadas'
+                : ''}
             </div>
             <div className="flex items-center gap-3">
               {seleccionadas.length > 0 && totalSeleccionado !== null ? (
@@ -701,9 +789,18 @@ export function ConcentradoPage() {
 
         <section className="flex min-w-0 flex-col gap-3" aria-label="Vista previa del concentrado">
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-muted/40 px-3 py-2">
-            <span className="text-sm font-medium text-muted-foreground">
-              Vista previa del FOR-008
-            </span>
+            <label className="flex flex-wrap items-center gap-2 text-sm font-medium text-muted-foreground">
+              Vista previa de
+              <select
+                aria-label="Formato de impresión"
+                className="h-8 rounded-md border bg-background px-2 text-xs text-foreground"
+                value={formato}
+                onChange={(e) => cambiarFormato(e.target.value as FormatoConcentrado)}
+              >
+                <option value="for-008">Concentrado FOR-008 (costos)</option>
+                <option value="vuelos">Solicitud de avión (vuelos)</option>
+              </select>
+            </label>
             <div className="flex items-center gap-2">
               <Button
                 type="button"
@@ -723,7 +820,7 @@ export function ConcentradoPage() {
                 disabled={seleccionadas.length === 0}
               >
                 <Check className="h-3.5 w-3.5" aria-hidden />
-                Generar concentrado ({seleccionadas.length})
+                {formato === 'vuelos' ? 'Generar vuelos' : 'Generar concentrado'} ({seleccionadas.length})
               </Button>
             </div>
           </div>
@@ -736,11 +833,22 @@ export function ConcentradoPage() {
               >
                 <div className="text-4xl opacity-30">📄</div>
                 <span className="text-sm">
-                  Selecciona solicitudes autorizadas para ver el concentrado
+                  {formato === 'vuelos'
+                    ? 'Selecciona solicitudes para ver el concentrado de vuelos'
+                    : 'Selecciona solicitudes autorizadas para ver el concentrado'}
                 </span>
                 <span className="max-w-sm text-xs opacity-70">
-                  La ruta autorizada que se imprime es la última que revisó y confirmó el concentrado.
+                  {formato === 'vuelos'
+                    ? 'El formato «Solicitud de avión» se manda a la agencia con el itinerario de cada persona.'
+                    : 'La ruta autorizada que se imprime es la última que revisó y confirmó el concentrado.'}
                 </span>
+              </div>
+            ) : formato === 'vuelos' ? (
+              <div className="min-w-[760px] bg-white shadow-sm">
+                <ConcentradoVuelosPrint
+                  solicitudes={seleccionadas.map(filaVuelos)}
+                  gerencia={gerenciaDocumento}
+                />
               </div>
             ) : (
               <div className="min-w-[820px] bg-white shadow-sm">
@@ -759,6 +867,8 @@ export function ConcentradoPage() {
       <ConcentradoDocumentoPreview
         abierto={documentoAbierto}
         solicitudes={seleccionadas.map(filaConcentrado)}
+        vuelos={seleccionadas.map(filaVuelos)}
+        formato={formato}
         titulo={tituloDocumento}
         gerencia={gerenciaDocumento}
         grupoPor={agruparPor}
