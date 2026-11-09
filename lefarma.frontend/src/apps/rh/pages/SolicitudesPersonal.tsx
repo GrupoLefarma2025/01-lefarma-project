@@ -356,7 +356,7 @@ export default function SolicitudesPersonal() {
   };
 
   const handleOpenHistorial = async (s: SolicitudPersonalResponse) => {
-    selectSolicitud(s.idSolicitud);
+    selectSolicitud(s.idSolicitud, s);
     await fetchDetalleCompleto(s.idSolicitud);
     fetchHistorial(s.idSolicitud);
     toggleModal('historial', true);

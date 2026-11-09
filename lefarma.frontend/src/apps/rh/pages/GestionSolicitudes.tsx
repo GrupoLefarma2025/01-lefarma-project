@@ -336,7 +336,7 @@ export default function GestionSolicitudes() {
   };
 
   const handleOpenHistorial = (s: SolicitudPersonalResponse) => {
-    selectSolicitud(s.idSolicitud);
+    selectSolicitud(s.idSolicitud, s);
     fetchDetalleCompleto(s.idSolicitud);
     fetchHistorial(s.idSolicitud);
     toggleModal('historial', true);
