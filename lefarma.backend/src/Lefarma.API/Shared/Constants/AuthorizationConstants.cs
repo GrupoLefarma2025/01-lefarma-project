@@ -64,6 +64,19 @@ public static class Permissions
         public const string Manage = "workflows.manage";
     }
 
+    /// <summary>
+    /// Módulo Configuración: variables globales, bitácora y API keys de integraciones.
+    /// </summary>
+    public static class Configuracion
+    {
+        public const string View = "configuracion.view";
+        public const string Create = "configuracion.create";
+        public const string Update = "configuracion.update";
+        public const string History = "configuracion.history";
+        public const string Restore = "configuracion.restore";
+        public const string ApiKeys = "configuracion.api_keys";
+    }
+
     public static class Proveedores
     {
         public const string Autorizar = "proveedores.autorizar";

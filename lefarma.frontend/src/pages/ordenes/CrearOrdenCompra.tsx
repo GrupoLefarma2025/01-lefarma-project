@@ -468,8 +468,10 @@ export default function CrearOrdenCompra() {
     usuarioDetalle,
     resolveArea,
     hasFirma,
+    hasFirmaLegacy,
     puedeSeleccionarEmpresas,
   } = useAuthStore();
+  const sinFirma = hasFirma === false && hasFirmaLegacy === false;
   const [isSaving, setIsSaving] = useState(false);
   const [datosGeneralesOpen, setDatosGeneralesOpen] = useState(false);
   const datosGeneralesRef = useRef<HTMLDivElement>(null);
@@ -965,7 +967,7 @@ export default function CrearOrdenCompra() {
     console.log('🔵 [handleSave] id (URL):', id);
 
     setIsSaving(true);
-     if (hasFirma === false) {
+    if (sinFirma) {
       toast.warning('No has cargado tu firma digital', {
         description: 'Ve a Configuración {'>'} Perfil para subir tu firma y poder guardar órdenes de compra.',
         duration: 6000,
@@ -1189,7 +1191,7 @@ export default function CrearOrdenCompra() {
   }
   return (
     <div className="space-y-6">
-      {hasFirma === false && <SignatureAlert />}
+      {sinFirma && <SignatureAlert />}
       <Form {...form}>
         <form className="space-y-6">
           {/* Card: Datos Generales */}

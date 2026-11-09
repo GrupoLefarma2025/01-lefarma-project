@@ -464,7 +464,7 @@ export function OrdenCompraPDF({ orden, historial = [], pasosWorkflow = [], prov
               {orden.sucursalNombre?.toUpperCase() ?? orden.idSucursal ?? '-'}
             </td>
             <td style={s.thBlue}>Área</td>
-            <td style={s.tdValue}>{orden.areaNombre?.toUpperCase() ?? orden.idArea ?? '-'}</td>
+            <td style={s.tdValue}>{orden.solicitanteArea?.toUpperCase() ?? orden.areaNombre?.toUpperCase() ?? orden.idArea ?? '-'}</td>
           </tr>
           <tr>
             <td style={s.thBlue}>Nombre del solicitante</td>

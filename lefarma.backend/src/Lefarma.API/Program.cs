@@ -327,6 +327,16 @@ builder.Services.AddScoped<IAdminService, AdminService>();
 builder.Services.AddSingleton<ISseTicketService, SseTicketService>();
 builder.Services.AddMemoryCache();
 
+// Configuración (variables globales): CRUD + bitácora, caché de runtime e integraciones.
+builder.Services.AddScoped<Lefarma.API.Features.Configuracion.IConfiguracionService,
+                           Lefarma.API.Features.Configuracion.ConfiguracionService>();
+builder.Services.AddScoped<Lefarma.API.Features.Configuracion.IConfiguracionRuntimeService,
+                           Lefarma.API.Features.Configuracion.ConfiguracionRuntimeService>();
+builder.Services.AddScoped<Lefarma.API.Features.Configuracion.IConfiguracionIntegracionesService,
+                           Lefarma.API.Features.Configuracion.ConfiguracionIntegracionesService>();
+builder.Services.AddScoped<Lefarma.API.Features.Configuracion.IIntegracionApiKeyService,
+                           Lefarma.API.Features.Configuracion.IntegracionApiKeyService>();
+
 // Capturas de viaticos (T8): servicio + runner del script de Playwright.
 // Configuracion bajo appsettings: CapturasSettings (whitelist, ruta script, timeout).
 builder.Services.Configure<CapturasSettings>(builder.Configuration.GetSection("CapturasSettings"));

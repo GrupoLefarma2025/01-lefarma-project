@@ -1,4 +1,4 @@
-import { LayoutDashboard, User } from 'lucide-react';
+import { LayoutDashboard, Settings, User } from 'lucide-react';
 import type { SidebarMenuItemConfig } from '@/components/layout/sidebar-types';
 
 /**
@@ -17,4 +17,18 @@ export const shellMenuItems: SidebarMenuItemConfig[] = [
     icon: User,
     path: '/perfil',
   },
+  {
+    title: 'Configuración',
+    icon: Settings,
+    path: '/configuracion',
+    permission: { require: 'configuracion.view' },
+  },
 ];
+
+/**
+ * El módulo Configuración usa su propio layout para no mezclar la navegación
+ * del administrador de variables con el acceso de perfil del shell.
+ */
+export const configuracionMenuItems: SidebarMenuItemConfig[] = shellMenuItems.filter(
+  (item) => !('path' in item) || item.path !== '/perfil',
+);

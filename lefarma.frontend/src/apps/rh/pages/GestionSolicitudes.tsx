@@ -842,7 +842,11 @@ export default function GestionSolicitudes() {
         titulo="Historial de solicitud"
         encabezado={
           selectedSolicitud ? (
-            <SolicitudHeaderCard solicitud={selectedSolicitud} getEstadoInfo={getEstadoInfo} />
+            <SolicitudHeaderCard
+              solicitud={selectedSolicitud}
+              getEstadoInfo={getEstadoInfo}
+              compact
+            />
           ) : undefined
         }
         cargando={loadingHistorial}

@@ -53,6 +53,8 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura.DTOs
         public int IdUsuarioCreador { get; set; }
         public string? SolicitanteNombre { get; set; }
         public string? SolicitantePuesto { get; set; }
+        /// <summary>Área (departamento) del solicitante según Asistencias.dbo.vwEmpleados.</summary>
+        public string? SolicitanteArea { get; set; }
         public string? SolicitanteCorreo { get; set; }
         public string? SegundoAutorizador { get; set; }
         public bool SinDatosFiscales { get; set; }

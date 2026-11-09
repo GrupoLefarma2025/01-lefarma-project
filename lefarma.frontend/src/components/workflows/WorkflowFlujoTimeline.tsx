@@ -385,10 +385,10 @@ export function WorkflowFlujoTimeline({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-2">
       {/* Header resumen */}
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+        <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
           <p className="text-sm font-medium">Línea de tiempo del flujo</p>
           <p className="text-xs text-muted-foreground">{descripcion}</p>
         </div>
@@ -399,8 +399,8 @@ export function WorkflowFlujoTimeline({
 
 
       {/* Timeline */}
-      <div className="relative max-h-[40rem] overflow-y-auto pr-1">
-        <div className="absolute bottom-0 left-[1.15rem] top-3 w-px bg-border" />
+      <div className="relative">
+        <div className="absolute bottom-0 left-[1.375rem] top-3 w-px bg-border" />
         <div className="space-y-1">
           {timelineItems.map((item, idx) => {
             if (item.tipo === 'omitidos') {
@@ -552,13 +552,13 @@ function PasoItem({
       {/* Card */}
       <div className={`rounded-lg border border-l-4 p-3 text-xs ${cardClass}`}>
         <div className="flex items-start justify-between gap-2">
-          <div className="flex items-center gap-2">
+          <div className="flex min-w-0 items-center gap-2">
             <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded bg-muted text-[10px] font-bold text-muted-foreground">
               {paso.orden}
             </span>
-            <span className="font-medium text-foreground">{paso.nombrePaso}</span>
+            <span className="min-w-0 font-medium text-foreground">{paso.nombrePaso}</span>
           </div>
-          <Badge variant={badge.variant} className={`text-[10px] ${badge.className}`}>
+          <Badge variant={badge.variant} className={`shrink-0 text-[10px] ${badge.className}`}>
             {badge.label}
           </Badge>
         </div>
@@ -570,17 +570,19 @@ function PasoItem({
         {/* Resumen del último evento ejecutado en el paso */}
         {ultimoEventoActividad ? (
           <div className="mt-2 space-y-1.5">
-            <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-              <Clock className="h-3 w-3" />
-              <span>{fmtFecha(ultimoEventoActividad.fechaEvento)}</span>
-            </div>
-            <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-              <UserRound className="h-3 w-3" />
-              <span>{ultimoEventoActividad.nombreUsuario || `Usuario ${ultimoEventoActividad.idUsuario}`}</span>
-            </div>
-            <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-              <Zap className="h-3 w-3" />
-              <span>{ultimoEventoActividad.nombreAccion || `Acción ${ultimoEventoActividad.idAccion}`}</span>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
+              <span className="inline-flex items-center gap-1.5">
+                <Clock className="h-3 w-3 shrink-0" />
+                <span>{fmtFecha(ultimoEventoActividad.fechaEvento)}</span>
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <UserRound className="h-3 w-3 shrink-0" />
+                <span>{ultimoEventoActividad.nombreUsuario || `Usuario ${ultimoEventoActividad.idUsuario}`}</span>
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <Zap className="h-3 w-3 shrink-0" />
+                <span>{ultimoEventoActividad.nombreAccion || `Acción ${ultimoEventoActividad.idAccion}`}</span>
+              </span>
             </div>
             {comentarioPaso && (
               <div className="mt-1.5 rounded-md border border-border/60 bg-background/80 px-2.5 py-2 text-[11px] italic leading-relaxed text-foreground/90">
