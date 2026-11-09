@@ -475,12 +475,13 @@ public class SolicitudPersonalFirmasService : BaseService, ISolicitudPersonalFir
 
             // Generar token y crear el envío externo
             var token = Guid.NewGuid().ToString("N");
+            var idUsuarioSolicitante = solicitud.IdUsuarioSolicitante ?? solicitud.IdUsuarioCreador;
 
             var envio = new EnvioSolicitud
             {
                 IdSolicitud = idSolicitud,
                 IdUsuarioEnvio = idUsuario,
-                IdUsuarioSolicitante = solicitud.IdUsuarioSolicitante ?? solicitud.IdUsuarioCreador,
+                IdUsuarioSolicitante = idUsuarioSolicitante,
                 IdTipoSolicitud = solicitud.IdTipoSolicitud,
                 Estado = "PENDIENTE",
                 TokenSeguridad = token,
@@ -513,10 +514,12 @@ public class SolicitudPersonalFirmasService : BaseService, ISolicitudPersonalFir
             if (!string.IsNullOrWhiteSpace(request.Correo)) metadata["to"] = request.Correo.Trim();
             if (!string.IsNullOrWhiteSpace(request.CorreoCC)) metadata["cc"] = request.CorreoCC.Trim();
 
-            //SubidoPorUsuario se guarda como el correo del usuario de Asokam que firma el envío
-            var usuarioAsokam = await _asokamContext.Usuarios
+            //En app.Documentos el usuario registrado debe ser el SOLICITANTE (no quien envía):
+            //el otro sistema muestra ese valor como "Solicitante" y lo resuelve contra
+            //app.Usuarios con el login SamAccountName@Dominio.
+            var usuarioSolicitante = await _asokamContext.Usuarios
                 .AsNoTracking()
-                .FirstOrDefaultAsync(u => u.IdUsuario == idUsuario);
+                .FirstOrDefaultAsync(u => u.IdUsuario == idUsuarioSolicitante);
 
             var documento = new Domain.Entities.Asokam.Documento
             {
@@ -528,7 +531,10 @@ public class SolicitudPersonalFirmasService : BaseService, ISolicitudPersonalFir
                 PDFBinarioAutorizado = null,
                 Estatus = 1,
                 FechaSubida = DateTime.Now,
-                SubidoPorUsuario = usuarioAsokam?.Correo ?? idUsuario.ToString(),
+                SubidoPorUsuario = usuarioSolicitante is
+                    { SamAccountName: { Length: > 0 } sam, Dominio: { Length: > 0 } dominio }
+                    ? $"{sam}@{dominio}"
+                    : usuarioSolicitante?.Correo ?? idUsuarioSolicitante.ToString(),
                 FechaAutorizacion = null,
                 AutorizadoPorUsuario = null,
                 FechaRechazo = null,

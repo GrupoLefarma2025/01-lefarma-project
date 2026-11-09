@@ -295,8 +295,22 @@ public class SolicitudPersonalFirmasServiceTests
             IdTipoSolicitud = 11,
             FechaCreacion = DateTime.Now
         };
+        // El solicitante (500) es distinto de quien envía (123): el documento
+        // en app.Documentos debe quedar a nombre del solicitante.
+        solicitud.IdUsuarioSolicitante = 500;
         context.SolicitudesPersonal.Add(solicitud);
         await context.SaveChangesAsync();
+
+        asokam.Usuarios.Add(new Usuario
+        {
+            IdUsuario = 500,
+            SamAccountName = "1a44",
+            Dominio = "Asokam",
+            NombreCompleto = "Carlos Antonio Canelo Parra",
+            Correo = "1a44@asokam.mx",
+            EsActivo = true
+        });
+        await asokam.SaveChangesAsync();
 
         var solicitudRepo = new Mock<ISolicitudPersonalRepository>();
         solicitudRepo.Setup(r => r.GetByIdAsync(It.IsAny<int>())).ReturnsAsync(solicitud);
@@ -357,6 +371,8 @@ public class SolicitudPersonalFirmasServiceTests
 
         var envio = context.EnviosSolicitudes.Single();
         envio.IdSolicitud.Should().Be(1);
+        envio.IdUsuarioEnvio.Should().Be(123);
+        envio.IdUsuarioSolicitante.Should().Be(500);
         envio.Estado.Should().Be("PENDIENTE");
         envio.TokenSeguridad.Should().NotBeNullOrEmpty();
         result.Value.IdEnvio.Should().Be(envio.IdEnvio);
@@ -365,6 +381,7 @@ public class SolicitudPersonalFirmasServiceTests
         documento.NombreArchivo.Should().Be("SOL-1.pdf");
         documento.TamanoBytes.Should().Be(pdfBytes.Length);
         documento.PDFBinario.Should().Equal(pdfBytes);
+        documento.SubidoPorUsuario.Should().Be("1a44@Asokam");
 
         var interfase = asokam.DocumentosInterfaseSolicitud.Single();
         interfase.IdDocumentoFirmar.Should().Be(documento.Id);
@@ -501,7 +518,7 @@ public class SolicitudPersonalFirmasServiceTests
         var documento = asokam.Documentos.Single();
         documento.TieneDocumentoLigado.Should().BeTrue();
         documento.PDFBinarioAdicional.Should().Equal(soporteBytes);
-        documento.SubidoPorUsuario.Should().Be("10@grupolefarma.com.mx");
+        documento.SubidoPorUsuario.Should().Be("10@Grupolefarma");
         documento.MetadataJSON.Should().NotBeNull();
         using var metadata = JsonDocument.Parse(documento.MetadataJSON!);
         metadata.RootElement.GetProperty("to").GetString().Should().Be("41@grupolefarma.com.mx");
