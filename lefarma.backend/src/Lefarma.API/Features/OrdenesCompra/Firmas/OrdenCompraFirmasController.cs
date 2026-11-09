@@ -43,8 +43,8 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
 
         [HttpPost("{id}/firmar")]
         [SwaggerOperation(
-            Summary = "Ejecutar acci�n de firma sobre una orden",
-            Description = "Endpoint gen�rico.")]
+            Summary = "Ejecutar acción de firma sobre una orden",
+            Description = "Endpoint genérico.")]
         public async Task<IActionResult> Firmar(int id, FirmarRequest request)
         {
             var result = await _service.FirmarAsync(id, request, GetUserId());
@@ -53,7 +53,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
         }
 
         [HttpGet("{id}/acciones")]
-        [SwaggerOperation(Summary = "Obtener acciones disponibles para una orden seg�n su estado actual")]
+        [SwaggerOperation(Summary = "Obtener acciones disponibles para una orden según su estado actual")]
         public async Task<IActionResult> GetAcciones(int id)
         {
             if (!await _visibilidad.PuedeVerAsync(id, GetUserId(), HttpContext.RequestAborted))

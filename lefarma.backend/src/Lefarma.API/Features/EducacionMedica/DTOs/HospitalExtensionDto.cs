@@ -25,4 +25,12 @@ public class HospitalExtensionDto
     public bool? EsFarmacia { get; set; }
     /// <summary>1 = sede de taller seleccionable; 0 = contacto logístico; NULL = sin clasificar.</summary>
     public bool? EsSedeTaller { get; set; }
+    /// <summary>1 = aparece en el catálogo de Educación Médica.</summary>
+    public bool MostrarEducacionMedica { get; set; }
+    /// <summary>Motivo de la clasificación del contacto.</summary>
+    public string? MotivoClasificacion { get; set; }
+    /// <summary>1 = pendiente de revisión manual.</summary>
+    public bool RequiereRevision { get; set; }
+    /// <summary>1 = clasificación ajustada manualmente.</summary>
+    public bool ClasificacionManual { get; set; }
 }

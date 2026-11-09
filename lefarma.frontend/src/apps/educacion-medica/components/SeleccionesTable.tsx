@@ -49,6 +49,8 @@ interface SeleccionesTableProps {
   onVer: (s: SeleccionMensual) => void;
   /** Abre el detalle en modo edición (solo disponible en Creada). */
   onEditar: (s: SeleccionMensual) => void;
+  /** Permiso del usuario para editar selecciones; el candado por paso se evalúa en cada fila. */
+  puedeEditar?: boolean;
   /** Lleva a la planificación de rutas (solo si la selección ya tiene propuesta). */
   onRutas?: (s: SeleccionMensual) => void;
   onFirma: (s: SeleccionMensual) => void;
@@ -66,6 +68,7 @@ export function SeleccionesTable({
   subtitle,
   onVer,
   onEditar,
+  puedeEditar = false,
   onRutas,
   onFirma,
   onHistorial,
@@ -82,9 +85,7 @@ export function SeleccionesTable({
         cell: ({ row }) => (
           <div className="flex flex-col">
             <span className="font-medium">{formatearPeriodoSeleccion(row.original.fechaSeleccion)}</span>
-            <span className="text-xs text-muted-foreground">
-              Selección #{row.original.idSeleccionMensual}
-            </span>
+            <span className="text-xs text-muted-foreground">Selección mensual</span>
           </div>
         ),
       },
@@ -96,13 +97,10 @@ export function SeleccionesTable({
         ),
       },
       {
-        id: 'periodo',
-        header: 'Período',
+        id: 'objetivoTalleres',
+        header: 'Objetivo talleres',
         cell: ({ row }) => (
-          <span className="text-xs">
-            {formatearFechaSeleccion(row.original.fechaInicioVigencia)} —{' '}
-            {formatearFechaSeleccion(row.original.fechaFinVigencia)}
-          </span>
+          <span className="text-xs">{row.original.talleresObjetivoMes ?? '—'}</span>
         ),
       },
       {
@@ -153,7 +151,7 @@ export function SeleccionesTable({
       },
       {
         id: 'fecha',
-        header: 'Fecha',
+        header: 'Fecha creación',
         cell: ({ row }) => <span className="text-xs">{formatearFechaSeleccion(row.original.fechaCreacion)}</span>,
       },
       {
@@ -161,7 +159,7 @@ export function SeleccionesTable({
         header: 'Acciones',
         cell: ({ row }) => {
           const s = row.original;
-          const editable = s.estado === 'Creada';
+          const editable = puedeEditar && s.permiteEdicion === true;
           return (
             <div className="flex items-center gap-1">
               <ActionButton label="Ver detalle" icon={Eye} onClick={() => onVer(s)} />
@@ -189,7 +187,7 @@ export function SeleccionesTable({
         },
       },
     ],
-    [onVer, onEditar, onRutas, onFirma, onHistorial, onArchivos]
+    [onVer, onEditar, puedeEditar, onRutas, onFirma, onHistorial, onArchivos]
   );
 
   return (

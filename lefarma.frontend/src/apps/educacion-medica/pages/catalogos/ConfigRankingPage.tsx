@@ -12,6 +12,7 @@ import { toast } from 'sonner';
 import { toApiError } from '@/utils/errors';
 import { educacionMedicaApi } from '@/apps/educacion-medica/services/educacionMedica.api';
 import ConfigRankingFactoresModal from '@/apps/educacion-medica/components/ConfigRankingFactoresModal';
+import { ParametrosSugerenciasCard } from '@/apps/educacion-medica/components/ParametrosSugerenciasCard';
 import type { ConfigRankingResumen } from '@/apps/educacion-medica/types/educacionMedica.types';
 
 function formatDate(date: string | null | undefined): string {
@@ -22,7 +23,7 @@ function formatDate(date: string | null | undefined): string {
 }
 
 export default function ConfigRankingPage() {
-  usePageTitle('Configuración del ranking', 'Educación Médica');
+  usePageTitle('Configuración de scoring', 'Educación Médica');
 
   const [configs, setConfigs] = useState<ConfigRankingResumen[]>([]);
   const [cargando, setCargando] = useState(true);
@@ -193,6 +194,8 @@ export default function ConfigRankingPage() {
         }}
         loading={cargando}
       />
+
+      <ParametrosSugerenciasCard />
 
       <ConfigRankingFactoresModal
         idConfiguracion={idFactores}

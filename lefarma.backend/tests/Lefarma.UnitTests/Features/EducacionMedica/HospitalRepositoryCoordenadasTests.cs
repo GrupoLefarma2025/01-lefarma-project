@@ -4,6 +4,7 @@ using Lefarma.API.Domain.Interfaces.EducacionMedica;
 using Lefarma.API.Infrastructure.Data;
 using Lefarma.API.Infrastructure.Data.Repositories.EducacionMedica;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using Xunit;
 
 namespace Lefarma.UnitTests.Features.EducacionMedica;
@@ -37,7 +38,7 @@ public class HospitalRepositoryCoordenadasTests
     public async Task GetHospitalesAsync_TieneCoordenadasTrue_DebeOmitirNulosYCeroCero()
     {
         using var context = CrearContextoConHospitales();
-        var repo = new HospitalRepository(context);
+        var repo = new HospitalRepository(context, new MemoryCache(new MemoryCacheOptions()));
 
         var resultado = await repo.GetHospitalesAsync(
             new HospitalFilterParams { TieneCoordenadas = true });
@@ -49,7 +50,7 @@ public class HospitalRepositoryCoordenadasTests
     public async Task GetHospitalesAsync_TieneCoordenadasFalse_DebeTraerSoloInvalidos()
     {
         using var context = CrearContextoConHospitales();
-        var repo = new HospitalRepository(context);
+        var repo = new HospitalRepository(context, new MemoryCache(new MemoryCacheOptions()));
 
         var resultado = await repo.GetHospitalesAsync(
             new HospitalFilterParams { TieneCoordenadas = false });
@@ -61,7 +62,7 @@ public class HospitalRepositoryCoordenadasTests
     public async Task GetHospitalesAsync_SinFiltroCoordenadas_DebeTraerTodos()
     {
         using var context = CrearContextoConHospitales();
-        var repo = new HospitalRepository(context);
+        var repo = new HospitalRepository(context, new MemoryCache(new MemoryCacheOptions()));
 
         var resultado = await repo.GetHospitalesAsync(new HospitalFilterParams());
 

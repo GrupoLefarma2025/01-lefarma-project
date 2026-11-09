@@ -26,8 +26,6 @@ import type {
   ConcentracionEquipo,
   MatrizTalleresDetalle,
   PendienteAprobacion,
-  Ruta,
-  RutaVersionDto,
   SeleccionDetalle,
 } from '@/apps/educacion-medica/types/educacionMedica.types';
 import type { AccionWorkflow } from '@/components/workflows/workflowAccion';
@@ -54,7 +52,7 @@ const formatearFecha = (fecha?: string | null) => {
 
 interface FiltrosBandeja {
   busqueda: string;
-  tipo: 'todos' | 'seleccion' | 'rutas' | 'matriz';
+  tipo: 'todos' | 'seleccion' | 'matriz';
   idEstado: string; // 'all' | idEstado
   etapa: string; // 'all' | pasoNombre
   fechaDesde: string;
@@ -102,9 +100,6 @@ export default function BandejaAprobacionesPage() {
   // Detalle
   const [cargandoDetalle, setCargandoDetalle] = useState(false);
   const [seleccionDetalle, setSeleccionDetalle] = useState<SeleccionDetalle | null>(null);
-  const [versionInfo, setVersionInfo] = useState<RutaVersionDto | null>(null);
-  const [rutasVersion, setRutasVersion] = useState<Ruta[]>([]);
-  const [totalHospitalesSeleccion, setTotalHospitalesSeleccion] = useState<number | null>(null);
   const [matrizDetalle, setMatrizDetalle] = useState<MatrizTalleresDetalle | null>(null);
   const [matrizEquipos, setMatrizEquipos] = useState<ConcentracionEquipo[]>([]);
 
@@ -226,9 +221,6 @@ export default function BandejaAprobacionesPage() {
     toggleModal('detalle', true);
     setCargandoDetalle(true);
     setSeleccionDetalle(null);
-    setVersionInfo(null);
-    setRutasVersion([]);
-    setTotalHospitalesSeleccion(null);
     setMatrizDetalle(null);
     setMatrizEquipos([]);
 
@@ -243,24 +235,6 @@ export default function BandejaAprobacionesPage() {
         ]);
         if (detRes.data.success) setMatrizDetalle(detRes.data.data ?? null);
         if (concRes.data.success) setMatrizEquipos(concRes.data.data ?? []);
-      } else {
-        const verRes = await educacionMedicaApi.rutas.version(
-          item.idSeleccionMensual,
-          item.versionRutas ?? undefined
-        );
-        const info = verRes.data.success ? (verRes.data.data ?? null) : null;
-        setVersionInfo(info);
-
-        const [rutasRes, selRes] = await Promise.all([
-          info
-            ? educacionMedicaApi.rutas.getBySeleccion(item.idSeleccionMensual, info.version)
-            : Promise.resolve(null),
-          educacionMedicaApi.seleccionesMensuales.getById(item.idSeleccionMensual),
-        ]);
-        if (rutasRes?.data.success) setRutasVersion(rutasRes.data.data ?? []);
-        if (selRes.data.success) {
-          setTotalHospitalesSeleccion(selRes.data.data?.hospitales.length ?? null);
-        }
       }
     } catch (error: unknown) {
       toast.error(toApiError(error).message ?? 'No se pudo cargar el detalle');
@@ -298,9 +272,7 @@ export default function BandejaAprobacionesPage() {
       const res =
         seleccionado.tipo === 'seleccion'
           ? await educacionMedicaApi.seleccionesMensuales.firmar(seleccionado.idEntidad, payload)
-          : seleccionado.tipo === 'matriz'
-            ? await educacionMedicaApi.matricesTalleres.firmar(seleccionado.idEntidad, payload)
-            : await educacionMedicaApi.rutas.firmarVersion(seleccionado.idEntidad, payload);
+          : await educacionMedicaApi.matricesTalleres.firmar(seleccionado.idEntidad, payload);
 
       if (res.data.success) {
         toast.success(res.data.message ?? 'Acción registrada.');
@@ -337,31 +309,12 @@ export default function BandejaAprobacionesPage() {
   };
 
   const abrirDocumento = (item: PendienteAprobacion) => {
-    if (item.tipo === 'rutas') {
-      navigate(`/educacion-medica/seleccion/${item.idSeleccionMensual}/rutas`);
-      return;
-    }
     if (item.tipo === 'matriz') {
-      navigate(`/educacion-medica/talleres?idMatriz=${item.idEntidad}`);
+      navigate(`/educacion-medica/panel-rutas?vista=matriz&idMatriz=${item.idEntidad}`);
       return;
     }
     navigate(`/educacion-medica/seleccion?idSeleccion=${item.idEntidad}`);
   };
-
-  const equiposVersion = useMemo(
-    () => new Set(rutasVersion.map((r) => r.idEquipo)).size,
-    [rutasVersion]
-  );
-  const hospitalesPlanificados = useMemo(() => {
-    const ids = new Set<number>();
-    rutasVersion.forEach((r) =>
-      r.visitas.forEach((v) => {
-        // Las visitas extraordinarias no cubren hospitales de la selección (ADR-00011).
-        if (v.idSeleccionHospital != null) ids.add(v.idSeleccionHospital);
-      })
-    );
-    return ids.size;
-  }, [rutasVersion]);
 
   const accionesBoton = {
     onDetalle: (d: PendienteAprobacion) => void handleOpenDetalle(d),
@@ -441,7 +394,6 @@ export default function BandejaAprobacionesPage() {
                 <SelectContent>
                   <SelectItem value="todos">Todos los tipos</SelectItem>
                   <SelectItem value="seleccion">Selección mensual</SelectItem>
-                  <SelectItem value="rutas">Rutas</SelectItem>
                   <SelectItem value="matriz">Matriz de talleres</SelectItem>
                 </SelectContent>
               </Select>
@@ -633,42 +585,6 @@ export default function BandejaAprobacionesPage() {
                   </div>
                 </div>
               )}
-              {seleccionado.tipo === 'rutas' && versionInfo && (
-                <div className="mt-2 grid gap-3 text-sm sm:grid-cols-3">
-                  <div>
-                    <p className="text-xs text-muted-foreground">Versión</p>
-                    <p>v{versionInfo.version}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Paso actual</p>
-                    <p>{versionInfo.pasoNombre ?? '—'}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Estado</p>
-                    <p>{versionInfo.estadoNombre ?? etiquetaEstadoDominio(versionInfo.estado) ?? '—'}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Equipos</p>
-                    <p>{equiposVersion}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Hospitales planificados</p>
-                    <p>
-                      {hospitalesPlanificados}
-                      {totalHospitalesSeleccion !== null ? ` / ${totalHospitalesSeleccion}` : ''}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Visitas</p>
-                    <p>{rutasVersion.reduce((acc, r) => acc + r.visitas.length, 0)}</p>
-                  </div>
-                </div>
-              )}
-              {seleccionado.tipo === 'rutas' && !versionInfo && !cargandoDetalle && (
-                <p className="mt-2 text-sm text-muted-foreground">
-                  No se pudo cargar la información de la versión.
-                </p>
-              )}
               {seleccionado.tipo === 'matriz' && matrizDetalle && (
                 <div className="mt-2 grid gap-3 text-sm sm:grid-cols-3">
                   <div>
@@ -700,8 +616,7 @@ export default function BandejaAprobacionesPage() {
                     <p className="text-xs text-muted-foreground">Equipos</p>
                     <p>
                       {matrizEquipos.length} ·{' '}
-                      {matrizEquipos.filter((e) => e.esBloqueado).length} bloqueadas /{' '}
-                      {matrizEquipos.filter((e) => !e.esBloqueado).length} en captura
+                      {matrizDetalle.esEditable ? 'Captura abierta' : 'Captura cerrada'}
                     </p>
                   </div>
                 </div>

@@ -25,6 +25,18 @@ public class DynamicPermissionPolicyProvider : IAuthorizationPolicyProvider
 
     public Task<AuthorizationPolicy?> GetPolicyAsync(string policyName)
     {
+        if (policyName.StartsWith(HasAnyPermissionAttribute.PolicyPrefix, StringComparison.Ordinal))
+        {
+            var permissions = policyName
+                .Substring(HasAnyPermissionAttribute.PolicyPrefix.Length)
+                .Split('|', StringSplitOptions.RemoveEmptyEntries);
+
+            var anyPolicy = new AuthorizationPolicyBuilder()
+                .AddRequirements(new AnyPermissionRequirement(permissions))
+                .Build();
+            return Task.FromResult<AuthorizationPolicy?>(anyPolicy);
+        }
+
         if (policyName.StartsWith(HasPermissionAttribute.PolicyPrefix, StringComparison.Ordinal))
         {
             var permission = policyName.Substring(HasPermissionAttribute.PolicyPrefix.Length);

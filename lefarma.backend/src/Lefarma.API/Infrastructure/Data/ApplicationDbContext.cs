@@ -87,8 +87,14 @@ public class ApplicationDbContext : DbContext
         public DbSet<RegionEstado> RegionesEstados { get; set; }
         public DbSet<Municipio> Municipios { get; set; }
         public DbSet<TipoGerencia> TiposGerencia { get; set; }
+        public DbSet<TipoVisita> TiposVisita { get; set; }
+        public DbSet<TemaTaller> TemasTaller { get; set; }
         public DbSet<ParametroAnestesia> ParametrosAnestesia { get; set; }
         public DbSet<EquipoPareo> EquiposPareo { get; set; }
+        public DbSet<EjecutivoRegion> EjecutivosRegion { get; set; }
+        public DbSet<EjecutivoSuplente> EjecutivosSuplentes { get; set; }
+        public DbSet<EspecialistaGerencia> EspecialistasGerencia { get; set; }
+        public DbSet<EspecialistaRegion> EspecialistasRegion { get; set; }
         public DbSet<SeleccionMensual> SeleccionesMensuales { get; set; }
         public DbSet<SeleccionHospital> SeleccionesHospitales { get; set; }
         public DbSet<SeleccionRegion> SeleccionesRegiones { get; set; }
@@ -157,8 +163,9 @@ public class ApplicationDbContext : DbContext
         public DbSet<HelpImage> HelpImages { get; set; }
 
         // DbSets - Viáticos (wizard de solicitudes)
-        public DbSet<Solicitud> Solicitudes { get; set; }
-        public DbSet<SolicitudOpcion> SolicitudOpciones { get; set; }
+    public DbSet<Solicitud> Solicitudes { get; set; }
+    public DbSet<SolicitudOpcion> SolicitudOpciones { get; set; }
+    public DbSet<SolicitudOrigenEmVisita> SolicitudOrigenEmVisitas { get; set; }
         public DbSet<SolicitudAjuste> SolicitudAjustes { get; set; }
         public DbSet<SolicitudEvento> SolicitudEventos { get; set; }
 

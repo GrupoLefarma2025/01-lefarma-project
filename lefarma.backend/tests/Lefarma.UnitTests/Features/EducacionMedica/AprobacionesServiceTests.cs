@@ -41,32 +41,10 @@ public class AprobacionesServiceTests
         contexto.SeleccionesMensuales.AddRange(selPendiente, selBorrador);
         contexto.SaveChanges();
 
-        var verPendiente = new RutaVersion
-        {
-            IdSeleccionMensual = selPendiente.IdSeleccionMensual,
-            Version = 1,
-            Estado = RutaVersion.EstadoCreada,
-            IdWorkflow = workflow.WfRutas.IdWorkflow,
-            IdPasoActual = workflow.PasosRutas["Ca"],
-            IdUsuarioCreacion = 99,
-        };
-        var verConfirmada = new RutaVersion
-        {
-            IdSeleccionMensual = selPendiente.IdSeleccionMensual,
-            Version = 2,
-            Estado = RutaVersion.EstadoCerrada,
-            IdWorkflow = workflow.WfRutas.IdWorkflow,
-            IdPasoActual = workflow.PasosRutas["Final"],
-            IdUsuarioCreacion = 99,
-        };
-        contexto.RutasVersiones.AddRange(verPendiente, verConfirmada);
-        contexto.SaveChanges();
-
-        // El query service (mock) devuelve una acción SOLO en pasos "de firma" (Gg y Ca)
+        // El query service (mock) devuelve una acción SOLO en el paso de firma de la selección.
         var pasosConAccion = new HashSet<int>
         {
             workflow.PasosSeleccion["Gg"],
-            workflow.PasosRutas["Ca"],
         };
 
         var queryMock = new Mock<IWorkflowQueryService>();
@@ -109,10 +87,9 @@ public class AprobacionesServiceTests
 
         var documentos = await servicio.GetDocumentosAsync(idUsuario: 99, filtro: "pendientes");
 
-        documentos.Should().HaveCount(2);
+        documentos.Should().ContainSingle();
         documentos.Should().OnlyContain(d => d.Acciones.Count == 1);
         documentos.Should().Contain(d => d.Tipo == "seleccion" && d.IdEntidad == idSelPendiente);
-        documentos.Should().Contain(d => d.Tipo == "rutas");
     }
 
     [Fact]
@@ -122,10 +99,9 @@ public class AprobacionesServiceTests
 
         var documentos = await servicio.GetDocumentosAsync(idUsuario: 99, filtro: "mios");
 
-        documentos.Should().HaveCount(3);
+        documentos.Should().ContainSingle();
         documentos.Should().NotContain(d => d.Tipo == "seleccion" && d.IdEntidad == idSelBorrador);
-        documentos.Where(d => d.Tipo == "seleccion").Should().ContainSingle()
-            .Which.IdEntidad.Should().Be(idSelPendiente);
+        documentos.Single().IdEntidad.Should().Be(idSelPendiente);
     }
 
     [Fact]
@@ -135,15 +111,13 @@ public class AprobacionesServiceTests
 
         var documentos = await servicio.GetDocumentosAsync(idUsuario: 99, filtro: "todos");
 
-        documentos.Should().HaveCount(4);
-        documentos.Count(d => d.Acciones.Count > 0).Should().Be(2);
-        documentos.Count(d => d.Acciones.Count == 0).Should().Be(2);
+        documentos.Should().HaveCount(2);
+        documentos.Count(d => d.Acciones.Count > 0).Should().Be(1);
+        documentos.Count(d => d.Acciones.Count == 0).Should().Be(1);
 
         // El nombre del paso se resuelve también para pasos de inicio/fin (no solo "de firma").
         documentos.Should().Contain(d =>
             d.Tipo == "seleccion" && d.Estado == SeleccionMensual.EstadoCreada && d.PasoNombre == "Creada");
-        documentos.Should().Contain(d =>
-            d.Tipo == "rutas" && d.Estado == RutaVersion.EstadoCerrada && d.PasoNombre == "Cerrada");
     }
 
     [Fact]
@@ -153,7 +127,7 @@ public class AprobacionesServiceTests
 
         var documentos = await servicio.GetDocumentosAsync(idUsuario: 99, filtro: "lo-que-sea");
 
-        documentos.Should().HaveCount(2);
+        documentos.Should().ContainSingle();
         documentos.Should().OnlyContain(d => d.Acciones.Count > 0);
     }
 

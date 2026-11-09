@@ -5,12 +5,12 @@ using System.Text;
 namespace Lefarma.API.Shared.Extensions
 {
 /// <summary>
-    /// Extensiones para manipulaci�n de cadenas de texto
+    /// Extensiones para manipulación de cadenas de texto
     /// </summary>
     public static class StringExtensions
     {
         /// <summary>
-        /// Remueve diacr�ticos (acentos) de una cadena de texto
+        /// Remueve diacríticos (acentos) de una cadena de texto
         /// </summary>
         /// <param name="text">Texto a normalizar</param>
         /// <returns>Texto sin acentos</returns>
@@ -35,7 +35,7 @@ namespace Lefarma.API.Shared.Extensions
         }
 
         /// <summary>
-        /// Valida si un RFC tiene formato v�lido
+        /// Valida si un RFC tiene formato válido
         /// </summary>
         public static bool IsValidRFC(this string rfc)
         {

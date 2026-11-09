@@ -34,7 +34,10 @@ public class TipoGerenciaRepository : ITipoGerenciaRepository
     {
         return await _context.HospitalesExtension
             .AsNoTracking()
-            .Where(h => h.Activo && h.IdTipoGerencia != null)
+            .Where(h => h.Activo
+                && h.IdTipoGerencia != null
+                && h.MostrarEducacionMedica
+                && h.EsSedeTaller == true)
             .GroupBy(h => h.IdTipoGerencia!.Value)
             .Select(g => new { IdTipoGerencia = g.Key, Total = g.Count() })
             .ToDictionaryAsync(x => x.IdTipoGerencia, x => x.Total, cancellationToken);

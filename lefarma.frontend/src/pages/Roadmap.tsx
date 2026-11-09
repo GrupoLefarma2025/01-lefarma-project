@@ -1,4 +1,4 @@
-﻿import { faker } from "@faker-js/faker";
+import { faker } from "@faker-js/faker";
 import {
   CalendarBody,
   CalendarDate,
@@ -107,15 +107,15 @@ const exampleReleases = Array.from({ length: 3 })
     name: capitalize(faker.company.buzzPhrase()),
   }));
 
-// Helper para generar fechas con duraciones mÃ¡s realistas (1-3 aÃ±os de rango total)
+// Helper para generar fechas con duraciones más realistas (1-3 años de rango total)
 const generateFeatureDates = () => {
   const now = new Date();
-  // Fecha de inicio: entre 6 meses atrÃ¡s y 1 aÃ±o adelante
+  // Fecha de inicio: entre 6 meses atrás y 1 año adelante
   const startDate = faker.date.between({
     from: new Date(now.getFullYear(), now.getMonth() - 6, 1),
     to: new Date(now.getFullYear() + 1, now.getMonth(), 1),
   });
-  // DuraciÃ³n: entre 3 y 18 meses
+  // Duración: entre 3 y 18 meses
   const durationMonths = faker.number.int({ min: 3, max: 18 });
   const endDate = new Date(startDate);
   endDate.setMonth(endDate.getMonth() + durationMonths);

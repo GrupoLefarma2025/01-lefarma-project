@@ -27,7 +27,8 @@ export function StepEditForm({ paso, open, onClose, onSave, workflowEstados }: S
   useEffect(() => {
     setFormData({
       ...paso,
-      activo: paso.activo ?? true
+      activo: paso.activo ?? true,
+      permiteEditar: paso.permiteEditar ?? false
     });
   }, [paso]);
 
@@ -260,7 +261,10 @@ export function StepEditForm({ paso, open, onClose, onSave, workflowEstados }: S
                 <Checkbox
                   id="esFinal"
                   checked={formData.esFinal}
-                  onCheckedChange={(checked) => handleChange('esFinal', checked)}
+                  onCheckedChange={(checked) => {
+                    handleChange('esFinal', checked);
+                    if (checked) handleChange('permiteEditar', false);
+                  }}
                 />
                 <div>
                   <Label htmlFor="esFinal" className="cursor-pointer font-medium">
@@ -268,6 +272,23 @@ export function StepEditForm({ paso, open, onClose, onSave, workflowEstados }: S
                   </Label>
                   <p className="text-xs text-muted-foreground mt-0.5">
                     Último paso del workflow
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 p-3 rounded-md bg-card border border-border">
+                <Checkbox
+                  id="permiteEditar"
+                  checked={formData.permiteEditar ?? false}
+                  onCheckedChange={(checked) => handleChange('permiteEditar', !!checked)}
+                  disabled={formData.esFinal}
+                />
+                <div>
+                  <Label htmlFor="permiteEditar" className="cursor-pointer font-medium">
+                    Permite editar el documento
+                  </Label>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Habilita la edición en este paso para los módulos que usan edición por paso.
                   </p>
                 </div>
               </div>

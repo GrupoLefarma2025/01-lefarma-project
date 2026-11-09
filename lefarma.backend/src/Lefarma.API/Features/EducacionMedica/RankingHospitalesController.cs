@@ -65,7 +65,7 @@ public class RankingHospitalesController : ControllerBase
             return NotFound(new ApiResponse<object>
             {
                 Success = false,
-                Message = $"No existe un ranking para la selección {idSeleccionMensual}."
+                Message = "No existe un ranking para esta selección."
             });
         }
 
@@ -91,7 +91,7 @@ public class RankingHospitalesController : ControllerBase
             return NotFound(new ApiResponse<object>
             {
                 Success = false,
-                Message = $"La ejecución {idRankingEjecucion} no existe para la selección {idSeleccionMensual}."
+                Message = $"La ejecución {idRankingEjecucion} no existe para esta selección."
             });
         }
 
@@ -128,7 +128,7 @@ public class RankingHospitalesController : ControllerBase
     }
 
     [HttpPost("{idSeleccionMensual:int}/hospitales/lote")]
-    [HasPermission(Permissions.EducacionMedica.SeleccionesGestionar)]
+    [HasAnyPermission(Permissions.EducacionMedica.SeleccionesGestionar, Permissions.EducacionMedica.SeleccionesAutorizar)]
     [SwaggerOperation(
         Summary = "Agregar hospitales sugeridos desde un ranking",
         Description = "Agrega a la selección los hospitales indicados de la ejecución más reciente (o de la ejecución explícita, siempre que sea la última).")]

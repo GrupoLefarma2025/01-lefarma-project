@@ -43,6 +43,19 @@ public class HospitalExtensionRepository : IHospitalExtensionRepository
             .ToListAsync(cancellationToken);
     }
 
+    public async Task<List<HospitalExtension>> GetByHospitalIdsIncludingInactiveAsync(
+        IEnumerable<int> idsHospital,
+        CancellationToken cancellationToken = default)
+    {
+        var ids = idsHospital.Distinct().ToList();
+        if (ids.Count == 0) return new List<HospitalExtension>();
+
+        return await _context.HospitalesExtension
+            .AsNoTracking()
+            .Where(h => ids.Contains(h.IdHospital))
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task<HospitalExtension> CreateAsync(
         HospitalExtension extension,
         CancellationToken cancellationToken = default)
@@ -50,6 +63,10 @@ public class HospitalExtensionRepository : IHospitalExtensionRepository
         extension.Activo = true;
         extension.FechaCreacion = DateTime.UtcNow;
         extension.FechaModificacion = DateTime.UtcNow;
+        if (extension.MotivoClasificacion is { Length: > 200 })
+        {
+            extension.MotivoClasificacion = extension.MotivoClasificacion[..200];
+        }
 
         _context.HospitalesExtension.Add(extension);
         await _context.SaveChangesAsync(cancellationToken);
@@ -70,6 +87,10 @@ public class HospitalExtensionRepository : IHospitalExtensionRepository
             extension.Activo = true;
             extension.FechaCreacion = ahora;
             extension.FechaModificacion = ahora;
+            if (extension.MotivoClasificacion is { Length: > 200 })
+            {
+                extension.MotivoClasificacion = extension.MotivoClasificacion[..200];
+            }
         }
 
         _context.HospitalesExtension.AddRange(lista);

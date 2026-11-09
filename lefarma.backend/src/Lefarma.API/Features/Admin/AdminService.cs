@@ -541,7 +541,7 @@ public class AdminService : BaseService, IAdminService
             if (existePermiso)
             {
                 EnrichWideEvent(action: "CreatePermiso", nombre: request.CodigoPermiso, duplicate: true);
-                return CommonErrors.AlreadyExists("Permiso", "c�digo", request.CodigoPermiso);
+                return CommonErrors.AlreadyExists("Permiso", "código", request.CodigoPermiso);
             }
 
             var permiso = new Permiso
@@ -585,7 +585,7 @@ public class AdminService : BaseService, IAdminService
             if (existeOtro)
             {
                 EnrichWideEvent(action: "UpdatePermiso", entityId: id, nombre: request.CodigoPermiso, duplicate: true);
-                return CommonErrors.AlreadyExists("Permiso", "c�digo", request.CodigoPermiso);
+                return CommonErrors.AlreadyExists("Permiso", "código", request.CodigoPermiso);
             }
 
             permiso.CodigoPermiso = request.CodigoPermiso;
@@ -629,8 +629,8 @@ public class AdminService : BaseService, IAdminService
 
             if (await _repository.PermisoTieneRolesAsync(id))
             {
-                EnrichWideEvent(action: "DeletePermiso", entityId: id, error: "El permiso est� asignado a roles");
-                return CommonErrors.Validation("permiso", "No se puede eliminar un permiso que est� asignado a roles");
+                EnrichWideEvent(action: "DeletePermiso", entityId: id, error: "El permiso está asignado a roles");
+                return CommonErrors.Validation("permiso", "No se puede eliminar un permiso que está asignado a roles");
             }
 
             await _repository.DeletePermisoAsync(permiso);

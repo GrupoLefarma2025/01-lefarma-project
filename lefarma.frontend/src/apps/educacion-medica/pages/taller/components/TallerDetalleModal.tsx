@@ -145,6 +145,8 @@ interface TallerDetalleModalProps {
   ubicacion?: UbicacionDetalle | null;
   /** Botones de acción del taller (los arma la página según permisos/estado). */
   acciones?: ReactNode;
+  /** Tipo de visita asociado (Taller, Informativa, Captación de queja, Otro). */
+  tipoVisita?: string | null;
 }
 
 /** Detalle del taller capturado: estado, logística, recursos y datos del hospital con ubicación. */
@@ -154,6 +156,7 @@ export function TallerDetalleModal({
   taller,
   ubicacion,
   acciones,
+  tipoVisita,
 }: TallerDetalleModalProps) {
   const [historial, setHistorial] = useState<TallerEstadoHistorial[]>([]);
 
@@ -278,6 +281,8 @@ export function TallerDetalleModal({
               <span className="text-xs font-medium">{textoRelativo(taller)}</span>
             </div>
             <div className="mt-3 grid gap-x-6 gap-y-2 sm:grid-cols-2 lg:grid-cols-3">
+              <Dato etiqueta="Tipo" valor={tipoVisita ?? '-'} />
+              <Dato etiqueta="Tema" valor={taller.tema ?? '-'} />
               <Dato etiqueta="Fecha del taller" valor={fmtFecha(taller.fechaTaller)} />
               <Dato etiqueta="Hora" valor={taller.horaTaller?.slice(0, 5) ?? '—'} />
               <Dato etiqueta="No. de participantes" valor={taller.numeroParticipantes ?? '—'} />
@@ -371,10 +376,7 @@ export function TallerDetalleModal({
             </h3>
             <div className="grid gap-x-6 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
               <Dato etiqueta="Institución" valor={ubicacion?.institucion ?? '—'} />
-              <Dato
-                etiqueta="Región"
-                valor={ubicacion?.nombreRegion ?? taller.region ?? '—'}
-              />
+              <Dato etiqueta="Región" valor={ubicacion?.nombreRegion ?? taller.region ?? '—'} />
               <Dato
                 etiqueta="Estado"
                 valor={ubicacion?.entidadFederativa ?? taller.entidadFederativa ?? '—'}

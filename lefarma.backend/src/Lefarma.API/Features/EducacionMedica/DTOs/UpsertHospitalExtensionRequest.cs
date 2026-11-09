@@ -12,4 +12,10 @@ public class UpsertHospitalExtensionRequest
     public bool? EsAlmacen { get; set; }
     public bool? EsFarmacia { get; set; }
     public bool? EsSedeTaller { get; set; }
+    /// <summary>1 = aparece en el catálogo de Educación Médica.</summary>
+    public bool? MostrarEducacionMedica { get; set; }
+    /// <summary>Motivo de la clasificación (opcional, editable).</summary>
+    public string? MotivoClasificacion { get; set; }
+    /// <summary>1 = dejar el registro pendiente de revisión.</summary>
+    public bool? RequiereRevision { get; set; }
 }

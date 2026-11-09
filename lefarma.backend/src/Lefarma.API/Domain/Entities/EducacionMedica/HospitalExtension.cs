@@ -23,6 +23,14 @@ public class HospitalExtension
     public bool? EsFarmacia { get; set; }
     /// <summary>1 = seleccionable como sede de taller; 0 = contacto logístico; NULL = sin clasificar (no se excluye).</summary>
     public bool? EsSedeTaller { get; set; }
+    /// <summary>1 = el contacto aparece en el catálogo de Educación Médica.</summary>
+    public bool MostrarEducacionMedica { get; set; }
+    /// <summary>Motivo legible de la clasificación (unidad, logístico, duplicado, revisión).</summary>
+    public string? MotivoClasificacion { get; set; }
+    /// <summary>1 = pendiente de revisión manual.</summary>
+    public bool RequiereRevision { get; set; }
+    /// <summary>1 = clasificación ajustada manualmente; no sobrescribir en sincronizaciones.</summary>
+    public bool ClasificacionManual { get; set; }
     public bool Activo { get; set; }
     public DateTime FechaCreacion { get; set; }
     public DateTime FechaModificacion { get; set; }

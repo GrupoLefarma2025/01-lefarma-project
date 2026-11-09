@@ -54,7 +54,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
             var alcance = await _visibilidad.ResolverAsync(idUsuario, HttpContext.RequestAborted);
             var result = await _service.GetAllAsync(query, idUsuario, alcance, HttpContext.RequestAborted);
             return result.ToActionResult(this, data => Ok(new ApiResponse<IEnumerable<OrdenCompraResponse>>
-            { Success = true, Message = "órdenes obtenidas exitosamente.", Data = data }));
+            { Success = true, Message = "Órdenes obtenidas exitosamente.", Data = data }));
         }
 
         [HttpGet("{id}")]

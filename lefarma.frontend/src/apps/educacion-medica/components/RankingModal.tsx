@@ -1,12 +1,20 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
+  Activity,
   AlertTriangle,
+  Building2,
   Check,
+  ChevronDown,
+  Clock3,
+  Gauge,
   Info,
   Loader2,
   MapPin,
+  Presentation,
   RefreshCw,
   Search,
+  SlidersHorizontal,
+  Sparkles,
   X,
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
@@ -31,7 +39,13 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Card, CardContent } from '@/components/ui/card';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import {
   Sheet,
   SheetContent,
@@ -61,16 +75,17 @@ interface RankingModalProps {
   guardando: boolean;
   cargando?: boolean;
   onRegenerar?: (cantidad: number) => void;
-  cantidadDefault?: number | null;
+  objetivoTalleres?: number | null;
+  gerenciaNombre?: string | null;
+  idsHospitalesSeleccionados?: number[];
   filtrosDisponibles?: FiltrosDisponibles | null;
   filtros?: RankingFiltrosForm;
   onFiltrosChange?: (filtros: RankingFiltrosForm) => void;
 }
 
-// Default generoso para el Top N: redondea hacia arriba a centenas para que el
-// usuario tenga margen de elección (64 -> 100, 114 -> 200). El valor sigue siendo editable.
-function redondearCien(n: number): number {
-  return Math.max(100, Math.ceil(n / 100) * 100);
+// El Top N se calcula desde el objetivo de talleres, siempre en múltiplos de 50.
+function redondearCincuenta(n: number): number {
+  return Math.max(50, Math.ceil(n / 50) * 50);
 }
 
 function ScoreBar({ score }: { score: number }) {  const pct = Math.min(100, Math.max(0, score));
@@ -102,6 +117,53 @@ function CompletenessBadge({ pct }: { pct: number }) {
   );
 }
 
+function DatoResumen({
+  label,
+  value,
+  tono,
+}: {
+  label: string;
+  value: string | number;
+  tono?: string;
+}) {
+  return (
+    <div className="flex flex-col">
+      <span className="text-[9px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
+        {label}
+      </span>
+      <span className={['text-sm font-semibold tabular-nums', tono ?? 'text-foreground'].join(' ')}>
+        {value}
+      </span>
+    </div>
+  );
+}
+
+function DatoCompacto({ label, value }: { label: string; value: string | number }) {
+  return (
+    <div className="flex items-baseline justify-between gap-2">
+      <span className="text-[10px] text-muted-foreground">{label}</span>
+      <span className="text-xs font-semibold tabular-nums text-foreground">{value}</span>
+    </div>
+  );
+}
+
+const ICONO_PESO: Record<string, typeof Activity> = {
+  anestesias_totales: Activity,
+  numero_quirofanos: Building2,
+  recencia_seleccion: Clock3,
+  agrupabilidad_geografica: MapPin,
+  cobertura_taller: Presentation,
+};
+
+const TONO_PESO: Record<string, string> = {
+  anestesias_totales: 'bg-rose-50 text-rose-600 dark:bg-rose-950/40 dark:text-rose-300',
+  numero_quirofanos: 'bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-300',
+  recencia_seleccion: 'bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-300',
+  agrupabilidad_geografica:
+    'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-300',
+  cobertura_taller: 'bg-violet-50 text-violet-600 dark:bg-violet-950/40 dark:text-violet-300',
+};
+
 // Etiqueta del estado de cobertura a partir del score del factor (los valores
 // 100/90/10 son el contrato del motor, ver RankingScoreEngine.CalcularCoberturaTaller).
 function etiquetaCobertura(score: number): string | null {
@@ -119,57 +181,73 @@ export function RankingModal({
   guardando,
   cargando = false,
   onRegenerar,
-  cantidadDefault = null,
+  objetivoTalleres = null,
+  gerenciaNombre = null,
+  idsHospitalesSeleccionados = [],
   filtrosDisponibles,
   filtros,
   onFiltrosChange,
 }: RankingModalProps) {
+  const objetivo =
+    objetivoTalleres && objetivoTalleres > 0
+      ? objetivoTalleres
+      : (ejecucion?.cantidadSolicitada ?? 50);
+  const topN = redondearCincuenta(objetivo);
+  const idsSeleccionados = useMemo(
+    () => new Set(idsHospitalesSeleccionados),
+    [idsHospitalesSeleccionados]
+  );
+
   const [seleccionados, setSeleccionados] = useState<Set<number>>(() => {
     if (!ejecucion) return new Set<number>();
-    // Default "lo que falta": pre-marcar los primeros max(0, N - ya agregados),
-    // de modo que al aplicar la selección quede completa a N.
+    // Se preseleccionan los primeros hospitales necesarios para cubrir el objetivo
+    // del mes, descontando los que ya están en la selección.
     const faltantes = Math.max(
       0,
-      ejecucion.cantidadSolicitada - (ejecucion.cantidadYaAgregados ?? 0)
+      objetivo - (ejecucion.cantidadYaAgregados ?? 0)
     );
     return new Set(
       [...ejecucion.ranking]
+        .filter((h) => !idsSeleccionados.has(h.idHospital))
         .sort((a, b) => a.posicion - b.posicion)
         .slice(0, faltantes)
         .map((h) => h.idHospital)
     );
   });
   const [hospitalActivo, setHospitalActivo] = useState<RankingHospitalItem | null>(null);
-  const [cantidadInput, setCantidadInput] = useState('');
   /** Producto a promocionar por hospital (opcional, FOR-004). */
   const [productos, setProductos] = useState<Record<number, string>>({});
+  const [detallesAbierto, setDetallesAbierto] = useState(false);
 
-  useEffect(() => {
-    if (open) setCantidadInput(cantidadDefault ? String(redondearCien(cantidadDefault)) : '');
-  }, [open, cantidadDefault]);
+  const disponibles = useMemo(
+    () => ejecucion?.ranking.filter((h) => !idsSeleccionados.has(h.idHospital)) ?? [],
+    [ejecucion, idsSeleccionados]
+  );
 
-  const cantidadValida = /^\d+$/.test(cantidadInput.trim()) && Number(cantidadInput.trim()) > 0;
-
-  const toggleSeleccion = useCallback((idHospital: number) => {
-    setSeleccionados((prev) => {
-      const next = new Set(prev);
-      if (next.has(idHospital)) {
-        next.delete(idHospital);
-      } else {
-        next.add(idHospital);
-      }
-      return next;
-    });
-  }, []);
+  const toggleSeleccion = useCallback(
+    (idHospital: number) => {
+      if (idsSeleccionados.has(idHospital)) return;
+      setSeleccionados((prev) => {
+        const next = new Set(prev);
+        if (next.has(idHospital)) {
+          next.delete(idHospital);
+        } else {
+          next.add(idHospital);
+        }
+        return next;
+      });
+    },
+    [idsSeleccionados]
+  );
 
   const toggleTodos = useCallback(() => {
-    if (!ejecucion) return;
-    if (seleccionados.size === ejecucion.ranking.length) {
+    const idsDisponibles = disponibles.map((h) => h.idHospital);
+    if (seleccionados.size === idsDisponibles.length) {
       setSeleccionados(new Set());
     } else {
-      setSeleccionados(new Set(ejecucion.ranking.map((h) => h.idHospital)));
+      setSeleccionados(new Set(idsDisponibles));
     }
-  }, [ejecucion, seleccionados.size]);
+  }, [disponibles, seleccionados.size]);
 
   const seleccionadosOrdenados = useMemo(() => {
     if (!ejecucion) return [];
@@ -179,9 +257,12 @@ export function RankingModal({
   const topSinCoordenadas = useMemo(() => {
     if (!ejecucion) return [];
     return ejecucion.ranking.filter(
-      (h) => h.esTopSugerido && h.datoCoordenadasDisponible === false
+      (h) =>
+        !idsSeleccionados.has(h.idHospital) &&
+        h.esTopSugerido &&
+        h.datoCoordenadasDisponible === false
     );
-  }, [ejecucion]);
+  }, [ejecucion, idsSeleccionados]);
 
   const resumen = useMemo(() => {
     if (!ejecucion) return null;
@@ -211,10 +292,10 @@ export function RankingModal({
     return Object.entries(ejecucion?.pesosEfectivos ?? {}).sort((a, b) => b[1] - a[1]);
   }, [ejecucion]);
 
-  const faltantes = useMemo(() => {
+  const faltantesObjetivo = useMemo(() => {
     if (!ejecucion) return 0;
-    return Math.max(0, ejecucion.cantidadSolicitada - (ejecucion.cantidadYaAgregados ?? 0));
-  }, [ejecucion]);
+    return Math.max(0, objetivo - (ejecucion.cantidadYaAgregados ?? 0));
+  }, [ejecucion, objetivo]);
 
   const catalogoFactores = useMemo(() => {
     const map = new Map<string, { nombre: string; descripcion: string }>();
@@ -263,9 +344,7 @@ export function RankingModal({
 
   const columns = useMemo<ColumnDef<RankingHospitalItem>[]>(() => {
     const allSelected =
-      ejecucion && ejecucion.ranking.length > 0
-        ? seleccionados.size === ejecucion.ranking.length
-        : false;
+      disponibles.length > 0 && seleccionados.size === disponibles.length;
     const someSelected = seleccionados.size > 0;
     return [
       {
@@ -279,20 +358,24 @@ export function RankingModal({
             />
           </div>
         ),
-        cell: ({ row }) => (
-          <div
-            className="flex justify-center"
-            onClick={(e) => {
-              e.stopPropagation();
-              toggleSeleccion(row.original.idHospital);
-            }}
-          >
-            <Checkbox
-              checked={seleccionados.has(row.original.idHospital)}
-              aria-label="Seleccionar hospital"
-            />
-          </div>
-        ),
+        cell: ({ row }) => {
+          const yaEsta = idsSeleccionados.has(row.original.idHospital);
+          return (
+            <div
+              className="flex justify-center"
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleSeleccion(row.original.idHospital);
+              }}
+            >
+              <Checkbox
+                checked={yaEsta || seleccionados.has(row.original.idHospital)}
+                disabled={yaEsta}
+                aria-label={yaEsta ? 'Ya está en la selección' : 'Seleccionar hospital'}
+              />
+            </div>
+          );
+        },
         enableSorting: false,
         enableHiding: false,
         meta: { width: '40px' },
@@ -309,34 +392,50 @@ export function RankingModal({
       {
         accessorKey: 'nombreHospital',
         header: 'Hospital',
-        cell: ({ row }) => (
-          <div className="max-w-[220px]">
-            <div className="truncate text-sm font-medium">
-              {row.original.nombreHospital ?? '—'}
-            </div>
-            {row.original.institucion && (
-              <div className="truncate text-xs text-muted-foreground">
-                {row.original.institucion}
+        cell: ({ row }) => {
+          const yaEsta = idsSeleccionados.has(row.original.idHospital);
+          return (
+            <div className="max-w-[220px]">
+              <div className="flex items-center gap-1.5">
+                <span className="truncate text-sm font-medium">
+                  {row.original.nombreHospital ?? '—'}
+                </span>
+                {yaEsta && (
+                  <Badge
+                    variant="outline"
+                    className="shrink-0 border-emerald-200 bg-emerald-50 px-1.5 py-0 text-[9px] text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-950/30 dark:text-emerald-300"
+                  >
+                    En selección
+                  </Badge>
+                )}
               </div>
-            )}
-          </div>
-        ),
+              {row.original.institucion && (
+                <div className="truncate text-xs text-muted-foreground">
+                  {row.original.institucion}
+                </div>
+              )}
+            </div>
+          );
+        },
       },
       {
         id: 'producto',
         header: 'Producto a promocionar',
-        cell: ({ row }) => (
-          <Input
-            className="h-8 w-44 text-xs"
-            placeholder="Opcional"
-            value={productos[row.original.idHospital] ?? ''}
-            disabled={!seleccionados.has(row.original.idHospital)}
-            onClick={(e) => e.stopPropagation()}
-            onChange={(e) =>
-              setProductos((prev) => ({ ...prev, [row.original.idHospital]: e.target.value }))
-            }
-          />
-        ),
+        cell: ({ row }) => {
+          const yaEsta = idsSeleccionados.has(row.original.idHospital);
+          return (
+            <Input
+              className="h-8 w-44 text-xs"
+              placeholder="Opcional"
+              value={productos[row.original.idHospital] ?? ''}
+              disabled={yaEsta || !seleccionados.has(row.original.idHospital)}
+              onClick={(e) => e.stopPropagation()}
+              onChange={(e) =>
+                setProductos((prev) => ({ ...prev, [row.original.idHospital]: e.target.value }))
+              }
+            />
+          );
+        },
         enableSorting: false,
         enableHiding: false,
       },
@@ -452,47 +551,72 @@ export function RankingModal({
         enableHiding: false,
       },
     ];
-  }, [ejecucion, seleccionados, toggleTodos, toggleSeleccion, productos]);
+  }, [disponibles, idsSeleccionados, seleccionados, toggleTodos, toggleSeleccion, productos]);
 
   const handleAplicar = () => {
     onAplicar(seleccionadosOrdenados, productos);
   };
 
   const generar = () => {
-    if (cantidadValida) onRegenerar?.(Number(cantidadInput.trim()));
+    onRegenerar?.(topN);
   };
 
-  const campoCantidad = onRegenerar && (
-    <div className="flex items-center gap-2">
-      <label
-        htmlFor="ranking-cantidad"
-        className="whitespace-nowrap text-xs text-muted-foreground"
-      >
-        Top N sugeridos
-      </label>
-      <Input
-        id="ranking-cantidad"
-        type="number"
-        min={1}
-        className="h-8 w-24 text-sm"
-        value={cantidadInput}
-        onChange={(e) => setCantidadInput(e.target.value)}
-        disabled={cargando || guardando}
-      />
-      {cantidadDefault ? (
-        <span className="text-xs text-muted-foreground">
-          Meta del mes: {cantidadDefault} · sugerido: {redondearCien(cantidadDefault)}
-        </span>
-      ) : (
-        !cantidadValida && (
-          <span className="text-xs text-muted-foreground">Captura cuántos hospitales sugerir</span>
-        )
+  const preMarcados = ejecucion
+    ? Math.min(faltantesObjetivo, ejecucion.ranking.length)
+    : objetivo;
+
+  const resumenTopN = (
+    <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 rounded-lg border bg-white px-3 py-2 text-xs shadow-sm dark:bg-slate-950/40">
+      <span className="inline-flex items-baseline gap-1.5">
+        <span className="text-muted-foreground">Top N sugeridos</span>
+        <strong className="text-base tabular-nums">{topN}</strong>
+      </span>
+      <span className="text-muted-foreground">
+        Objetivo del mes <strong className="text-foreground">{objetivo}</strong>
+      </span>
+      <span className="text-muted-foreground">
+        Pre-marcados <strong className="text-foreground">{preMarcados}</strong>
+      </span>
+      {ejecucion && (
+        <>
+          <span className="text-muted-foreground">
+            Candidatos <strong className="text-foreground">{ejecucion.cantidadCandidatos}</strong>
+          </span>
+          <span className="text-muted-foreground">
+            Ya en selección{' '}
+            <strong className="text-foreground">{ejecucion.cantidadYaAgregados}</strong>
+          </span>
+          <span className="text-[10px] text-muted-foreground">
+            {ejecucion.configuracion.nombre} v{ejecucion.configuracion.version}
+          </span>
+        </>
       )}
     </div>
   );
 
+  const filtrosResumen = useMemo(() => {
+    const estado = filtros?.codigoEstado
+      ? (filtrosDisponibles?.estados.find((item) => item.codigo === filtros.codigoEstado)?.nombre ??
+        filtros.codigoEstado)
+      : null;
+    const region = filtros?.idRegion != null
+      ? (filtrosDisponibles?.regiones.find((item) => item.idRegion === filtros.idRegion)?.nombre ??
+        `Región ${filtros.idRegion}`)
+      : null;
+
+    return [
+      gerenciaNombre ? `Gerencia: ${gerenciaNombre}` : 'Gerencia de la selección',
+      estado ? `Estado: ${estado}` : null,
+      region ? `Región: ${region}` : null,
+      filtros?.zonaMetropolitana != null
+        ? (filtros.zonaMetropolitana ? 'Local' : 'Foráneo')
+        : null,
+      filtros?.search ? `Búsqueda: ${filtros.search}` : null,
+    ].filter((item): item is string => Boolean(item));
+  }, [filtros, filtrosDisponibles, gerenciaNombre]);
+
   const filtrosOpcionales = (
-    <div className="rounded-lg border bg-muted/30 p-3 space-y-3">
+    <div className="space-y-3 rounded-lg border border-slate-200/80 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900/60">
       <div className="flex items-center justify-between">
         <p className="text-xs font-medium text-muted-foreground">Filtros opcionales</p>
         {hayFiltrosAplicados && (
@@ -584,206 +708,359 @@ export function RankingModal({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto flex flex-col">
+        <DialogContent className="flex max-h-[90vh] max-w-6xl flex-col gap-0 overflow-hidden p-0">
           {ejecucion ? (
             <>
-          <DialogHeader>
-            <div className="flex items-start justify-between gap-2">
-              <div>
-                <DialogTitle>Selección asistida de hospitales</DialogTitle>
-                <DialogDescription>
-                  Configuración: {ejecucion.configuracion.nombre} (v{ejecucion.configuracion.version}) ·{' '}
-                  {ejecucion.cantidadCandidatos} candidatos · {ejecucion.cantidadSolicitada} solicitados ·{' '}
-                  {ejecucion.cantidadYaAgregados} ya en la selección · pre-marcados los primeros {faltantes}{' '}
-                  (lo que falta para completar {ejecucion.cantidadSolicitada})
-                </DialogDescription>
+              <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-6">
+                <DialogHeader className="pr-8">
+                  <DialogTitle>Selección asistida de hospitales</DialogTitle>
+                  <DialogDescription>Hospitales ordenados por score.</DialogDescription>
+                </DialogHeader>
+
+                <Collapsible open={detallesAbierto} onOpenChange={setDetallesAbierto}>
+                  <div className="overflow-hidden rounded-xl border border-slate-200/80 bg-slate-50 shadow-sm dark:border-slate-800 dark:bg-slate-900/50">
+                    <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
+                      <CollapsibleTrigger asChild>
+                        <button
+                          type="button"
+                          className="group flex min-w-0 flex-1 items-center gap-2 text-left"
+                          aria-expanded={detallesAbierto}
+                        >
+                          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white text-slate-500 shadow-sm ring-1 ring-slate-200/70 transition-colors group-hover:text-slate-700 dark:bg-slate-950 dark:text-slate-400 dark:ring-slate-800">
+                            <SlidersHorizontal className="h-3.5 w-3.5" />
+                          </span>
+                          <span className="min-w-0">
+                            <span className="block text-[10px] font-semibold uppercase tracking-[0.09em] text-slate-600 dark:text-slate-300">
+                              Resumen y elegibilidad
+                            </span>
+                            <span className="block text-[10px] text-muted-foreground">
+                              Top N {topN} · Objetivo {objetivo}
+                              {resumen && ` · ${resumen.seleccionados} seleccionados`}
+                            </span>
+                          </span>
+                          <ChevronDown
+                            className={`ml-auto h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform ${detallesAbierto ? 'rotate-180' : ''}`}
+                          />
+                        </button>
+                      </CollapsibleTrigger>
+                    </div>
+
+                    <CollapsibleContent className="border-t border-slate-200/70 bg-white/70 dark:border-slate-800 dark:bg-slate-950/30">
+                      <div className="grid divide-y divide-slate-200/70 sm:grid-cols-3 sm:divide-x sm:divide-y-0 dark:divide-slate-800">
+                        <section className="px-3 py-3">
+                          <p className="text-[9px] font-semibold uppercase tracking-[0.1em] text-slate-400">
+                            Parámetros
+                          </p>
+                          <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1.5">
+                            <DatoCompacto label="Top N" value={topN} />
+                            <DatoCompacto label="Objetivo" value={objetivo} />
+                            <DatoCompacto label="Pre-marcados" value={preMarcados} />
+                            <DatoCompacto label="Candidatos" value={ejecucion.cantidadCandidatos} />
+                            <DatoCompacto
+                              label="Ya en selección"
+                              value={ejecucion.cantidadYaAgregados}
+                            />
+                          </div>
+                          <p className="mt-2 truncate text-[10px] text-muted-foreground">
+                            {ejecucion.configuracion.nombre} v{ejecucion.configuracion.version}
+                          </p>
+                        </section>
+
+                        <section className="px-3 py-3">
+                          <p className="text-[9px] font-semibold uppercase tracking-[0.1em] text-slate-400">
+                            Selección
+                          </p>
+                          {resumen ? (
+                            <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-2">
+                              <DatoResumen label="Seleccionados" value={resumen.seleccionados} />
+                              <DatoResumen
+                                label="Datos completos ≥90%"
+                                value={resumen.datosCompletos}
+                              />
+                              <DatoResumen
+                                label="Sin coordenadas"
+                                value={resumen.sinCoordenadas}
+                                tono={resumen.sinCoordenadas > 0 ? 'text-amber-600' : undefined}
+                              />
+                              <DatoResumen
+                                label="Score promedio"
+                                value={resumen.scorePromedio.toFixed(1)}
+                              />
+                            </div>
+                          ) : (
+                            <p className="mt-2 text-[10px] text-muted-foreground">
+                              Sin datos de selección.
+                            </p>
+                          )}
+                        </section>
+
+                        <section className="px-3 py-3">
+                          <div className="flex items-center gap-1.5">
+                            <p className="text-[9px] font-semibold uppercase tracking-[0.1em] text-slate-400">
+                              Elegibilidad
+                            </p>
+                            <TooltipProvider delayDuration={200}>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span
+                                    className="inline-flex cursor-help items-center text-slate-400"
+                                    tabIndex={0}
+                                  >
+                                    <Info className="h-3.5 w-3.5" />
+                                  </span>
+                                </TooltipTrigger>
+                                <TooltipContent side="top" className="max-w-xs text-xs">
+                                  La elegibilidad se calcula con la gerencia de la selección, el
+                                  estatus activo, los hospitales ya agregados y los tipos
+                                  excluidos. Regla: {ejecucion.filtros?.reglaVersion ?? 'N/D'}.
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          </div>
+
+                          {ejecucion.filtros ? (
+                            <>
+                              <div className="mt-2 flex flex-wrap gap-1.5">
+                                <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                                  {ejecucion.cantidadCandidatos} candidatos
+                                </Badge>
+                                <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                                  Gerencia: {ejecucion.filtros.gerencia?.descripcion ?? 'N/D'}
+                                </Badge>
+                                {ejecucion.filtros.activo && (
+                                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                                    Solo activos
+                                  </Badge>
+                                )}
+                                {ejecucion.filtros.excluyeYaAgregados && (
+                                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                                    Sin ya agregados
+                                  </Badge>
+                                )}
+                                {ejecucion.filtros.excluyeTipos.length > 0 && (
+                                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                                    Excluye: {ejecucion.filtros.excluyeTipos.join(' / ')}
+                                  </Badge>
+                                )}
+                                {ejecucion.filtros.codigoEstado && (
+                                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                                    Estado:{' '}
+                                    {ejecucion.filtros.estadoNombre ??
+                                      ejecucion.filtros.codigoEstado}
+                                  </Badge>
+                                )}
+                                {ejecucion.filtros.idRegion != null && (
+                                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                                    Región:{' '}
+                                    {ejecucion.filtros.nombreRegion ?? ejecucion.filtros.idRegion}
+                                  </Badge>
+                                )}
+                                {ejecucion.filtros.zonaMetropolitana !== undefined &&
+                                  ejecucion.filtros.zonaMetropolitana !== null && (
+                                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                                    {ejecucion.filtros.zonaMetropolitana ? 'Local' : 'Foráneo'}
+                                  </Badge>
+                                )}
+                                {ejecucion.filtros.search && (
+                                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                                    Búsqueda: “{ejecucion.filtros.search}”
+                                  </Badge>
+                                )}
+                              </div>
+                              <p className="mt-2 text-[10px] text-muted-foreground">
+                                Regla: {ejecucion.filtros.reglaVersion}
+                              </p>
+                            </>
+                          ) : (
+                            <p className="mt-2 text-[10px] text-muted-foreground">
+                              Sin filtros de elegibilidad registrados.
+                            </p>
+                          )}
+                        </section>
+                      </div>
+                    </CollapsibleContent>
+                  </div>
+                </Collapsible>
+
+                {topSinCoordenadas.length > 0 && (
+                  <Alert variant="destructive" className="border-amber-300 bg-amber-50 text-amber-900">
+                    <AlertTriangle className="h-4 w-4 text-amber-600" />
+                    <AlertTitle className="text-amber-900">
+                      Hospitales sugeridos sin coordenadas
+                    </AlertTitle>
+                    <AlertDescription className="text-amber-800">
+                      {topSinCoordenadas.length} de los hospitales sugeridos no tienen coordenadas.
+                      El factor geográfico se evaluó con 50 neutral, por lo que el score puede no
+                      reflejar su distancia real. Considere capturar latitud/longitud antes de
+                      decidir.
+                    </AlertDescription>
+                  </Alert>
+                )}
+
+                {pesosEfectivos.length > 0 && (
+                  <div className="space-y-1.5">
+                    <p className="text-[9px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
+                      Pesos efectivos
+                    </p>
+                    <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3 lg:grid-cols-5">
+                      {pesosEfectivos.map(([clave, peso]) => {
+                        const Icon = ICONO_PESO[clave] ?? Gauge;
+                        return (
+                          <div
+                            key={clave}
+                            className="flex items-center gap-2 rounded-lg border bg-slate-50 px-2 py-1.5 dark:bg-slate-900/60"
+                            title={catalogoFactores.get(clave)?.descripcion}
+                          >
+                            <span
+                              className={[
+                                'flex h-6 w-6 shrink-0 items-center justify-center rounded-md',
+                                TONO_PESO[clave] ?? 'bg-muted text-muted-foreground',
+                              ].join(' ')}
+                            >
+                              <Icon className="h-3 w-3" />
+                            </span>
+                            <div className="min-w-0">
+                              <p className="truncate text-[9px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
+                                {nombreFactor(clave)}
+                              </p>
+                              <p className="text-sm font-semibold tabular-nums">
+                                {Number(peso).toFixed(0)}%
+                              </p>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {filtrosOpcionales}
+
+                <div>
+                  <DataTable
+                    columns={columns}
+                    data={ejecucion.ranking}
+                    title="Ranking generado"
+                    subtitle="Hospitales ordenados por score. Seleccione los que desea agregar a la selección mensual."
+                    globalFilter
+                    pagination={false}
+                    height={340}
+                    onRowClick={(row) => setHospitalActivo(row)}
+                    isRowSelected={(row) => seleccionados.has(row.idHospital)}
+                    footer={
+                      <span className="text-xs text-muted-foreground">
+                        Seleccionados:{' '}
+                        <strong className="text-foreground">{seleccionados.size}</strong>
+                      </span>
+                    }
+                  />
+                </div>
               </div>
-              {onRegenerar && (
-                <div className="flex items-center gap-3">
-                  {campoCantidad}
+
+              <DialogFooter className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t bg-background px-6 py-3 sm:justify-between">
+                <div>
+                  {onRegenerar && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={generar}
+                      disabled={guardando || cargando}
+                      className="border-orange-200 bg-orange-50 text-orange-700 hover:bg-orange-100 dark:border-orange-900/60 dark:bg-orange-950/30 dark:text-orange-300"
+                      title="Descarta esta vista y genera una nueva ejecución del ranking con el Top N calculado"
+                    >
+                      <RefreshCw className="mr-2 h-4 w-4" />
+                      Generar de nuevo
+                    </Button>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
                   <Button
                     variant="outline"
-                    size="sm"
-                    onClick={generar}
-                    disabled={guardando || cargando || !cantidadValida}
-                    title="Descarta esta vista y genera una nueva ejecución del ranking con el Top N indicado"
+                    onClick={() => onOpenChange(false)}
+                    disabled={guardando}
                   >
-                    <RefreshCw className="mr-2 h-4 w-4" />
-                    Generar de nuevo
+                    Cancelar
+                  </Button>
+                  <Button
+                    onClick={handleAplicar}
+                    disabled={guardando || seleccionados.size === 0}
+                  >
+                    {guardando ? (
+                      <span className="flex items-center gap-1">
+                        <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                        Agregando...
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-1">
+                        <Check className="h-4 w-4" />
+                        Agregar {seleccionados.size} hospital
+                        {seleccionados.size === 1 ? '' : 'es'}
+                      </span>
+                    )}
                   </Button>
                 </div>
-              )}
-            </div>
-          </DialogHeader>
-
-          {resumen && (
-            <Card>
-              <CardContent className="grid grid-cols-2 gap-4 py-4 sm:grid-cols-4">
-                <div>
-                  <p className="text-xs text-muted-foreground">Seleccionados</p>
-                  <p className="text-lg font-semibold">{resumen.seleccionados}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Datos completos (≥90%)</p>
-                  <p className="text-lg font-semibold">{resumen.datosCompletos}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Sin coordenadas</p>
-                  <p className="text-lg font-semibold text-amber-600">{resumen.sinCoordenadas}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Score promedio</p>
-                  <p className="text-lg font-semibold">{resumen.scorePromedio.toFixed(1)}</p>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {topSinCoordenadas.length > 0 && (
-            <Alert variant="destructive" className="border-amber-300 bg-amber-50 text-amber-900">
-              <AlertTriangle className="h-4 w-4 text-amber-600" />
-              <AlertTitle className="text-amber-900">Hospitales sugeridos sin coordenadas</AlertTitle>
-              <AlertDescription className="text-amber-800">
-                {topSinCoordenadas.length} de los hospitales sugeridos no tienen coordenadas. El
-                factor geográfico se evaluó con 50 neutral, por lo que el score puede no reflejar
-                su distancia real. Considere capturar latitud/longitud antes de decidir.
-              </AlertDescription>
-            </Alert>
-          )}
-
-          {pesosEfectivos.length > 0 && (
-            <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-              <span className="font-medium">Pesos efectivos:</span>
-              {pesosEfectivos.map(([clave, peso]) => (
-                <Badge
-                  key={clave}
-                  variant="secondary"
-                  className="text-[10px] px-1.5 py-0"
-                  title={catalogoFactores.get(clave)?.descripcion}
-                >
-                  {nombreFactor(clave)}: {Number(peso).toFixed(0)}%
-                </Badge>
-              ))}
-            </div>
-          )}
-
-          {ejecucion.filtros && (
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-              <span className="font-medium">Elegibilidad:</span>
-              <span>
-                {ejecucion.cantidadCandidatos} candidatos · Gerencia{' '}
-                {ejecucion.filtros.gerencia?.descripcion ?? 'N/D'}
-                {ejecucion.filtros.activo && ' · solo activos'}
-                {ejecucion.filtros.excluyeYaAgregados && ' · sin ya agregados'}
-                {ejecucion.filtros.excluyeTipos.length > 0 &&
-                  ` · excluye ${ejecucion.filtros.excluyeTipos.join(' / ')}`}
-              </span>
-              {ejecucion.filtros.search && (
-                <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-                  búsqueda: “{ejecucion.filtros.search}”
-                </Badge>
-              )}
-              {ejecucion.filtros.codigoEstado && (
-                <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-                  estado: {ejecucion.filtros.estadoNombre ?? ejecucion.filtros.codigoEstado}
-                </Badge>
-              )}
-              {ejecucion.filtros.zonaMetropolitana !== undefined &&
-                ejecucion.filtros.zonaMetropolitana !== null && (
-                <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-                  {ejecucion.filtros.zonaMetropolitana ? 'local' : 'foráneo'}
-                </Badge>
-              )}
-              {ejecucion.filtros.idRegion != null && (
-                <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-                  región: {ejecucion.filtros.nombreRegion ?? ejecucion.filtros.idRegion}
-                </Badge>
-              )}
-              <span title={`Regla de elegibilidad: ${ejecucion.filtros.reglaVersion}`}>
-                <Info className="h-3.5 w-3.5 cursor-help" />
-              </span>
-            </div>
-          )}
-
-          {filtrosOpcionales}
-
-          <div>
-            <DataTable
-              columns={columns}
-              data={ejecucion.ranking}
-              title="Ranking generado"
-              subtitle={`Hospitales ordenados por score. Seleccione los que desea agregar a la selección mensual.`}
-              globalFilter
-              pagination={false}
-              height={340}
-              onRowClick={(row) => setHospitalActivo(row)}
-              isRowSelected={(row) => seleccionados.has(row.idHospital)}
-              footer={
-                <span className="text-xs text-muted-foreground">
-                  Seleccionados:{' '}
-                  <strong className="text-foreground">{seleccionados.size}</strong>
-                </span>
-              }
-            />
-          </div>
-
-          <DialogFooter className="sticky bottom-0 z-10 bg-background pt-2">
-            <Button
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-              disabled={guardando}
-            >
-              Cancelar
-            </Button>
-            <Button
-              onClick={handleAplicar}
-              disabled={guardando || seleccionados.size === 0}
-            >
-              {guardando ? (
-                <span className="flex items-center gap-1">
-                  <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                  Agregando...
-                </span>
-              ) : (
-                <span className="flex items-center gap-1">
-                  <Check className="h-4 w-4" />
-                  Agregar {seleccionados.size} hospital{seleccionados.size === 1 ? '' : 'es'}
-                </span>
-              )}
-            </Button>
-          </DialogFooter>
+              </DialogFooter>
             </>
           ) : cargando ? (
-            <div className="flex h-48 flex-col items-center justify-center gap-3">
+            <div className="flex h-48 flex-col items-center justify-center gap-3 p-6">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
               <p className="text-sm text-muted-foreground">Cargando el ranking...</p>
             </div>
           ) : (
             <>
-              <DialogHeader>
-                <DialogTitle>Selección asistida de hospitales</DialogTitle>
-                <DialogDescription>
-                  Todavía no hay un ranking generado para esta selección. Ajusta los filtros
-                  opcionales y genera uno nuevo; podrás regenerarlo cuantas veces necesites
-                  antes de agregar hospitales.
-                </DialogDescription>
-              </DialogHeader>
-              {filtrosOpcionales}
-              <DialogFooter className="sticky bottom-0 z-10 bg-background pt-2">
-                <div className="flex w-full items-center justify-between gap-2">
-                  {campoCantidad ?? <span />}
-                  <div className="flex items-center gap-2">
-                    <Button variant="outline" onClick={() => onOpenChange(false)} disabled={cargando}>
-                      Cancelar
-                    </Button>
-                    {onRegenerar && (
-                      <Button onClick={generar} disabled={cargando || !cantidadValida}>
-                        <RefreshCw className="mr-2 h-4 w-4" />
+              <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-6">
+                <DialogHeader className="pr-8">
+                  <DialogTitle>Selección asistida de hospitales</DialogTitle>
+                  <DialogDescription>Hospitales ordenados por score.</DialogDescription>
+                </DialogHeader>
+                {resumenTopN}
+                {filtrosOpcionales}
+                <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-card shadow-[0_1px_2px_rgba(15,23,42,0.04)] dark:border-slate-800">
+                  <div className="flex flex-col items-center bg-gradient-to-br from-slate-50 via-white to-orange-50/50 px-6 py-6 text-center dark:from-slate-950 dark:via-slate-950 dark:to-orange-950/20">
+                    <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-orange-500 shadow-sm ring-1 ring-orange-100 dark:bg-slate-900 dark:ring-orange-900/60">
+                      <Sparkles className="h-5 w-5" />
+                    </span>
+                    <p className="mt-4 text-base font-semibold tracking-tight text-slate-800 dark:text-slate-100">
+                      Aún no hay ranking para esta selección
+                    </p>
+                    <p className="mt-1.5 max-w-md text-xs leading-relaxed text-slate-500 dark:text-slate-400">
+                      Genera el ranking para ver los hospitales sugeridos con la gerencia y los
+                      filtros seleccionados.
+                    </p>
+
+                    <div className="mt-4 flex flex-wrap items-center justify-center gap-1.5">
+                      {filtrosResumen.map((filtro) => (
+                        <Badge
+                          key={filtro}
+                          variant="secondary"
+                          className="text-[10px] px-2 py-0.5"
+                        >
+                          {filtro}
+                        </Badge>
+                      ))}
+                    </div>
+
+                    {onRegenerar ? (
+                      <Button
+                        className="mt-5 rounded-xl bg-[#eb6c36] text-white hover:bg-[#d95a2b]"
+                        onClick={generar}
+                        disabled={cargando}
+                      >
+                        <Sparkles className="mr-2 h-4 w-4" />
                         Generar ranking
                       </Button>
+                    ) : (
+                      <p className="mt-4 max-w-sm rounded-xl border border-slate-200 bg-white/70 px-3 py-2 text-[11px] leading-relaxed text-slate-500 dark:border-slate-800 dark:bg-slate-900/60 dark:text-slate-400">
+                        No tienes permiso para generar el ranking de esta selección.
+                      </p>
                     )}
                   </div>
                 </div>
+              </div>
+              <DialogFooter className="shrink-0 border-t bg-background px-6 py-3">
+                <Button variant="outline" onClick={() => onOpenChange(false)} disabled={cargando}>
+                  Cancelar
+                </Button>
               </DialogFooter>
             </>
           )}

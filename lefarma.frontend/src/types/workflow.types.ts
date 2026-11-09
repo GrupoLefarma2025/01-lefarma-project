@@ -27,6 +27,7 @@ export interface WorkflowPaso {
   requiereFirma: boolean;
   requiereComentario: boolean;
   requiereAdjunto: boolean;
+  permiteEditar?: boolean;
   acciones?: WorkflowAccion[]; // Acciones que salen de este paso
   condiciones?: WorkflowCondicion[]; // Condiciones de routing dinámico
   participantes?: WorkflowParticipante[]; // Quién puede actuar en este paso

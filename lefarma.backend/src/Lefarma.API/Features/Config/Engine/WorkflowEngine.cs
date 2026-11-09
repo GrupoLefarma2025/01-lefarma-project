@@ -410,12 +410,6 @@ namespace Lefarma.API.Features.Config.Engine
                         s.IdWorkflow ?? 0, s.IdPasoActual, s.IdUsuarioCreacion ?? 0, null))
                     .FirstOrDefaultAsync() ?? new(0, null, 0, null),
 
-                CodigoProceso.EDUCACION_MEDICA_RUTAS => await _context.RutasVersiones
-                    .Where(v => v.IdRutaVersion == idEntidad)
-                    .Select(v => new WorkflowEntityContext(
-                        v.IdWorkflow ?? 0, v.IdPasoActual, v.IdUsuarioCreacion ?? 0, null))
-                    .FirstOrDefaultAsync() ?? new(0, null, 0, null),
-
                 CodigoProceso.EDUCACION_MEDICA_MATRIZ => await _context.MatricesGenerales
                     .Where(m => m.IdMatrizGeneral == idEntidad)
                     .Select(m => new WorkflowEntityContext(

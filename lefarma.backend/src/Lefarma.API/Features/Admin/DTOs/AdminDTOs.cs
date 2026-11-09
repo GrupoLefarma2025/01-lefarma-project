@@ -39,7 +39,7 @@ namespace Lefarma.API.Features.Admin.DTOs
     }
 
     /// <summary>
-    /// Response DTO b�sico para Usuario (sin relaciones completas)
+    /// Response DTO básico para Usuario (sin relaciones completas)
     /// </summary>
     public class UsuarioBasicoResponse
     {
@@ -183,7 +183,7 @@ namespace Lefarma.API.Features.Admin.DTOs
     }
 
     /// <summary>
-    /// Response DTO b�sico para Rol (sin relaciones)
+    /// Response DTO básico para Rol (sin relaciones)
     /// </summary>
     public class RolBasicoResponse
     {
@@ -242,7 +242,7 @@ namespace Lefarma.API.Features.Admin.DTOs
     }
 
     /// <summary>
-    /// Response DTO b�sico para Permiso (sin relaciones)
+    /// Response DTO básico para Permiso (sin relaciones)
     /// </summary>
     public class PermisoBasicoResponse
     {

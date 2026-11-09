@@ -4,14 +4,12 @@ import { Printer } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Modal } from '@/components/ui/modal';
 import type {
-  EquipoPareo,
   SeleccionDetalle,
   SeleccionHospital,
 } from '@/apps/educacion-medica/types/educacionMedica.types';
 
 interface ResumenContenidoProps {
   detalle: SeleccionDetalle;
-  equipos: EquipoPareo[];
 }
 
 function formatearFecha(fecha: string | null): string {
@@ -25,20 +23,28 @@ function ubicacionHospital(hospital: SeleccionHospital): string {
   return partes.join(' / ') || '—';
 }
 
-function nombreEquipoRegion(
-  region: SeleccionDetalle['regiones'][number],
-  equipos: EquipoPareo[]
+function nombreResponsableRegion(
+  region: SeleccionDetalle['regiones'][number]
 ): string {
-  if (!region.idEquipo) return 'Sin equipo asignado';
-  const equipo = equipos.find((e) => e.idEquipo === region.idEquipo);
-  if (equipo) return `Ejecutivo: ${equipo.nombreEjecutivo} · Especialista: ${equipo.nombreEspecialista}`;
-  return region.nombreEquipo ?? 'Equipo';
+  const ejecutivo = region.nombreEjecutivo ?? 'Sin ejecutivo';
+  const especialista = region.nombreEspecialista ?? 'Sin especialista';
+  return `Ejecutivo: ${ejecutivo} · Especialista: ${especialista}`;
+}
+
+function nombreEjecutivoHospital(
+  hospital: SeleccionHospital,
+  region: SeleccionDetalle['regiones'][number]
+): string {
+  if (hospital.idEjecutivo != null) {
+    return `${hospital.nombreEjecutivo ?? `Usuario ${hospital.idEjecutivo}`} (override)`;
+  }
+  return region.nombreEjecutivo ?? 'Sin ejecutivo';
 }
 
 const CLASES_CELDA = 'border border-border px-2 py-1 text-left align-top';
 const CLASES_ENCABEZADO = `${CLASES_CELDA} bg-muted font-medium`;
 
-function ResumenContenido({ detalle, equipos }: ResumenContenidoProps) {
+function ResumenContenido({ detalle }: ResumenContenidoProps) {
   const hospitalesPorRegion = useMemo(() => {
     const mapa = new Map<number | null, SeleccionHospital[]>();
     for (const hospital of detalle.hospitales) {
@@ -49,7 +55,10 @@ function ResumenContenido({ detalle, equipos }: ResumenContenidoProps) {
     return mapa;
   }, [detalle.hospitales]);
 
-  const sinRegion = hospitalesPorRegion.get(null) ?? [];
+  const sinRegion = useMemo(
+    () => hospitalesPorRegion.get(null) ?? [],
+    [hospitalesPorRegion]
+  );
 
   const tablasPorRegion = useMemo(
     () =>
@@ -117,13 +126,15 @@ function ResumenContenido({ detalle, equipos }: ResumenContenidoProps) {
                 {region.nombre ?? `Región ${region.idRegion}`}
               </h3>
               <p className="text-xs text-muted-foreground">
-                Equipo: {nombreEquipoRegion(region, equipos)} · {hospitales.length} hospital(es)
+                {nombreResponsableRegion(region)} · {hospitales.length} hospital(es)
               </p>
             </div>
             <table className="w-full border-collapse text-xs">
               <thead>
                 <tr>
                   <th className={CLASES_ENCABEZADO}>Hospital</th>
+                  <th className={CLASES_ENCABEZADO}>Ejecutivo</th>
+                  <th className={CLASES_ENCABEZADO}>Producto a promocionar</th>
                   <th className={CLASES_ENCABEZADO}>Quirófanos</th>
                   <th className={CLASES_ENCABEZADO}>Anestesias</th>
                   <th className={CLASES_ENCABEZADO}>Estado / Ciudad</th>
@@ -133,7 +144,7 @@ function ResumenContenido({ detalle, equipos }: ResumenContenidoProps) {
                 {grupos.map(([institucion, hospitalesGrupo]) => (
                   <Fragment key={`inst-${region.idRegion}-${institucion}`}>
                     <tr>
-                      <td colSpan={4} className={`${CLASES_CELDA} bg-muted/50 font-semibold`}>
+                      <td colSpan={6} className={`${CLASES_CELDA} bg-muted/50 font-semibold`}>
                         {institucion} ({hospitalesGrupo.length})
                       </td>
                     </tr>
@@ -142,8 +153,14 @@ function ResumenContenido({ detalle, equipos }: ResumenContenidoProps) {
                         <td className={CLASES_CELDA}>
                           {hospital.nombreHospital ?? `Hospital ${hospital.idHospital}`}
                         </td>
-                        <td className={CLASES_CELDA}>{hospital.numeroQuirofanos ?? '—'}</td>
-                        <td className={CLASES_CELDA}>{hospital.anestesiasTotales ?? '—'}</td>
+                        <td className={CLASES_CELDA}>
+                          {nombreEjecutivoHospital(hospital, region)}
+                        </td>
+                        <td className={CLASES_CELDA}>
+                          {hospital.productoAPromocionar ?? '-'}
+                        </td>
+                        <td className={CLASES_CELDA}>{hospital.numeroQuirofanos ?? '-'}</td>
+                        <td className={CLASES_CELDA}>{hospital.anestesiasTotales ?? '-'}</td>
                         <td className={CLASES_CELDA}>{ubicacionHospital(hospital)}</td>
                       </tr>
                     ))}
@@ -151,7 +168,7 @@ function ResumenContenido({ detalle, equipos }: ResumenContenidoProps) {
                 ))}
                 {grupos.length === 0 && (
                   <tr>
-                    <td colSpan={4} className={CLASES_CELDA}>
+                    <td colSpan={6} className={CLASES_CELDA}>
                       Sin hospitales con coordenadas registradas.
                     </td>
                   </tr>
@@ -160,6 +177,8 @@ function ResumenContenido({ detalle, equipos }: ResumenContenidoProps) {
                   <td className={`${CLASES_CELDA} font-semibold`}>
                     Total {region.nombre ?? `Región ${region.idRegion}`}
                   </td>
+                  <td className={`${CLASES_CELDA} font-semibold`}>{region.nombreEjecutivo ?? '-'}</td>
+                  <td className={`${CLASES_CELDA} font-semibold`} />
                   <td className={`${CLASES_CELDA} font-semibold`}>{totalQuir}</td>
                   <td className={`${CLASES_CELDA} font-semibold`}>{totalAnes}</td>
                   <td colSpan={1} className={CLASES_CELDA} />
@@ -180,6 +199,7 @@ function ResumenContenido({ detalle, equipos }: ResumenContenidoProps) {
               <tr>
                 <th className={CLASES_ENCABEZADO}>Hospital</th>
                 <th className={CLASES_ENCABEZADO}>Institución</th>
+                <th className={CLASES_ENCABEZADO}>Producto a promocionar</th>
                 <th className={CLASES_ENCABEZADO}>Estado / Ciudad</th>
               </tr>
             </thead>
@@ -190,6 +210,7 @@ function ResumenContenido({ detalle, equipos }: ResumenContenidoProps) {
                     {hospital.nombreHospital ?? `Hospital ${hospital.idHospital}`}
                   </td>
                   <td className={CLASES_CELDA}>{hospital.institucion ?? '—'}</td>
+                  <td className={CLASES_CELDA}>{hospital.productoAPromocionar ?? '-'}</td>
                   <td className={CLASES_CELDA}>{ubicacionHospital(hospital)}</td>
                 </tr>
               ))}
@@ -232,14 +253,12 @@ interface ResumenSeleccionModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   detalle: SeleccionDetalle;
-  equipos: EquipoPareo[];
 }
 
 export function ResumenSeleccionModal({
   open,
   onOpenChange,
   detalle,
-  equipos,
 }: ResumenSeleccionModalProps) {
   return (
     <>
@@ -261,13 +280,13 @@ export function ResumenSeleccionModal({
           </div>
         }
       >
-        <ResumenContenido detalle={detalle} equipos={equipos} />
+          <ResumenContenido detalle={detalle} />
       </Modal>
 
       {/* Copia exclusiva para impresion: flujo normal de pagina, sin animaciones del dialogo */}
       {createPortal(
         <div id="resumen-seleccion-print" className="hidden print:block">
-          <ResumenContenido detalle={detalle} equipos={equipos} />
+        <ResumenContenido detalle={detalle} />
         </div>,
         document.body
       )}

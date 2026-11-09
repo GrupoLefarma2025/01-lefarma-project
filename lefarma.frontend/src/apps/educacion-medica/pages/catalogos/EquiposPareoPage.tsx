@@ -699,9 +699,6 @@ export default function EquiposPareoPage() {
                         Selección {formatearFecha(participacion.fechaSeleccion)} ·{' '}
                         {participacion.estadoSeleccion}
                       </p>
-                      <span className="text-xs text-muted-foreground">
-                        #{participacion.idSeleccionMensual}
-                      </span>
                     </div>
                     {participacion.regiones.length > 0 && (
                       <div className="mt-2 flex flex-wrap gap-1">

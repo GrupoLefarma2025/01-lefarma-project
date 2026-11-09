@@ -100,10 +100,12 @@ public static class Permissions
         public const string ProductosVer = "educacion_medica.productos.puede_ver";
         public const string SeleccionesVer = "educacion_medica.selecciones.puede_ver";
         public const string SeleccionesGestionar = "educacion_medica.selecciones.puede_gestionar";
+        public const string SeleccionesAutorizar = "educacion_medica.selecciones.puede_autorizar";
         public const string RutasVer = "educacion_medica.rutas.puede_ver";
         public const string RutasGestionar = "educacion_medica.rutas.puede_gestionar";
         public const string RutasAjustar = "educacion_medica.rutas.puede_ajustar";
         public const string ConfiguracionGestionar = "educacion_medica.configuracion.puede_gestionar";
+        public const string CalendarioVerTodos = "educacion_medica.calendario.puede_ver_todos";
         public const string TalleresVer = "educacion_medica.talleres.puede_ver";
         public const string TalleresCapturar = "educacion_medica.talleres.puede_capturar";
         public const string TalleresRevisar = "educacion_medica.talleres.puede_revisar";

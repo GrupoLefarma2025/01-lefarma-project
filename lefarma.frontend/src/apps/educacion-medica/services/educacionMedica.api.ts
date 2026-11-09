@@ -9,6 +9,7 @@ import type {
   PagedResult,
   Producto,
   TipoGerencia,
+  TipoVisitaOpcion,
   UpsertHospitalExtensionRequest,
   Region,
   UpsertRegionRequest,
@@ -22,6 +23,16 @@ import type {
   UpsertParametrosAnestesiasRequest,
   RecalcularAnestesiasResponse,
   UsuarioCatalogo,
+  EjecutivoRegion,
+  CrearEjecutivoRegionRequest,
+  ActualizarEjecutivoRegionRequest,
+  EjecutivoSuplente,
+  CrearEjecutivoSuplenteRequest,
+  ActualizarEjecutivoSuplenteRequest,
+  EspecialistaPersona,
+  GuardarEspecialistaRequest,
+  PersonasEjecutivosFiltros,
+  PersonasSuplentesFiltros,
   EquipoPareo,
   CrearEquipoPareoRequest,
   EquipoPareoFiltros,
@@ -32,15 +43,20 @@ import type {
   CrearSeleccionMensualRequest,
   AgregarHospitalSeleccionRequest,
   AsignarEquipoRegionRequest,
+  AsignarEjecutivoRegionRequest,
+  AsignarEjecutivoHospitalRequest,
+  AsignarEjecutivoVisitaRequest,
+  CalendarioFiltro,
+  CalendarioItem,
+  ActividadVisita,
+  SugerenciaEspecialista,
   DividirRegionRequest,
   MoverHospitalARegionRequest,
   HospitalCercanoOtraSeleccion,
   FirmarWorkflowRequest,
   AccionDisponible,
   HistorialWorkflowItem,
-  RutaVersionDto,
   PendienteAprobacion,
-  AgruparSeleccionResponse,
   SeleccionHospital,
   SeleccionRegion,
   Ruta,
@@ -64,10 +80,10 @@ import type {
   Taller,
   CrearTallerRequest,
   ActualizarTallerRequest,
-  MatrizIndividual,
   MatrizGeneralResumen,
   MatrizTalleresDetalle,
   ConcentracionEquipo,
+  MatrizRevision,
   ActualizarCostosTallerRequest,
   MatrizDocumento,
   RutaVisita,
@@ -107,10 +123,7 @@ function buildHospitalFilters(filters: HospitalFilterParams): Record<string, unk
   if (filters.numeroQuirofanosMin !== undefined && filters.numeroQuirofanosMin !== null) {
     params.numeroQuirofanosMin = filters.numeroQuirofanosMin;
   }
-  if (
-    filters.anestesiasTotalesMin !== undefined &&
-    filters.anestesiasTotalesMin !== null
-  ) {
+  if (filters.anestesiasTotalesMin !== undefined && filters.anestesiasTotalesMin !== null) {
     params.anestesiasTotalesMin = filters.anestesiasTotalesMin;
   }
   if (filters.activo !== undefined && filters.activo !== null) params.activo = filters.activo;
@@ -118,10 +131,17 @@ function buildHospitalFilters(filters: HospitalFilterParams): Record<string, unk
     params.tieneCoordenadas = filters.tieneCoordenadas;
   }
   if (filters.filtroSede) params.filtroSede = filters.filtroSede;
+  if (filters.mostrarEducacionMedica !== undefined && filters.mostrarEducacionMedica !== null) {
+    params.mostrarEducacionMedica = filters.mostrarEducacionMedica;
+  }
+  if (filters.requiereRevision !== undefined && filters.requiereRevision !== null) {
+    params.requiereRevision = filters.requiereRevision;
+  }
   if (filters.orderBy) params.orderBy = filters.orderBy;
   if (filters.orderDirection) params.orderDirection = filters.orderDirection;
   if (filters.page !== undefined && filters.page !== null) params.page = filters.page;
-  if (filters.pageSize !== undefined && filters.pageSize !== null) params.pageSize = filters.pageSize;
+  if (filters.pageSize !== undefined && filters.pageSize !== null)
+    params.pageSize = filters.pageSize;
   return params;
 }
 
@@ -130,6 +150,7 @@ export const educacionMedicaApi = {
     getAll: (filters: HospitalFilterParams = {}) =>
       API.get<ApiResponse<PagedResult<Hospital>>>(`${BASE}/hospitales`, {
         params: buildHospitalFilters(filters),
+        timeout: 120000,
       }),
     getUbicaciones: (filters: Omit<HospitalFilterParams, 'page' | 'pageSize'> = {}) => {
       const params = buildHospitalFilters({ ...filters, page: undefined, pageSize: undefined });
@@ -137,19 +158,14 @@ export const educacionMedicaApi = {
       delete params.pageSize;
       return API.get<ApiResponse<HospitalUbicacion[]>>(`${BASE}/hospitales/ubicaciones`, {
         params,
+        timeout: 120000,
       });
     },
-    getById: (id: number) =>
-      API.get<ApiResponse<Hospital>>(`${BASE}/hospitales/${id}`),
+    getById: (id: number) => API.get<ApiResponse<Hospital>>(`${BASE}/hospitales/${id}`),
     upsertExtension: (id: number, payload: UpsertHospitalExtensionRequest) =>
-      API.put<ApiResponse<HospitalExtension>>(
-        `${BASE}/hospitales/${id}/extension`,
-        payload
-      ),
+      API.put<ApiResponse<HospitalExtension>>(`${BASE}/hospitales/${id}/extension`, payload),
     sincronizar: () =>
-      API.post<ApiResponse<SincronizarHospitalesResponse>>(
-        `${BASE}/hospitales/sincronizar`
-      ),
+      API.post<ApiResponse<SincronizarHospitalesResponse>>(`${BASE}/hospitales/sincronizar`),
   },
   productos: {
     getAll: (search?: string) =>
@@ -157,9 +173,11 @@ export const educacionMedicaApi = {
         params: search ? { search } : undefined,
       }),
   },
+  tipoVisita: {
+    getAll: () => API.get<ApiResponse<TipoVisitaOpcion[]>>(`${BASE}/tipo-visita`),
+  },
   tipoGerencia: {
-    getAll: () =>
-      API.get<ApiResponse<TipoGerencia[]>>(`${BASE}/tipo-gerencia`),
+    getAll: () => API.get<ApiResponse<TipoGerencia[]>>(`${BASE}/tipo-gerencia`),
   },
   regiones: {
     getAll: (idTipoGerencia?: number) =>
@@ -202,18 +220,11 @@ export const educacionMedicaApi = {
   },
   parametrosAnestesias: {
     getByAnio: (anio: number) =>
-      API.get<ApiResponse<ParametroAnestesia[]>>(
-        `${BASE}/parametros-anestesias/${anio}`
-      ),
+      API.get<ApiResponse<ParametroAnestesia[]>>(`${BASE}/parametros-anestesias/${anio}`),
     getActual: () =>
-      API.get<ApiResponse<ParametroAnestesia[]>>(
-        `${BASE}/parametros-anestesias/actual`
-      ),
+      API.get<ApiResponse<ParametroAnestesia[]>>(`${BASE}/parametros-anestesias/actual`),
     upsert: (anio: number, payload: UpsertParametrosAnestesiasRequest) =>
-      API.put<ApiResponse<ParametroAnestesia[]>>(
-        `${BASE}/parametros-anestesias/${anio}`,
-        payload
-      ),
+      API.put<ApiResponse<ParametroAnestesia[]>>(`${BASE}/parametros-anestesias/${anio}`, payload),
     recalcular: (anio: number) =>
       API.post<ApiResponse<RecalcularAnestesiasResponse>>(
         `${BASE}/parametros-anestesias/${anio}/recalcular`
@@ -239,12 +250,68 @@ export const educacionMedicaApi = {
     create: (payload: CrearEquipoPareoRequest) =>
       API.post<ApiResponse<EquipoPareo>>(`${BASE}/equipos-pareo`, payload),
     asignarRegion: (idEquipo: number, payload: AsignarRegionEquipoRequest) =>
-      API.put<ApiResponse<EquipoPareo>>(
-        `${BASE}/equipos-pareo/${idEquipo}/region`,
-        payload
-      ),
+      API.put<ApiResponse<EquipoPareo>>(`${BASE}/equipos-pareo/${idEquipo}/region`, payload),
     desactivar: (idEquipo: number) =>
       API.put<ApiResponse<EquipoPareo>>(`${BASE}/equipos-pareo/${idEquipo}/desactivar`),
+  },
+  personas: {
+    ejecutivos: {
+      getAll: (filtros: PersonasEjecutivosFiltros = {}) => {
+        const params: Record<string, unknown> = {};
+        if (filtros.busqueda?.trim()) params.busqueda = filtros.busqueda.trim();
+        if (filtros.idTipoGerencia) params.idTipoGerencia = filtros.idTipoGerencia;
+        if (filtros.soloActivos !== undefined && filtros.soloActivos !== null) {
+          params.soloActivos = filtros.soloActivos;
+        }
+        return API.get<ApiResponse<EjecutivoRegion[]>>(`${BASE}/personas/ejecutivos`, {
+          params,
+        });
+      },
+      create: (payload: CrearEjecutivoRegionRequest) =>
+        API.post<ApiResponse<EjecutivoRegion>>(`${BASE}/personas/ejecutivos`, payload),
+      update: (idEjecutivoRegion: number, payload: ActualizarEjecutivoRegionRequest) =>
+        API.put<ApiResponse<EjecutivoRegion>>(
+          `${BASE}/personas/ejecutivos/${idEjecutivoRegion}`,
+          payload
+        ),
+    },
+    suplentes: {
+      getAll: (filtros: PersonasSuplentesFiltros = {}) => {
+        const params: Record<string, unknown> = {};
+        if (filtros.busqueda?.trim()) params.busqueda = filtros.busqueda.trim();
+        if (filtros.idTipoGerencia) params.idTipoGerencia = filtros.idTipoGerencia;
+        if (filtros.soloActivos !== undefined && filtros.soloActivos !== null) {
+          params.soloActivos = filtros.soloActivos;
+        }
+        return API.get<ApiResponse<EjecutivoSuplente[]>>(`${BASE}/personas/ejecutivos-suplentes`, {
+          params,
+        });
+      },
+      create: (payload: CrearEjecutivoSuplenteRequest) =>
+        API.post<ApiResponse<EjecutivoSuplente>>(`${BASE}/personas/ejecutivos-suplentes`, payload),
+      update: (idEjecutivoSuplente: number, payload: ActualizarEjecutivoSuplenteRequest) =>
+        API.put<ApiResponse<EjecutivoSuplente>>(
+          `${BASE}/personas/ejecutivos-suplentes/${idEjecutivoSuplente}`,
+          payload
+        ),
+    },
+    especialistas: {
+      getAll: (busqueda?: string, soloActivos?: boolean | null) => {
+        const params: Record<string, unknown> = {};
+        if (busqueda?.trim()) params.busqueda = busqueda.trim();
+        if (soloActivos !== undefined && soloActivos !== null) {
+          params.soloActivos = soloActivos;
+        }
+        return API.get<ApiResponse<EspecialistaPersona[]>>(`${BASE}/personas/especialistas`, {
+          params,
+        });
+      },
+      save: (idUsuario: number, payload: GuardarEspecialistaRequest) =>
+        API.put<ApiResponse<EspecialistaPersona>>(
+          `${BASE}/personas/especialistas/${idUsuario}`,
+          payload
+        ),
+    },
   },
   seleccionesMensuales: {
     getAll: (anio?: number, mes?: number) =>
@@ -267,13 +334,31 @@ export const educacionMedicaApi = {
       API.delete<ApiResponse<unknown>>(
         `${BASE}/selecciones-mensuales/${idSeleccionMensual}/hospitales/${idSeleccionHospital}`
       ),
-    agrupar: (idSeleccionMensual: number) =>
-      API.post<ApiResponse<AgruparSeleccionResponse>>(
-        `${BASE}/selecciones-mensuales/${idSeleccionMensual}/agrupar`
-      ),
-    asignarEquipo: (idSeleccionMensual: number, idRegion: number, payload: AsignarEquipoRegionRequest) =>
+    asignarEquipo: (
+      idSeleccionMensual: number,
+      idRegion: number,
+      payload: AsignarEquipoRegionRequest
+    ) =>
       API.put<ApiResponse<SeleccionRegion>>(
         `${BASE}/selecciones-mensuales/${idSeleccionMensual}/regiones/${idRegion}/equipo`,
+        payload
+      ),
+    asignarEjecutivoRegion: (
+      idSeleccionMensual: number,
+      idRegion: number,
+      payload: AsignarEjecutivoRegionRequest
+    ) =>
+      API.put<ApiResponse<SeleccionRegion>>(
+        `${BASE}/selecciones-mensuales/${idSeleccionMensual}/regiones/${idRegion}/ejecutivo`,
+        payload
+      ),
+    asignarEjecutivoHospital: (
+      idSeleccionMensual: number,
+      idSeleccionHospital: number,
+      payload: AsignarEjecutivoHospitalRequest
+    ) =>
+      API.put<ApiResponse<SeleccionHospital>>(
+        `${BASE}/selecciones-mensuales/${idSeleccionMensual}/hospitales/${idSeleccionHospital}/ejecutivo`,
         payload
       ),
     dividirRegion: (idSeleccionMensual: number, idRegion: number, payload: DividirRegionRequest) =>
@@ -293,10 +378,6 @@ export const educacionMedicaApi = {
     hospitalesCercanos: (idSeleccionMensual: number) =>
       API.get<ApiResponse<HospitalCercanoOtraSeleccion[]>>(
         `${BASE}/selecciones-mensuales/${idSeleccionMensual}/hospitales-cercanos`
-      ),
-    enviarRevision: (idSeleccionMensual: number) =>
-      API.post<ApiResponse<SeleccionMensual>>(
-        `${BASE}/selecciones-mensuales/${idSeleccionMensual}/enviar-revision`
       ),
     firmar: (idSeleccionMensual: number, payload: FirmarWorkflowRequest) =>
       API.post<ApiResponse<SeleccionMensual>>(
@@ -324,27 +405,19 @@ export const educacionMedicaApi = {
       API.get<ApiResponse<RankingEjecucion>>(
         `${BASE}/selecciones-mensuales/${idSeleccionMensual}/ranking/ultimo`
       ),
-    obtenerRankingEjecucion: (
-      idSeleccionMensual: number,
-      idRankingEjecucion: number
-    ) =>
+    obtenerRankingEjecucion: (idSeleccionMensual: number, idRankingEjecucion: number) =>
       API.get<ApiResponse<RankingEjecucion>>(
         `${BASE}/selecciones-mensuales/${idSeleccionMensual}/ranking/${idRankingEjecucion}`
       ),
-    agregarHospitalesLote: (
-      idSeleccionMensual: number,
-      payload: AgregarHospitalesLoteRequest
-    ) =>
+    agregarHospitalesLote: (idSeleccionMensual: number, payload: AgregarHospitalesLoteRequest) =>
       API.post<ApiResponse<SeleccionHospital[]>>(
         `${BASE}/selecciones-mensuales/${idSeleccionMensual}/hospitales/lote`,
         payload
       ),
   },
   configRanking: {
-    get: () =>
-      API.get<ApiResponse<ConfigRankingConVersiones>>(`${BASE}/config-ranking`),
-    listado: () =>
-      API.get<ApiResponse<ConfigRankingResumen[]>>(`${BASE}/config-ranking/listado`),
+    get: () => API.get<ApiResponse<ConfigRankingConVersiones>>(`${BASE}/config-ranking`),
+    listado: () => API.get<ApiResponse<ConfigRankingResumen[]>>(`${BASE}/config-ranking/listado`),
     getById: (idConfiguracion: number) =>
       API.get<ApiResponse<ConfigRanking>>(`${BASE}/config-ranking/${idConfiguracion}`),
     crearNuevaVersion: (idConfiguracion: number) =>
@@ -352,39 +425,72 @@ export const educacionMedicaApi = {
         `${BASE}/config-ranking/${idConfiguracion}/nueva-version`
       ),
     update: (idConfiguracion: number, payload: UpsertConfigRankingRequest) =>
-      API.put<ApiResponse<ConfigRanking>>(
-        `${BASE}/config-ranking/${idConfiguracion}`,
-        payload
+      API.put<ApiResponse<ConfigRanking>>(`${BASE}/config-ranking/${idConfiguracion}`, payload),
+  },
+  calendario: {
+    getAll: (filtro: CalendarioFiltro) =>
+      API.get<ApiResponse<CalendarioItem[]>>(`${BASE}/calendario`, {
+        params: {
+          ...(filtro.idSeleccion ? { idSeleccion: filtro.idSeleccion } : {}),
+          ...(filtro.version ? { version: filtro.version } : {}),
+          ...(filtro.desde ? { desde: filtro.desde } : {}),
+          ...(filtro.hasta ? { hasta: filtro.hasta } : {}),
+          ...(filtro.idGerencia ? { idGerencia: filtro.idGerencia } : {}),
+          ...(filtro.idGerencias?.length ? { idGerencias: filtro.idGerencias } : {}),
+          ...(filtro.idRegion ? { idRegion: filtro.idRegion } : {}),
+          ...(filtro.idEjecutivo ? { idEjecutivo: filtro.idEjecutivo } : {}),
+          ...(filtro.idEspecialista ? { idEspecialista: filtro.idEspecialista } : {}),
+          ...(filtro.estado ? { estado: filtro.estado } : {}),
+          ...(filtro.tipoVisita ? { tipoVisita: filtro.tipoVisita } : {}),
+        },
+        paramsSerializer: { indexes: null },
+      }),
+    getById: (idRutaVisita: number) =>
+      API.get<ApiResponse<CalendarioItem>>(`${BASE}/calendario/${idRutaVisita}`),
+    actividad: (idRutaVisita: number) =>
+      API.get<ApiResponse<ActividadVisita>>(`${BASE}/calendario/visitas/${idRutaVisita}/actividad`),
+    sugerencias: (
+      idSeleccion: number,
+      desde?: string,
+      hasta?: string,
+      idRutaVisita?: number | null
+    ) =>
+      API.get<ApiResponse<SugerenciaEspecialista[]>>(`${BASE}/calendario/sugerencias`, {
+        params: {
+          idSeleccion,
+          ...(desde ? { desde } : {}),
+          ...(hasta ? { hasta } : {}),
+          ...(idRutaVisita ? { idRutaVisita } : {}),
+        },
+      }),
+    asignarEspecialista: (idRutaVisita: number, idEspecialista: number | null) =>
+      API.put<ApiResponse<CalendarioItem>>(
+        `${BASE}/calendario/visitas/${idRutaVisita}/especialista`,
+        { idEspecialista }
       ),
   },
   rutas: {
     getBySeleccion: (idSeleccionMensual: number, version?: number) =>
-      API.get<ApiResponse<Ruta[]>>(
-        `${BASE}/selecciones-mensuales/${idSeleccionMensual}/rutas`,
-        { params: version !== undefined ? { version } : undefined }
-      ),
+      API.get<ApiResponse<Ruta[]>>(`${BASE}/selecciones-mensuales/${idSeleccionMensual}/rutas`, {
+        params: version !== undefined ? { version } : undefined,
+      }),
     generar: (idSeleccionMensual: number, estrategia?: 'ciudad' | 'centroide') =>
       API.post<ApiResponse<GenerarRutasResponse>>(
         `${BASE}/selecciones-mensuales/${idSeleccionMensual}/rutas/generar`,
         { estrategia }
       ),
-    version: (idSeleccionMensual: number, version?: number) =>
-      API.get<ApiResponse<RutaVersionDto | null>>(
-        `${BASE}/selecciones-mensuales/${idSeleccionMensual}/rutas/version`,
-        { params: version !== undefined ? { version } : undefined }
-      ),
-    firmarVersion: (idRutaVersion: number, payload: FirmarWorkflowRequest) =>
-      API.post<ApiResponse<RutaVersionDto>>(
-        `${BASE}/rutas/version/${idRutaVersion}/firmar`,
-        payload
-      ),
-    historialVersion: (idRutaVersion: number) =>
-      API.get<ApiResponse<HistorialWorkflowItem[]>>(
-        `${BASE}/rutas/version/${idRutaVersion}/historial`
-      ),
     cancelar: (idSeleccionMensual: number, payload: CancelarRutasRequest) =>
       API.post<ApiResponse<Ruta[]>>(
         `${BASE}/selecciones-mensuales/${idSeleccionMensual}/rutas/cancelar`,
+        payload
+      ),
+    asignarEjecutivoVisita: (
+      idRuta: number,
+      idRutaVisita: number,
+      payload: AsignarEjecutivoVisitaRequest
+    ) =>
+      API.put<ApiResponse<RutaVisita>>(
+        `${BASE}/rutas/${idRuta}/visitas/${idRutaVisita}/ejecutivo`,
         payload
       ),
     moverVisita: (idRuta: number, idRutaVisita: number, payload: MoverVisitaRequest) =>
@@ -411,10 +517,9 @@ export const educacionMedicaApi = {
         payload
       ),
     quitarVisita: (idRuta: number, idRutaVisita: number, motivo?: string | null) =>
-      API.delete<ApiResponse<unknown>>(
-        `${BASE}/rutas/${idRuta}/visitas/${idRutaVisita}`,
-        { params: motivo ? { motivo } : undefined }
-      ),
+      API.delete<ApiResponse<unknown>>(`${BASE}/rutas/${idRuta}/visitas/${idRutaVisita}`, {
+        params: motivo ? { motivo } : undefined,
+      }),
     hospitalesElegibles: (idEquipo: number) =>
       API.get<ApiResponse<HospitalElegible[]>>(`${BASE}/talleres/hospitales-elegibles`, {
         params: { idEquipo },
@@ -452,18 +557,14 @@ export const educacionMedicaApi = {
       }),
     crear: (payload: CrearTallerRequest) =>
       API.post<ApiResponse<Taller>>(`${BASE}/talleres`, payload),
+    getByVisita: (idRutaVisita: number) =>
+      API.get<ApiResponse<Taller[]>>(`${BASE}/talleres/visita/${idRutaVisita}`),
+    crearDesdeVisita: (payload: CrearTallerRequest) =>
+      API.post<ApiResponse<Taller>>(`${BASE}/talleres/desde-visita`, payload),
     actualizar: (idTaller: number, payload: ActualizarTallerRequest) =>
       API.put<ApiResponse<Taller>>(`${BASE}/talleres/${idTaller}`, payload),
     eliminar: (idTaller: number) =>
       API.delete<ApiResponse<unknown>>(`${BASE}/talleres/${idTaller}`),
-    generarMatrizIndividual: (idMatrizIndividual: number) =>
-      API.post<ApiResponse<MatrizIndividual>>(
-        `${BASE}/talleres/matrices-individuales/${idMatrizIndividual}/generar`
-      ),
-    reabrirMatrizIndividual: (idMatrizIndividual: number) =>
-      API.post<ApiResponse<MatrizIndividual>>(
-        `${BASE}/talleres/matrices-individuales/${idMatrizIndividual}/reabrir`
-      ),
     // Impartición (ADR-00008)
     material: (idTaller: number) =>
       API.get<ApiResponse<TallerMaterial | null>>(`${BASE}/talleres/${idTaller}/material`),
@@ -537,6 +638,13 @@ export const educacionMedicaApi = {
       API.get<ApiResponse<ConcentracionEquipo[]>>(
         `${BASE}/matrices-talleres/${idMatrizGeneral}/concentracion`
       ),
+    revision: (idMatrizGeneral: number, idRutaVersion?: number | null) =>
+      API.get<ApiResponse<MatrizRevision>>(
+        `${BASE}/matrices-talleres/${idMatrizGeneral}/revision`,
+        {
+          params: idRutaVersion ? { idRutaVersion } : undefined,
+        }
+      ),
     actualizarCostos: (
       idMatrizGeneral: number,
       idTaller: number,
@@ -565,8 +673,7 @@ export const educacionMedicaApi = {
       ),
   },
   parametrosModulo: {
-    getAll: () =>
-      API.get<ApiResponse<ParametroModulo[]>>(`${BASE}/parametros-modulo`),
+    getAll: () => API.get<ApiResponse<ParametroModulo[]>>(`${BASE}/parametros-modulo`),
     upsert: (payload: UpsertParametroModuloRequest[]) =>
       API.put<ApiResponse<ParametroModulo[]>>(`${BASE}/parametros-modulo`, payload),
   },

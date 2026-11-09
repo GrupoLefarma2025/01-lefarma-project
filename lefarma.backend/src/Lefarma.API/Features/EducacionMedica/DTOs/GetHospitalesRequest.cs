@@ -11,6 +11,9 @@ public class GetHospitalesRequest
     public decimal? AnestesiasTotalesMin { get; set; }
     public bool? Activo { get; set; }
     public bool? TieneCoordenadas { get; set; }
+    public string? FiltroSede { get; set; }
+    public bool? MostrarEducacionMedica { get; set; }
+    public bool? RequiereRevision { get; set; }
 
     public string? OrderBy { get; set; }
     public string? OrderDirection { get; set; }

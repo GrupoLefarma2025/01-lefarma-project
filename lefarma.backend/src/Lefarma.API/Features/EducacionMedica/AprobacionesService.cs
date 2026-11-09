@@ -65,6 +65,9 @@ public class AprobacionesService : IAprobacionesService
 
         var documentos = new List<PendienteAprobacionDto>();
 
+        var tiposGerencia = await _context.TiposGerencia.AsNoTracking()
+            .ToDictionaryAsync(t => t.IdTipoGerencia, t => t.Descripcion, ct);
+
         // ----- Selecciones mensuales -----
         var querySelecciones = _context.SeleccionesMensuales.AsNoTracking()
             .Include(s => s.EstadoWorkflow)
@@ -102,6 +105,9 @@ public class AprobacionesService : IAprobacionesService
                 && pasosPorId.TryGetValue(seleccion.IdPasoActual.Value, out var pasoSel)
                     ? pasoSel
                     : null;
+            var gerenciaSeleccion = seleccion.IdTipoGerencia.HasValue
+                ? tiposGerencia.GetValueOrDefault(seleccion.IdTipoGerencia.Value)
+                : null;
             documentos.Add(new PendienteAprobacionDto
             {
                 Tipo = "seleccion",
@@ -109,7 +115,9 @@ public class AprobacionesService : IAprobacionesService
                 IdSeleccionMensual = seleccion.IdSeleccionMensual,
                 IdWorkflow = seleccion.IdWorkflow,
                 IdPasoActual = seleccion.IdPasoActual,
-                Documento = $"Selección mensual {seleccion.FechaSeleccion:MM/yyyy}",
+                Documento = gerenciaSeleccion is null
+                    ? $"Selección mensual {seleccion.FechaSeleccion:MM/yyyy}"
+                    : $"Selección mensual {seleccion.FechaSeleccion:MM/yyyy} – {gerenciaSeleccion}",
                 Detalle = seleccion.FechaInicioVigencia is not null && seleccion.FechaFinVigencia is not null
                     ? $"Vigencia {seleccion.FechaInicioVigencia:dd/MM/yyyy} – {seleccion.FechaFinVigencia:dd/MM/yyyy}"
                     : null,
@@ -120,64 +128,6 @@ public class AprobacionesService : IAprobacionesService
                 EstadoNombre = seleccion.EstadoWorkflow?.Nombre,
                 EstadoColor = seleccion.EstadoWorkflow?.ColorHex,
                 Fecha = seleccion.FechaCreacion,
-                Acciones = acciones,
-            });
-        }
-
-        // ----- Versiones de rutas -----
-        var queryVersiones = _context.RutasVersiones.AsNoTracking()
-            .Include(v => v.EstadoWorkflow)
-            .AsQueryable();
-
-        if (filtroNormalizado == FiltroPendientes)
-        {
-            queryVersiones = queryVersiones.Where(v =>
-                v.IdWorkflow != null
-                && v.IdPasoActual != null
-                && idsPasosFirma.Contains(v.IdPasoActual.Value));
-        }
-        else if (filtroNormalizado == FiltroMios)
-        {
-            queryVersiones = queryVersiones.Where(v => v.IdUsuarioCreacion == idUsuario);
-        }
-
-        foreach (var version in await queryVersiones.ToListAsync(ct))
-        {
-            var acciones = await ObtenerAccionesAsync(
-                version.IdWorkflow,
-                version.IdRutaVersion,
-                version.IdPasoActual,
-                idUsuario,
-                CodigoProceso.EDUCACION_MEDICA_RUTAS,
-                version,
-                ct);
-
-            if (filtroNormalizado == FiltroPendientes && acciones.Count == 0)
-            {
-                continue;
-            }
-
-            var paso = version.IdPasoActual is not null
-                && pasosPorId.TryGetValue(version.IdPasoActual.Value, out var pasoVer)
-                    ? pasoVer
-                    : null;
-            documentos.Add(new PendienteAprobacionDto
-            {
-                Tipo = "rutas",
-                IdEntidad = version.IdRutaVersion,
-                IdSeleccionMensual = version.IdSeleccionMensual,
-                IdWorkflow = version.IdWorkflow,
-                IdPasoActual = version.IdPasoActual,
-                Documento = $"Rutas v{version.Version}",
-                Detalle = $"Selección #{version.IdSeleccionMensual}",
-                IdUsuarioCreador = version.IdUsuarioCreacion,
-                PasoNombre = paso?.NombrePaso,
-                Estado = version.Estado,
-                IdEstado = version.IdEstado,
-                EstadoNombre = version.EstadoWorkflow?.Nombre,
-                EstadoColor = version.EstadoWorkflow?.ColorHex,
-                Fecha = version.FechaCreacion,
-                VersionRutas = version.Version,
                 Acciones = acciones,
             });
         }

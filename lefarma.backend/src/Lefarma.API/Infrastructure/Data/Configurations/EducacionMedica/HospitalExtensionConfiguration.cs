@@ -31,6 +31,10 @@ public class HospitalExtensionConfiguration : IEntityTypeConfiguration<HospitalE
         builder.Property(e => e.EsAlmacen).HasColumnName("es_almacen");
         builder.Property(e => e.EsFarmacia).HasColumnName("es_farmacia");
         builder.Property(e => e.EsSedeTaller).HasColumnName("es_sede_taller");
+        builder.Property(e => e.MostrarEducacionMedica).HasColumnName("mostrar_educacion_medica");
+        builder.Property(e => e.MotivoClasificacion).HasColumnName("motivo_clasificacion").HasMaxLength(200);
+        builder.Property(e => e.RequiereRevision).HasColumnName("requiere_revision");
+        builder.Property(e => e.ClasificacionManual).HasColumnName("clasificacion_manual");
 
         builder.Property(e => e.Activo).HasColumnName("activo");
         builder.Property(e => e.FechaCreacion).HasColumnName("fecha_creacion");
@@ -41,5 +45,6 @@ public class HospitalExtensionConfiguration : IEntityTypeConfiguration<HospitalE
         builder.HasIndex(e => e.IdHospital).IsUnique();
         builder.HasIndex(e => e.IdTipoGerencia);
         builder.HasIndex(e => e.IdRegion);
+        builder.HasIndex(e => new { e.MostrarEducacionMedica, e.EsSedeTaller, e.IdTipoGerencia });
     }
 }
