@@ -1,17 +1,10 @@
-using ErrorOr;
-using Lefarma.API.Domain.Entities.Config;
 using Lefarma.API.Domain.Entities.EducacionMedica;
-using Lefarma.API.Domain.Interfaces.Config;
 using Lefarma.API.Domain.Interfaces.EducacionMedica;
-using Lefarma.API.Features.Config.Workflows;
-using Lefarma.API.Features.Config.Workflows.DTOs;
 using Lefarma.API.Features.EducacionMedica.DTOs;
 using Lefarma.API.Features.EducacionMedica.Services;
-using Lefarma.API.Features.Profile;
 using Lefarma.API.Infrastructure.Data;
 using Lefarma.API.Services.Identity;
 using Lefarma.API.Shared.Constants;
-using Lefarma.API.Shared.Errors;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using System.Text.Json;
@@ -33,15 +26,10 @@ public class RutasService : IRutasService
     private readonly IHospitalExtensionRepository _extensionRepository;
     private readonly IParametroModuloRepository _parametroRepository;
     private readonly ILogger<RutasService> _logger;
-    private readonly IWorkflowEngine _engine;
-    private readonly IWorkflowResolver _workflowResolver;
-    private readonly IWorkflowRepository _workflowRepo;
-    private readonly IWorkflowQueryService _workflowQuery;
-    private readonly IProfileService _profileService;
-    private readonly IJefeInmediatoResolver _jefeInmediatoResolver;
     private readonly AsokamDbContext _asokamContext;
     private readonly ApplicationDbContext _context;
     private readonly UserPermissionService _permissionService;
+    private readonly IEjecutivoElegibilidadService _elegibilidad;
 
     public RutasService(
         IRutaRepository rutaRepository,
@@ -51,15 +39,10 @@ public class RutasService : IRutasService
         IHospitalExtensionRepository extensionRepository,
         IParametroModuloRepository parametroRepository,
         ILogger<RutasService> logger,
-        IWorkflowEngine engine,
-        IWorkflowResolver workflowResolver,
-        IWorkflowRepository workflowRepo,
-        IWorkflowQueryService workflowQuery,
-        IProfileService profileService,
-        IJefeInmediatoResolver jefeInmediatoResolver,
         AsokamDbContext asokamContext,
         ApplicationDbContext context,
-        UserPermissionService permissionService)
+        UserPermissionService permissionService,
+        IEjecutivoElegibilidadService elegibilidad)
     {
         _rutaRepository = rutaRepository;
         _seleccionRepository = seleccionRepository;
@@ -68,15 +51,10 @@ public class RutasService : IRutasService
         _extensionRepository = extensionRepository;
         _parametroRepository = parametroRepository;
         _logger = logger;
-        _engine = engine;
-        _workflowResolver = workflowResolver;
-        _workflowRepo = workflowRepo;
-        _workflowQuery = workflowQuery;
-        _profileService = profileService;
-        _jefeInmediatoResolver = jefeInmediatoResolver;
         _asokamContext = asokamContext;
         _context = context;
         _permissionService = permissionService;
+        _elegibilidad = elegibilidad;
     }
 
     public async Task<GenerarRutasResponse> GenerarAsync(
@@ -95,7 +73,7 @@ public class RutasService : IRutasService
         }
 
         var seleccion = await _seleccionRepository.GetByIdAsync(idSeleccionMensual, ct)
-            ?? throw new InvalidOperationException($"La selección {idSeleccionMensual} no existe.");
+            ?? throw new InvalidOperationException("La selección solicitada no existe.");
 
         if (seleccion.Estado != SeleccionMensual.EstadoCerrada)
         {
@@ -110,28 +88,33 @@ public class RutasService : IRutasService
                 "Esta selección ya tiene rutas confirmadas. Cancélalas antes de regenerar la propuesta.");
         }
 
-        // La versión activa es la entidad del workflow (ADR-00006): si está en autorización,
-        // no se puede regenerar; primero se cancela o se resuelve.
-        var workflowRutas = await ResolverWorkflowAsync(seleccion.IdTipoGerencia, ct);
-        var pasoInicioRutas = workflowRutas.Pasos.FirstOrDefault(p => p.EsInicio)
-            ?? throw new InvalidOperationException("El workflow de rutas no tiene paso inicial configurado.");
-
         var versionActiva = await _rutaRepository.GetVersionMaximaAsync(idSeleccionMensual, ct);
-        if (versionActiva is { Estado: RutaVersion.EstadoCreada })
+        if (versionActiva is { Estado: RutaVersion.EstadoCreada }
+            && versionActiva.IdUsuarioCreacion.HasValue
+            && versionActiva.IdUsuarioCreacion.Value != idUsuario)
         {
-            if (versionActiva.IdPasoActual.HasValue
-                && versionActiva.IdPasoActual.Value != pasoInicioRutas.IdPaso)
-            {
-                throw new InvalidOperationException(
-                    "La versión de rutas está en autorización (GV → CA → DC). Cancélala o espera su resolución antes de regenerar.");
-            }
+            throw new InvalidOperationException(
+                "Esta versión está en captura por otro usuario; solo su creador puede regenerarla.");
+        }
 
-            if (versionActiva.IdUsuarioCreacion.HasValue
-                && versionActiva.IdUsuarioCreacion.Value != idUsuario)
-            {
-                throw new InvalidOperationException(
-                    "Esta versión está en captura por otro usuario; solo su creador puede regenerarla o enviarla.");
-            }
+        var idsRutasActivas = rutasExistentes
+            .Where(r => r.Estado is not (Ruta.EstadoArchivada or Ruta.EstadoCancelada or Ruta.EstadoRechazada))
+            .Select(r => r.IdRuta)
+            .ToList();
+        var talleresCapturados = idsRutasActivas.Count == 0
+            ? 0
+            : await _context.Talleres
+                .AsNoTracking()
+                .Where(t => t.Activo
+                    && t.IdRutaVisita.HasValue
+                    && _context.RutasVisitas.Any(v =>
+                        v.IdRutaVisita == t.IdRutaVisita.Value
+                        && idsRutasActivas.Contains(v.IdRuta)))
+                .CountAsync(ct);
+        if (talleresCapturados > 0)
+        {
+            throw new InvalidOperationException(
+                $"No se puede regenerar la propuesta: hay {talleresCapturados} taller(es) capturado(s) en esta selección. Ajusta o elimina los talleres antes de regenerar.");
         }
 
         var regiones = await _seleccionRepository.GetRegionesAsync(idSeleccionMensual, ct);
@@ -139,16 +122,27 @@ public class RutasService : IRutasService
         var avisos = new List<string>();
 
         var regionesPorId = regiones.ToDictionary(r => r.IdRegion);
+
+        // Nuevo modelo (ADR-00015): la ruta se genera por especialista. Si la selección
+        // aún no tiene especialistas, se usa el ejecutivo y se crea una ruta sin especialista
+        // para que la planeación no se detenga. El modelo de equipos queda como fallback legacy.
+        var usaEspecialistas = regiones.Any(r => r.IdEjecutivo.HasValue || r.IdEspecialista.HasValue)
+            || hospitales.Any(h => h.IdEspecialista.HasValue);
+
         var conRegion = hospitales
             .Where(h => h.IdRegion.HasValue
                 && regionesPorId.TryGetValue(h.IdRegion.Value, out var region)
-                && region.IdEquipo.HasValue)
+                && (usaEspecialistas
+                    ? h.IdEspecialista.HasValue || region.IdEjecutivo.HasValue || region.IdEspecialista.HasValue
+                    : region.IdEquipo.HasValue))
             .ToList();
 
         var sinPlan = hospitales.Count - conRegion.Count;
         if (sinPlan > 0)
         {
-            avisos.Add($"{sinPlan} hospital(es) quedaron sin ruta: no tienen región o su región no tiene equipo asignado.");
+            avisos.Add(usaEspecialistas
+                ? $"{sinPlan} hospital(es) quedaron sin ruta: no tienen región o su región no tiene ejecutivo/especialista asignado."
+                : $"{sinPlan} hospital(es) quedaron sin ruta: no tienen región o su región no tiene equipo asignado.");
         }
 
         var inicio = seleccion.FechaInicioVigencia ?? DateOnly.FromDateTime(DateTime.UtcNow);
@@ -156,16 +150,36 @@ public class RutasService : IRutasService
         var (maxVisitasPorDia, maxVisitasPorSemana, maxViajesForaneos) = await LeerParametrosAsync(ct);
         var capacidad = CapacidadPeriodo.Calcular(inicio, fin, maxVisitasPorDia, maxVisitasPorSemana);
 
-        var demandas = conRegion
-            .GroupBy(h => regionesPorId[h.IdRegion!.Value].IdEquipo!.Value)
-            .ToDictionary(g => g.Key, g => g.Count());
-
-        foreach (var (idEquipo, demanda) in demandas.OrderBy(d => d.Key))
+        if (usaEspecialistas)
         {
-            if (demanda > capacidad)
+            var demandas = conRegion
+                .Select(h => new { h, IdEspecialista = EspecialistaEfectivo(h, regionesPorId) })
+                .Where(x => x.IdEspecialista.HasValue)
+                .GroupBy(x => x.IdEspecialista!.Value)
+                .ToDictionary(g => g.Key, g => g.Count());
+
+            foreach (var (idEspecialista, demanda) in demandas.OrderBy(d => d.Key))
             {
-                throw new InvalidOperationException(
-                    $"Capacidad insuficiente: el equipo {idEquipo} tendría {demanda} hospital(es) contra una capacidad de {capacidad} visitas en el periodo (déficit {demanda - capacidad}).");
+                if (demanda > capacidad)
+                {
+                    throw new InvalidOperationException(
+                        $"Capacidad insuficiente: el especialista {idEspecialista} tendría {demanda} hospital(es) contra una capacidad de {capacidad} visitas en el periodo (déficit {demanda - capacidad}).");
+                }
+            }
+        }
+        else
+        {
+            var demandas = conRegion
+                .GroupBy(h => regionesPorId[h.IdRegion!.Value].IdEquipo!.Value)
+                .ToDictionary(g => g.Key, g => g.Count());
+
+            foreach (var (idEquipo, demanda) in demandas.OrderBy(d => d.Key))
+            {
+                if (demanda > capacidad)
+                {
+                    throw new InvalidOperationException(
+                        $"Capacidad insuficiente: el equipo {idEquipo} tendría {demanda} hospital(es) contra una capacidad de {capacidad} visitas en el periodo (déficit {demanda - capacidad}).");
+                }
             }
         }
 
@@ -211,47 +225,134 @@ public class RutasService : IRutasService
 
         var version = (await _rutaRepository.GetVersionActualAsync(idSeleccionMensual, ct) ?? 0) + 1;
 
-        // La versión nueva nace como entidad del workflow en su paso inicial (Draft editable)
         var versionRow = await _rutaRepository.CreateVersionAsync(new RutaVersion
         {
             IdSeleccionMensual = idSeleccionMensual,
             Version = version,
             IdTipoGerencia = seleccion.IdTipoGerencia,
             Estado = RutaVersion.EstadoCreada,
-            IdWorkflow = workflowRutas.IdWorkflow,
-            IdPasoActual = pasoInicioRutas.IdPaso,
-            IdEstado = pasoInicioRutas.IdEstado,
             IdUsuarioCreacion = idUsuario,
             IdUsuarioModificacion = idUsuario,
         }, ct);
-        var equipos = await _equipoRepository.GetAllAsync(null, ct);
-        var nombresEquipos = equipos.ToDictionary(e => e.IdEquipo, e => $"Equipo {e.IdEquipo}");
+
+        if (seleccion.IdTipoGerencia.HasValue)
+        {
+            var fechaPeriodo = seleccion.FechaInicioVigencia ?? seleccion.FechaSeleccion;
+            var periodo = new DateOnly(fechaPeriodo.Year, fechaPeriodo.Month, 1);
+            var matrizGeneral = await _context.MatricesGenerales
+                .FirstOrDefaultAsync(m =>
+                    m.IdTipoGerencia == seleccion.IdTipoGerencia.Value
+                    && m.Periodo == periodo, ct);
+
+            if (matrizGeneral is not null
+                && matrizGeneral.IdRutaVersion != versionRow.IdRutaVersion)
+            {
+                matrizGeneral.IdRutaVersion = versionRow.IdRutaVersion;
+                matrizGeneral.IdUsuarioModificacion = idUsuario;
+                matrizGeneral.FechaModificacion = DateTime.UtcNow;
+                await _context.SaveChangesAsync(ct);
+            }
+        }
 
         var rutasCreadas = new List<Ruta>();
-        foreach (var grupoEquipo in conRegion
-            .GroupBy(h => regionesPorId[h.IdRegion!.Value].IdEquipo!.Value)
-            .OrderBy(g => g.Key))
+        if (usaEspecialistas)
         {
-            var idEquipo = grupoEquipo.Key;
-            var ruta = await _rutaRepository.CreateAsync(new Ruta
-            {
-                IdSeleccionMensual = idSeleccionMensual,
-                IdEquipo = idEquipo,
-                Version = version,
-                IdRutaVersion = versionRow.IdRutaVersion,
-                Nombre = $"Ruta Equipo {idEquipo} · v{version}",
-                Estado = Ruta.EstadoCreada,
-                IdUsuarioCreacion = idUsuario,
-                IdUsuarioModificacion = idUsuario,
-            }, ct);
+            var idsEspecialistas = conRegion
+                .Select(h => EspecialistaEfectivo(h, regionesPorId))
+                .Where(id => id.HasValue)
+                .Select(id => id!.Value)
+                .Distinct()
+                .ToList();
+            var nombresEspecialistas = idsEspecialistas.Count == 0
+                ? new Dictionary<int, string>()
+                : await _asokamContext.Usuarios
+                    .AsNoTracking()
+                    .Where(u => idsEspecialistas.Contains(u.IdUsuario))
+                    .ToDictionaryAsync(
+                        u => u.IdUsuario,
+                        u => u.NombreCompleto ?? $"Especialista {u.IdUsuario}",
+                        ct);
 
-            var visitas = DistribuirEnDias(ruta, grupoEquipo.ToList(), inicio, fin, maxVisitasPorDia, maxVisitasPorSemana, idUsuario, agruparPorCiudad: estrategia == EstrategiaCiudad);
-            foreach (var visita in visitas)
+            foreach (var grupoEspecialista in conRegion
+                .GroupBy(h => EspecialistaEfectivo(h, regionesPorId))
+                .OrderBy(g => g.Key ?? int.MaxValue))
             {
-                await _rutaRepository.AddVisitaAsync(visita, ct);
+                var idEspecialista = grupoEspecialista.Key;
+                var nombre = idEspecialista.HasValue
+                    ? nombresEspecialistas.GetValueOrDefault(
+                        idEspecialista.Value, $"Especialista {idEspecialista.Value}")
+                    : "sin especialista";
+                var ruta = await _rutaRepository.CreateAsync(new Ruta
+                {
+                    IdSeleccionMensual = idSeleccionMensual,
+                    IdEquipo = null,
+                    IdEspecialista = idEspecialista,
+                    Version = version,
+                    IdRutaVersion = versionRow.IdRutaVersion,
+                    Nombre = $"Ruta {nombre} · v{version}",
+                    Estado = Ruta.EstadoCreada,
+                    IdUsuarioCreacion = idUsuario,
+                    IdUsuarioModificacion = idUsuario,
+                }, ct);
+
+                var visitas = DistribuirEnDias(
+                    ruta,
+                    grupoEspecialista.ToList(),
+                    inicio,
+                    fin,
+                    maxVisitasPorDia,
+                    maxVisitasPorSemana,
+                    idUsuario,
+                    agruparPorCiudad: estrategia == EstrategiaCiudad,
+                    idEspecialista: idEspecialista,
+                    idEjecutivoSelector: h => h.IdEjecutivo
+                        ?? (h.IdRegion.HasValue
+                            ? regionesPorId.GetValueOrDefault(h.IdRegion.Value)?.IdEjecutivo
+                            : null));
+                foreach (var visita in visitas)
+                {
+                    await _rutaRepository.AddVisitaAsync(visita, ct);
+                }
+
+                rutasCreadas.Add(ruta);
             }
+        }
+        else
+        {
+            foreach (var grupoEquipo in conRegion
+                .GroupBy(h => regionesPorId[h.IdRegion!.Value].IdEquipo!.Value)
+                .OrderBy(g => g.Key))
+            {
+                var idEquipo = grupoEquipo.Key;
+                var ruta = await _rutaRepository.CreateAsync(new Ruta
+                {
+                    IdSeleccionMensual = idSeleccionMensual,
+                    IdEquipo = idEquipo,
+                    Version = version,
+                    IdRutaVersion = versionRow.IdRutaVersion,
+                    Nombre = $"Ruta Equipo {idEquipo} · v{version}",
+                    Estado = Ruta.EstadoCreada,
+                    IdUsuarioCreacion = idUsuario,
+                    IdUsuarioModificacion = idUsuario,
+                }, ct);
 
-            rutasCreadas.Add(ruta);
+                var visitas = DistribuirEnDias(
+                    ruta,
+                    grupoEquipo.ToList(),
+                    inicio,
+                    fin,
+                    maxVisitasPorDia,
+                    maxVisitasPorSemana,
+                    idUsuario,
+                    agruparPorCiudad: estrategia == EstrategiaCiudad,
+                    idEjecutivoSelector: h => h.IdEjecutivo);
+                foreach (var visita in visitas)
+                {
+                    await _rutaRepository.AddVisitaAsync(visita, ct);
+                }
+
+                rutasCreadas.Add(ruta);
+            }
         }
 
         foreach (var ruta in rutasCreadas)
@@ -278,6 +379,7 @@ public class RutasService : IRutasService
         return new GenerarRutasResponse
         {
             Version = version,
+            IdRutaVersion = versionRow.IdRutaVersion,
             Estrategia = estrategia,
             Rutas = detalle,
             Avisos = avisos,
@@ -288,6 +390,92 @@ public class RutasService : IRutasService
     {
         var rutas = await _rutaRepository.GetBySeleccionAsync(idSeleccionMensual, version, ct);
         return await ArmarDetalleAsync(rutas, null, ct);
+    }
+
+    public async Task<RutaVisitaDto> AsignarEjecutivoVisitaAsync(
+        int idRuta,
+        int idRutaVisita,
+        AsignarEjecutivoVisitaRequest request,
+        int idUsuario,
+        CancellationToken ct = default)
+    {
+        var ruta = await ObtenerRutaAsync(idRuta, ct);
+        var visita = await _rutaRepository.GetVisitaByIdAsync(idRutaVisita, ct)
+            ?? throw new InvalidOperationException($"La visita {idRutaVisita} no existe.");
+
+        if (visita.IdRuta != idRuta)
+        {
+            throw new InvalidOperationException($"La visita {idRutaVisita} no pertenece a la ruta {idRuta}.");
+        }
+
+        var esAjuste = ruta.Estado == Ruta.EstadoCerrada;
+        if (esAjuste)
+        {
+            await ValidarPermisoAjusteAsync(idUsuario, ct);
+            ValidarMotivoAjuste(request.Motivo);
+            await ValidarLimiteTemporalAsync(visita.FechaVisita, ct);
+        }
+        else
+        {
+            await ValidarRutaEditableAsync(ruta, ct);
+        }
+
+        if (!visita.IdSeleccionHospital.HasValue)
+        {
+            throw new InvalidOperationException(
+                "La visita no tiene hospital de la selección; no se puede validar el ejecutivo.");
+        }
+
+        var hospital = await _seleccionRepository.GetHospitalByIdAsync(
+            visita.IdSeleccionHospital.Value, ct)
+            ?? throw new InvalidOperationException(
+                $"El hospital de la selección {visita.IdSeleccionHospital} no existe.");
+        var region = hospital.IdRegion.HasValue
+            ? await _seleccionRepository.GetRegionByIdAsync(hospital.IdRegion.Value, ct)
+            : null;
+        if (region is null)
+        {
+            throw new InvalidOperationException(
+                "El hospital de la visita no tiene región asignada; no se puede validar el ejecutivo.");
+        }
+
+        var seleccion = await _seleccionRepository.GetByIdAsync(hospital.IdSeleccionMensual, ct)
+            ?? throw new InvalidOperationException(
+                $"La selección {hospital.IdSeleccionMensual} no existe.");
+
+        if (request.IdEjecutivo.HasValue)
+        {
+            var esPrimario = await _elegibilidad.EsEjecutivoPrimarioAsync(
+                request.IdEjecutivo.Value, region.IdRegionCatalogo, seleccion.IdTipoGerencia, ct);
+            var esSuplente = !esPrimario && await _elegibilidad.EsEjecutivoSuplenteAsync(
+                request.IdEjecutivo.Value, region.IdRegionCatalogo, seleccion.IdTipoGerencia, ct);
+
+            if (!esPrimario && !esSuplente)
+            {
+                throw new InvalidOperationException(
+                    "El ejecutivo no está activo para la misma región y gerencia de la visita.");
+            }
+        }
+
+        var antes = new { idEjecutivo = visita.IdEjecutivo };
+        visita.IdEjecutivo = request.IdEjecutivo;
+        visita.IdUsuarioModificacion = idUsuario;
+        visita.FechaModificacion = DateTime.UtcNow;
+
+        await using var tx = await _context.Database.BeginTransactionAsync(ct);
+        await _rutaRepository.UpdateVisitaAsync(visita, ct);
+
+        if (esAjuste)
+        {
+            await RegistrarAjusteAsync(
+                AjustePostCierre.EntidadRutaVisita, visita.IdRutaVisita,
+                AjustePostCierre.AccionEditarEjecutivo,
+                antes, new { idEjecutivo = request.IdEjecutivo },
+                request.Motivo!, idUsuario, ct);
+        }
+
+        await tx.CommitAsync(ct);
+        return await ArmarVisitaDtoAsync(visita, ct);
     }
 
     public async Task<RutaVisitaDto> MoverVisitaAsync(
@@ -316,6 +504,15 @@ public class RutasService : IRutasService
         else
         {
             await ValidarRutaEditableAsync(ruta, ct);
+        }
+
+        var tieneTalleres = await _context.Talleres
+            .AsNoTracking()
+            .AnyAsync(t => t.Activo && t.IdRutaVisita == idRutaVisita, ct);
+        if (tieneTalleres)
+        {
+            throw new InvalidOperationException(
+                "La visita tiene talleres capturados. Ajusta o elimina los talleres antes de reprogramarla.");
         }
 
         var (maxDia, maxSemana, _) = await LeerParametrosAsync(ct);
@@ -424,20 +621,46 @@ public class RutasService : IRutasService
             throw new InvalidOperationException("El hospital no pertenece a la selección de esta ruta.");
         }
 
-        // Frontera zona→equipo: Rutas no reasigna; la asignación vive en el paso Reparto.
+        // Frontera región→responsable: Rutas no reasigna; la asignación vive en el paso Reparto.
         string? aviso = null;
+        int? idEjecutivoRegion = null;
+        int? idEspecialistaRegion = null;
         if (hospital.IdRegion.HasValue)
         {
             var region = await _seleccionRepository.GetRegionByIdAsync(hospital.IdRegion.Value, ct);
-            if (region?.IdEquipo is { } idEquipoRegion && idEquipoRegion != ruta.IdEquipo)
-            {
-                throw new InvalidOperationException(
-                    $"Este hospital pertenece a la región \"{region.Nombre ?? $"Región {region.IdRegion}"}\" asignada al equipo {region.IdEquipo}. La asignación región → equipo se corrige en el paso Reparto de la selección.");
-            }
+            idEjecutivoRegion = region?.IdEjecutivo;
+            idEspecialistaRegion = region?.IdEspecialista;
 
-            if (region?.IdEquipo is null)
+            if (ruta.IdEspecialista.HasValue)
             {
-                aviso = $"Alta manual: el hospital no tiene equipo asignado en su región (la región no fue asignada en el paso Reparto).";
+                if (region?.IdEspecialista is { } idEspecialistaRegionAsignado
+                    && idEspecialistaRegionAsignado != ruta.IdEspecialista)
+                {
+                    throw new InvalidOperationException(
+                        $"Este hospital pertenece a la región \"{region.Nombre ?? $"Región {region.IdRegion}"}\" asignada al especialista {idEspecialistaRegionAsignado}. La asignación región → especialista se corrige en el paso Reparto de la selección.");
+                }
+
+                if (region?.IdEspecialista is null)
+                {
+                    aviso = "Alta manual: la región del hospital no tiene especialista asignado en el reparto.";
+                }
+            }
+            else if (ruta.IdEquipo.HasValue)
+            {
+                if (region?.IdEquipo is { } idEquipoRegion && idEquipoRegion != ruta.IdEquipo)
+                {
+                    throw new InvalidOperationException(
+                        $"Este hospital pertenece a la región \"{region.Nombre ?? $"Región {region.IdRegion}"}\" asignada al equipo {region.IdEquipo}. La asignación región → equipo se corrige en el paso Reparto de la selección.");
+                }
+
+                if (region?.IdEquipo is null)
+                {
+                    aviso = "Alta manual: el hospital no tiene equipo asignado en su región (la región no fue asignada en el paso Reparto).";
+                }
+            }
+            else if (region is not null && !region.IdEjecutivo.HasValue)
+            {
+                aviso = "Alta manual: la región del hospital no tiene ejecutivo asignado en el reparto.";
             }
         }
         else
@@ -451,13 +674,19 @@ public class RutasService : IRutasService
             request.FechaVisita, request.Orden, idVisitaExcluida: null,
             maxDia, maxSemana, esAjuste, ct);
 
-        await using var tx = await _context.Database.BeginTransactionAsync(ct);
+        var transaccionPropia = _context.Database.CurrentTransaction is null;
+        await using var tx = transaccionPropia
+            ? await _context.Database.BeginTransactionAsync(ct)
+            : null;
 
         var visita = await _rutaRepository.AddVisitaAsync(new RutaVisita
         {
             IdRuta = ruta.IdRuta,
             IdSeleccionHospital = request.IdSeleccionHospital,
             IdHospital = hospital.IdHospital,
+            IdTipoVisita = request.IdTipoVisita,
+            IdEjecutivo = hospital.IdEjecutivo ?? idEjecutivoRegion,
+            IdEspecialista = ruta.IdEspecialista ?? idEspecialistaRegion,
             FechaVisita = request.FechaVisita,
             Orden = request.Orden,
             IdUsuarioCreacion = idUsuario,
@@ -473,7 +702,11 @@ public class RutasService : IRutasService
                 request.Motivo!, idUsuario, ct);
         }
 
-        await tx.CommitAsync(ct);
+        if (transaccionPropia)
+        {
+            await tx!.CommitAsync(ct);
+        }
+
 
         if (aviso is not null)
         {
@@ -481,7 +714,6 @@ public class RutasService : IRutasService
                 "Alta manual de hospital sin asignación completa en reparto. IdSeleccionHospital {IdSeleccionHospital} agregado a la ruta {IdRuta} por el usuario {IdUsuario}. {Aviso}",
                 request.IdSeleccionHospital, ruta.IdRuta, idUsuario, aviso);
         }
-
         var dto = await ArmarVisitaDtoAsync(visita, ct);
         dto.Aviso = aviso;
         dto.Avisos = avisos;
@@ -642,131 +874,6 @@ public class RutasService : IRutasService
         await tx.CommitAsync(ct);
     }
 
-    public async Task<RutaVersionDto?> GetVersionInfoAsync(int idSeleccionMensual, int? version, int idUsuario, CancellationToken ct = default)
-    {
-        var versionRow = version.HasValue
-            ? await _rutaRepository.GetVersionAsync(idSeleccionMensual, version.Value, ct)
-            : await _rutaRepository.GetVersionMaximaAsync(idSeleccionMensual, ct);
-
-        if (versionRow is null) return null;
-
-        return await ArmarVersionDtoAsync(versionRow, idUsuario, ct);
-    }
-
-    public async Task<RutaVersionDto> FirmarVersionAsync(
-        int idRutaVersion,
-        FirmarWorkflowRequest request,
-        int idUsuario,
-        CancellationToken ct = default)
-    {
-        var version = await _rutaRepository.GetVersionByIdAsync(idRutaVersion, ct)
-            ?? throw new InvalidOperationException($"La versión de rutas {idRutaVersion} no existe.");
-
-        if (version.IdWorkflow is null || version.IdPasoActual is null)
-        {
-            throw new InvalidOperationException("La versión de rutas no está en un workflow activo.");
-        }
-
-        var workflow = await _workflowRepo.GetQueryable()
-            .Include(w => w.Pasos)
-                .ThenInclude(p => p.AccionesOrigen)
-                    .ThenInclude(a => a.TipoAccion)
-            .Include(w => w.Pasos)
-                .ThenInclude(p => p.Participantes)
-            .FirstOrDefaultAsync(w => w.IdWorkflow == version.IdWorkflow, ct)
-            ?? throw new InvalidOperationException("No se encontró la configuración del workflow de rutas.");
-
-        var pasoActual = workflow.Pasos.FirstOrDefault(p => p.IdPaso == version.IdPasoActual && p.Activo)
-            ?? throw new InvalidOperationException("La versión no tiene un paso activo válido en el workflow.");
-
-        var accion = pasoActual.AccionesOrigen.FirstOrDefault(a => a.IdAccion == request.IdAccion && a.Activo)
-            ?? throw new InvalidOperationException("La acción no está disponible en el paso actual.");
-
-        var codigoAccion = accion.TipoAccion?.Codigo ?? string.Empty;
-
-        // Cancelar no exige firma digital: la ejecuta el creador (con comentario obligatorio).
-        if (codigoAccion != "CANCELAR")
-        {
-            await ValidarFirmaUsuarioAsync(idUsuario);
-        }
-
-        // El envío a autorización solo lo ejecuta el planificador que generó la versión
-        if (codigoAccion == "ENVIAR" && version.IdUsuarioCreacion.HasValue && version.IdUsuarioCreacion.Value != idUsuario)
-        {
-            throw new InvalidOperationException("Solo el planificador que generó la versión puede enviarla a autorización.");
-        }
-
-        var validacion = await WorkflowFirmaHelper.ValidarParticipanteAsync(
-            pasoActual, workflow.IdWorkflow, idUsuario, version.IdUsuarioCreacion ?? 0,
-            _asokamContext, _jefeInmediatoResolver, codigoAccion);
-        if (validacion.IsError)
-        {
-            throw new InvalidOperationException(validacion.FirstError.Description);
-        }
-
-        // Cobertura 100% antes de enviar a autorización y antes del cierre (DC)
-        if (codigoAccion is "ENVIAR" or "CERRAR")
-        {
-            await ValidarCoberturaVersionAsync(version, ct);
-        }
-
-        var resultado = await _engine.EjecutarAccionAsync(new WorkflowContext(
-            IdWorkflow: workflow.IdWorkflow,
-            IdEntidad: version.IdRutaVersion,
-            TipoEntidad: CodigoProceso.EDUCACION_MEDICA_RUTAS,
-            Entidad: version,
-            IdAccion: request.IdAccion,
-            IdUsuario: idUsuario,
-            Orden: null!,
-            Comentario: request.Comentario,
-            DatosAdicionales: request.DatosAdicionales));
-        if (!resultado.Exitoso)
-        {
-            throw new InvalidOperationException(resultado.Error ?? "Error en el motor de workflow.");
-        }
-
-        version.IdPasoActual = resultado.NuevoIdPaso ?? version.IdPasoActual;
-        version.IdEstado = resultado.NuevoIdEstado ?? version.IdEstado;
-        version.IdUsuarioModificacion = idUsuario;
-
-        var pasoResultante = workflow.Pasos.FirstOrDefault(p => p.IdPaso == version.IdPasoActual);
-        if (pasoResultante?.EsFinal == true)
-        {
-            var estadoFinal = codigoAccion switch
-            {
-                "RECHAZAR" => RutaVersion.EstadoRechazada,
-                "CANCELAR" => RutaVersion.EstadoCancelada,
-                _ => RutaVersion.EstadoCerrada, // CERRAR
-            };
-            await AplicarEstadoVersionAsync(version, estadoFinal, idUsuario, ct);
-        }
-        else if (pasoResultante?.EsInicio == true)
-        {
-            await AplicarEstadoVersionAsync(version, RutaVersion.EstadoCreada, idUsuario, ct);
-        }
-        else
-        {
-            await _rutaRepository.UpdateVersionAsync(version, ct);
-        }
-
-        _logger.LogInformation(
-            "Versión de rutas v{Version} (selección {IdSeleccion}): acción {IdAccion} ({Codigo}) por usuario {IdUsuario} -> paso {IdPaso} ({Estado}).",
-            version.Version, version.IdSeleccionMensual, request.IdAccion, codigoAccion, idUsuario, version.IdPasoActual, version.Estado);
-
-        return await ArmarVersionDtoAsync(version, idUsuario, ct);
-    }
-
-    public async Task<ErrorOr<IEnumerable<HistorialWorkflowItemResponse>>> GetHistorialVersionAsync(int idRutaVersion, CancellationToken ct = default)
-    {
-        var version = await _rutaRepository.GetVersionByIdAsync(idRutaVersion, ct);
-        if (version is null)
-        {
-            return CommonErrors.NotFound("RutaVersion", idRutaVersion.ToString());
-        }
-
-        return await _workflowQuery.GetHistorialWorkflowAsync(idRutaVersion, CodigoProceso.EDUCACION_MEDICA_RUTAS, ct);
-    }
-
     public async Task<List<RutaDto>> CancelarAsync(
         int idSeleccionMensual,
         CancelarRutasRequest request,
@@ -774,7 +881,7 @@ public class RutasService : IRutasService
         CancellationToken ct = default)
     {
         _ = await _seleccionRepository.GetByIdAsync(idSeleccionMensual, ct)
-            ?? throw new InvalidOperationException($"La selección {idSeleccionMensual} no existe.");
+            ?? throw new InvalidOperationException("La selección solicitada no existe.");
 
         var version = await _rutaRepository.GetVersionMaximaAsync(idSeleccionMensual, ct)
             ?? throw new InvalidOperationException("No hay versiones de rutas que cancelar.");
@@ -806,62 +913,6 @@ public class RutasService : IRutasService
         return await ArmarDetalleAsync(rutas, null, ct);
     }
 
-    // ----- Helpers de workflow (ADR-00006) -----
-
-    private async Task<Workflow> ResolverWorkflowAsync(int? idTipoGerencia, CancellationToken ct)
-    {
-        if (idTipoGerencia is null)
-        {
-            throw new InvalidOperationException(
-                "La selección no tiene tipo de gerencia configurado; no se puede determinar el workflow de autorización de rutas.");
-        }
-
-        var workflow = await _workflowResolver.ResolveWorkflowIdAsync(
-            CodigoProceso.EDUCACION_MEDICA_RUTAS,
-            new Dictionary<string, int?> { [WorkflowScope.TIPO_GERENCIA] = idTipoGerencia });
-
-        return workflow
-            ?? throw new InvalidOperationException(
-                "No hay workflow configurado para rutas de esa gerencia. Aplica el script 0014 y crea el mapping (EDUCACION_MEDICA_RUTAS + Tipo de gerencia) en el admin de workflows.");
-    }
-
-    private async Task ValidarFirmaUsuarioAsync(int idUsuario)
-    {
-        var tieneFirma = await _profileService.HasFirmaAsync(idUsuario);
-        if (tieneFirma.IsError || !tieneFirma.Value)
-        {
-            throw new InvalidOperationException(
-                "El usuario no tiene una firma digital registrada. Cárguela en Configuración > Perfil para continuar.");
-        }
-    }
-
-    private async Task ValidarCoberturaVersionAsync(RutaVersion version, CancellationToken ct)
-    {
-        var hospitales = await _seleccionRepository.GetHospitalesAsync(version.IdSeleccionMensual, ct);
-        var rutas = await _rutaRepository.GetBySeleccionAsync(version.IdSeleccionMensual, version.Version, ct);
-
-        var idsPlanificados = new HashSet<int>();
-        foreach (var ruta in rutas)
-        {
-            var visitas = await _rutaRepository.GetVisitasAsync(ruta.IdRuta, ct);
-            foreach (var visita in visitas)
-            {
-                // Las visitas extraordinarias no cubren hospitales de la selección (ADR-00011).
-                if (visita.IdSeleccionHospital.HasValue)
-                {
-                    idsPlanificados.Add(visita.IdSeleccionHospital.Value);
-                }
-            }
-        }
-
-        var faltantes = hospitales.Count(h => !idsPlanificados.Contains(h.IdSeleccionHospital));
-        if (faltantes > 0)
-        {
-            throw new InvalidOperationException(
-                $"Cobertura incompleta: {faltantes} hospital(es) de la selección quedan sin visita. Asígnales una ruta o exclúyelos antes de continuar.");
-        }
-    }
-
     /// <summary>Escribe el estado de negocio en la versión y lo sincroniza en sus filas de rutas.</summary>
     private async Task AplicarEstadoVersionAsync(RutaVersion version, string estado, int idUsuario, CancellationToken ct)
     {
@@ -891,54 +942,6 @@ public class RutasService : IRutasService
             ruta.IdUsuarioModificacion = idUsuario;
             await _rutaRepository.UpdateAsync(ruta, ct);
         }
-    }
-
-    private async Task<RutaVersionDto> ArmarVersionDtoAsync(RutaVersion version, int idUsuario, CancellationToken ct)
-    {
-        string? pasoNombre = null;
-        var esEditable = false;
-        var esFinal = false;
-
-        if (version.IdPasoActual.HasValue)
-        {
-            var paso = await _workflowRepo.GetPasoAsync(version.IdPasoActual.Value, ct);
-            pasoNombre = paso?.NombrePaso;
-            esEditable = paso?.EsInicio == true;
-            esFinal = paso?.EsFinal == true;
-        }
-
-        var acciones = new List<AccionDisponibleResponse>();
-        if (version.IdWorkflow.HasValue && version.IdPasoActual.HasValue)
-        {
-            var resultadoAcciones = await _workflowQuery.GetAccionesDisponiblesAsync(
-                version.IdWorkflow.Value,
-                version.IdRutaVersion,
-                version.IdPasoActual.Value,
-                idUsuario,
-                CodigoProceso.EDUCACION_MEDICA_RUTAS,
-                version,
-                ct);
-            if (!resultadoAcciones.IsError && resultadoAcciones.Value is not null)
-            {
-                acciones = resultadoAcciones.Value.ToList();
-            }
-        }
-
-        return new RutaVersionDto
-        {
-            IdRutaVersion = version.IdRutaVersion,
-            Version = version.Version,
-            Estado = version.Estado,
-            IdWorkflow = version.IdWorkflow,
-            IdPasoActual = version.IdPasoActual,
-            PasoNombre = pasoNombre,
-            IdEstado = version.IdEstado,
-            EstadoNombre = version.EstadoWorkflow?.Nombre,
-            EstadoColor = version.EstadoWorkflow?.ColorHex,
-            EsEditable = esEditable,
-            EsFinal = esFinal,
-            Acciones = acciones,
-        };
     }
 
     public async Task<List<AsignacionDto>> GetAsignacionesAsync(
@@ -1182,6 +1185,14 @@ public class RutasService : IRutasService
         return (maxDia, maxSemana, maxForaneos);
     }
 
+    private static int? EspecialistaEfectivo(
+        SeleccionHospital hospital,
+        IReadOnlyDictionary<int, SeleccionRegion> regiones)
+        => hospital.IdEspecialista
+            ?? (hospital.IdRegion.HasValue
+                ? regiones.GetValueOrDefault(hospital.IdRegion.Value)?.IdEspecialista
+                : null);
+
     private static List<RutaVisita> DistribuirEnDias(
         Ruta ruta,
         List<SeleccionHospital> hospitales,
@@ -1190,7 +1201,9 @@ public class RutasService : IRutasService
         int maxVisitasPorDia,
         int maxVisitasPorSemana,
         int idUsuario,
-        bool agruparPorCiudad)
+        bool agruparPorCiudad,
+        int? idEspecialista = null,
+        Func<SeleccionHospital, int?>? idEjecutivoSelector = null)
     {
         // Dos criterios deterministas:
         //  - "ciudad": bloques por localidad (vecino más cercano entre ciudades de la región).
@@ -1246,6 +1259,8 @@ public class RutasService : IRutasService
                         IdRuta = ruta.IdRuta,
                         IdSeleccionHospital = hospital.IdSeleccionHospital,
                         IdHospital = hospital.IdHospital,
+                        IdEjecutivo = idEjecutivoSelector?.Invoke(hospital),
+                        IdEspecialista = idEspecialista,
                         FechaVisita = fecha,
                         Orden = usadosDia + k + 1,
                         IdUsuarioCreacion = idUsuario,
@@ -1410,27 +1425,15 @@ public class RutasService : IRutasService
             ?? throw new InvalidOperationException($"La ruta {idRuta} no existe.");
     }
 
-    private async Task ValidarRutaEditableAsync(Ruta ruta, CancellationToken ct)
+    private Task ValidarRutaEditableAsync(Ruta ruta, CancellationToken ct)
     {
         if (ruta.Estado != Ruta.EstadoCreada)
         {
-            throw new InvalidOperationException($"Solo una ruta en Draft es editable (estado actual: {ruta.Estado}).");
+            throw new InvalidOperationException(
+                $"Solo una ruta en Creada es editable (estado actual: {ruta.Estado}).");
         }
 
-        // Si la versión ya salió a autorización, la ruta queda en solo lectura (ADR-00006)
-        if (ruta.IdRutaVersion.HasValue)
-        {
-            var version = await _rutaRepository.GetVersionByIdAsync(ruta.IdRutaVersion.Value, ct);
-            if (version?.IdPasoActual is { } idPaso)
-            {
-                var paso = await _workflowRepo.GetPasoAsync(idPaso, ct);
-                if (paso is not null && !paso.EsInicio)
-                {
-                    throw new InvalidOperationException(
-                        "La versión de rutas está en autorización (solo lectura). Cancélala o espera su resolución para editarla.");
-                }
-            }
-        }
+        return Task.CompletedTask;
     }
 
     private async Task<List<string>> ValidarMovimientoAsync(
@@ -1586,10 +1589,29 @@ public class RutasService : IRutasService
             return [];
         }
 
-        var idsEquipos = rutas.Select(r => r.IdEquipo).Distinct().ToList();
+        var idsEquipos = rutas
+            .Where(r => r.IdEquipo.HasValue)
+            .Select(r => r.IdEquipo!.Value)
+            .Distinct()
+            .ToList();
         var equipos = (await _equipoRepository.GetAllAsync(null, ct))
             .Where(e => idsEquipos.Contains(e.IdEquipo))
             .ToDictionary(e => e.IdEquipo, e => $"Equipo {e.IdEquipo}");
+
+        var idsEspecialistas = rutas
+            .Where(r => r.IdEspecialista.HasValue)
+            .Select(r => r.IdEspecialista!.Value)
+            .Distinct()
+            .ToList();
+        var especialistas = idsEspecialistas.Count == 0
+            ? new Dictionary<int, string>()
+            : await _asokamContext.Usuarios
+                .AsNoTracking()
+                .Where(u => idsEspecialistas.Contains(u.IdUsuario))
+                .ToDictionaryAsync(
+                    u => u.IdUsuario,
+                    u => u.NombreCompleto ?? $"Especialista {u.IdUsuario}",
+                    ct);
 
         var idsSeleccion = rutas.Select(r => r.IdSeleccionMensual).Distinct().ToList();
         var nombresHospitalesPorSeleccion = new Dictionary<int, Dictionary<int, string>>();
@@ -1627,8 +1649,18 @@ public class RutasService : IRutasService
             {
                 IdRuta = ruta.IdRuta,
                 IdSeleccionMensual = ruta.IdSeleccionMensual,
-                IdEquipo = ruta.IdEquipo,
-                NombreEquipo = equipos.GetValueOrDefault(ruta.IdEquipo, $"Equipo {ruta.IdEquipo}"),
+                IdEquipo = ruta.IdEquipo ?? 0,
+                NombreEquipo = ruta.IdEspecialista.HasValue
+                    ? especialistas.GetValueOrDefault(
+                        ruta.IdEspecialista.Value, $"Especialista {ruta.IdEspecialista.Value}")
+                    : ruta.IdEquipo.HasValue
+                        ? equipos.GetValueOrDefault(ruta.IdEquipo.Value, $"Equipo {ruta.IdEquipo.Value}")
+                        : "Sin equipo",
+                IdEspecialista = ruta.IdEspecialista,
+                NombreEspecialista = ruta.IdEspecialista.HasValue
+                    ? especialistas.GetValueOrDefault(
+                        ruta.IdEspecialista.Value, $"Especialista {ruta.IdEspecialista.Value}")
+                    : null,
                 Version = ruta.Version,
                 Nombre = ruta.Nombre,
                 Estado = ruta.Estado,
@@ -1653,23 +1685,32 @@ public class RutasService : IRutasService
             .ToDictionary(r => r.IdRegion, r => r.Nombre ?? $"Región {r.IdRegion}");
 
         string? nombreHospital = null;
+        Hospital? hospitalAsokam = null;
         if (visita.IdHospital.HasValue)
         {
-            var hospital = await _hospitalRepository.GetByIdAsync(visita.IdHospital.Value, ct);
-            nombreHospital = hospital?.NombreContacto ?? $"Hospital {visita.IdHospital}";
+            hospitalAsokam = await _hospitalRepository.GetByIdAsync(visita.IdHospital.Value, ct);
+            nombreHospital = hospitalAsokam?.NombreContacto ?? $"Hospital {visita.IdHospital}";
         }
 
         var esForanea = visita.IdHospital.HasValue
             ? (await _extensionRepository.GetByHospitalIdAsync(visita.IdHospital.Value, ct))?.EsZonaMetropolitana != true
             : false;
 
-        return ArmarVisitaDto(
+        var dto = ArmarVisitaDto(
             visita,
             hospitales,
             regiones,
             new Dictionary<int, string> { [visita.IdHospital ?? 0] = nombreHospital ?? string.Empty },
             esForanea ? null : new Dictionary<int, bool?> { [visita.IdHospital ?? 0] = true },
             nombreHospitalForzado: nombreHospital);
+
+        if (!dto.Latitud.HasValue)
+        {
+            dto.Latitud = hospitalAsokam?.Latitud;
+            dto.Longitud = hospitalAsokam?.Longitud;
+        }
+
+        return dto;
     }
 
     private static RutaVisitaDto ArmarVisitaDto(
@@ -1693,6 +1734,9 @@ public class RutasService : IRutasService
             IdRuta = visita.IdRuta,
             IdSeleccionHospital = visita.IdSeleccionHospital,
             IdHospital = visita.IdHospital,
+            IdEjecutivo = visita.IdEjecutivo,
+            IdEspecialista = visita.IdEspecialista,
+            IdTipoVisita = visita.IdTipoVisita,
             NombreHospital = nombreHospitalForzado
                 ?? (visita.IdHospital.HasValue
                     ? nombresHospitales.GetValueOrDefault(visita.IdHospital.Value, $"Hospital {visita.IdHospital}")
@@ -1707,6 +1751,10 @@ public class RutasService : IRutasService
             NombreRegion = hospital?.IdRegion.HasValue == true
                 ? regiones.GetValueOrDefault(hospital.IdRegion.Value)
                 : null,
+            EntidadFederativa = hospital?.EntidadFederativa,
+            CiudadMunicipio = hospital?.CiudadMunicipio,
+            Latitud = hospital?.LatitudSnapshot,
+            Longitud = hospital?.LongitudSnapshot,
         };
     }
 }

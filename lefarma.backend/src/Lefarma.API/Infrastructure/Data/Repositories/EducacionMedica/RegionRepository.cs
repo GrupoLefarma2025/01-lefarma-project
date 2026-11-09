@@ -72,7 +72,10 @@ public class RegionRepository : IRegionRepository
     public async Task<Dictionary<int, int>> GetConteosHospitalesAsync(CancellationToken cancellationToken = default)
     {
         return await _context.HospitalesExtension
-            .Where(h => h.IdRegion.HasValue)
+            .Where(h => h.IdRegion.HasValue
+                && h.Activo
+                && h.MostrarEducacionMedica
+                && h.EsSedeTaller == true)
             .GroupBy(h => h.IdRegion!.Value)
             .Select(g => new { IdRegion = g.Key, Total = g.Count() })
             .ToDictionaryAsync(x => x.IdRegion, x => x.Total, cancellationToken);
@@ -199,6 +202,8 @@ public class RegionRepository : IRegionRepository
                 ON ze.codigo_estado = TRY_CAST(g.codigoEstado AS INT)
                AND ze.id_tipo_gerencia = he.id_tipo_gerencia
             WHERE he.id_tipo_gerencia IS NOT NULL
+              AND he.mostrar_educacion_medica = 1
+              AND he.es_sede_taller = 1
               AND (he.id_region IS NULL OR he.id_region <> ze.id_region)
               AND ({0} IS NULL OR he.id_tipo_gerencia = {0})
             GROUP BY ze.codigo_estado, ze.id_region
@@ -223,6 +228,8 @@ public class RegionRepository : IRegionRepository
                 ON ze.codigo_estado = TRY_CAST(g.codigoEstado AS INT)
                AND ze.id_tipo_gerencia = he.id_tipo_gerencia
             WHERE he.id_tipo_gerencia IS NOT NULL
+              AND he.mostrar_educacion_medica = 1
+              AND he.es_sede_taller = 1
               AND (he.id_region IS NULL OR he.id_region <> ze.id_region)
               AND ({1} IS NULL OR he.id_tipo_gerencia = {1})
             """;
@@ -250,6 +257,8 @@ public class RegionRepository : IRegionRepository
                 JOIN Asokam.dbo.genContactosCat g ON g.codigoContacto = he.id_hospital
                 WHERE he.id_region IS NULL
                   AND he.id_tipo_gerencia IS NOT NULL
+                  AND he.mostrar_educacion_medica = 1
+                  AND he.es_sede_taller = 1
                   AND NULLIF(TRY_CAST(g.latitud AS FLOAT), 0) IS NOT NULL
                   AND NULLIF(TRY_CAST(g.longitud AS FLOAT), 0) IS NOT NULL
                   AND ({ph} IS NULL OR he.id_tipo_gerencia = {ph})
@@ -319,6 +328,8 @@ public class RegionRepository : IRegionRepository
             JOIN Asokam.dbo.genContactosCat g ON g.codigoContacto = he.id_hospital
             WHERE he.id_region IS NULL
               AND he.id_tipo_gerencia IS NOT NULL
+              AND he.mostrar_educacion_medica = 1
+              AND he.es_sede_taller = 1
               AND ({0} IS NULL OR he.id_tipo_gerencia = {0})
               AND NOT EXISTS (SELECT 1 FROM educacion_medica.regiones_estados ze
                               WHERE ze.codigo_estado = TRY_CAST(g.codigoEstado AS INT)

@@ -1,5 +1,7 @@
 -- ============================================================
 -- 9999_20260903-1300_educacion-medica_drop-schema-reset.lefarma.sql
+-- UBICACION: lefarma.database/manual/educacion-medica/
+--   NO lo lee DbUp. Utilidad manual para desarrollo.
 -- Descripcion: UTILIDAD DE DESARROLLO. Elimina TODO el schema
 --   educacion_medica (vistas, FKs y tablas) sin depender del orden,
 --   para recrear la base desde cero con 0016 (esquema) y 0030 (catálogos).

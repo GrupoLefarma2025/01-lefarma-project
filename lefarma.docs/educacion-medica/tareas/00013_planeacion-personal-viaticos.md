@@ -1,7 +1,7 @@
-# Tareas — 00013 Mi planeación semanal (personal) y handoff futuro a viáticos
+# Tareas — 00013 Mi planeación semanal (personal) y handoff a viáticos
 
 > Vinculada a: [[decisiones/00013_planeacion-personal-viaticos]]
-> Fases: 0 plan/revisión, 1 backend mínimo, 2 frontend, 3 dashboard, 4 handoff viáticos (futuro), 5 FOR-006 (fuera).
+> Fases: 0 plan/revisión, 1 backend mínimo, 2 frontend, 3 dashboard, 4 handoff viáticos (implementada), 5 FOR-006 (fuera).
 
 ## Fase 0 — Plan y revisión
 
@@ -28,13 +28,14 @@
 - [x] Reemplazar el wireframe `CalendarioPage` por la página real (ruta `/educacion-medica/calendario`).
 - [x] Renombrar el ítem del menú "Calendario" → **"Mi planeación"** (mismo path).
 - [x] Header con tabs **Semana / Rutas**, equipo (EV + EP), región, navegación ‹ Semana › + "Hoy", filtros `Todo / Visitas / Talleres`.
-- [x] **Vista Semana**: Lun-Vie con tarjetas por día (solo lectura):
+- [x] **Vista Semana**: Lun-Vie con tarjetas blancas por día (solo lectura): fecha larga con badges "Hoy/Mañana" (sin repetir día corto), métricas con iconos (visitas, talleres, días con actividad), iconos, región en pill sólida, horario o "Sin hora", y hover.
   - [x] Visita: hospital, hora salida–llegada, región, badge "Extraordinaria".
   - [x] Taller: hospital, hora, estado; enlace a Mis talleres.
-- [x] **Vista Rutas a pantalla completa**: selector compacto de ruta (dropdown si hay varias) + badges de equipo/región + métricas (destinos, días, rango, cotización).
-- [x] Tabla agrupada por día: encabezado con fecha larga y "Hoy/Mañana", fondos alternados por bloque, icono de hospital, región en pill, horario o badge "Sin hora", tipo Normal/Extraordinaria y hover en filas.
+- [x] Ajustes visuales: controles (Hoy, Actualizar, atrás/adelante) con fondo; badges con color sólido o texto plano (sin bordes vacíos); fondos sólidos en cards, ítems y métricas.
+- [x] **Vista Rutas a pantalla completa**: selector compacto de ruta (dropdown si hay varias) + metadatos de equipo/región como texto con iconos + métricas con iconos (destinos, días, rango, cotización).
+- [x] Tabla agrupada por día: encabezado con fecha larga y "Hoy/Mañana", fondos alternados sólidos por bloque, icono de hospital, región en pill sólida, horario o "Sin hora", tipo Normal/Extraordinaria (texto/badge) y hover en filas.
 - [x] **Modal de cotización por ruta** (`CotizarRutaModal`): permite enviar toda la ruta o seleccionar algunos destinos; conteo y toast "Próximamente" (sin handoff real).
-- [x] Controles con color: tabs `Semana/Rutas`, `Hoy`, atrás/adelante y `Actualizar`; contenedor ampliado a `max-w-7xl`.
+- [x] Controles con fondo: tabs `Semana/Rutas`, `Hoy` (primario), atrás/adelante y `Actualizar` (fondo neutro); contenedor ampliado a `max-w-7xl`.
 - [x] Talleres desde `mis-talleres` (mes) filtrados por semana en cliente; se refrescan al crearse/editarse (botón Actualizar).
 - [x] Reutilizar helpers de fecha de `rutasUtils` y el lenguaje visual de `SemanaRuta`/`DiaRuta`, **sin** DnD ni capacidad.
 - [x] Estados vacíos por día/semana/rutas; responsive (semana apilada en móvil).
@@ -42,7 +43,7 @@
 - [x] Botón visual **"Cotizar viáticos" por ruta** (abre el modal de selección; sin handoff). Se retiró del header para evitar mandar solo la semana.
 - [ ] Verificación por rol (EV/EP con equipo; otros roles ven vacío/oculto).
 
-> Archivos: `pages/planificacion/MiPlaneacionPage.tsx` (nuevo), `pages/planificacion/components/CotizarRutaModal.tsx` (nuevo), `EducacionMedicaRoutes.tsx` y `menuItems.tsx` actualizados; `CalendarioPage.tsx` (wireframe) eliminado.
+> Archivos: `pages/planificacion/MiPlaneacionPage.tsx` (nuevo), `pages/planificacion/components/CotizarRutaModal.tsx` (nuevo), `pages/planificacion/viaticosHandoff.ts` (nuevo), `pages/planificacion/viaticosHandoff.test.ts` (nuevo), `EducacionMedicaRoutes.tsx` y `menuItems.tsx` actualizados; `CalendarioPage.tsx` (wireframe) eliminado.
 > La página carga todas las asignaciones (sin rango) para poder agrupar por ruta; la semana se filtra en cliente. Los filtros `desde`/`hasta` del endpoint siguen disponibles para otros consumidores.
 
 ## Fase 3 — Dashboard
@@ -53,22 +54,19 @@
 
 > Nota: la mini agenda usa los talleres del periodo actual del dashboard; si la ventana de 7 días cruza de mes, los talleres del siguiente mes se verán al cambiar el periodo.
 
-## Fase 4 — Handoff a viáticos (futura, no implementar ahora)
+## Fase 4 — Handoff a viáticos (implementada)
 
-> El botón "Cotizar viáticos" ya se muestra **por ruta** en la vista Rutas, en modo visual (sin acción; toast "Próximamente"). Al implementar esta fase se conecta el prefill y los permisos.
+> **Extensión (2026-10-22):** ver [[tareas/00014_cotizaciones-por-ruta-viaticos]] — tabla liga por visita, múltiples cotizaciones por ruta, bloqueo de visitas activas y costo. La dedupe por ruta de esta fase queda sustituida por la dedupe por conjunto de visitas del ADR-00014.
 
-- [ ] Diseñar el contrato de prefill **de la ruta completa** (todas sus visitas/destinos con fecha, hora, hospital y coordenadas) → `/viaticos/solicitud` (hoy el wizard solo hidrata borradores por `:id`).
-- [ ] Conectar el botón "Cotizar viáticos" de cada ruta al handoff (no a la semana visible).
-- [ ] Dependencias:
-  - [ ] Catálogo/estimador oficial del ADR-00003 (`viatico_tarifas`) **o** decisión de cotizar solo con la capa real del ADR-00007.
-  - [ ] Matriz de roles de Viáticos (hoy **solo SuperAdministrador**).
-- [ ] **Permisos requeridos a futuro** (dejar sembrado en la matriz cuando se apruebe):
-  - `viaticos.solicitar` → EV/EP.
-  - `viaticos.autorizar` → GV/CA/GG/DC.
-  - `viaticos.ver_todos`, `viaticos.ajustar` → según operación.
-  - ADR-00007: `educacion_medica.viaticos_costos_ruta.puede_cotizar` / `.puede_ver_capturas` (hoy provisionales de SuperAdmin).
-  - ADR-00003: `educacion_medica.viaticos_tarifas.puede_ver` / `.puede_editar`, `educacion_medica.viaticos.puede_cotizar` / `.puede_aprobar` (reconciliar códigos con los implementados).
-- [ ] Actualizar este ADR/tarea cuando se apruebe el handoff.
+- [x] Snapshot `solicitud-v2`: persona, transporte por defecto, origen/retorno vacíos, destinos **solo con coordenadas y sin hora**, y bloque `origenEm` con `idRuta`/`idSeleccionMensual`/ids de visitas para trazabilidad.
+- [x] Crear borrador con `POST /viaticos/solicitudes` (`sistema_origen: educacion_medica`) y navegar a `/viaticos/solicitud/:id`.
+- [x] Reutilizar un borrador existente de la misma ruta (dedupe) y avisar al usuario.
+- [x] Modal agrupado por día: check por día, check por hospital, contador de seleccionables y botón **"Copiar lista"** para los hospitales sin coordenadas (deshabilitados y con aviso).
+- [x] Ocultar el botón "Cotizar viáticos" si el usuario no tiene `viaticos.solicitar`.
+- [x] Tests unitarios del snapshot (coordenadas, sin hora, trazabilidad) y build/lint en verde.
+- [ ] Asignar la matriz de roles de Viáticos (`viaticos.solicitar` para EV/EP; `autorizar` para GV/CA/GG/DC) — **lo hará el usuario**.
+- [ ] Catálogo/estimador oficial del ADR-00003 (`viatico_tarifas`) — pendiente, no bloquea (se cotiza con ADR-00007).
+- [ ] Verificación E2E/visual del flujo completo (ruta → modal → borrador → asistente → cotización).
 
 ## Fase 5 — FOR-006 (fuera de este plan)
 
@@ -80,14 +78,15 @@
 - **Solo rutas confirmadas**: los borradores de planeación no se muestran (regla actual de asignaciones).
 - **Selecciones vencidas**: el endpoint actual excluye selecciones vencidas; el histórico de meses pasados queda limitado hasta cambiar esa regla.
 - **Talleres**: se muestran por mes y se filtran por semana en cliente; si el volumen crece, agregar filtro semanal al endpoint.
-- **Viáticos**: sin catálogo/estimador oficial y sin permisos de negocio; el handoff no se puede cerrar hasta resolverlos.
+- **Viáticos**: el handoff funciona con `viaticos.solicitar` (el usuario asignará la matriz); el catálogo oficial sigue pendiente y se usa la cotización real (ADR-00007). Los hospitales sin coordenadas no se envían y se avisa al gerente.
 - **Permisos EM**: `0032` (CEM/guards) queda en manos del usuario; no se aplica en este plan.
 
-## Criterios de aceptación (Fases 1–3)
+## Criterios de aceptación (Fases 1–4)
 
 - EV/EP ven su semana (Lun-Vie) con visitas y talleres, horas y estados; navegación por semana y "Hoy".
 - Solo se muestran datos de su equipo (el backend ya filtra por participación).
 - El endpoint de asignaciones acepta `desde`/`hasta` y devuelve horas; sin filtros conserva el comportamiento actual.
-- Sin permisos nuevos; sin endpoints nuevos; sin cambios de esquema.
+- Sin endpoints nuevos; sin cambios de esquema.
 - Dashboard muestra "Próximos 7 días" y enlaza a "Mi planeación".
-- `dotnet build`/tests y `npm run build`/ESLint en verde.
+- Handoff: el botón se oculta sin `viaticos.solicitar`; el modal agrupa por día y excluye hospitales sin coordenadas; crea/reutiliza borrador y abre el asistente con los destinos.
+- `dotnet build`/tests y `npm run build`/ESLint/unitarios en verde.

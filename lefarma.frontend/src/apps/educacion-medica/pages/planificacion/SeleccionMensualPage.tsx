@@ -6,10 +6,8 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Modal } from '@/components/ui/modal';
 import { Card, CardContent } from '@/components/ui/card';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import type { AccionWorkflow } from '@/components/workflows/workflowAccion';
 import { useAuthStore } from '@/shared/auth/authStore';
-import { DatePicker } from '@/components/ui/date-picker';
 import { Switch } from '@/components/ui/switch';
 import {
   Select,
@@ -19,19 +17,14 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import {
-  AlertTriangle,
   ArrowLeft,
   Loader2,
   Plus,
-  Printer,
   RotateCcw,
-  Route as RouteIcon,
-  Scissors,
   Search,
-  Sparkles,
-  UserCheck,
 } from 'lucide-react';
 import { usePageTitle } from '@/hooks/usePageTitle';
+import { usePermission } from '@/hooks/usePermission';
 import { toast } from 'sonner';
 import { toApiError } from '@/utils/errors';
 import { API } from '@/shared/api/apiClient';
@@ -40,8 +33,9 @@ import type { WorkflowEstado } from '@/types/workflow.types';
 import { educacionMedicaApi } from '@/apps/educacion-medica/services/educacionMedica.api';
 import type {
   AccionDisponible,
-  AgruparSeleccionResponse,
-  EquipoPareo,
+  EjecutivoRegion,
+  EjecutivoSuplente,
+  EspecialistaPersona,
   FiltrosDisponibles,
   Hospital,
   HospitalCercanoOtraSeleccion,
@@ -56,14 +50,16 @@ import { CatalogoSearchSelect } from '@/apps/educacion-medica/components/Catalog
 import { RankingModal } from '@/apps/educacion-medica/components/RankingModal';
 import { RegionesPanel } from '@/apps/educacion-medica/components/RegionesPanel';
 import { ResumenSeleccionModal } from '@/apps/educacion-medica/components/ResumenSeleccionModal';
+import { SeleccionResumenCard } from '@/apps/educacion-medica/components/SeleccionResumenCard';
 import { SeleccionesTable } from '@/apps/educacion-medica/components/SeleccionesTable';
 import { DocumentoFirmaModal } from '@/apps/educacion-medica/components/DocumentoFirmaModal';
 import { DocumentoHeaderCard } from '@/apps/educacion-medica/components/DocumentoHeaderCard';
 import { DocumentoHistorialModal } from '@/apps/educacion-medica/components/DocumentoHistorialModal';
 import { DocumentoArchivosModal } from '@/apps/educacion-medica/components/DocumentoArchivosModal';
 import {
-  formatearFechaSeleccion as formatearFecha,
   formatearPeriodoSeleccion,
+  nombreSeleccion,
+  PERMISOS_EDICION_SELECCION,
 } from '@/apps/educacion-medica/components/seleccionUtils';
 
 const HospitalesMap = lazy(() =>
@@ -90,6 +86,7 @@ export default function SeleccionMensualPage() {
   usePageTitle('Selección Mensual', 'Educación Médica');
   const navigate = useNavigate();
   const { hasFirma } = useAuthStore();
+  const puedeEditarSeleccion = usePermission({ requireAny: [...PERMISOS_EDICION_SELECCION] });
 
   // La URL es la fuente de verdad del documento abierto: /seleccion?idSeleccion=123
   const [searchParams, setSearchParams] = useSearchParams();
@@ -101,11 +98,14 @@ export default function SeleccionMensualPage() {
 
   const [selecciones, setSelecciones] = useState<SeleccionMensual[]>([]);
   const [detalle, setDetalle] = useState<SeleccionDetalle | null>(null);
-  const [equipos, setEquipos] = useState<EquipoPareo[]>([]);
+  const [ejecutivos, setEjecutivos] = useState<EjecutivoRegion[]>([]);
+  const [suplentes, setSuplentes] = useState<EjecutivoSuplente[]>([]);
+  const [especialistas, setEspecialistas] = useState<EspecialistaPersona[]>([]);
   const [loading, setLoading] = useState(true);
   const [guardando, setGuardando] = useState(false);
   const [accionesWorkflow, setAccionesWorkflow] = useState<AccionDisponible[]>([]);
   const [modalFirma, setModalFirma] = useState(false);
+  const [modalHistorial, setModalHistorial] = useState(false);
 
   // Listado: filtros (cliente) + estados del workflow
   const [workflowEstados, setWorkflowEstados] = useState<WorkflowEstado[]>([]);
@@ -121,15 +121,12 @@ export default function SeleccionMensualPage() {
   });
 
   const [modalNueva, setModalNueva] = useState(false);
-  const [nuevaFecha, setNuevaFecha] = useState<string | null>(null);
-  const [nuevaInicio, setNuevaInicio] = useState<string | null>(null);
-  const [nuevaFin, setNuevaFin] = useState<string | null>(null);
+  const [nuevoPeriodo, setNuevoPeriodo] = useState<string | null>(null);
   const [nuevoObjetivo, setNuevoObjetivo] = useState('64');
   const [nuevaGerencia, setNuevaGerencia] = useState<number | null>(null);
   const [tiposGerencia, setTiposGerencia] = useState<TipoGerencia[]>([]);
 
   const [modalHospital, setModalHospital] = useState(false);
-  const [gerenciaFiltro, setGerenciaFiltro] = useState<number | null>(null);
   const [hospitalesGerencia, setHospitalesGerencia] = useState<Hospital[]>([]);
   const [cargandoHospitales, setCargandoHospitales] = useState(false);
   const [hospitalElegidoId, setHospitalElegidoId] = useState<number | null>(null);
@@ -151,8 +148,6 @@ export default function SeleccionMensualPage() {
     idRegion: number | null;
   }>({ search: '', codigoEstado: null, zonaMetropolitana: null, idRegion: null });
   const [filtrosDisponibles, setFiltrosDisponibles] = useState<FiltrosDisponibles | null>(null);
-
-  const [avisosAgrupacion, setAvisosAgrupacion] = useState<string[]>([]);
 
   const [regionesAbiertas, setRegionesAbiertas] = useState<string[]>([]);
   const [regionExpandidaId, setRegionExpandidaId] = useState<number | null>(null);
@@ -230,10 +225,24 @@ export default function SeleccionMensualPage() {
         if (!cancelado) setLoading(false);
       });
 
-    educacionMedicaApi.equiposPareo
-      .getAll({ soloVigentes: true })
+    educacionMedicaApi.personas.ejecutivos
+      .getAll({ soloActivos: true })
       .then((response) => {
-        if (!cancelado && response.data.success) setEquipos(response.data.data ?? []);
+        if (!cancelado && response.data.success) setEjecutivos(response.data.data ?? []);
+      })
+      .catch(() => undefined);
+
+    educacionMedicaApi.personas.suplentes
+      .getAll({ soloActivos: true })
+      .then((response) => {
+        if (!cancelado && response.data.success) setSuplentes(response.data.data ?? []);
+      })
+      .catch(() => undefined);
+
+    educacionMedicaApi.personas.especialistas
+      .getAll(undefined, true)
+      .then((response) => {
+        if (!cancelado && response.data.success) setEspecialistas(response.data.data ?? []);
       })
       .catch(() => undefined);
 
@@ -302,13 +311,13 @@ export default function SeleccionMensualPage() {
     }
   }, []);
 
-  // Al cambiar de selección, abrir la primera región con problema (sin equipo > advertencia <4)
+  // Al cambiar de selección, abrir la primera región con problema (sin ejecutivo > advertencia <4)
   useEffect(() => {
     if (!detalle) return;
     if (regionesInicializadasPara.current === detalle.idSeleccionMensual) return;
     regionesInicializadasPara.current = detalle.idSeleccionMensual;
     const problematica =
-      detalle.regiones.find((r) => !r.idEquipo) ??
+      detalle.regiones.find((r) => !r.idEjecutivo) ??
       detalle.regiones.find((r) => r.advertenciaMinimo) ??
       null;
     setRegionesAbiertas(problematica ? [String(problematica.idRegion)] : []);
@@ -326,15 +335,22 @@ export default function SeleccionMensualPage() {
   // ── Filtros del listado ────────────────────────────────────────────────────
   const seleccionesFiltradas = useMemo(() => {
     return selecciones.filter((s) => {
-      if (appliedFiltros.idTipoGerencia !== 'all' && s.idTipoGerencia !== Number(appliedFiltros.idTipoGerencia))
+      if (
+        appliedFiltros.idTipoGerencia !== 'all' &&
+        s.idTipoGerencia !== Number(appliedFiltros.idTipoGerencia)
+      )
         return false;
       if (appliedFiltros.idEstado !== 'all' && s.idEstado !== Number(appliedFiltros.idEstado))
         return false;
-      if (appliedFiltros.periodo !== 'all' && s.fechaSeleccion.slice(0, 7) !== appliedFiltros.periodo)
+      if (
+        appliedFiltros.periodo !== 'all' &&
+        s.fechaSeleccion.slice(0, 7) !== appliedFiltros.periodo
+      )
         return false;
       if (appliedFiltros.busqueda.trim()) {
         const term = appliedFiltros.busqueda.trim().toLowerCase();
-        const texto = `${formatearPeriodoSeleccion(s.fechaSeleccion)} ${s.tipoGerencia ?? ''} ${s.nombreUsuarioCreacion ?? ''}`.toLowerCase();
+        const texto =
+          `${formatearPeriodoSeleccion(s.fechaSeleccion)} ${s.tipoGerencia ?? ''} ${s.nombreUsuarioCreacion ?? ''}`.toLowerCase();
         if (!texto.includes(term)) return false;
       }
       return true;
@@ -346,7 +362,10 @@ export default function SeleccionMensualPage() {
     return [...set].sort().reverse();
   }, [selecciones]);
 
-  const updateDraft = <K extends keyof FiltrosSelecciones>(key: K, value: FiltrosSelecciones[K]) => {
+  const updateDraft = <K extends keyof FiltrosSelecciones>(
+    key: K,
+    value: FiltrosSelecciones[K]
+  ) => {
     setDraftFiltros((prev) => ({ ...prev, [key]: value }));
   };
 
@@ -402,7 +421,9 @@ export default function SeleccionMensualPage() {
         }
       );
       if (response.data.success) {
-        toast.success(response.data.message || 'Acción aplicada.');
+        toast.success(
+          `${nombreSeleccion(documentoLista.fechaSeleccion, documentoLista.tipoGerencia)}: ${response.data.message || 'acción aplicada.'}`
+        );
         // Patrón RH: se cierra solo el formulario; la lista de acciones queda
         // abierta, refrescada con las acciones restantes del documento.
         const lista = await fetchSelecciones();
@@ -424,28 +445,22 @@ export default function SeleccionMensualPage() {
   };
 
   // ── Nueva selección ────────────────────────────────────────────────────────
-  const errorFechasNueva = useMemo(() => {
-    if (nuevaInicio && nuevaFin && nuevaFin <= nuevaInicio) {
-      return 'La fecha de fin de vigencia debe ser posterior al inicio.';
+  const mesFuturo = useMemo(() => {
+    const hoy = new Date();
+    const siguiente = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 1);
+    return `${siguiente.getFullYear()}-${String(siguiente.getMonth() + 1).padStart(2, '0')}`;
+  }, []);
+
+  const errorPeriodo = useMemo(() => {
+    if (!nuevoPeriodo) return 'Selecciona el mes de la planeación.';
+    if (nuevoPeriodo <= new Date().toISOString().slice(0, 7)) {
+      return 'La selección debe ser de un mes futuro.';
     }
     return null;
-  }, [nuevaInicio, nuevaFin]);
+  }, [nuevoPeriodo]);
 
   const abrirModalNueva = () => {
-    // Defaults: próximo día 15 de reunión; vigencia de 45 días a partir del día siguiente
-    const hoy = new Date();
-    const aIso = (d: Date) =>
-      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-
-    const dia15 = hoy.getDate() <= 15 ? new Date(hoy.getFullYear(), hoy.getMonth(), 15) : new Date(hoy.getFullYear(), hoy.getMonth() + 1, 15);
-    const inicio = new Date(dia15);
-    inicio.setDate(inicio.getDate() + 1);
-    const fin = new Date(inicio);
-    fin.setDate(fin.getDate() + 45);
-
-    setNuevaFecha(aIso(dia15));
-    setNuevaInicio(aIso(inicio));
-    setNuevaFin(aIso(fin));
+    setNuevoPeriodo(mesFuturo);
     setNuevaGerencia(null);
     setModalNueva(true);
   };
@@ -455,21 +470,36 @@ export default function SeleccionMensualPage() {
       toast.error('Selecciona el tipo de gerencia de la selección.');
       return;
     }
-    if (!nuevaFecha || !nuevaInicio || !nuevaFin) {
-      toast.error('Completa la fecha de selección y las fechas de vigencia.');
+    if (!nuevoPeriodo || errorPeriodo) {
+      toast.error(errorPeriodo ?? 'Selecciona el mes de la planeación.');
       return;
     }
     setGuardando(true);
     try {
+      const [anio, mes] = nuevoPeriodo.split('-').map(Number);
+      const existentes = await educacionMedicaApi.seleccionesMensuales.getAll(anio, mes);
+      const conflicto = (existentes.data.data ?? []).some(
+        (seleccion) =>
+          seleccion.idTipoGerencia === nuevaGerencia &&
+          seleccion.estado !== 'Cancelada' &&
+          seleccion.estado !== 'Rechazada'
+      );
+      if (conflicto) {
+        throw new Error('Ya existe una selección para esa gerencia y mes.');
+      }
+
       const response = await educacionMedicaApi.seleccionesMensuales.create({
-        fechaSeleccion: nuevaFecha,
+        periodo: nuevoPeriodo,
         idTipoGerencia: nuevaGerencia,
-        fechaInicioVigencia: nuevaInicio,
-        fechaFinVigencia: nuevaFin,
         talleresObjetivoMes: Number(nuevoObjetivo) || null,
       });
       if (response.data.success && response.data.data) {
-        toast.success('Selección creada.');
+        const gerencia = tiposGerencia.find(
+          (tipo) => tipo.idTipoGerencia === nuevaGerencia
+        )?.descripcion;
+        toast.success(
+          `${nombreSeleccion(nuevoPeriodo ? `${nuevoPeriodo}-01` : null, gerencia)} creada.`
+        );
         setModalNueva(false);
         abrirSeleccion(response.data.data.idSeleccionMensual);
         await fetchSelecciones();
@@ -485,12 +515,16 @@ export default function SeleccionMensualPage() {
 
   // ── Detalle: hospitales ────────────────────────────────────────────────────
   const abrirModalHospital = () => {
-    setGerenciaFiltro(null);
     setHospitalesGerencia([]);
     setHospitalElegidoId(null);
     setProductoPromocionar('');
     setObservacionesHospital('');
     setModalHospital(true);
+    if (detalle?.idTipoGerencia != null) {
+      void cargarHospitalesGerencia(detalle.idTipoGerencia);
+    } else {
+      toast.error('La selección no tiene gerencia configurada.');
+    }
   };
 
   const cargarHospitalesGerencia = async (idGerencia: number) => {
@@ -499,14 +533,16 @@ export default function SeleccionMensualPage() {
     setHospitalElegidoId(null);
     try {
       const acumulado: Hospital[] = [];
-      for (let page = 1; page <= 10; page++) {
+      for (let page = 1; page <= 50; page++) {
         const response = await educacionMedicaApi.hospitales.getAll({
           idTipoGerencia: idGerencia,
           tieneCoordenadas: true,
           // Excluye contactos logísticos (almacenes/farmacias): solo sedes de taller.
           filtroSede: 'sedes',
+          mostrarEducacionMedica: true,
           page,
-          pageSize: 100,
+          // IMSS Bienestar supera las 4 mil sedes; 500 evita cortar el catálogo.
+          pageSize: 500,
         });
         if (!response.data.success) {
           toast.error(response.data.message ?? 'Error al cargar hospitales');
@@ -545,7 +581,9 @@ export default function SeleccionMensualPage() {
         }
       );
       if (response.data.success) {
-        toast.success('Hospital agregado a la selección.');
+        toast.success(
+          `Hospital agregado a ${nombreSeleccion(detalle.fechaSeleccion, detalle.tipoGerencia)}.`
+        );
         setHospitalElegidoId(null);
         setProductoPromocionar('');
         setObservacionesHospital('');
@@ -562,62 +600,115 @@ export default function SeleccionMensualPage() {
 
   const quitarHospital = async (hospital: SeleccionHospital) => {
     if (!detalle) return;
+    setGuardando(true);
     try {
       const response = await educacionMedicaApi.seleccionesMensuales.quitarHospital(
         detalle.idSeleccionMensual,
         hospital.idSeleccionHospital
       );
       if (response.data.success) {
+        toast.success(
+          `Hospital quitado de ${nombreSeleccion(detalle.fechaSeleccion, detalle.tipoGerencia)}.`
+        );
         await refrescar();
       } else {
         toast.error(response.data.message ?? 'Error al quitar el hospital');
       }
     } catch (error: unknown) {
       toast.error(toApiError(error).message ?? 'Error al quitar el hospital');
-    }
-  };
-
-  const agrupar = async () => {
-    if (!detalle) return;
-    setGuardando(true);
-    try {
-      const response = await educacionMedicaApi.seleccionesMensuales.agrupar(
-        detalle.idSeleccionMensual
-      );
-      if (response.data.success && response.data.data) {
-        const data: AgruparSeleccionResponse = response.data.data;
-        setAvisosAgrupacion(data.avisos);
-        toast.success(`${data.regiones.length} región(es) recalculadas.`);
-        await refrescar();
-      } else {
-        toast.error(response.data.message ?? 'Error al recalcular regiones');
-      }
-    } catch (error: unknown) {
-      toast.error(toApiError(error).message ?? 'Error al recalcular regiones');
     } finally {
       setGuardando(false);
     }
   };
 
-  const asignarEquipo = async (
+  const asignarEjecutivoRegion = async (
     region: SeleccionRegion,
-    idEquipo: string
+    idEjecutivo: string
   ): Promise<{ ok: boolean; mensaje?: string }> => {
-    if (!detalle || idEquipo === 'sin-equipo') return { ok: true };
+    if (!detalle) return { ok: false, mensaje: 'No hay una selección abierta.' };
     try {
-      const response = await educacionMedicaApi.seleccionesMensuales.asignarEquipo(
+      const response = await educacionMedicaApi.seleccionesMensuales.asignarEjecutivoRegion(
         detalle.idSeleccionMensual,
         region.idRegion,
-        { idEquipo: Number(idEquipo) }
+        {
+          idEjecutivo: Number(idEjecutivo),
+          idEspecialista: region.idEspecialista,
+        }
       );
       if (response.data.success) {
-        toast.success(`Región asignada a ${response.data.data?.nombreEquipo}.`);
+        toast.success(
+          `${nombreSeleccion(detalle.fechaSeleccion, detalle.tipoGerencia)}: región asignada a ${response.data.data?.nombreEjecutivo ?? 'el ejecutivo seleccionado'}.`
+        );
         await refrescar();
         return { ok: true };
       }
-      return { ok: false, mensaje: response.data.message ?? 'Error al asignar el equipo' };
+      return { ok: false, mensaje: response.data.message ?? 'Error al asignar el ejecutivo' };
     } catch (error: unknown) {
-      return { ok: false, mensaje: toApiError(error).message ?? 'Error al asignar el equipo' };
+      return { ok: false, mensaje: toApiError(error).message ?? 'Error al asignar el ejecutivo' };
+    }
+  };
+
+  const asignarEspecialistaRegion = async (
+    region: SeleccionRegion,
+    idEspecialista: string
+  ): Promise<{ ok: boolean; mensaje?: string }> => {
+    if (!detalle) return { ok: false, mensaje: 'No hay una selección abierta.' };
+    if (!region.idEjecutivo) {
+      return { ok: false, mensaje: 'Asigna primero un ejecutivo a la región.' };
+    }
+
+    try {
+      const response = await educacionMedicaApi.seleccionesMensuales.asignarEjecutivoRegion(
+        detalle.idSeleccionMensual,
+        region.idRegion,
+        {
+          idEjecutivo: region.idEjecutivo,
+          idEspecialista: idEspecialista === 'sin-especialista' ? null : Number(idEspecialista),
+        }
+      );
+      if (response.data.success) {
+        toast.success(
+          `${nombreSeleccion(detalle.fechaSeleccion, detalle.tipoGerencia)}: especialista sugerido actualizado.`
+        );
+        await refrescar();
+        return { ok: true };
+      }
+      return { ok: false, mensaje: response.data.message ?? 'Error al asignar el especialista' };
+    } catch (error: unknown) {
+      return {
+        ok: false,
+        mensaje: toApiError(error).message ?? 'Error al asignar el especialista',
+      };
+    }
+  };
+
+  const asignarEjecutivoHospital = async (
+    hospital: SeleccionHospital,
+    idEjecutivo: string
+  ): Promise<{ ok: boolean; mensaje?: string }> => {
+    if (!detalle) return { ok: false, mensaje: 'No hay una selección abierta.' };
+    try {
+      const response = await educacionMedicaApi.seleccionesMensuales.asignarEjecutivoHospital(
+        detalle.idSeleccionMensual,
+        hospital.idSeleccionHospital,
+        { idEjecutivo: idEjecutivo === 'heredar' ? null : Number(idEjecutivo) }
+      );
+      if (response.data.success) {
+        toast.success(
+          `${nombreSeleccion(detalle.fechaSeleccion, detalle.tipoGerencia)}: ejecutivo del hospital actualizado.`
+        );
+        await refrescar();
+        return { ok: true };
+      }
+      return {
+        ok: false,
+        mensaje: response.data.message ?? 'Error al asignar el ejecutivo del hospital',
+      };
+    } catch (error: unknown) {
+      return {
+        ok: false,
+        mensaje: toApiError(error).message ?? 'Error al asignar el ejecutivo del hospital',
+      };
     }
   };
 
@@ -630,7 +721,7 @@ export default function SeleccionMensualPage() {
         { motivo: motivoDivision }
       );
       if (response.data.success) {
-        toast.success('Región dividida.');
+        toast.success(`${nombreSeleccion(detalle.fechaSeleccion, detalle.tipoGerencia)}: región dividida.`);
         setRegionDividir(null);
         setMotivoDivision('');
         await refrescar();
@@ -654,7 +745,9 @@ export default function SeleccionMensualPage() {
         { idRegion }
       );
       if (response.data.success) {
-        toast.success('Hospital movido a la región.');
+        toast.success(
+          `${nombreSeleccion(detalle.fechaSeleccion, detalle.tipoGerencia)}: hospital movido a la región.`
+        );
         await refrescar();
         return { ok: true };
       }
@@ -693,9 +786,8 @@ export default function SeleccionMensualPage() {
 
   const cargarFiltrosDisponibles = async (idSeleccionMensual: number) => {
     try {
-      const response = await educacionMedicaApi.seleccionesMensuales.obtenerFiltrosDisponibles(
-        idSeleccionMensual
-      );
+      const response =
+        await educacionMedicaApi.seleccionesMensuales.obtenerFiltrosDisponibles(idSeleccionMensual);
       if (response.data.success) {
         setFiltrosDisponibles(response.data.data ?? null);
       }
@@ -748,7 +840,9 @@ export default function SeleccionMensualPage() {
         }
       );
       if (response.data.success) {
-        toast.success(`${hospitales.length} hospital(es) agregado(s) a la selección.`);
+        toast.success(
+          `${hospitales.length} hospital(es) agregado(s) a ${nombreSeleccion(detalle.fechaSeleccion, detalle.tipoGerencia)}.`
+        );
         setModalRanking(false);
         setRankingEjecucion(null);
         await refrescar();
@@ -762,30 +856,10 @@ export default function SeleccionMensualPage() {
     }
   };
 
-  const accionEstado = async () => {
-    if (!detalle) return;
-    setGuardando(true);
-    try {
-      const response = await educacionMedicaApi.seleccionesMensuales.enviarRevision(
-        detalle.idSeleccionMensual
-      );
-
-      if (response.data.success) {
-        toast.success(response.data.message || 'Acción aplicada.');
-        await refrescar();
-      } else {
-        toast.error(response.data.message ?? 'No se pudo aplicar la acción');
-      }
-    } catch (error: unknown) {
-      toast.error(toApiError(error).message ?? 'No se pudo aplicar la acción');
-    } finally {
-      setGuardando(false);
-    }
-  };
-
-  // Acciones de workflow disponibles para el usuario en el paso actual (firmas GG/GV, devolver)
+  // Acciones de workflow disponibles para el usuario en el paso actual (enviar, firmas
+  // GG/GV, devolver). El backend inicializa el paso inicial si la selección es antigua.
   useEffect(() => {
-    if (!detalle || detalle.estado !== 'EnRevision') return;
+    if (!detalle) return;
 
     let cancelado = false;
     educacionMedicaApi.seleccionesMensuales
@@ -804,9 +878,7 @@ export default function SeleccionMensualPage() {
     };
   }, [detalle]);
 
-  // Solo se usan acciones si la selección está en revisión: al cambiar de documento la
-  // vista deja de mostrarlas sin resetear estado dentro del efecto.
-  const accionesWorkflowActual = detalle?.estado === 'EnRevision' ? accionesWorkflow : [];
+  const accionesWorkflowActual = accionesWorkflow;
 
   const ejecutarAccionWorkflow = async (
     accion: AccionWorkflow,
@@ -818,11 +890,18 @@ export default function SeleccionMensualPage() {
     try {
       const response = await educacionMedicaApi.seleccionesMensuales.firmar(
         detalle.idSeleccionMensual,
-        { idAccion: accion.idAccion, comentario: comentario ?? null, datosAdicionales: datosAdicionales ?? null }
+        {
+          idAccion: accion.idAccion,
+          comentario: comentario ?? null,
+          datosAdicionales: datosAdicionales ?? null,
+        }
       );
 
       if (response.data.success) {
-        toast.success(response.data.message || 'Acción aplicada.');
+        toast.success(
+          response.data.message ||
+            `${nombreSeleccion(detalle.fechaSeleccion, detalle.tipoGerencia)}: acción aplicada.`
+        );
         // Patrón RH: se cierra solo el formulario; la lista de acciones queda
         // abierta y se refresca (el detalle recarga las acciones del paso actual).
         await refrescar();
@@ -908,7 +987,7 @@ export default function SeleccionMensualPage() {
     return codigos.length > 0 ? codigos : undefined;
   }, [regionExpandidaId, hospitalesPorRegion]);
 
-  const editable = detalle?.estado === 'Creada';
+  const editable = puedeEditarSeleccion && detalle?.permiteEdicion === true;
 
   // ── Modo lista ─────────────────────────────────────────────────────────────
   if (seleccionId === null) {
@@ -962,7 +1041,10 @@ export default function SeleccionMensualPage() {
             </div>
             <div className="space-y-1">
               <label className="text-xs font-medium text-muted-foreground">Estado</label>
-              <Select value={draftFiltros.idEstado} onValueChange={(v) => updateDraft('idEstado', v)}>
+              <Select
+                value={draftFiltros.idEstado}
+                onValueChange={(v) => updateDraft('idEstado', v)}
+              >
                 <SelectTrigger className="h-10">
                   <SelectValue />
                 </SelectTrigger>
@@ -1016,7 +1098,12 @@ export default function SeleccionMensualPage() {
           subtitle="Todas las selecciones creadas, en cualquier estado"
           onVer={(s) => abrirSeleccion(s.idSeleccionMensual)}
           onEditar={(s) => abrirSeleccion(s.idSeleccionMensual)}
-          onRutas={(s) => navigate(`/educacion-medica/seleccion/${s.idSeleccionMensual}/rutas`)}
+          puedeEditar={puedeEditarSeleccion}
+          onRutas={(s) =>
+            navigate(
+              `/educacion-medica/panel-rutas?idSeleccion=${s.idSeleccionMensual}&vista=mes`
+            )
+          }
           onFirma={abrirFirmaLista}
           onHistorial={abrirHistorialLista}
           onArchivos={abrirArchivosLista}
@@ -1028,7 +1115,7 @@ export default function SeleccionMensualPage() {
             <DocumentoFirmaModal
               open={modalesLista.firma}
               onClose={cerrarModalLista}
-              documento={`Selección ${formatearPeriodoSeleccion(documentoLista.fechaSeleccion)}`}
+              documento={nombreSeleccion(documentoLista.fechaSeleccion, documentoLista.tipoGerencia)}
               estadoTexto={documentoLista.estadoNombre ?? documentoLista.estado}
               pasoNombre={documentoLista.pasoActualNombre}
               tipo="seleccion"
@@ -1043,7 +1130,7 @@ export default function SeleccionMensualPage() {
             <DocumentoHistorialModal
               open={modalesLista.historial}
               onClose={cerrarModalLista}
-              documento={`Selección ${formatearPeriodoSeleccion(documentoLista.fechaSeleccion)}`}
+              documento={nombreSeleccion(documentoLista.fechaSeleccion, documentoLista.tipoGerencia)}
               estadoTexto={documentoLista.estadoNombre ?? documentoLista.estado}
               tipo="seleccion"
               idEntidad={documentoLista.idSeleccionMensual}
@@ -1054,7 +1141,7 @@ export default function SeleccionMensualPage() {
             <DocumentoArchivosModal
               open={modalesLista.archivos}
               onClose={cerrarModalLista}
-              documento={`Selección ${formatearPeriodoSeleccion(documentoLista.fechaSeleccion)}`}
+              documento={nombreSeleccion(documentoLista.fechaSeleccion, documentoLista.tipoGerencia)}
               tipo="seleccion"
               idEntidad={documentoLista.idSeleccionMensual}
             />
@@ -1074,14 +1161,7 @@ export default function SeleccionMensualPage() {
                 Cancelar
               </Button>
               <Button
-                disabled={
-                  guardando ||
-                  !nuevaGerencia ||
-                  !nuevaFecha ||
-                  !nuevaInicio ||
-                  !nuevaFin ||
-                  Boolean(errorFechasNueva)
-                }
+                disabled={guardando || !nuevaGerencia || !nuevoPeriodo || Boolean(errorPeriodo)}
                 onClick={crearSeleccion}
               >
                 {guardando && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
@@ -1103,36 +1183,23 @@ export default function SeleccionMensualPage() {
                 placeholder="Selecciona la gerencia..."
               />
               <p className="text-xs text-muted-foreground">
-                Gerencia responsable de la selección. La meta de talleres es por gerencia (al menos
-                64 IMSS / 64 descentralizados); cada gerencia firma su propia selección.
+                Cada gerencia firma su propia selección.
               </p>
             </div>
-
             <div className="space-y-1.5">
-              <label className="text-sm font-medium">Fecha de la reunión (día 15)</label>
-              <DatePicker value={nuevaFecha} onChange={setNuevaFecha} placeholder="Seleccionar" />
+              <label className="text-sm font-medium">Mes de planeación</label>
+              <Input
+                type="month"
+                min={mesFuturo}
+                value={nuevoPeriodo ?? ''}
+                onChange={(e) => setNuevoPeriodo(e.target.value || null)}
+              />
               <p className="text-xs text-muted-foreground">
-                Reunión mensual donde se eligen los hospitales de los próximos 45 días (normalmente
-                el día 15 o el siguiente día hábil).
+                Solo se permiten meses futuros.
               </p>
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium">Inicio de vigencia</label>
-              <DatePicker value={nuevaInicio} onChange={setNuevaInicio} placeholder="Seleccionar" />
-              <p className="text-xs text-muted-foreground">
-                Primer día del periodo que se va a planificar.
-              </p>
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium">Fin de vigencia (~45 días)</label>
-              <DatePicker value={nuevaFin} onChange={setNuevaFin} placeholder="Seleccionar" />
-              <p className="text-xs text-muted-foreground">
-                Último día del periodo. Las rutas se distribuyen entre los días laborales (Lun–Vie)
-                de este rango; la capacidad de cada equipo se calcula sobre estas fechas.
-              </p>
-              {errorFechasNueva && <p className="text-xs text-destructive">{errorFechasNueva}</p>}
+              {errorPeriodo && nuevoPeriodo && (
+                <p className="text-xs text-destructive">{errorPeriodo}</p>
+              )}
             </div>
 
             <div className="space-y-1.5">
@@ -1144,8 +1211,7 @@ export default function SeleccionMensualPage() {
                 onChange={(e) => setNuevoObjetivo(e.target.value)}
               />
               <p className="text-xs text-muted-foreground">
-                Meta mínima de talleres a programar en el mes. Se usa la operación documentada: al
-                menos 64 por gerencia (~128 en total), configurable aquí y en Parámetros.
+                Meta mínima de talleres del mes.
               </p>
             </div>
           </div>
@@ -1193,96 +1259,30 @@ export default function SeleccionMensualPage() {
         estadoNombre={detalle.estadoNombre}
         estadoColor={detalle.estadoColor}
         estadoFallback={detalle.estado}
-        detalle={`${detalle.tipoGerencia ?? 'Sin gerencia'} · Selección #${detalle.idSeleccionMensual}`}
+        detalle={detalle.tipoGerencia ?? 'Sin gerencia'}
         showFirmar={accionesWorkflowActual.length > 0}
         onFirmar={() => setModalFirma(true)}
         firmando={guardando}
         firmarDeshabilitado={hasFirma === false}
+        showImprimir
+        onImprimir={() => setModalResumen(true)}
+        showHistorial
+        onHistorial={() => setModalHistorial(true)}
       />
 
-      <Card>
-        <CardContent className="space-y-4 pt-6">
-          <div className="grid gap-4 text-sm sm:grid-cols-4">
-            <div>
-              <p className="text-muted-foreground">Vigencia</p>
-              <p>
-                {formatearFecha(detalle.fechaInicioVigencia)} —{' '}
-                {formatearFecha(detalle.fechaFinVigencia)}
-              </p>
-            </div>
-            <div>
-              <p className="text-muted-foreground">Hospitales</p>
-              <p>{detalle.totalHospitales}</p>
-            </div>
-            <div>
-              <p className="text-muted-foreground">Regiones</p>
-              <p>{detalle.totalRegiones}</p>
-            </div>
-            <div>
-              <p className="text-muted-foreground">Objetivo talleres/mes</p>
-              <p>{detalle.talleresObjetivoMes ?? '—'}</p>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap gap-2">
-            <Button size="sm" variant="outline" onClick={() => setModalResumen(true)}>
-              <Printer className="mr-2 h-4 w-4" />
-              Resumen
-            </Button>
-            {detalle.estado === 'Creada' && (
-              <Button
-                size="sm"
-                disabled={guardando}
-                onClick={accionEstado}
-              >
-                <UserCheck className="mr-2 h-4 w-4" />
-                Enviar a autorización
-              </Button>
-            )}
-            {detalle.estado === 'Cerrada' && (
-              <Button
-                size="sm"
-                onClick={() =>
-                  navigate(`/educacion-medica/seleccion/${detalle.idSeleccionMensual}/rutas`)
-                }
-              >
-                <RouteIcon className="mr-2 h-4 w-4" />
-                Planificar rutas
-              </Button>
-            )}
-            {editable && (
-              <>
-                <Button size="sm" variant="outline" onClick={abrirModalHospital}>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Agregar hospital
-                </Button>
-                <Button size="sm" variant="outline" disabled={guardando || rankingCargando} onClick={abrirRanking}>
-                  <Sparkles className="mr-2 h-4 w-4" />
-                  Sugerir hospitales
-                </Button>
-                <Button size="sm" variant="outline" disabled={guardando} onClick={agrupar}>
-                  <Scissors className="mr-2 h-4 w-4" />
-                  Recalcular regiones
-                </Button>
-              </>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
-      {avisosAgrupacion.length > 0 && (
-        <Alert>
-          <AlertTriangle className="h-4 w-4" />
-          <AlertTitle>Avisos de la agrupación</AlertTitle>
-          <AlertDescription>
-            <ul className="list-disc pl-4">
-              {avisosAgrupacion.map((aviso) => (
-                <li key={aviso}>{aviso}</li>
-              ))}
-            </ul>
-          </AlertDescription>
-        </Alert>
-      )}
+      <SeleccionResumenCard
+        detalle={detalle}
+        editable={editable}
+        guardando={guardando}
+        rankingCargando={rankingCargando}
+        onPlanificarRutas={() =>
+          navigate(
+            `/educacion-medica/panel-rutas?idSeleccion=${detalle.idSeleccionMensual}&vista=mes`
+          )
+        }
+        onAgregarHospital={abrirModalHospital}
+        onSugerirHospitales={abrirRanking}
+      />
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
         <Card>
@@ -1291,17 +1291,20 @@ export default function SeleccionMensualPage() {
               regiones={detalle.regiones}
               hospitalesPorRegion={hospitalesPorRegion}
               totalHospitales={detalle.totalHospitales}
-              equipos={equipos}
+              ejecutivos={ejecutivos}
+              suplentes={suplentes}
+              especialistas={especialistas}
+              idTipoGerencia={detalle.idTipoGerencia}
               editable={editable}
-              guardando={guardando}
               regionesAbiertas={regionesAbiertas}
               onRegionesAbiertasChange={manejarRegionesAbiertas}
               onHoverRegion={setRegionHoverId}
               onHoverHospital={setHospitalHoverId}
-              onAsignarEquipo={asignarEquipo}
+              onAsignarEjecutivoRegion={asignarEjecutivoRegion}
+              onAsignarEspecialistaRegion={asignarEspecialistaRegion}
+              onAsignarEjecutivoHospital={asignarEjecutivoHospital}
               onQuitarHospital={quitarHospital}
               onDividir={setRegionDividir}
-              onRecalcular={() => void agrupar()}
               onMoverARegion={moverARegion}
               cercanosPorRegion={cercanosPorRegion}
             />
@@ -1400,10 +1403,7 @@ export default function SeleccionMensualPage() {
             <Button variant="outline" onClick={() => setModalHospital(false)}>
               Cancelar
             </Button>
-            <Button
-              disabled={guardando || !hospitalElegidoId}
-              onClick={agregarHospital}
-            >
+            <Button disabled={guardando || !hospitalElegidoId} onClick={agregarHospital}>
               {guardando && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Agregar
             </Button>
@@ -1411,25 +1411,6 @@ export default function SeleccionMensualPage() {
         }
       >
         <div className="space-y-4">
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium">Tipo de gerencia</label>
-            <CatalogoSearchSelect
-              items={tiposGerencia.map((tipo) => ({
-                id: tipo.idTipoGerencia,
-                label: tipo.descripcion,
-              }))}
-              value={gerenciaFiltro}
-              onChange={(id) => {
-                setGerenciaFiltro(id);
-                if (id) void cargarHospitalesGerencia(id);
-              }}
-              placeholder="Selecciona la gerencia..."
-            />
-            <p className="text-xs text-muted-foreground">
-              Solo se listan hospitales clasificados con esa gerencia en la pantalla Hospitales.
-            </p>
-          </div>
-
           <div className="space-y-1.5">
             <label className="text-sm font-medium">Hospital</label>
             {cargandoHospitales ? (
@@ -1453,14 +1434,12 @@ export default function SeleccionMensualPage() {
                   }))}
                 value={hospitalElegidoId}
                 onChange={(id) => setHospitalElegidoId(id)}
-                placeholder={
-                  gerenciaFiltro ? 'Buscar hospital...' : 'Primero selecciona la gerencia'
-                }
-                disabled={!gerenciaFiltro}
+                placeholder="Buscar hospital..."
               />
             )}
             <p className="text-xs text-muted-foreground">
-              Los hospitales ya agregados a la selección no aparecen en la lista.
+              Solo hospitales de {detalle.tipoGerencia ?? 'la gerencia de la selección'}. Los ya
+              agregados no aparecen en la lista.
             </p>
           </div>
 
@@ -1503,7 +1482,7 @@ export default function SeleccionMensualPage() {
         <div className="space-y-2">
           <p className="text-sm text-muted-foreground">
             La mitad más alejada del centroide formará una región nueva. Esta es una excepción
-            manual a la regla de una región por equipo; documenta el motivo.
+            manual a la regla de una región por ejecutivo; documenta el motivo.
           </p>
           <Input
             placeholder="Motivo de la división..."
@@ -1513,17 +1492,12 @@ export default function SeleccionMensualPage() {
         </div>
       </Modal>
 
-      <ResumenSeleccionModal
-        open={modalResumen}
-        onOpenChange={setModalResumen}
-        detalle={detalle}
-        equipos={equipos}
-      />
+      <ResumenSeleccionModal open={modalResumen} onOpenChange={setModalResumen} detalle={detalle} />
 
       <DocumentoFirmaModal
         open={modalFirma}
         onClose={() => setModalFirma(false)}
-        documento={`Selección ${formatearPeriodoSeleccion(detalle.fechaSeleccion)}`}
+        documento={nombreSeleccion(detalle.fechaSeleccion, detalle.tipoGerencia)}
         estadoTexto={detalle.estadoNombre ?? detalle.estado}
         pasoNombre={detalle.pasoActualNombre}
         tipo="seleccion"
@@ -1537,8 +1511,19 @@ export default function SeleccionMensualPage() {
         }
       />
 
+      <DocumentoHistorialModal
+        open={modalHistorial}
+        onClose={() => setModalHistorial(false)}
+        documento={nombreSeleccion(detalle.fechaSeleccion, detalle.tipoGerencia)}
+        estadoTexto={detalle.estadoNombre ?? detalle.estado}
+        tipo="seleccion"
+        idEntidad={detalle.idSeleccionMensual}
+        idWorkflow={detalle.idWorkflow}
+        idPasoActual={detalle.idPasoActual}
+      />
+
       <RankingModal
-        key={rankingEjecucion?.idRankingEjecucion ?? 0}
+        key={`${rankingEjecucion?.idRankingEjecucion ?? 0}-${modalRanking ? 'open' : 'closed'}`}
         open={modalRanking}
         onOpenChange={setModalRanking}
         ejecucion={rankingEjecucion}
@@ -1546,7 +1531,11 @@ export default function SeleccionMensualPage() {
         guardando={guardando}
         cargando={rankingCargando}
         onRegenerar={regenerarRanking}
-        cantidadDefault={detalle.talleresObjetivoMes ?? null}
+        objetivoTalleres={detalle.talleresObjetivoMes ?? null}
+        gerenciaNombre={detalle.tipoGerencia}
+        idsHospitalesSeleccionados={detalle.hospitales
+          .map((hospital) => hospital.idHospital)
+          .filter((id): id is number => id != null)}
         filtrosDisponibles={filtrosDisponibles}
         filtros={rankingFiltros}
         onFiltrosChange={setRankingFiltros}

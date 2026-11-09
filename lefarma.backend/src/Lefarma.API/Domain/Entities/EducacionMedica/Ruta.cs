@@ -10,7 +10,8 @@ public class Ruta
 
     public int IdRuta { get; set; }
     public int IdSeleccionMensual { get; set; }
-    public int IdEquipo { get; set; }
+    public int? IdEquipo { get; set; }
+    public int? IdEspecialista { get; set; }
     public int Version { get; set; }
     public string? Nombre { get; set; }
     public string Estado { get; set; } = EstadoCreada;

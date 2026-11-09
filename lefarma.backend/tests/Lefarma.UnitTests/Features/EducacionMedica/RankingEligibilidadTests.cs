@@ -45,7 +45,13 @@ public class RankingEligibilidadTests
     {
         return datos.ToDictionary(
             d => d.IdHospital,
-            d => new HospitalExtension { IdHospital = d.IdHospital, IdTipoGerencia = d.IdTipoGerencia });
+            d => new HospitalExtension
+            {
+                IdHospital = d.IdHospital,
+                IdTipoGerencia = d.IdTipoGerencia,
+                MostrarEducacionMedica = true,
+                EsSedeTaller = true,
+            });
     }
 
     [Fact]

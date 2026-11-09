@@ -35,6 +35,10 @@ public class TallerConfiguration : IEntityTypeConfiguration<Taller>
         builder.Property(e => e.IdUsuarioModificacion).HasColumnName("id_usuario_modificacion");
         builder.Property(e => e.IdMatrizIndividual).HasColumnName("id_matriz_individual");
         builder.Property(e => e.IdMatrizGeneral).HasColumnName("id_matriz_general");
+        builder.Property(e => e.IdRutaVisita).HasColumnName("id_ruta_visita");
+        builder.Property(e => e.IdTipoVisita).HasColumnName("id_tipo_visita");
+        builder.Property(e => e.IdTemaTaller).HasColumnName("id_tema_taller");
+        builder.Property(e => e.Tema).HasColumnName("tema").HasMaxLength(200);
         builder.Property(e => e.FechaRealizado).HasColumnName("fecha_realizado");
         builder.Property(e => e.EsExtraordinario).HasColumnName("es_extraordinario");
         builder.Property(e => e.MotivoExtraordinario).HasColumnName("motivo_extraordinario").HasMaxLength(500);
@@ -57,7 +61,28 @@ public class TallerConfiguration : IEntityTypeConfiguration<Taller>
             .HasConstraintName("FK_talleres_matriz_general")
             .OnDelete(DeleteBehavior.NoAction);
 
+        builder.HasOne<RutaVisita>()
+            .WithMany()
+            .HasForeignKey(e => e.IdRutaVisita)
+            .HasConstraintName("FK_talleres_ruta_visita")
+            .OnDelete(DeleteBehavior.NoAction);
+
+        builder.HasOne<TipoVisita>()
+            .WithMany()
+            .HasForeignKey(e => e.IdTipoVisita)
+            .HasConstraintName("FK_talleres_tipo_visita")
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne<TemaTaller>()
+            .WithMany()
+            .HasForeignKey(e => e.IdTemaTaller)
+            .HasConstraintName("FK_talleres_tema_taller")
+            .OnDelete(DeleteBehavior.Restrict);
+
         builder.HasIndex(e => e.IdMatrizIndividual).HasDatabaseName("IX_talleres_id_matriz_individual");
         builder.HasIndex(e => e.IdMatrizGeneral).HasDatabaseName("IX_talleres_id_matriz_general");
+        builder.HasIndex(e => e.IdRutaVisita).HasDatabaseName("IX_talleres_id_ruta_visita");
+        builder.HasIndex(e => e.IdTipoVisita).HasDatabaseName("IX_talleres_tipo_visita");
+        builder.HasIndex(e => e.IdTemaTaller).HasDatabaseName("IX_talleres_tema_taller");
     }
 }

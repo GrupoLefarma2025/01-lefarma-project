@@ -11,6 +11,8 @@ public class SeleccionRegion
     public string? Algoritmo { get; set; }
     public DateTime FechaCalculo { get; set; }
     public int? IdEquipo { get; set; }
+    public int? IdEjecutivo { get; set; }
+    public int? IdEspecialista { get; set; }
     public int? IdRegionCatalogo { get; set; }
     public DateTime FechaCreacion { get; set; }
     public DateTime FechaModificacion { get; set; }

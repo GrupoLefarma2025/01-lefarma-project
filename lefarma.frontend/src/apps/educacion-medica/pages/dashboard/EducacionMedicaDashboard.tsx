@@ -82,8 +82,8 @@ export function EducacionMedicaDashboard() {
     ? equipo.talleres.reduce((suma, taller) => suma + taller.costoTotal, 0)
     : matrices.reduce((suma, matriz) => suma + matriz.costoTotal, 0);
   const verTodosPath = equipo
-    ? '/educacion-medica/talleres/mis-talleres'
-    : '/educacion-medica/talleres';
+    ? '/educacion-medica/panel-rutas?vista=semana&filtro=mis'
+    : '/educacion-medica/panel-rutas?vista=matriz';
   const sinActividad =
     pendientes.length === 0 &&
     !equipo &&
@@ -160,7 +160,7 @@ export function EducacionMedicaDashboard() {
                   subtitle="acumulado"
                   icon={Wallet}
                   tone="violet"
-                  to="/educacion-medica/talleres"
+                  to="/educacion-medica/panel-rutas?vista=matriz"
                 />
               )}
             </div>

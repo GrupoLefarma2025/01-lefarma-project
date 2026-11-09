@@ -1,7 +1,8 @@
 -- =============================================================================
 -- 0016 — Esquema COMPLETO de educacion_medica (instalación limpia)
 -- ADR: lefarma.docs/educacion-medica/decisiones/00001, 00004, 00006, 00007,
---      00008 (impartición), 00010 (ajustes post-cierre) y 00011 (extraordinarios).
+--      00008 (impartición), 00010 (ajustes post-cierre), 00011 (extraordinarios)
+--      y 00015 (reparto por ejecutivo / rutas por especialista).
 --
 -- QUÉ HACE
 --   Crea TODAS las tablas del módulo de Educación Médica con sus columnas
@@ -10,10 +11,12 @@
 --     programa anual : programas_anuales, programas_anuales_detalles
 --     hospitales     : hospital_extension
 --     selección      : selecciones_mensuales, selecciones_mensuales_hospitales, selecciones_regiones
---     equipos        : equipos_pareo
+--     personas       : ejecutivo_region, ejecutivo_suplente, especialista_gerencia, especialista_region
+--     equipos        : equipos_pareo (histórico; ADR-00015)
 --     rutas          : rutas, rutas_visitas, rutas_versiones
---     talleres       : talleres, taller_recursos, taller_materiales, taller_asistencias,
---                      taller_evidencias, taller_estados_historial
+--     talleres       : talleres (incluye id_tipo_visita = tipo de taller, tema e
+--                      id_ruta_version), taller_recursos, taller_materiales,
+--                      taller_asistencias, taller_evidencias, taller_estados_historial
 --     ajustes (0010) : ajustes_post_cierre, taller_solicitudes_cambio
 --     matriz (0015)  : matrices_individuales, matrices_generales
 --     ranking        : config_ranking, config_ranking_factores, ranking_ejecuciones,
@@ -24,13 +27,27 @@
 --   0010, 0013 (x2), 0014 y 0015, y de los incrementales 0022, 0023, 0025,
 --   0026, 0027 y 0028 (retirados del repositorio el 2026-10-10 al quedar
 --   integrados aquí; las columnas que aquellos agregaban con ALTER TABLE ya
---   vienen en cada CREATE TABLE). taller_aprobaciones ya NO se crea (la eliminó
---   el ADR-00008: la bitácora del motor cubre las firmas).
+--   vienen en cada CREATE TABLE). Además integra el modelo de ADR-00015
+--   (scripts 0033 y 0038) y los cambios de esquema de 0039 (tema libre),
+--   0041 (tipo de taller), 0042 (matriz -> versión de rutas) y 0043 (sin
+--   columnas de workflow en rutas_versiones), para que una instalación limpia
+--   nazca con reparto por ejecutivo, rutas por especialista, ejecutivos
+--   suplentes (sin vigencia) y catálogos de personas.
+--   taller_aprobaciones ya NO se crea (la eliminó el ADR-00008: la bitácora
+--   del motor cubre las firmas).
 --
 -- CÓMO USAR (entorno NUEVO / desde cero)
---   1) 0016  (este script)  — esquema completo
+--   1) 0016  (este script)  — esquema completo (incluye el modelo de ADR-00015)
 --   2) 0030                 — catálogos y backfills (solo Lefarma, sin Asokam)
---   3) 0018                 — workflows de selección, rutas y matriz
+--   3) 0035                 — catálogos de calendario y parámetros
+--   4) 0018                 — workflows de selección, rutas y matriz
+--   5) 0037                 — limpieza opcional (manual/educacion-medica)
+--   En una BD nueva no es necesario ejecutar 0034, 0036, 0038, 0039, 0041,
+--   0042, 0043, 0044, 0045 ni 0046: ya están integrados en
+--   0016/0030/0035/0018 (y son idempotentes si el migrador los ejecuta).
+--   Esos scripts se movieron a legacy/educacion-medica como referencia.
+--   Para BD ya existentes: 0033 (reparto ejecutivo/especialista), 0034+
+--   (tercera gerencia, calendario, candado) según las tareas 00015–00018.
 --   Permisos (solo si el Asokam del entorno está por sembrar): 0017 (roles y
 --   permisos base), 0021 (guards) y 0029 (ajustes/extraordinarios).
 --   Los scripts históricos NO se eliminan: quedan como registro y para
@@ -127,22 +144,29 @@ BEGIN
     CREATE TABLE educacion_medica.[parametros_modulo] (
         [clave] varchar(50) NOT NULL,
         [valor] decimal(10,2) NOT NULL,
+        [tipo] varchar(20) NOT NULL CONSTRAINT [DF_parametros_modulo_tipo] DEFAULT ('numero'),
+        [valor_texto] nvarchar(100) NULL,
         [descripcion] nvarchar(200) NULL,
         [activo] bit NOT NULL CONSTRAINT [DF_parametros_modulo_activo] DEFAULT ((1)),
         [fecha_creacion] datetime2(7) NOT NULL CONSTRAINT [DF_parametros_modulo_fecha_creacion] DEFAULT (sysutcdatetime()),
         [fecha_modificacion] datetime2(7) NOT NULL CONSTRAINT [DF_parametros_modulo_fecha_modificacion] DEFAULT (sysutcdatetime()),
         [id_usuario_creacion] int NULL,
         [id_usuario_modificacion] int NULL,
-        CONSTRAINT [PK_parametro_modulo] PRIMARY KEY ([clave])
+        CONSTRAINT [PK_parametro_modulo] PRIMARY KEY ([clave]),
+        CONSTRAINT [CK_parametros_modulo_tipo] CHECK ([tipo] IN ('numero', 'booleano', 'texto', 'enum'))
     );
 END
  
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[parametros_modulo]') AND minor_id = 0 AND name = 'MS_Description')
-    EXEC sp_addextendedproperty N'MS_Description', N'Parametros configurables del modulo Educacion Medica (clave/valor). Consumidos por los servicios de reparto y planificacion de rutas (ADR-00004); se ajustan desde la pantalla Parametros sin tocar codigo.', 'SCHEMA', N'educacion_medica', 'TABLE', N'parametros_modulo';
+    EXEC sp_addextendedproperty N'MS_Description', N'Parametros configurables del modulo Educacion Medica (clave/valor/tipo). Consumidos por reparto, rutas, calendario, metas y autorización (ADR-00015/00016/00018); se ajustan desde la pantalla Parametros sin tocar codigo.', 'SCHEMA', N'educacion_medica', 'TABLE', N'parametros_modulo';
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[parametros_modulo]') AND minor_id = 1 AND name = 'MS_Description')
     EXEC sp_addextendedproperty N'MS_Description', N'Identificador logico del parametro (p. ej. radio_clustering_km, max_visitas_dia)', 'SCHEMA', N'educacion_medica', 'TABLE', N'parametros_modulo', 'COLUMN', N'clave';
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[parametros_modulo]') AND minor_id = 2 AND name = 'MS_Description')
     EXEC sp_addextendedproperty N'MS_Description', N'Valor numerico del parametro', 'SCHEMA', N'educacion_medica', 'TABLE', N'parametros_modulo', 'COLUMN', N'valor';
+IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[parametros_modulo]') AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.[parametros_modulo]'), 'tipo', 'ColumnId') AND name = 'MS_Description')
+    EXEC sp_addextendedproperty N'MS_Description', N'Tipo del parámetro: numero | booleano | texto | enum. Los históricos son numero.', 'SCHEMA', N'educacion_medica', 'TABLE', N'parametros_modulo', 'COLUMN', N'tipo';
+IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[parametros_modulo]') AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.[parametros_modulo]'), 'valor_texto', 'ColumnId') AND name = 'MS_Description')
+    EXEC sp_addextendedproperty N'MS_Description', N'Valor para parámetros texto/enum (p. ej. SELECCION). NULL en los numéricos.', 'SCHEMA', N'educacion_medica', 'TABLE', N'parametros_modulo', 'COLUMN', N'valor_texto';
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[parametros_modulo]') AND minor_id = 3 AND name = 'MS_Description')
     EXEC sp_addextendedproperty N'MS_Description', N'Descripcion para humanos del parametro', 'SCHEMA', N'educacion_medica', 'TABLE', N'parametros_modulo', 'COLUMN', N'descripcion';
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[parametros_modulo]') AND minor_id = 4 AND name = 'MS_Description')
@@ -192,7 +216,56 @@ IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID(
     EXEC sp_addextendedproperty N'MS_Description', N'Fecha de creacion del registro (UTC)', 'SCHEMA', N'educacion_medica', 'TABLE', N'tipo_gerencia', 'COLUMN', N'fecha_creacion';
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[tipo_gerencia]') AND minor_id = 5 AND name = 'MS_Description')
     EXEC sp_addextendedproperty N'MS_Description', N'Fecha de ultima modificacion (UTC)', 'SCHEMA', N'educacion_medica', 'TABLE', N'tipo_gerencia', 'COLUMN', N'fecha_modificacion';
- 
+
+-- -----------------------------------------------------------------------------
+-- tipo_visita (ADR-00016)
+-- -----------------------------------------------------------------------------
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE schema_id = SCHEMA_ID('educacion_medica') AND name = 'tipo_visita')
+BEGIN
+    CREATE TABLE educacion_medica.[tipo_visita] (
+        [id_tipo_visita] int IDENTITY(1,1) NOT NULL,
+        [clave] varchar(30) NOT NULL,
+        [descripcion] nvarchar(100) NOT NULL,
+        [es_taller] bit NOT NULL CONSTRAINT [DF_tipo_visita_es_taller] DEFAULT ((0)),
+        [activo] bit NOT NULL CONSTRAINT [DF_tipo_visita_activo] DEFAULT ((1)),
+        [fecha_creacion] datetime2(7) NOT NULL CONSTRAINT [DF_tipo_visita_fecha_creacion] DEFAULT (sysutcdatetime()),
+        [fecha_modificacion] datetime2(7) NOT NULL CONSTRAINT [DF_tipo_visita_fecha_modificacion] DEFAULT (sysutcdatetime()),
+        [id_usuario_creacion] int NULL,
+        [id_usuario_modificacion] int NULL,
+        CONSTRAINT [PK_tipo_visita] PRIMARY KEY ([id_tipo_visita]),
+        CONSTRAINT [UQ_tipo_visita_clave] UNIQUE ([clave])
+    );
+END
+
+IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[tipo_visita]') AND minor_id = 0 AND name = 'MS_Description')
+    EXEC sp_addextendedproperty N'MS_Description', N'Catálogo de tipos de visita del calendario (ADR-00016): Taller, Informativa, Captación de queja, Otro. es_taller decide si genera taller/matriz; los demás no cuentan en los indicadores de talleres.', 'SCHEMA', N'educacion_medica', 'TABLE', N'tipo_visita';
+IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[tipo_visita]') AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.[tipo_visita]'), 'clave', 'ColumnId') AND name = 'MS_Description')
+    EXEC sp_addextendedproperty N'MS_Description', N'Clave estable (TALLER, INFORMATIVA, CAPTACION_QUEJA, OTRO)', 'SCHEMA', N'educacion_medica', 'TABLE', N'tipo_visita', 'COLUMN', N'clave';
+IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[tipo_visita]') AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.[tipo_visita]'), 'es_taller', 'ColumnId') AND name = 'MS_Description')
+    EXEC sp_addextendedproperty N'MS_Description', N'1 = el tipo genera taller/matriz; 0 = visita informativa u otro evento', 'SCHEMA', N'educacion_medica', 'TABLE', N'tipo_visita', 'COLUMN', N'es_taller';
+
+-- -----------------------------------------------------------------------------
+-- tema_taller (ADR-00016)
+-- -----------------------------------------------------------------------------
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE schema_id = SCHEMA_ID('educacion_medica') AND name = 'tema_taller')
+BEGIN
+    CREATE TABLE educacion_medica.[tema_taller] (
+        [id_tema_taller] int IDENTITY(1,1) NOT NULL,
+        [clave] varchar(50) NOT NULL,
+        [descripcion] nvarchar(150) NOT NULL,
+        [activo] bit NOT NULL CONSTRAINT [DF_tema_taller_activo] DEFAULT ((1)),
+        [fecha_creacion] datetime2(7) NOT NULL CONSTRAINT [DF_tema_taller_fecha_creacion] DEFAULT (sysutcdatetime()),
+        [fecha_modificacion] datetime2(7) NOT NULL CONSTRAINT [DF_tema_taller_fecha_modificacion] DEFAULT (sysutcdatetime()),
+        [id_usuario_creacion] int NULL,
+        [id_usuario_modificacion] int NULL,
+        CONSTRAINT [PK_tema_taller] PRIMARY KEY ([id_tema_taller]),
+        CONSTRAINT [UQ_tema_taller_clave] UNIQUE ([clave])
+    );
+END
+
+IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[tema_taller]') AND minor_id = 0 AND name = 'MS_Description')
+    EXEC sp_addextendedproperty N'MS_Description', N'Catálogo opcional del tema/asunto del taller (ADR-00016). Si no se usa, el tema se toma del producto capturado en taller_recursos.', 'SCHEMA', N'educacion_medica', 'TABLE', N'tema_taller';
+
 -- -----------------------------------------------------------------------------
 -- config_ranking_factores
 -- -----------------------------------------------------------------------------
@@ -234,7 +307,8 @@ IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID(
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[config_ranking_factores]') AND minor_id = 8 AND name = 'MS_Description')
     EXEC sp_addextendedproperty N'MS_Description', N'Indica si el factor participa en el score', 'SCHEMA', N'educacion_medica', 'TABLE', N'config_ranking_factores', 'COLUMN', N'activo';
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[config_ranking_factores]') AND minor_id = 9 AND name = 'MS_Description')
-    EXEC sp_addextendedproperty N'MS_Description', N'Estrategia de normalizacion (documental en V1: percentil, tramos, funcion). El motor decide la implementacion por clave.', 'SCHEMA', N'educacion_medica', 'TABLE', N'config_ranking_factores', 'COLUMN', N'tipo_normalizacion';
+    EXEC sp_addextendedproperty N'MS_Description', N'Estrategia de normalizacion (documental en V1: percentil, tramos, funcion). El motor decide la implementacion por clave.', 'SCHEMA', N'educacion_medica', 'TABLE', N'config_ranking_factores', 'COLUMN', N'tipo_normalizacion';
+
 
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[config_ranking_factores]') AND minor_id = 10 AND name = 'MS_Description')
     EXEC sp_addextendedproperty N'MS_Description', N'Parametros adicionales del factor en JSON (p. ej. {"radio_km": 50} para agrupabilidad_geografica)', 'SCHEMA', N'educacion_medica', 'TABLE', N'config_ranking_factores', 'COLUMN', N'parametros_json';
@@ -277,7 +351,7 @@ IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID(
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[programas_anuales]') AND minor_id = 1 AND name = 'MS_Description')
     EXEC sp_addextendedproperty N'MS_Description', N'Identificador interno', 'SCHEMA', N'educacion_medica', 'TABLE', N'programas_anuales', 'COLUMN', N'id_programa_anual';
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[programas_anuales]') AND minor_id = 2 AND name = 'MS_Description')
-    EXEC sp_addextendedproperty N'MS_Description', N'Fecha (a�o) del programa', 'SCHEMA', N'educacion_medica', 'TABLE', N'programas_anuales', 'COLUMN', N'fecha';
+    EXEC sp_addextendedproperty N'MS_Description', N'Fecha (año) del programa', 'SCHEMA', N'educacion_medica', 'TABLE', N'programas_anuales', 'COLUMN', N'fecha';
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[programas_anuales]') AND minor_id = 3 AND name = 'MS_Description')
     EXEC sp_addextendedproperty N'MS_Description', N'Definicion/objetivo del programa (FOR-003)', 'SCHEMA', N'educacion_medica', 'TABLE', N'programas_anuales', 'COLUMN', N'definicion';
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[programas_anuales]') AND minor_id = 4 AND name = 'MS_Description')
@@ -292,7 +366,8 @@ IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID(
     EXEC sp_addextendedproperty N'MS_Description', N'Numero de hospitales objetivo al anio', 'SCHEMA', N'educacion_medica', 'TABLE', N'programas_anuales', 'COLUMN', N'numero_hospitales';
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[programas_anuales]') AND minor_id = 9 AND name = 'MS_Description')
     EXEC sp_addextendedproperty N'MS_Description', N'Meta anual = numero de hospitales x 1.5 (la calcula el servicio)', 'SCHEMA', N'educacion_medica', 'TABLE', N'programas_anuales', 'COLUMN', N'meta_al_anio';
-IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[programas_anuales]') AND minor_id = 10 AND name = 'MS_Description')
+IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[programas_anuales]') AND minor_id = 10 AND name = 'MS_Description')
+
 
     EXEC sp_addextendedproperty N'MS_Description', N'CSV de claves de producto (R-III, R-II, R-I, B-27G, B-22G, T)', 'SCHEMA', N'educacion_medica', 'TABLE', N'programas_anuales', 'COLUMN', N'productos_a_promocionar';
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[programas_anuales]') AND minor_id = 11 AND name = 'MS_Description')
@@ -314,7 +389,8 @@ IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID(
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[programas_anuales]') AND minor_id = 19 AND name = 'MS_Description')
     EXEC sp_addextendedproperty N'MS_Description', N'Fecha de creacion del registro (UTC)', 'SCHEMA', N'educacion_medica', 'TABLE', N'programas_anuales', 'COLUMN', N'fecha_creacion';
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[programas_anuales]') AND minor_id = 20 AND name = 'MS_Description')
-    EXEC sp_addextendedproperty N'MS_Description', N'Fecha de ultima modificacion (UTC)', 'SCHEMA', N'educacion_medica', 'TABLE', N'programas_anuales', 'COLUMN', N'fecha_modificacion';
+    EXEC sp_addextendedproperty N'MS_Description', N'Fecha de ultima modificacion (UTC)', 'SCHEMA', N'educacion_medica', 'TABLE', N'programas_anuales', 'COLUMN', N'fecha_modificacion';
+
 
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[programas_anuales]') AND minor_id = 21 AND name = 'MS_Description')
     EXEC sp_addextendedproperty N'MS_Description', N'Usuario que creo el registro (FK logica app.Usuarios, Asokam)', 'SCHEMA', N'educacion_medica', 'TABLE', N'programas_anuales', 'COLUMN', N'id_usuario_creacion';
@@ -393,7 +469,8 @@ IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID(
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[selecciones_mensuales]') AND minor_id = 8 AND name = 'MS_Description')
     EXEC sp_addextendedproperty N'MS_Description', N'Fecha de firma del Gerente de Ventas (primera firma de la doble firma)', 'SCHEMA', N'educacion_medica', 'TABLE', N'selecciones_mensuales', 'COLUMN', N'firma_gv_fecha';
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[selecciones_mensuales]') AND minor_id = 9 AND name = 'MS_Description')
-    EXEC sp_addextendedproperty N'MS_Description', N'Fecha de firma de la Gerencia General (segunda firma; completa la doble firma y autoriza la seleccion)', 'SCHEMA', N'educacion_medica', 'TABLE', N'selecciones_mensuales', 'COLUMN', N'firma_gg_fecha';
+    EXEC sp_addextendedproperty N'MS_Description', N'Fecha de firma de la Gerencia General (segunda firma; completa la doble firma y autoriza la seleccion)', 'SCHEMA', N'educacion_medica', 'TABLE', N'selecciones_mensuales', 'COLUMN', N'firma_gg_fecha';
+
 
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[selecciones_mensuales]') AND minor_id = 10 AND name = 'MS_Description')
     EXEC sp_addextendedproperty N'MS_Description', N'Indica si el registro esta activo', 'SCHEMA', N'educacion_medica', 'TABLE', N'selecciones_mensuales', 'COLUMN', N'activo';
@@ -440,11 +517,11 @@ IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID('educacion_
     CREATE UNIQUE INDEX [UX_equipos_pareo_especialista_activo] ON educacion_medica.[equipos_pareo] ([id_especialista]) WHERE ([activo]=(1));
  
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[equipos_pareo]') AND minor_id = 0 AND name = 'MS_Description')
-    EXEC sp_addextendedproperty N'MS_Description', N'Pareo 1 Ejecutivo de Ventas + 1 Especialista de Producto que opera cada ruta (ADR-00004). Exclusividad de integrantes solo entre equipos activos; la vigencia (fecha_inicio/fecha_fin) conserva la pareja historica de cada planificacion.', 'SCHEMA', N'educacion_medica', 'TABLE', N'equipos_pareo';
+    EXEC sp_addextendedproperty N'MS_Description', N'Histórico (ADR-00015). Equipo de pareo EV+EP del modelo anterior; ya no se usa para nuevas selecciones, rutas ni matrices. Se conserva para migración e histórico.', 'SCHEMA', N'educacion_medica', 'TABLE', N'equipos_pareo';
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[equipos_pareo]') AND minor_id = 1 AND name = 'MS_Description')
     EXEC sp_addextendedproperty N'MS_Description', N'Identificador interno del equipo de pareo', 'SCHEMA', N'educacion_medica', 'TABLE', N'equipos_pareo', 'COLUMN', N'id_equipo';
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[equipos_pareo]') AND minor_id = 2 AND name = 'MS_Description')
-    EXEC sp_addextendedproperty N'MS_Description', N'Regi�n fija que opera el equipo (FK f�sica a regiones_cat). Toda la agrupaci�n y asignaci�n de la selecci�n mensual parte de esta relaci�n 1 equipo = 1 regi�n', 'SCHEMA', N'educacion_medica', 'TABLE', N'equipos_pareo', 'COLUMN', N'id_region';
+    EXEC sp_addextendedproperty N'MS_Description', N'Región fija que opera el equipo (FK física a regiones_cat). Toda la agrupación y asignación de la selección mensual parte de esta relación 1 equipo = 1 región', 'SCHEMA', N'educacion_medica', 'TABLE', N'equipos_pareo', 'COLUMN', N'id_region';
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[equipos_pareo]') AND minor_id = 3 AND name = 'MS_Description')
     EXEC sp_addextendedproperty N'MS_Description', N'Ejecutivo de Ventas del pareo (FK logica app.Usuarios, Asokam). Unico entre equipos activos (indice filtrado)', 'SCHEMA', N'educacion_medica', 'TABLE', N'equipos_pareo', 'COLUMN', N'id_ejecutivo';
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[equipos_pareo]') AND minor_id = 4 AND name = 'MS_Description')
@@ -458,13 +535,160 @@ IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID(
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[equipos_pareo]') AND minor_id = 8 AND name = 'MS_Description')
     EXEC sp_addextendedproperty N'MS_Description', N'Fecha de creacion del registro (UTC)', 'SCHEMA', N'educacion_medica', 'TABLE', N'equipos_pareo', 'COLUMN', N'fecha_creacion';
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[equipos_pareo]') AND minor_id = 9 AND name = 'MS_Description')
-    EXEC sp_addextendedproperty N'MS_Description', N'Fecha de ultima modificacion (UTC)', 'SCHEMA', N'educacion_medica', 'TABLE', N'equipos_pareo', 'COLUMN', N'fecha_modificacion';
+    EXEC sp_addextendedproperty N'MS_Description', N'Fecha de ultima modificacion (UTC)', 'SCHEMA', N'educacion_medica', 'TABLE', N'equipos_pareo', 'COLUMN', N'fecha_modificacion';
+
 
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[equipos_pareo]') AND minor_id = 10 AND name = 'MS_Description')
     EXEC sp_addextendedproperty N'MS_Description', N'Usuario que creo el registro (FK logica app.Usuarios, Asokam)', 'SCHEMA', N'educacion_medica', 'TABLE', N'equipos_pareo', 'COLUMN', N'id_usuario_creacion';
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[equipos_pareo]') AND minor_id = 11 AND name = 'MS_Description')
     EXEC sp_addextendedproperty N'MS_Description', N'Usuario que modifico el registro (FK logica app.Usuarios, Asokam)', 'SCHEMA', N'educacion_medica', 'TABLE', N'equipos_pareo', 'COLUMN', N'id_usuario_modificacion';
- 
+
+-- -----------------------------------------------------------------------------
+-- ejecutivo_region (ADR-00015)
+-- -----------------------------------------------------------------------------
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE schema_id = SCHEMA_ID('educacion_medica') AND name = 'ejecutivo_region')
+BEGIN
+    CREATE TABLE educacion_medica.[ejecutivo_region] (
+        [id_ejecutivo_region] int IDENTITY(1,1) NOT NULL,
+        [id_usuario] int NOT NULL,
+        [id_region_catalogo] int NOT NULL,
+        [activo] bit NOT NULL CONSTRAINT [DF_ejecutivo_region_activo] DEFAULT ((1)),
+        [fecha_creacion] datetime2(7) NOT NULL CONSTRAINT [DF_ejecutivo_region_fecha_creacion] DEFAULT (sysutcdatetime()),
+        [fecha_modificacion] datetime2(7) NOT NULL CONSTRAINT [DF_ejecutivo_region_fecha_modificacion] DEFAULT (sysutcdatetime()),
+        [id_usuario_creacion] int NULL,
+        [id_usuario_modificacion] int NULL,
+        CONSTRAINT [PK_ejecutivo_region] PRIMARY KEY ([id_ejecutivo_region]),
+        CONSTRAINT [FK_ejecutivo_region_region_catalogo] FOREIGN KEY ([id_region_catalogo]) REFERENCES educacion_medica.[regiones_cat] ([id_region])
+    );
+END
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID('educacion_medica.[ejecutivo_region]') AND name = 'UX_ejecutivo_region_usuario_region_activo')
+    CREATE UNIQUE INDEX [UX_ejecutivo_region_usuario_region_activo]
+        ON educacion_medica.[ejecutivo_region] ([id_usuario], [id_region_catalogo])
+        WHERE ([activo] = (1));
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID('educacion_medica.[ejecutivo_region]') AND name = 'IX_ejecutivo_region_usuario')
+    CREATE INDEX [IX_ejecutivo_region_usuario] ON educacion_medica.[ejecutivo_region] ([id_usuario]);
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID('educacion_medica.[ejecutivo_region]') AND name = 'IX_ejecutivo_region_region')
+    CREATE INDEX [IX_ejecutivo_region_region] ON educacion_medica.[ejecutivo_region] ([id_region_catalogo]);
+
+IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[ejecutivo_region]') AND minor_id = 0 AND name = 'MS_Description')
+    EXEC sp_addextendedproperty N'MS_Description', N'Región(es) asignada(s) a un ejecutivo de ventas (ADR-00015). La gerencia del ejecutivo se deriva de regiones_cat.id_tipo_gerencia; todas sus regiones deben ser de la misma gerencia (validación en servicio).', 'SCHEMA', N'educacion_medica', 'TABLE', N'ejecutivo_region';
+IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[ejecutivo_region]') AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.[ejecutivo_region]'), 'id_usuario', 'ColumnId') AND name = 'MS_Description')
+    EXEC sp_addextendedproperty N'MS_Description', N'Usuario ejecutivo de ventas (FK lógica app.Usuarios, Asokam)', 'SCHEMA', N'educacion_medica', 'TABLE', N'ejecutivo_region', 'COLUMN', N'id_usuario';
+IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[ejecutivo_region]') AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.[ejecutivo_region]'), 'id_region_catalogo', 'ColumnId') AND name = 'MS_Description')
+    EXEC sp_addextendedproperty N'MS_Description', N'Región del catálogo (FK física regiones_cat)', 'SCHEMA', N'educacion_medica', 'TABLE', N'ejecutivo_region', 'COLUMN', N'id_region_catalogo';
+
+-- -----------------------------------------------------------------------------
+-- ejecutivo_suplente (ADR-00015, decisión 2026-10-23)
+-- -----------------------------------------------------------------------------
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE schema_id = SCHEMA_ID('educacion_medica') AND name = 'ejecutivo_suplente')
+BEGIN
+    CREATE TABLE educacion_medica.[ejecutivo_suplente] (
+        [id_ejecutivo_suplente] int IDENTITY(1,1) NOT NULL,
+        [id_usuario] int NOT NULL,
+        [id_tipo_gerencia] int NULL,
+        [id_region_catalogo] int NULL,
+        [activo] bit NOT NULL CONSTRAINT [DF_ejecutivo_suplente_activo] DEFAULT ((1)),
+        [fecha_creacion] datetime2(7) NOT NULL CONSTRAINT [DF_ejecutivo_suplente_fecha_creacion] DEFAULT (sysutcdatetime()),
+        [fecha_modificacion] datetime2(7) NOT NULL CONSTRAINT [DF_ejecutivo_suplente_fecha_modificacion] DEFAULT (sysutcdatetime()),
+        [id_usuario_creacion] int NULL,
+        [id_usuario_modificacion] int NULL,
+        CONSTRAINT [PK_ejecutivo_suplente] PRIMARY KEY ([id_ejecutivo_suplente]),
+        CONSTRAINT [FK_ejecutivo_suplente_tipo_gerencia] FOREIGN KEY ([id_tipo_gerencia]) REFERENCES educacion_medica.[tipo_gerencia] ([id_tipo_gerencia]),
+        CONSTRAINT [FK_ejecutivo_suplente_region_catalogo] FOREIGN KEY ([id_region_catalogo]) REFERENCES educacion_medica.[regiones_cat] ([id_region])
+    );
+END
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID('educacion_medica.[ejecutivo_suplente]') AND name = 'UX_ejecutivo_suplente_usuario_gerencia_region_activo')
+    CREATE UNIQUE INDEX [UX_ejecutivo_suplente_usuario_gerencia_region_activo]
+        ON educacion_medica.[ejecutivo_suplente] ([id_usuario], [id_tipo_gerencia], [id_region_catalogo])
+        WHERE ([activo] = (1));
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID('educacion_medica.[ejecutivo_suplente]') AND name = 'IX_ejecutivo_suplente_usuario')
+    CREATE INDEX [IX_ejecutivo_suplente_usuario] ON educacion_medica.[ejecutivo_suplente] ([id_usuario]);
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID('educacion_medica.[ejecutivo_suplente]') AND name = 'IX_ejecutivo_suplente_gerencia')
+    CREATE INDEX [IX_ejecutivo_suplente_gerencia] ON educacion_medica.[ejecutivo_suplente] ([id_tipo_gerencia]);
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID('educacion_medica.[ejecutivo_suplente]') AND name = 'IX_ejecutivo_suplente_region')
+    CREATE INDEX [IX_ejecutivo_suplente_region] ON educacion_medica.[ejecutivo_suplente] ([id_region_catalogo]);
+
+IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[ejecutivo_suplente]') AND minor_id = 0 AND name = 'MS_Description')
+    EXEC sp_addextendedproperty N'MS_Description', N'Usuarios que pueden cubrir como ejecutivo de ventas cuando una región no tiene ejecutivo primario (ADR-00015). El motor busca primero ejecutivo_region activo y solo usa suplentes si no hay primario. NULL en gerencia/región = cobertura total.', 'SCHEMA', N'educacion_medica', 'TABLE', N'ejecutivo_suplente';
+IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[ejecutivo_suplente]') AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.[ejecutivo_suplente]'), 'id_usuario', 'ColumnId') AND name = 'MS_Description')
+    EXEC sp_addextendedproperty N'MS_Description', N'Usuario suplente (FK lógica app.Usuarios, Asokam)', 'SCHEMA', N'educacion_medica', 'TABLE', N'ejecutivo_suplente', 'COLUMN', N'id_usuario';
+IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[ejecutivo_suplente]') AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.[ejecutivo_suplente]'), 'id_tipo_gerencia', 'ColumnId') AND name = 'MS_Description')
+    EXEC sp_addextendedproperty N'MS_Description', N'Gerencia que puede cubrir (NULL = todas)', 'SCHEMA', N'educacion_medica', 'TABLE', N'ejecutivo_suplente', 'COLUMN', N'id_tipo_gerencia';
+IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[ejecutivo_suplente]') AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.[ejecutivo_suplente]'), 'id_region_catalogo', 'ColumnId') AND name = 'MS_Description')
+    EXEC sp_addextendedproperty N'MS_Description', N'Región que puede cubrir (NULL = todas)', 'SCHEMA', N'educacion_medica', 'TABLE', N'ejecutivo_suplente', 'COLUMN', N'id_region_catalogo';
+IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[ejecutivo_suplente]') AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.[ejecutivo_suplente]'), 'activo', 'ColumnId') AND name = 'MS_Description')
+    EXEC sp_addextendedproperty N'MS_Description', N'1 = suplente disponible; 0 = inactivo', 'SCHEMA', N'educacion_medica', 'TABLE', N'ejecutivo_suplente', 'COLUMN', N'activo';
+
+-- -----------------------------------------------------------------------------
+-- especialista_gerencia (ADR-00015)
+-- -----------------------------------------------------------------------------
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE schema_id = SCHEMA_ID('educacion_medica') AND name = 'especialista_gerencia')
+BEGIN
+    CREATE TABLE educacion_medica.[especialista_gerencia] (
+        [id_especialista_gerencia] int IDENTITY(1,1) NOT NULL,
+        [id_usuario] int NOT NULL,
+        [id_tipo_gerencia] int NOT NULL,
+        [activo] bit NOT NULL CONSTRAINT [DF_especialista_gerencia_activo] DEFAULT ((1)),
+        [fecha_creacion] datetime2(7) NOT NULL CONSTRAINT [DF_especialista_gerencia_fecha_creacion] DEFAULT (sysutcdatetime()),
+        [fecha_modificacion] datetime2(7) NOT NULL CONSTRAINT [DF_especialista_gerencia_fecha_modificacion] DEFAULT (sysutcdatetime()),
+        [id_usuario_creacion] int NULL,
+        [id_usuario_modificacion] int NULL,
+        CONSTRAINT [PK_especialista_gerencia] PRIMARY KEY ([id_especialista_gerencia]),
+        CONSTRAINT [FK_especialista_gerencia_tipo_gerencia] FOREIGN KEY ([id_tipo_gerencia]) REFERENCES educacion_medica.[tipo_gerencia] ([id_tipo_gerencia])
+    );
+END
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID('educacion_medica.[especialista_gerencia]') AND name = 'UX_especialista_gerencia_usuario_gerencia_activo')
+    CREATE UNIQUE INDEX [UX_especialista_gerencia_usuario_gerencia_activo]
+        ON educacion_medica.[especialista_gerencia] ([id_usuario], [id_tipo_gerencia])
+        WHERE ([activo] = (1));
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID('educacion_medica.[especialista_gerencia]') AND name = 'IX_especialista_gerencia_usuario')
+    CREATE INDEX [IX_especialista_gerencia_usuario] ON educacion_medica.[especialista_gerencia] ([id_usuario]);
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID('educacion_medica.[especialista_gerencia]') AND name = 'IX_especialista_gerencia_gerencia')
+    CREATE INDEX [IX_especialista_gerencia_gerencia] ON educacion_medica.[especialista_gerencia] ([id_tipo_gerencia]);
+
+IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[especialista_gerencia]') AND minor_id = 0 AND name = 'MS_Description')
+    EXEC sp_addextendedproperty N'MS_Description', N'Gerencias que puede atender un especialista de producto (ADR-00015). La ausencia de filas se interpreta como NO elegible; la pantalla Personas exige al menos una gerencia. El caso 4 especialistas cualquiera + 1 sin IMSS se modela con filas explícitas.', 'SCHEMA', N'educacion_medica', 'TABLE', N'especialista_gerencia';
+IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[especialista_gerencia]') AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.[especialista_gerencia]'), 'id_usuario', 'ColumnId') AND name = 'MS_Description')
+    EXEC sp_addextendedproperty N'MS_Description', N'Usuario especialista de producto (FK lógica app.Usuarios, Asokam)', 'SCHEMA', N'educacion_medica', 'TABLE', N'especialista_gerencia', 'COLUMN', N'id_usuario';
+IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[especialista_gerencia]') AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.[especialista_gerencia]'), 'id_tipo_gerencia', 'ColumnId') AND name = 'MS_Description')
+    EXEC sp_addextendedproperty N'MS_Description', N'Gerencia permitida (FK física tipo_gerencia: IMSS / IMSS Bienestar / Descentralizado / Privado)', 'SCHEMA', N'educacion_medica', 'TABLE', N'especialista_gerencia', 'COLUMN', N'id_tipo_gerencia';
+
+-- -----------------------------------------------------------------------------
+-- especialista_region (ADR-00015)
+-- -----------------------------------------------------------------------------
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE schema_id = SCHEMA_ID('educacion_medica') AND name = 'especialista_region')
+BEGIN
+    CREATE TABLE educacion_medica.[especialista_region] (
+        [id_especialista_region] int IDENTITY(1,1) NOT NULL,
+        [id_usuario] int NOT NULL,
+        [id_region_catalogo] int NOT NULL,
+        [activo] bit NOT NULL CONSTRAINT [DF_especialista_region_activo] DEFAULT ((1)),
+        [fecha_creacion] datetime2(7) NOT NULL CONSTRAINT [DF_especialista_region_fecha_creacion] DEFAULT (sysutcdatetime()),
+        [fecha_modificacion] datetime2(7) NOT NULL CONSTRAINT [DF_especialista_region_fecha_modificacion] DEFAULT (sysutcdatetime()),
+        [id_usuario_creacion] int NULL,
+        [id_usuario_modificacion] int NULL,
+        CONSTRAINT [PK_especialista_region] PRIMARY KEY ([id_especialista_region]),
+        CONSTRAINT [FK_especialista_region_region_catalogo] FOREIGN KEY ([id_region_catalogo]) REFERENCES educacion_medica.[regiones_cat] ([id_region])
+    );
+END
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID('educacion_medica.[especialista_region]') AND name = 'UX_especialista_region_usuario_region_activo')
+    CREATE UNIQUE INDEX [UX_especialista_region_usuario_region_activo]
+        ON educacion_medica.[especialista_region] ([id_usuario], [id_region_catalogo])
+        WHERE ([activo] = (1));
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID('educacion_medica.[especialista_region]') AND name = 'IX_especialista_region_usuario')
+    CREATE INDEX [IX_especialista_region_usuario] ON educacion_medica.[especialista_region] ([id_usuario]);
+
+IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[especialista_region]') AND minor_id = 0 AND name = 'MS_Description')
+    EXEC sp_addextendedproperty N'MS_Description', N'Región preferida del especialista (opcional; ADR-00015). No es una restricción: solo alimenta la sugerencia de visitas cercanas. La elegibilidad real vive en especialista_gerencia.', 'SCHEMA', N'educacion_medica', 'TABLE', N'especialista_region';
+IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[especialista_region]') AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.[especialista_region]'), 'id_usuario', 'ColumnId') AND name = 'MS_Description')
+    EXEC sp_addextendedproperty N'MS_Description', N'Usuario especialista de producto (FK lógica app.Usuarios, Asokam)', 'SCHEMA', N'educacion_medica', 'TABLE', N'especialista_region', 'COLUMN', N'id_usuario';
+IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[especialista_region]') AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.[especialista_region]'), 'id_region_catalogo', 'ColumnId') AND name = 'MS_Description')
+    EXEC sp_addextendedproperty N'MS_Description', N'Región preferida (FK física regiones_cat)', 'SCHEMA', N'educacion_medica', 'TABLE', N'especialista_region', 'COLUMN', N'id_region_catalogo';
+
 -- -----------------------------------------------------------------------------
 -- hospital_extension
 -- -----------------------------------------------------------------------------
@@ -520,7 +744,8 @@ IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID(
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[hospital_extension]') AND minor_id = 8 AND name = 'MS_Description')
     EXEC sp_addextendedproperty N'MS_Description', N'AG = AT x 30% (calculada en el backend con los parametros activos)', 'SCHEMA', N'educacion_medica', 'TABLE', N'hospital_extension', 'COLUMN', N'anestesias_generales';
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[hospital_extension]') AND minor_id = 9 AND name = 'MS_Description')
-    EXEC sp_addextendedproperty N'MS_Description', N'AR = AT x 70% (calculada en el backend con los parametros activos)', 'SCHEMA', N'educacion_medica', 'TABLE', N'hospital_extension', 'COLUMN', N'anestesias_regionales';
+    EXEC sp_addextendedproperty N'MS_Description', N'AR = AT x 70% (calculada en el backend con los parametros activos)', 'SCHEMA', N'educacion_medica', 'TABLE', N'hospital_extension', 'COLUMN', N'anestesias_regionales';
+
 
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[hospital_extension]') AND minor_id = 10 AND name = 'MS_Description')
     EXEC sp_addextendedproperty N'MS_Description', N'AE = AR x 35% (calculada en el backend con los parametros activos)', 'SCHEMA', N'educacion_medica', 'TABLE', N'hospital_extension', 'COLUMN', N'anestesias_epidurales';
@@ -540,7 +765,8 @@ IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID(
     EXEC sp_addextendedproperty N'MS_Description', N'Fecha de creacion del registro (UTC)', 'SCHEMA', N'educacion_medica', 'TABLE', N'hospital_extension', 'COLUMN', N'fecha_creacion';
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[hospital_extension]') AND minor_id = 18 AND name = 'MS_Description')
     EXEC sp_addextendedproperty N'MS_Description', N'Fecha de ultima modificacion (UTC)', 'SCHEMA', N'educacion_medica', 'TABLE', N'hospital_extension', 'COLUMN', N'fecha_modificacion';
-IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[hospital_extension]') AND minor_id = 19 AND name = 'MS_Description')
+IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[hospital_extension]') AND minor_id = 19 AND name = 'MS_Description')
+
 
     EXEC sp_addextendedproperty N'MS_Description', N'Usuario que creo el registro (FK logica app.Usuarios, Asokam)', 'SCHEMA', N'educacion_medica', 'TABLE', N'hospital_extension', 'COLUMN', N'id_usuario_creacion';
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[hospital_extension]') AND minor_id = 20 AND name = 'MS_Description')
@@ -635,7 +861,8 @@ IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID(
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[ranking_ejecuciones]') AND minor_id = 8 AND name = 'MS_Description')
     EXEC sp_addextendedproperty N'MS_Description', N'Filtros aplicados (gerencia, activo, etc.)', 'SCHEMA', N'educacion_medica', 'TABLE', N'ranking_ejecuciones', 'COLUMN', N'filtros_json';
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[ranking_ejecuciones]') AND minor_id = 9 AND name = 'MS_Description')
-    EXEC sp_addextendedproperty N'MS_Description', N'Fecha UTC en que se genero la ejecucion', 'SCHEMA', N'educacion_medica', 'TABLE', N'ranking_ejecuciones', 'COLUMN', N'fecha_ejecucion';
+    EXEC sp_addextendedproperty N'MS_Description', N'Fecha UTC en que se genero la ejecucion', 'SCHEMA', N'educacion_medica', 'TABLE', N'ranking_ejecuciones', 'COLUMN', N'fecha_ejecucion';
+
 
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[ranking_ejecuciones]') AND minor_id = 10 AND name = 'MS_Description')
     EXEC sp_addextendedproperty N'MS_Description', N'Usuario que genero el ranking (FK logica -> app.Usuarios, Asokam)', 'SCHEMA', N'educacion_medica', 'TABLE', N'ranking_ejecuciones', 'COLUMN', N'id_usuario_ejecucion';
@@ -676,9 +903,6 @@ BEGIN
         [id_tipo_gerencia] int NULL,
         [estado] varchar(15) NOT NULL CONSTRAINT [DF_rutas_versiones_estado] DEFAULT ('Creada'),
         [fecha_confirmacion] datetime2(7) NULL,
-        [id_workflow] int NULL,
-        [id_paso_actual] int NULL,
-        [id_estado] int NULL,
         [fecha_creacion] datetime2(7) NOT NULL CONSTRAINT [DF_rutas_versiones_fecha_creacion] DEFAULT (sysutcdatetime()),
         [fecha_modificacion] datetime2(7) NOT NULL CONSTRAINT [DF_rutas_versiones_fecha_modificacion] DEFAULT (sysutcdatetime()),
         [id_usuario_creacion] int NULL,
@@ -690,7 +914,7 @@ BEGIN
 END
  
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[rutas_versiones]') AND minor_id = 0 AND name = 'MS_Description')
-    EXEC sp_addextendedproperty N'MS_Description', N'Version de rutas de una seleccion mensual: es la entidad autorizable del workflow (GV -> CA -> DC). Una fila por seleccion + version; las filas de rutas apuntan aqui con id_ruta_version (ADR-00006).', 'SCHEMA', N'educacion_medica', 'TABLE', N'rutas_versiones';
+    EXEC sp_addextendedproperty N'MS_Description', N'Version de rutas de una seleccion mensual: planeacion operativa sin workflow. La matriz de talleres apunta aqui con id_ruta_version. Una fila por seleccion + version; las filas de rutas apuntan aqui con id_ruta_version.', 'SCHEMA', N'educacion_medica', 'TABLE', N'rutas_versiones';
  
 -- -----------------------------------------------------------------------------
 -- ranking_ejecucion_hospitales
@@ -734,7 +958,8 @@ IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID(
     EXEC sp_addextendedproperty N'MS_Description', N'Indica si el hospital quedo dentro del Top N (posicion <= cantidad_solicitada). Denormalizado deliberadamente.', 'SCHEMA', N'educacion_medica', 'TABLE', N'ranking_ejecucion_hospitales', 'COLUMN', N'es_top_sugerido';
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[ranking_ejecucion_hospitales]') AND minor_id = 8 AND name = 'MS_Description')
     EXEC sp_addextendedproperty N'MS_Description', N'Decision del usuario sobre esta sugerencia (SugeridoSeleccionado, SugeridoRechazado, NoSugeridoSeleccionado, SinDecision)', 'SCHEMA', N'educacion_medica', 'TABLE', N'ranking_ejecucion_hospitales', 'COLUMN', N'decision';
-IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[ranking_ejecucion_hospitales]') AND minor_id = 9 AND name = 'MS_Description')
+IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[ranking_ejecucion_hospitales]') AND minor_id = 9 AND name = 'MS_Description')
+
 
     EXEC sp_addextendedproperty N'MS_Description', N'Valores crudos, scores parciales, pesos y metadatos de cada factor para este hospital', 'SCHEMA', N'educacion_medica', 'TABLE', N'ranking_ejecucion_hospitales', 'COLUMN', N'factores_json';
  
@@ -746,7 +971,8 @@ BEGIN
     CREATE TABLE educacion_medica.[rutas] (
         [id_ruta] int IDENTITY(1,1) NOT NULL,
         [id_seleccion_mensual] int NOT NULL,
-        [id_equipo] int NOT NULL,
+        [id_equipo] int NULL,
+        [id_especialista] int NULL,
         [version] int NOT NULL,
         [nombre] nvarchar(80) NULL,
         [estado] varchar(15) NOT NULL CONSTRAINT [DF_rutas_estado] DEFAULT ('Creada'),
@@ -767,15 +993,19 @@ IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID('educacion_
     CREATE INDEX [IX_rutas_seleccion_version] ON educacion_medica.[rutas] ([id_seleccion_mensual], [version]);
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID('educacion_medica.[rutas]') AND name = 'IX_rutas_id_ruta_version')
     CREATE INDEX [IX_rutas_id_ruta_version] ON educacion_medica.[rutas] ([id_ruta_version]);
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID('educacion_medica.[rutas]') AND name = 'IX_rutas_especialista')
+    CREATE INDEX [IX_rutas_especialista] ON educacion_medica.[rutas] ([id_especialista]);
  
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[rutas]') AND minor_id = 0 AND name = 'MS_Description')
-    EXEC sp_addextendedproperty N'MS_Description', N'Ruta de visitas de un equipo de pareo dentro de una seleccion mensual, versionada. Regenerar crea version N+1 y archiva la anterior. Estado separado de la seleccion: Draft -> Confirmada -> Cancelada (+ Archivada para versiones pasadas). ADR-00004.', 'SCHEMA', N'educacion_medica', 'TABLE', N'rutas';
+    EXEC sp_addextendedproperty N'MS_Description', N'Ruta de visitas de un especialista dentro de una selección mensual, versionada y en borrador (ADR-00015). Ya no es entidad del workflow: la autorización vive en la selección y la matriz.', 'SCHEMA', N'educacion_medica', 'TABLE', N'rutas';
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[rutas]') AND minor_id = 1 AND name = 'MS_Description')
     EXEC sp_addextendedproperty N'MS_Description', N'Identificador interno de la ruta', 'SCHEMA', N'educacion_medica', 'TABLE', N'rutas', 'COLUMN', N'id_ruta';
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[rutas]') AND minor_id = 2 AND name = 'MS_Description')
     EXEC sp_addextendedproperty N'MS_Description', N'Seleccion mensual planificada (universo de hospitales aprobado)', 'SCHEMA', N'educacion_medica', 'TABLE', N'rutas', 'COLUMN', N'id_seleccion_mensual';
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[rutas]') AND minor_id = 3 AND name = 'MS_Description')
-    EXEC sp_addextendedproperty N'MS_Description', N'Equipo de pareo responsable de la ruta (FK fisica equipos_pareo). El historico conserva la pareja vigente al momento', 'SCHEMA', N'educacion_medica', 'TABLE', N'rutas', 'COLUMN', N'id_equipo';
+    EXEC sp_addextendedproperty N'MS_Description', N'Legacy (ADR-00015). Equipo de pareo del modelo anterior; la ruta se organiza por id_especialista. Se conserva para histórico/migración.', 'SCHEMA', N'educacion_medica', 'TABLE', N'rutas', 'COLUMN', N'id_equipo';
+IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[rutas]') AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.[rutas]'), 'id_especialista', 'ColumnId') AND name = 'MS_Description')
+    EXEC sp_addextendedproperty N'MS_Description', N'Especialista dueño de la ruta (FK lógica app.Usuarios). La ruta se organiza por especialista desde ADR-00015; id_equipo queda legacy.', 'SCHEMA', N'educacion_medica', 'TABLE', N'rutas', 'COLUMN', N'id_especialista';
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[rutas]') AND minor_id = 4 AND name = 'MS_Description')
     EXEC sp_addextendedproperty N'MS_Description', N'Version de la planificacion dentro de la seleccion (N+1 por cada regeneracion; solo la version Draft mas reciente es editable)', 'SCHEMA', N'educacion_medica', 'TABLE', N'rutas', 'COLUMN', N'version';
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[rutas]') AND minor_id = 5 AND name = 'MS_Description')
@@ -788,7 +1018,8 @@ IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID(
     EXEC sp_addextendedproperty N'MS_Description', N'Fecha de creacion del registro (UTC)', 'SCHEMA', N'educacion_medica', 'TABLE', N'rutas', 'COLUMN', N'fecha_creacion';
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[rutas]') AND minor_id = 9 AND name = 'MS_Description')
     EXEC sp_addextendedproperty N'MS_Description', N'Fecha de ultima modificacion (UTC)', 'SCHEMA', N'educacion_medica', 'TABLE', N'rutas', 'COLUMN', N'fecha_modificacion';
-IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[rutas]') AND minor_id = 10 AND name = 'MS_Description')
+IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[rutas]') AND minor_id = 10 AND name = 'MS_Description')
+
 
     EXEC sp_addextendedproperty N'MS_Description', N'Usuario que creo el registro (FK logica app.Usuarios, Asokam)', 'SCHEMA', N'educacion_medica', 'TABLE', N'rutas', 'COLUMN', N'id_usuario_creacion';
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[rutas]') AND minor_id = 11 AND name = 'MS_Description')
@@ -811,6 +1042,8 @@ BEGIN
         [algoritmo] varchar(50) NULL,
         [fecha_calculo] datetime2(7) NOT NULL CONSTRAINT [DF_selecciones_regiones_fecha_calculo] DEFAULT (sysutcdatetime()),
         [id_equipo] int NULL,
+        [id_ejecutivo] int NULL,
+        [id_especialista] int NULL,
         [id_region_catalogo] int NULL,
         [fecha_creacion] datetime2(7) NOT NULL CONSTRAINT [DF_selecciones_regiones_fecha_creacion] DEFAULT (sysutcdatetime()),
         [fecha_modificacion] datetime2(7) NOT NULL CONSTRAINT [DF_selecciones_regiones_fecha_modificacion] DEFAULT (sysutcdatetime()),
@@ -823,8 +1056,11 @@ BEGIN
     );
 END
  
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID('educacion_medica.[selecciones_regiones]') AND name = 'IX_selecciones_regiones_ejecutivo')
+    CREATE INDEX [IX_selecciones_regiones_ejecutivo] ON educacion_medica.[selecciones_regiones] ([id_ejecutivo]);
+
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[selecciones_regiones]') AND minor_id = 0 AND name = 'MS_Description')
-    EXEC sp_addextendedproperty N'MS_Description', N'Region geografica calculada (clustering GPS deterministico sobre el snapshot de coordenadas) y persistida por seleccion mensual. La asignacion region -> equipo de pareo vive aqui. Regenerar la agrupacion reemplaza las regiones de la seleccion (hijas de un agregado en revision).', 'SCHEMA', N'educacion_medica', 'TABLE', N'selecciones_regiones';
+    EXEC sp_addextendedproperty N'MS_Description', N'Region geografica calculada (clustering GPS deterministico sobre el snapshot de coordenadas) y persistida por seleccion mensual. La asignacion region -> ejecutivo vive en id_ejecutivo (ADR-00015); id_equipo queda legacy. Regenerar la agrupacion reemplaza las regiones de la seleccion.', 'SCHEMA', N'educacion_medica', 'TABLE', N'selecciones_regiones';
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[selecciones_regiones]') AND minor_id = 1 AND name = 'MS_Description')
     EXEC sp_addextendedproperty N'MS_Description', N'Identificador interno de la region calculada', 'SCHEMA', N'educacion_medica', 'TABLE', N'selecciones_regiones', 'COLUMN', N'id_region';
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[selecciones_regiones]') AND minor_id = 2 AND name = 'MS_Description')
@@ -841,7 +1077,8 @@ IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID(
     EXEC sp_addextendedproperty N'MS_Description', N'Algoritmo y version usados (p. ej. haversine-greedy-v1); el clustering es deterministico con los mismos parametros', 'SCHEMA', N'educacion_medica', 'TABLE', N'selecciones_regiones', 'COLUMN', N'algoritmo';
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[selecciones_regiones]') AND minor_id = 8 AND name = 'MS_Description')
     EXEC sp_addextendedproperty N'MS_Description', N'Fecha/hora en que se calculo la agrupacion (UTC)', 'SCHEMA', N'educacion_medica', 'TABLE', N'selecciones_regiones', 'COLUMN', N'fecha_calculo';
-IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[selecciones_regiones]') AND minor_id = 9 AND name = 'MS_Description')
+IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[selecciones_regiones]') AND minor_id = 9 AND name = 'MS_Description')
+
 
     EXEC sp_addextendedproperty N'MS_Description', N'Equipo de pareo asignado a la region completa (FK fisica equipos_pareo). NULL = region sin asignar', 'SCHEMA', N'educacion_medica', 'TABLE', N'selecciones_regiones', 'COLUMN', N'id_equipo';
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[selecciones_regiones]') AND minor_id = 10 AND name = 'MS_Description')
@@ -854,6 +1091,10 @@ IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID(
     EXEC sp_addextendedproperty N'MS_Description', N'Usuario que creo el registro (FK logica app.Usuarios, Asokam)', 'SCHEMA', N'educacion_medica', 'TABLE', N'selecciones_regiones', 'COLUMN', N'id_usuario_creacion';
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[selecciones_regiones]') AND minor_id = 14 AND name = 'MS_Description')
     EXEC sp_addextendedproperty N'MS_Description', N'Usuario que modifico el registro (FK logica app.Usuarios, Asokam)', 'SCHEMA', N'educacion_medica', 'TABLE', N'selecciones_regiones', 'COLUMN', N'id_usuario_modificacion';
+IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[selecciones_regiones]') AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.[selecciones_regiones]'), 'id_ejecutivo', 'ColumnId') AND name = 'MS_Description')
+    EXEC sp_addextendedproperty N'MS_Description', N'Ejecutivo de ventas dueño de la región (FK lógica app.Usuarios, Asokam). Reemplaza la asignación región -> equipo (ADR-00015). NULL = región sin ejecutivo (la selección no puede cerrarse).', 'SCHEMA', N'educacion_medica', 'TABLE', N'selecciones_regiones', 'COLUMN', N'id_ejecutivo';
+IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[selecciones_regiones]') AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.[selecciones_regiones]'), 'id_especialista', 'ColumnId') AND name = 'MS_Description')
+    EXEC sp_addextendedproperty N'MS_Description', N'Especialista sugerido/default para la región (opcional; FK lógica app.Usuarios). La asignación real se confirma en la ruta (ADR-00015).', 'SCHEMA', N'educacion_medica', 'TABLE', N'selecciones_regiones', 'COLUMN', N'id_especialista';
  
 -- -----------------------------------------------------------------------------
 -- selecciones_mensuales_hospitales
@@ -872,6 +1113,8 @@ BEGIN
         [latitud_snapshot] decimal(10,7) NULL,
         [longitud_snapshot] decimal(10,7) NULL,
         [id_region] int NULL,
+        [id_ejecutivo] int NULL,
+        [id_especialista] int NULL,
         [origen] varchar(20) NULL,
         [id_ranking_ejecucion] int NULL,
         [score_sugerencia] decimal(5,2) NULL,
@@ -887,8 +1130,13 @@ BEGIN
     );
 END
  
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID('educacion_medica.[selecciones_mensuales_hospitales]') AND name = 'IX_sel_hospital_ejecutivo')
+    CREATE INDEX [IX_sel_hospital_ejecutivo] ON educacion_medica.[selecciones_mensuales_hospitales] ([id_ejecutivo]);
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID('educacion_medica.[selecciones_mensuales_hospitales]') AND name = 'IX_sel_hospital_especialista')
+    CREATE INDEX [IX_sel_hospital_especialista] ON educacion_medica.[selecciones_mensuales_hospitales] ([id_especialista]);
+
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[selecciones_mensuales_hospitales]') AND minor_id = 0 AND name = 'MS_Description')
-    EXEC sp_addextendedproperty N'MS_Description', N'N:M seleccion x hospital con la informacion capturada por el Ejecutivo de Ventas en el formulario FOR-004 (Anexo 1).', 'SCHEMA', N'educacion_medica', 'TABLE', N'selecciones_mensuales_hospitales';
+    EXEC sp_addextendedproperty N'MS_Description', N'N:M seleccion x hospital con la informacion capturada por el Ejecutivo de Ventas en el formulario FOR-004 (Anexo 1). id_ejecutivo es el dueño del hospital (override del ejecutivo de la región); id_especialista es una sugerencia opcional (ADR-00015).', 'SCHEMA', N'educacion_medica', 'TABLE', N'selecciones_mensuales_hospitales';
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[selecciones_mensuales_hospitales]') AND minor_id = 1 AND name = 'MS_Description')
     EXEC sp_addextendedproperty N'MS_Description', N'Identificador interno', 'SCHEMA', N'educacion_medica', 'TABLE', N'selecciones_mensuales_hospitales', 'COLUMN', N'id_seleccion_hospital';
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[selecciones_mensuales_hospitales]') AND minor_id = 2 AND name = 'MS_Description')
@@ -904,10 +1152,11 @@ IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID(
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[selecciones_mensuales_hospitales]') AND minor_id = 7 AND name = 'MS_Description')
     EXEC sp_addextendedproperty N'MS_Description', N'Producto a promocionar en el hospital', 'SCHEMA', N'educacion_medica', 'TABLE', N'selecciones_mensuales_hospitales', 'COLUMN', N'producto_a_promocionar';
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[selecciones_mensuales_hospitales]') AND minor_id = 8 AND name = 'MS_Description')
-    EXEC sp_addextendedproperty N'MS_Description', N'Observaciones de la captura', 'SCHEMA', N'educacion_medica', 'TABLE', N'selecciones_mensuales_hospitales', 'COLUMN', N'observaciones';
+    EXEC sp_addextendedproperty N'MS_Description', N'Observaciones de la captura', 'SCHEMA', N'educacion_medica', 'TABLE', N'selecciones_mensuales_hospitales', 'COLUMN', N'observaciones';
+
 
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[selecciones_mensuales_hospitales]') AND minor_id = 9 AND name = 'MS_Description')
-    EXEC sp_addextendedproperty N'MS_Description', N'Latitud del hospital congelada al momento de agregarlo a la seleccion (snapshot; el cat�logo Asokam puede cambiar despu�s)', 'SCHEMA', N'educacion_medica', 'TABLE', N'selecciones_mensuales_hospitales', 'COLUMN', N'latitud_snapshot';
+    EXEC sp_addextendedproperty N'MS_Description', N'Latitud del hospital congelada al momento de agregarlo a la seleccion (snapshot; el catálogo Asokam puede cambiar después)', 'SCHEMA', N'educacion_medica', 'TABLE', N'selecciones_mensuales_hospitales', 'COLUMN', N'latitud_snapshot';
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[selecciones_mensuales_hospitales]') AND minor_id = 10 AND name = 'MS_Description')
     EXEC sp_addextendedproperty N'MS_Description', N'Longitud del hospital congelada al momento de agregarlo a la seleccion (snapshot)', 'SCHEMA', N'educacion_medica', 'TABLE', N'selecciones_mensuales_hospitales', 'COLUMN', N'longitud_snapshot';
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[selecciones_mensuales_hospitales]') AND minor_id = 11 AND name = 'MS_Description')
@@ -928,6 +1177,10 @@ IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID(
     EXEC sp_addextendedproperty N'MS_Description', N'Usuario que creo el registro (FK logica app.Usuarios, Asokam)', 'SCHEMA', N'educacion_medica', 'TABLE', N'selecciones_mensuales_hospitales', 'COLUMN', N'id_usuario_creacion';
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[selecciones_mensuales_hospitales]') AND minor_id = 18 AND name = 'MS_Description')
     EXEC sp_addextendedproperty N'MS_Description', N'Usuario que modifico el registro (FK logica app.Usuarios, Asokam)', 'SCHEMA', N'educacion_medica', 'TABLE', N'selecciones_mensuales_hospitales', 'COLUMN', N'id_usuario_modificacion';
+IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[selecciones_mensuales_hospitales]') AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.[selecciones_mensuales_hospitales]'), 'id_ejecutivo', 'ColumnId') AND name = 'MS_Description')
+    EXEC sp_addextendedproperty N'MS_Description', N'Ejecutivo dueño del hospital (override del ejecutivo de la región; FK lógica app.Usuarios). NULL = hereda del ejecutivo de la región.', 'SCHEMA', N'educacion_medica', 'TABLE', N'selecciones_mensuales_hospitales', 'COLUMN', N'id_ejecutivo';
+IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[selecciones_mensuales_hospitales]') AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.[selecciones_mensuales_hospitales]'), 'id_especialista', 'ColumnId') AND name = 'MS_Description')
+    EXEC sp_addextendedproperty N'MS_Description', N'Especialista sugerido para el hospital (opcional; FK lógica app.Usuarios). La ruta puede reasignarlo (ADR-00015).', 'SCHEMA', N'educacion_medica', 'TABLE', N'selecciones_mensuales_hospitales', 'COLUMN', N'id_especialista';
  
 -- -----------------------------------------------------------------------------
 -- rutas_visitas
@@ -939,6 +1192,9 @@ BEGIN
         [id_ruta] int NOT NULL,
         [id_seleccion_hospital] int NULL,
         [id_hospital] int NULL,
+        [id_ejecutivo] int NULL,
+        [id_especialista] int NULL,
+        [id_tipo_visita] int NULL,
         [fecha_visita] date NOT NULL,
         [orden] tinyint NOT NULL,
         [hora_salida] time(7) NULL,
@@ -951,7 +1207,8 @@ BEGIN
         CONSTRAINT [PK_ruta_visita] PRIMARY KEY ([id_ruta_visita]),
         CONSTRAINT [UQ_rutas_visitas_orden] UNIQUE ([id_ruta], [fecha_visita], [orden]),
         CONSTRAINT [FK_rutas_visitas_seleccion_hospital] FOREIGN KEY ([id_seleccion_hospital]) REFERENCES educacion_medica.[selecciones_mensuales_hospitales] ([id_seleccion_hospital]),
-        CONSTRAINT [FK_rutas_visitas_ruta] FOREIGN KEY ([id_ruta]) REFERENCES educacion_medica.[rutas] ([id_ruta]) ON DELETE CASCADE
+        CONSTRAINT [FK_rutas_visitas_ruta] FOREIGN KEY ([id_ruta]) REFERENCES educacion_medica.[rutas] ([id_ruta]) ON DELETE CASCADE,
+        CONSTRAINT [FK_rutas_visitas_tipo_visita] FOREIGN KEY ([id_tipo_visita]) REFERENCES educacion_medica.[tipo_visita] ([id_tipo_visita])
     );
 END
  
@@ -963,9 +1220,15 @@ IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID('educacion_
  
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID('educacion_medica.[rutas_visitas]') AND name = 'IX_rutas_visitas_seleccion_hospital')
     CREATE INDEX [IX_rutas_visitas_seleccion_hospital] ON educacion_medica.[rutas_visitas] ([id_seleccion_hospital]);
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID('educacion_medica.[rutas_visitas]') AND name = 'IX_rutas_visitas_ejecutivo')
+    CREATE INDEX [IX_rutas_visitas_ejecutivo] ON educacion_medica.[rutas_visitas] ([id_ejecutivo]);
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID('educacion_medica.[rutas_visitas]') AND name = 'IX_rutas_visitas_especialista')
+    CREATE INDEX [IX_rutas_visitas_especialista] ON educacion_medica.[rutas_visitas] ([id_especialista]);
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID('educacion_medica.[rutas_visitas]') AND name = 'IX_rutas_visitas_tipo_visita')
+    CREATE INDEX [IX_rutas_visitas_tipo_visita] ON educacion_medica.[rutas_visitas] ([id_tipo_visita]);
  
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[rutas_visitas]') AND minor_id = 0 AND name = 'MS_Description')
-    EXEC sp_addextendedproperty N'MS_Description', N'Visita planificada de una ruta: equipo + hospital seleccionado + fecha + posicion en el dia. Unidad de trabajo sobre la que se valida la capacidad (max 3 visitas/dia y 8/semana por persona, dias laborales Lun-Vie). ADR-00004.', 'SCHEMA', N'educacion_medica', 'TABLE', N'rutas_visitas';
+    EXEC sp_addextendedproperty N'MS_Description', N'Visita planificada de una ruta por especialista: ejecutivo dueño + especialista + hospital + fecha + posición. Unidad de capacidad (máx 3/día y 8/semana por especialista, Lun-Vie). ADR-00015.', 'SCHEMA', N'educacion_medica', 'TABLE', N'rutas_visitas';
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[rutas_visitas]') AND minor_id = 1 AND name = 'MS_Description')
     EXEC sp_addextendedproperty N'MS_Description', N'Identificador interno de la visita planificada', 'SCHEMA', N'educacion_medica', 'TABLE', N'rutas_visitas', 'COLUMN', N'id_ruta_visita';
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[rutas_visitas]') AND minor_id = 2 AND name = 'MS_Description')
@@ -982,7 +1245,8 @@ IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID(
     EXEC sp_addextendedproperty N'MS_Description', N'Hora de salida prevista (debe caer en horario laboral; opcional en v1)', 'SCHEMA', N'educacion_medica', 'TABLE', N'rutas_visitas', 'COLUMN', N'hora_salida';
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[rutas_visitas]') AND minor_id = 8 AND name = 'MS_Description')
     EXEC sp_addextendedproperty N'MS_Description', N'Hora de llegada prevista (debe caer en horario laboral; opcional en v1)', 'SCHEMA', N'educacion_medica', 'TABLE', N'rutas_visitas', 'COLUMN', N'hora_llegada';
-IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[rutas_visitas]') AND minor_id = 9 AND name = 'MS_Description')
+IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[rutas_visitas]') AND minor_id = 9 AND name = 'MS_Description')
+
 
     EXEC sp_addextendedproperty N'MS_Description', N'Fecha de creacion del registro (UTC)', 'SCHEMA', N'educacion_medica', 'TABLE', N'rutas_visitas', 'COLUMN', N'fecha_creacion';
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[rutas_visitas]') AND minor_id = 10 AND name = 'MS_Description')
@@ -992,7 +1256,13 @@ IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID(
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[rutas_visitas]') AND minor_id = 12 AND name = 'MS_Description')
     EXEC sp_addextendedproperty N'MS_Description', N'Usuario que modifico el registro (FK logica app.Usuarios, Asokam)', 'SCHEMA', N'educacion_medica', 'TABLE', N'rutas_visitas', 'COLUMN', N'id_usuario_modificacion';
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[rutas_visitas]') AND minor_id = 13 AND name = 'MS_Description')
-    EXEC sp_addextendedproperty N'MS_Description', N'1 = visita extraordinaria: hospital del catalogo (FOR-002) fuera de la seleccion autorizada, dado de alta con el modo ajuste del ADR-00010 (motivo + auditoria). No tiene estado propio; cancelarla es un ajuste BAJA_VISITA', 'SCHEMA', N'educacion_medica', 'TABLE', N'rutas_visitas', 'COLUMN', N'es_extraordinaria';
+    EXEC sp_addextendedproperty N'MS_Description', N'1 = visita no planificada dentro del alcance parametrizado por alcance_hospital_extraordinario (ADR-00017). Si el alcance es CATALOGO y el hospital no está en la selección, id_seleccion_hospital puede ser NULL.', 'SCHEMA', N'educacion_medica', 'TABLE', N'rutas_visitas', 'COLUMN', N'es_extraordinaria';
+IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[rutas_visitas]') AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.[rutas_visitas]'), 'id_ejecutivo', 'ColumnId') AND name = 'MS_Description')
+    EXEC sp_addextendedproperty N'MS_Description', N'Ejecutivo dueño del hospital/visita (FK lógica app.Usuarios). Puede ser distinto entre visitas del mismo especialista.', 'SCHEMA', N'educacion_medica', 'TABLE', N'rutas_visitas', 'COLUMN', N'id_ejecutivo';
+IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[rutas_visitas]') AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.[rutas_visitas]'), 'id_especialista', 'ColumnId') AND name = 'MS_Description')
+    EXEC sp_addextendedproperty N'MS_Description', N'Especialista que imparte la visita (FK lógica app.Usuarios). Se valida elegibilidad por gerencia y capacidad (ADR-00015).', 'SCHEMA', N'educacion_medica', 'TABLE', N'rutas_visitas', 'COLUMN', N'id_especialista';
+IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[rutas_visitas]') AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.[rutas_visitas]'), 'id_tipo_visita', 'ColumnId') AND name = 'MS_Description')
+    EXEC sp_addextendedproperty N'MS_Description', N'Tipo de visita (FK tipo_visita). NULL = Taller para datos históricos; los nuevos deben capturarlo.', 'SCHEMA', N'educacion_medica', 'TABLE', N'rutas_visitas', 'COLUMN', N'id_tipo_visita';
  
 -- -----------------------------------------------------------------------------
 -- matrices_individuales
@@ -1001,7 +1271,8 @@ IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE schema_id = SCHEMA_ID('educacion_m
 BEGIN
     CREATE TABLE educacion_medica.[matrices_individuales] (
         [id_matriz_individual] int IDENTITY(1,1) NOT NULL,
-        [id_equipo] int NOT NULL,
+        [id_equipo] int NULL,
+        [id_ejecutivo] int NULL,
         [periodo] date NOT NULL,
         [es_bloqueado] bit NOT NULL CONSTRAINT [DF_matrices_individuales_bloqueado] DEFAULT ((0)),
         [fecha_bloqueo] datetime2(7) NULL,
@@ -1012,15 +1283,30 @@ BEGIN
         [id_usuario_modificacion] int NULL,
         CONSTRAINT [PK_matrices_individuales] PRIMARY KEY ([id_matriz_individual]),
         CONSTRAINT [FK_matrices_individuales_equipo] FOREIGN KEY ([id_equipo]) REFERENCES educacion_medica.[equipos_pareo] ([id_equipo]),
-        CONSTRAINT [UQ_matrices_individuales_equipo_periodo] UNIQUE ([id_equipo], [periodo]),
         CONSTRAINT [CK_matrices_individuales_periodo] CHECK (DAY([periodo]) = 1)
     );
 END
 
+-- ADR-00015: la matriz individual pasa de equipo a ejecutivo. El UNIQUE duro
+-- (id_equipo, periodo) impediría varias matrices nuevas con id_equipo NULL;
+-- se reemplaza por índices únicos filtrados (equipo histórico / ejecutivo nuevo).
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID('educacion_medica.[matrices_individuales]') AND name = 'UX_matrices_individuales_equipo_periodo')
+    CREATE UNIQUE INDEX [UX_matrices_individuales_equipo_periodo]
+        ON educacion_medica.[matrices_individuales] ([id_equipo], [periodo])
+        WHERE ([id_equipo] IS NOT NULL);
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID('educacion_medica.[matrices_individuales]') AND name = 'UX_matrices_individuales_ejecutivo_periodo')
+    CREATE UNIQUE INDEX [UX_matrices_individuales_ejecutivo_periodo]
+        ON educacion_medica.[matrices_individuales] ([id_ejecutivo], [periodo])
+        WHERE ([id_ejecutivo] IS NOT NULL);
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID('educacion_medica.[matrices_individuales]') AND name = 'IX_matrices_individuales_ejecutivo')
+    CREATE INDEX [IX_matrices_individuales_ejecutivo] ON educacion_medica.[matrices_individuales] ([id_ejecutivo]);
+
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[matrices_individuales]') AND minor_id = 0 AND name = 'MS_Description')
-    EXEC sp_addextendedproperty N'MS_Description', N'Matriz de talleres por equipo de pareo (EV+EP) y mes (FOR-005). La captura se bloquea al generarla (es_bloqueado=1) y el GV puede reabrirla (es_bloqueado=0) mientras la matriz general siga en el paso inicial (ADR-00007).', 'SCHEMA', N'educacion_medica', 'TABLE', N'matrices_individuales';
+    EXEC sp_addextendedproperty N'MS_Description', N'Matriz de talleres por ejecutivo y mes (FOR-005). La captura se bloquea al generarla (es_bloqueado=1) y el GV puede reabrirla (es_bloqueado=0) mientras la matriz general siga en el paso inicial (ADR-00007/00015).', 'SCHEMA', N'educacion_medica', 'TABLE', N'matrices_individuales';
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[matrices_individuales]') AND minor_id = 2 AND name = 'MS_Description')
-    EXEC sp_addextendedproperty N'MS_Description', N'Equipo de pareo (EV+EP) dueno de la matriz (FK fisica educacion_medica.equipos_pareo)', 'SCHEMA', N'educacion_medica', 'TABLE', N'matrices_individuales', 'COLUMN', N'id_equipo';
+    EXEC sp_addextendedproperty N'MS_Description', N'Legacy (ADR-00015). Equipo de pareo del modelo anterior; la matriz individual se organiza por id_ejecutivo. Se conserva para histórico/migración.', 'SCHEMA', N'educacion_medica', 'TABLE', N'matrices_individuales', 'COLUMN', N'id_equipo';
+IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[matrices_individuales]') AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.[matrices_individuales]'), 'id_ejecutivo', 'ColumnId') AND name = 'MS_Description')
+    EXEC sp_addextendedproperty N'MS_Description', N'Ejecutivo dueño de la matriz individual (FK lógica app.Usuarios). Reemplaza id_equipo desde ADR-00015.', 'SCHEMA', N'educacion_medica', 'TABLE', N'matrices_individuales', 'COLUMN', N'id_ejecutivo';
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[matrices_individuales]') AND minor_id = 3 AND name = 'MS_Description')
     EXEC sp_addextendedproperty N'MS_Description', N'Mes de la matriz (primer dia del mes; CHECK DAY(periodo) = 1)', 'SCHEMA', N'educacion_medica', 'TABLE', N'matrices_individuales', 'COLUMN', N'periodo';
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[matrices_individuales]') AND minor_id = 4 AND name = 'MS_Description')
@@ -1042,19 +1328,31 @@ BEGIN
         [id_workflow] int NULL,
         [id_paso_actual] int NULL,
         [id_estado] int NULL,
+        [fecha_ultima_actualizacion] datetime2(7) NULL,
+        [total_actualizado] decimal(18,2) NULL,
+        [id_ruta_version] int NULL,
         [fecha_creacion] datetime2(7) NOT NULL CONSTRAINT [DF_matrices_generales_fecha_creacion] DEFAULT (sysutcdatetime()),
         [fecha_modificacion] datetime2(7) NOT NULL CONSTRAINT [DF_matrices_generales_fecha_modificacion] DEFAULT (sysutcdatetime()),
         [id_usuario_creacion] int NULL,
         [id_usuario_modificacion] int NULL,
         CONSTRAINT [PK_matrices_generales] PRIMARY KEY ([id_matriz_general]),
         CONSTRAINT [FK_matrices_generales_tipo_gerencia] FOREIGN KEY ([id_tipo_gerencia]) REFERENCES educacion_medica.[tipo_gerencia] ([id_tipo_gerencia]),
+        CONSTRAINT [FK_matrices_generales_ruta_version] FOREIGN KEY ([id_ruta_version]) REFERENCES educacion_medica.[rutas_versiones] ([id_ruta_version]),
         CONSTRAINT [UQ_matrices_generales_gerencia_periodo] UNIQUE ([id_tipo_gerencia], [periodo]),
         CONSTRAINT [CK_matrices_generales_periodo] CHECK (DAY([periodo]) = 1)
     );
 END
 
+IF NOT EXISTS (
+    SELECT 1 FROM sys.indexes
+    WHERE object_id = OBJECT_ID('educacion_medica.[matrices_generales]')
+      AND name = 'IX_matrices_generales_ruta_version'
+)
+    CREATE INDEX [IX_matrices_generales_ruta_version]
+        ON educacion_medica.[matrices_generales] ([id_ruta_version]);
+
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[matrices_generales]') AND minor_id = 0 AND name = 'MS_Description')
-    EXEC sp_addextendedproperty N'MS_Description', N'Matriz general de talleres por gerencia (IMSS/Descentralizado) y mes: es la entidad autorizable del workflow EDUCACION_MEDICA_MATRIZ (GV -> costos AEM -> CA -> DC). No tiene estado propio: su estado es el del motor (id_estado). Nace automaticamente con el primer taller capturado de la gerencia/mes (ADR-00007).', 'SCHEMA', N'educacion_medica', 'TABLE', N'matrices_generales';
+    EXEC sp_addextendedproperty N'MS_Description', N'Matriz general de talleres por gerencia (IMSS / IMSS Bienestar / Descentralizado) y mes: entidad autorizable del workflow EDUCACION_MEDICA_MATRIZ (GV -> costos AEM -> CA -> DC). No tiene estado propio: su estado es el del motor (id_estado). Nace automaticamente con el primer taller capturado de la gerencia/mes (ADR-00007/00017).', 'SCHEMA', N'educacion_medica', 'TABLE', N'matrices_generales';
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[matrices_generales]') AND minor_id = 2 AND name = 'MS_Description')
     EXEC sp_addextendedproperty N'MS_Description', N'Gerencia de la matriz (FK fisica educacion_medica.tipo_gerencia: IMSS | Descentralizado)', 'SCHEMA', N'educacion_medica', 'TABLE', N'matrices_generales', 'COLUMN', N'id_tipo_gerencia';
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[matrices_generales]') AND minor_id = 3 AND name = 'MS_Description')
@@ -1065,6 +1363,12 @@ IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID(
     EXEC sp_addextendedproperty N'MS_Description', N'Paso actual del workflow (FK logica -> config.workflow_pasos)', 'SCHEMA', N'educacion_medica', 'TABLE', N'matrices_generales', 'COLUMN', N'id_paso_actual';
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[matrices_generales]') AND minor_id = 6 AND name = 'MS_Description')
     EXEC sp_addextendedproperty N'MS_Description', N'Estado actual del workflow (FK logica -> config.workflow_estados). CREADA = paso inicial editable (patron OC/Solicitudes)', 'SCHEMA', N'educacion_medica', 'TABLE', N'matrices_generales', 'COLUMN', N'id_estado';
+IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[matrices_generales]') AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.[matrices_generales]'), 'fecha_ultima_actualizacion', 'ColumnId') AND name = 'MS_Description')
+    EXEC sp_addextendedproperty N'MS_Description', N'Fecha/hora del último cambio aprobado sobre la matriz (solicitud de taller); no reabre el workflow.', 'SCHEMA', N'educacion_medica', 'TABLE', N'matrices_generales', 'COLUMN', N'fecha_ultima_actualizacion';
+IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[matrices_generales]') AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.[matrices_generales]'), 'total_actualizado', 'ColumnId') AND name = 'MS_Description')
+    EXEC sp_addextendedproperty N'MS_Description', N'Snapshot del costo total de la matriz tras el último cambio aprobado. NULL = calcular en lectura.', 'SCHEMA', N'educacion_medica', 'TABLE', N'matrices_generales', 'COLUMN', N'total_actualizado';
+IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[matrices_generales]') AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.[matrices_generales]'), 'id_ruta_version', 'ColumnId') AND name = 'MS_Description')
+    EXEC sp_addextendedproperty N'MS_Description', N'Version de rutas de la misma gerencia y mes que esta matriz (FK fisica a rutas_versiones). Permite vincular planeacion y matriz sin depender de busquedas por periodo.', 'SCHEMA', N'educacion_medica', 'TABLE', N'matrices_generales', 'COLUMN', N'id_ruta_version';
 
 -- -----------------------------------------------------------------------------
 -- talleres
@@ -1096,13 +1400,20 @@ BEGIN
         [id_usuario_modificacion] int NULL,
         [id_matriz_individual] int NULL,
         [id_matriz_general] int NULL,
+        [id_ruta_visita] int NULL,
+        [id_tipo_visita] int NULL,
+        [id_tema_taller] int NULL,
+        [tema] nvarchar(200) NULL,
         [fecha_realizado] date NULL,
         [es_extraordinario] bit NOT NULL CONSTRAINT [DF_talleres_extraordinario] DEFAULT ((0)),
         [motivo_extraordinario] nvarchar(500) NULL,
         CONSTRAINT [PK_taller] PRIMARY KEY ([id_taller]),
         CONSTRAINT [FK_talleres_seleccion_hospital] FOREIGN KEY ([id_seleccion_hospital]) REFERENCES educacion_medica.[selecciones_mensuales_hospitales] ([id_seleccion_hospital]),
         CONSTRAINT [FK_talleres_matriz_individual] FOREIGN KEY ([id_matriz_individual]) REFERENCES educacion_medica.[matrices_individuales] ([id_matriz_individual]),
-        CONSTRAINT [FK_talleres_matriz_general] FOREIGN KEY ([id_matriz_general]) REFERENCES educacion_medica.[matrices_generales] ([id_matriz_general])
+        CONSTRAINT [FK_talleres_matriz_general] FOREIGN KEY ([id_matriz_general]) REFERENCES educacion_medica.[matrices_generales] ([id_matriz_general]),
+        CONSTRAINT [FK_talleres_ruta_visita] FOREIGN KEY ([id_ruta_visita]) REFERENCES educacion_medica.[rutas_visitas] ([id_ruta_visita]),
+        CONSTRAINT [FK_talleres_tipo_visita] FOREIGN KEY ([id_tipo_visita]) REFERENCES educacion_medica.[tipo_visita] ([id_tipo_visita]),
+        CONSTRAINT [FK_talleres_tema_taller] FOREIGN KEY ([id_tema_taller]) REFERENCES educacion_medica.[tema_taller] ([id_tema_taller])
     );
 END
 
@@ -1110,6 +1421,14 @@ IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID('educacion_
     CREATE INDEX [IX_talleres_id_matriz_individual] ON educacion_medica.[talleres] ([id_matriz_individual]);
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID('educacion_medica.[talleres]') AND name = 'IX_talleres_id_matriz_general')
     CREATE INDEX [IX_talleres_id_matriz_general] ON educacion_medica.[talleres] ([id_matriz_general]);
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID('educacion_medica.[talleres]') AND name = 'IX_talleres_id_ruta_visita')
+    CREATE INDEX [IX_talleres_id_ruta_visita] ON educacion_medica.[talleres] ([id_ruta_visita]);
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID('educacion_medica.[talleres]') AND name = 'IX_talleres_tipo_visita')
+    CREATE INDEX [IX_talleres_tipo_visita] ON educacion_medica.[talleres] ([id_tipo_visita]);
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID('educacion_medica.[talleres]') AND name = 'IX_talleres_tema_taller')
+    CREATE INDEX [IX_talleres_tema_taller] ON educacion_medica.[talleres] ([id_tema_taller]);
+IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[talleres]') AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.[talleres]'), 'id_tipo_visita', 'ColumnId') AND name = 'MS_Description')
+    EXEC sp_addextendedproperty N'MS_Description', N'Tipo del taller (FK educacion_medica.tipo_visita); el tipo describe el taller, no la visita planeada.', 'SCHEMA', N'educacion_medica', 'TABLE', N'talleres', 'COLUMN', N'id_tipo_visita';
  
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[talleres]') AND minor_id = 0 AND name = 'MS_Description')
     EXEC sp_addextendedproperty N'MS_Description', N'Aggregate root "Matriz del Taller" (FOR-005); el state machine se valida en servicio y se refleja en estado; vincula con la seleccion mensual que le dio origen.', 'SCHEMA', N'educacion_medica', 'TABLE', N'talleres';
@@ -1132,7 +1451,8 @@ IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID(
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[talleres]') AND minor_id = 9 AND name = 'MS_Description')
     EXEC sp_addextendedproperty N'MS_Description', N'Codigo del Especialista de producto (FOR-006); FK logica -> app.Usuarios (Asokam)', 'SCHEMA', N'educacion_medica', 'TABLE', N'talleres', 'COLUMN', N'id_especialista';
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[talleres]') AND minor_id = 10 AND name = 'MS_Description')
-    EXEC sp_addextendedproperty N'MS_Description', N'Unidad medica / hospital (FOR-008)', 'SCHEMA', N'educacion_medica', 'TABLE', N'talleres', 'COLUMN', N'unidad_medica';
+    EXEC sp_addextendedproperty N'MS_Description', N'Unidad medica / hospital (FOR-008)', 'SCHEMA', N'educacion_medica', 'TABLE', N'talleres', 'COLUMN', N'unidad_medica';
+
 
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[talleres]') AND minor_id = 11 AND name = 'MS_Description')
     EXEC sp_addextendedproperty N'MS_Description', N'Lugar donde se imparte el taller', 'SCHEMA', N'educacion_medica', 'TABLE', N'talleres', 'COLUMN', N'lugar';
@@ -1156,7 +1476,8 @@ IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID(
     EXEC sp_addextendedproperty N'MS_Description', N'Fecha de ultima modificacion (UTC)', 'SCHEMA', N'educacion_medica', 'TABLE', N'talleres', 'COLUMN', N'fecha_modificacion';
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[talleres]') AND minor_id = 21 AND name = 'MS_Description')
     EXEC sp_addextendedproperty N'MS_Description', N'Usuario que creo el registro (FK logica app.Usuarios, Asokam)', 'SCHEMA', N'educacion_medica', 'TABLE', N'talleres', 'COLUMN', N'id_usuario_creacion';
-IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[talleres]') AND minor_id = 22 AND name = 'MS_Description')
+IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[talleres]') AND minor_id = 22 AND name = 'MS_Description')
+
 
     EXEC sp_addextendedproperty N'MS_Description', N'Usuario que modifico el registro (FK logica app.Usuarios, Asokam)', 'SCHEMA', N'educacion_medica', 'TABLE', N'talleres', 'COLUMN', N'id_usuario_modificacion';
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[talleres]') AND minor_id = 23 AND name = 'MS_Description')
@@ -1165,8 +1486,14 @@ IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID(
     EXEC sp_addextendedproperty N'MS_Description', N'Matriz general (gerencia + mes) a la que pertenece el taller (FK fisica educacion_medica.matrices_generales, ON DELETE NO ACTION)', 'SCHEMA', N'educacion_medica', 'TABLE', N'talleres', 'COLUMN', N'id_matriz_general';
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[talleres]') AND minor_id = 25 AND name = 'MS_Description')
     EXEC sp_addextendedproperty N'MS_Description', N'Fecha real de cierre del taller (estado Realizado); alimenta indicadores y cobertura_taller del ranking (ADR-00008 decision 8)', 'SCHEMA', N'educacion_medica', 'TABLE', N'talleres', 'COLUMN', N'fecha_realizado';
+IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[talleres]') AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.[talleres]'), 'id_ruta_visita', 'ColumnId') AND name = 'MS_Description')
+    EXEC sp_addextendedproperty N'MS_Description', N'Visita planificada que origina el taller (FK física rutas_visitas). NULL = taller capturado sin visita o histórico.', 'SCHEMA', N'educacion_medica', 'TABLE', N'talleres', 'COLUMN', N'id_ruta_visita';
+IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[talleres]') AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.[talleres]'), 'id_tema_taller', 'ColumnId') AND name = 'MS_Description')
+    EXEC sp_addextendedproperty N'MS_Description', N'Tema/asunto del taller (FK tema_taller). Opcional; si está vacío, el tema se toma del producto.', 'SCHEMA', N'educacion_medica', 'TABLE', N'talleres', 'COLUMN', N'id_tema_taller';
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[talleres]') AND minor_id = 26 AND name = 'MS_Description')
-    EXEC sp_addextendedproperty N'MS_Description', N'1 = taller extraordinario (ADR-00011): hospital del catalogo fuera de la seleccion (id_seleccion_hospital NULL), exige equipo y motivo_extraordinario, nace en estado Programado y cuenta para la meta mensual y el ranking', 'SCHEMA', N'educacion_medica', 'TABLE', N'talleres', 'COLUMN', N'es_extraordinario';
+    EXEC sp_addextendedproperty N'MS_Description', N'1 = taller no planificado en la ruta, dentro del alcance parametrizado por alcance_hospital_extraordinario (ADR-00017). Si el alcance es CATALOGO y el hospital no está en la selección, id_seleccion_hospital puede ser NULL.', 'SCHEMA', N'educacion_medica', 'TABLE', N'talleres', 'COLUMN', N'es_extraordinario';
+IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[talleres]') AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.[talleres]'), 'tema', 'ColumnId') AND name = 'MS_Description')
+    EXEC sp_addextendedproperty N'MS_Description', N'Tema/asunto libre del taller. Si est� vac�o, el calendario usa tema_taller o el producto.', 'SCHEMA', N'educacion_medica', 'TABLE', N'talleres', 'COLUMN', N'tema';
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[talleres]') AND minor_id = 27 AND name = 'MS_Description')
     EXEC sp_addextendedproperty N'MS_Description', N'Motivo obligatorio del taller extraordinario (imprevisto operativo que lo origina)', 'SCHEMA', N'educacion_medica', 'TABLE', N'talleres', 'COLUMN', N'motivo_extraordinario';
   
@@ -1368,7 +1695,8 @@ IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID(
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[taller_materiales]') AND minor_id = 9 AND name = 'MS_Description')
     EXEC sp_addextendedproperty N'MS_Description', N'Incluye equipo de computo (SI/NO)', 'SCHEMA', N'educacion_medica', 'TABLE', N'taller_materiales', 'COLUMN', N'incluye_equipo_computo';
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[taller_materiales]') AND minor_id = 10 AND name = 'MS_Description')
-    EXEC sp_addextendedproperty N'MS_Description', N'Incluye proyector (SI/NO)', 'SCHEMA', N'educacion_medica', 'TABLE', N'taller_materiales', 'COLUMN', N'incluye_proyector';
+    EXEC sp_addextendedproperty N'MS_Description', N'Incluye proyector (SI/NO)', 'SCHEMA', N'educacion_medica', 'TABLE', N'taller_materiales', 'COLUMN', N'incluye_proyector';
+
 
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[taller_materiales]') AND minor_id = 11 AND name = 'MS_Description')
     EXEC sp_addextendedproperty N'MS_Description', N'Incluye dulces (SI/NO)', 'SCHEMA', N'educacion_medica', 'TABLE', N'taller_materiales', 'COLUMN', N'incluye_dulces';
@@ -1439,7 +1767,8 @@ IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID(
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[taller_recursos]') AND minor_id = 9 AND name = 'MS_Description')
     EXEC sp_addextendedproperty N'MS_Description', N'Cantidad x costo_unitario; lo calcula el servicio', 'SCHEMA', N'educacion_medica', 'TABLE', N'taller_recursos', 'COLUMN', N'subtotal';
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[taller_recursos]') AND minor_id = 10 AND name = 'MS_Description')
-    EXEC sp_addextendedproperty N'MS_Description', N'Observaciones del recurso', 'SCHEMA', N'educacion_medica', 'TABLE', N'taller_recursos', 'COLUMN', N'observaciones';
+    EXEC sp_addextendedproperty N'MS_Description', N'Observaciones del recurso', 'SCHEMA', N'educacion_medica', 'TABLE', N'taller_recursos', 'COLUMN', N'observaciones';
+
 
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[taller_recursos]') AND minor_id = 11 AND name = 'MS_Description')
     EXEC sp_addextendedproperty N'MS_Description', N'Fecha de creacion del registro (UTC)', 'SCHEMA', N'educacion_medica', 'TABLE', N'taller_recursos', 'COLUMN', N'fecha_creacion';
@@ -1503,6 +1832,8 @@ BEGIN
     CREATE TABLE educacion_medica.[taller_solicitudes_cambio] (
         [id_solicitud]             int IDENTITY(1,1) NOT NULL,
         [id_taller]                int NOT NULL,
+        [id_matriz_general]        int NULL,
+        [tipo_solicitud]           varchar(30) NOT NULL CONSTRAINT [DF_taller_solicitudes_cambio_tipo] DEFAULT ('CAMBIO_TALLER'),
         [estado]                   varchar(15) NOT NULL CONSTRAINT [DF_taller_solicitudes_cambio_estado] DEFAULT ('Pendiente'),
         [datos_json]               nvarchar(max) NULL,
         [fecha_creacion]           datetime2(7) NOT NULL CONSTRAINT [DF_taller_solicitudes_cambio_fecha_creacion] DEFAULT (sysutcdatetime()),
@@ -1511,7 +1842,9 @@ BEGIN
         [id_usuario_modificacion]  int NULL,
         CONSTRAINT [PK_taller_solicitud_cambio] PRIMARY KEY ([id_solicitud]),
         CONSTRAINT [CK_taller_solicitudes_cambio_estado] CHECK ([estado] IN ('Pendiente','Aprobada','Rechazada','Cancelada')),
-        CONSTRAINT [FK_taller_solicitudes_cambio_taller] FOREIGN KEY ([id_taller]) REFERENCES educacion_medica.[talleres] ([id_taller]) ON DELETE CASCADE
+        CONSTRAINT [CK_taller_solicitudes_cambio_tipo] CHECK ([tipo_solicitud] IN ('CAMBIO_TALLER','CANCELAR_TALLER','EXTRAORDINARIO','CAMBIO_COSTO')),
+        CONSTRAINT [FK_taller_solicitudes_cambio_taller] FOREIGN KEY ([id_taller]) REFERENCES educacion_medica.[talleres] ([id_taller]) ON DELETE CASCADE,
+        CONSTRAINT [FK_taller_solicitudes_cambio_matriz] FOREIGN KEY ([id_matriz_general]) REFERENCES educacion_medica.[matrices_generales] ([id_matriz_general])
     );
 END
  
@@ -1519,6 +1852,10 @@ IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID('educacion_
     CREATE INDEX [IX_taller_solicitudes_cambio_taller] ON educacion_medica.[taller_solicitudes_cambio] ([id_taller]);
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID('educacion_medica.[taller_solicitudes_cambio]') AND name = 'IX_taller_solicitudes_cambio_estado')
     CREATE INDEX [IX_taller_solicitudes_cambio_estado] ON educacion_medica.[taller_solicitudes_cambio] ([estado]);
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID('educacion_medica.[taller_solicitudes_cambio]') AND name = 'IX_taller_solicitudes_cambio_matriz')
+    CREATE INDEX [IX_taller_solicitudes_cambio_matriz] ON educacion_medica.[taller_solicitudes_cambio] ([id_matriz_general]);
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID('educacion_medica.[taller_solicitudes_cambio]') AND name = 'IX_taller_solicitudes_cambio_tipo')
+    CREATE INDEX [IX_taller_solicitudes_cambio_tipo] ON educacion_medica.[taller_solicitudes_cambio] ([tipo_solicitud]);
  
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[taller_solicitudes_cambio]') AND minor_id = 0 AND name = 'MS_Description')
     EXEC sp_addextendedproperty N'MS_Description', N'Solicitudes de cambio del equipo sobre un taller bloqueado o fuera de captura (ADR-00010 decisiones 13-15). El cambio (valores antes/despues, motivos y actores) va en datos_json; el CEM resuelve desde la Matriz General. Al aprobar se aplica la misma logica del ajuste post-cierre.', 'SCHEMA', N'educacion_medica', 'TABLE', N'taller_solicitudes_cambio';
@@ -1528,6 +1865,10 @@ IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID(
     EXEC sp_addextendedproperty N'MS_Description', N'Taller sobre el que se pide el cambio (FK educacion_medica.talleres)', 'SCHEMA', N'educacion_medica', 'TABLE', N'taller_solicitudes_cambio', 'COLUMN', N'id_taller';
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[taller_solicitudes_cambio]') AND minor_id = 3 AND name = 'MS_Description')
     EXEC sp_addextendedproperty N'MS_Description', N'Ciclo de la solicitud: Pendiente | Aprobada | Rechazada | Cancelada', 'SCHEMA', N'educacion_medica', 'TABLE', N'taller_solicitudes_cambio', 'COLUMN', N'estado';
+IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[taller_solicitudes_cambio]') AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.[taller_solicitudes_cambio]'), 'id_matriz_general', 'ColumnId') AND name = 'MS_Description')
+    EXEC sp_addextendedproperty N'MS_Description', N'Matriz general a la que impacta la solicitud (FK matrices_generales). NULL = solicitud histórica sin vínculo.', 'SCHEMA', N'educacion_medica', 'TABLE', N'taller_solicitudes_cambio', 'COLUMN', N'id_matriz_general';
+IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[taller_solicitudes_cambio]') AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.[taller_solicitudes_cambio]'), 'tipo_solicitud', 'ColumnId') AND name = 'MS_Description')
+    EXEC sp_addextendedproperty N'MS_Description', N'Tipo de solicitud: CAMBIO_TALLER | CANCELAR_TALLER | EXTRAORDINARIO | CAMBIO_COSTO', 'SCHEMA', N'educacion_medica', 'TABLE', N'taller_solicitudes_cambio', 'COLUMN', N'tipo_solicitud';
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[taller_solicitudes_cambio]') AND minor_id = 4 AND name = 'MS_Description')
     EXEC sp_addextendedproperty N'MS_Description', N'Contenido del cambio en JSON: valores antes/despues, motivo del solicitante, motivo de resolucion y actores', 'SCHEMA', N'educacion_medica', 'TABLE', N'taller_solicitudes_cambio', 'COLUMN', N'datos_json';
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[taller_solicitudes_cambio]') AND minor_id = 5 AND name = 'MS_Description')

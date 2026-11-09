@@ -10,6 +10,8 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -22,10 +24,22 @@ import {
 } from '@/components/ui/alert-dialog';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
 import { toApiError } from '@/utils/errors';
-import { Loader2, RefreshCcw, Save, Info, Calculator } from 'lucide-react';
+import {
+  Calculator,
+  CalendarRange,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Info,
+  Loader2,
+  RefreshCcw,
+  Save,
+} from 'lucide-react';
 import { educacionMedicaApi } from '@/apps/educacion-medica/services/educacionMedica.api';
 import { ParametrosPlanificacionCard } from '@/apps/educacion-medica/components/ParametrosPlanificacionCard';
+import { CatalogBanner } from '@/components/common/CatalogBanner';
 import type { ParametroAnestesia } from '@/apps/educacion-medica/types/educacionMedica.types';
 
 const CLAVE_A_NOMBRE: Record<string, string> = {
@@ -55,6 +69,7 @@ interface FactorMeta {
   titulo: string;
   descripcion: string;
   impacto: string;
+  unidad: string;
   grupo: 'base' | 'distribucion' | 'subdistribucion';
   formato: 'entero' | 'porcentaje';
   step: string;
@@ -68,6 +83,7 @@ const FACTORES: FactorMeta[] = [
       'Promedio de cirugías programadas por día en cada quirófano. Es el primer multiplicador del volumen anual.',
     impacto:
       'Subirlo aumenta linealmente todas las proyecciones de anestesias. Bajarlo las reduce.',
+    unidad: 'cirugías/día',
     grupo: 'base',
     formato: 'entero',
     step: '0.1',
@@ -79,6 +95,7 @@ const FACTORES: FactorMeta[] = [
       'Número de días al año en los que el hospital realiza cirugías (descuentos, fines de semana, festivos, etc.).',
     impacto:
       'Multiplica las cirugías diarias para obtener el volumen anual. Afecta todas las proyecciones.',
+    unidad: 'días',
     grupo: 'base',
     formato: 'entero',
     step: '1',
@@ -86,10 +103,10 @@ const FACTORES: FactorMeta[] = [
   {
     clave: 'pct_generales',
     titulo: 'Porcentaje de anestesias generales',
-    descripcion:
-      'Proporción de procedimientos totales que se estima requieran anestesia general.',
+    descripcion: 'Proporción de procedimientos totales que se estima requieran anestesia general.',
     impacto:
       'Incrementa o reduce la cantidad estimada de anestesias generales sin modificar el total.',
+    unidad: '0–1',
     grupo: 'distribucion',
     formato: 'porcentaje',
     step: '0.0001',
@@ -97,10 +114,10 @@ const FACTORES: FactorMeta[] = [
   {
     clave: 'pct_regionales',
     titulo: 'Porcentaje de anestesias regionales',
-    descripcion:
-      'Proporción de procedimientos totales que se estima requieran anestesia regional.',
+    descripcion: 'Proporción de procedimientos totales que se estima requieran anestesia regional.',
     impacto:
       'Es la base para calcular epidurales, subdurales y mixtas. Debe ser coherente con el porcentaje de generales.',
+    unidad: '0–1',
     grupo: 'distribucion',
     formato: 'porcentaje',
     step: '0.0001',
@@ -108,9 +125,10 @@ const FACTORES: FactorMeta[] = [
   {
     clave: 'pct_epidurales',
     titulo: 'Porcentaje de epidurales',
-    descripcion:
-      'Dentro de las anestesias regionales, qué proporción se estima como epidural.',
-    impacto: 'Modifica la proyección de epidurales y debe mantenerse coherente con los demás porcentajes regionales.',
+    descripcion: 'Dentro de las anestesias regionales, qué proporción se estima como epidural.',
+    impacto:
+      'Modifica la proyección de epidurales y debe mantenerse coherente con los demás porcentajes regionales.',
+    unidad: '0–1',
     grupo: 'subdistribucion',
     formato: 'porcentaje',
     step: '0.0001',
@@ -118,9 +136,10 @@ const FACTORES: FactorMeta[] = [
   {
     clave: 'pct_subdurales',
     titulo: 'Porcentaje de subdurales',
-    descripcion:
-      'Dentro de las anestesias regionales, qué proporción se estima como subdural.',
-    impacto: 'Modifica la proyección de subdurales y debe mantenerse coherente con los demás porcentajes regionales.',
+    descripcion: 'Dentro de las anestesias regionales, qué proporción se estima como subdural.',
+    impacto:
+      'Modifica la proyección de subdurales y debe mantenerse coherente con los demás porcentajes regionales.',
+    unidad: '0–1',
     grupo: 'subdistribucion',
     formato: 'porcentaje',
     step: '0.0001',
@@ -130,7 +149,9 @@ const FACTORES: FactorMeta[] = [
     titulo: 'Porcentaje de mixtas obesos',
     descripcion:
       'Dentro de las anestesias regionales, qué proporción se estima como mixta para pacientes con obesidad.',
-    impacto: 'Modifica la proyección de mixtas-obesos y debe mantenerse coherente con los demás porcentajes regionales.',
+    impacto:
+      'Modifica la proyección de mixtas-obesos y debe mantenerse coherente con los demás porcentajes regionales.',
+    unidad: '0–1',
     grupo: 'subdistribucion',
     formato: 'porcentaje',
     step: '0.0001',
@@ -140,7 +161,9 @@ const FACTORES: FactorMeta[] = [
     titulo: 'Porcentaje de mixtas no obesos',
     descripcion:
       'Dentro de las anestesias regionales, qué proporción se estima como mixta para pacientes sin obesidad.',
-    impacto: 'Modifica la proyección de mixtas-no-obesos y debe mantenerse coherente con los demás porcentajes regionales.',
+    impacto:
+      'Modifica la proyección de mixtas-no-obesos y debe mantenerse coherente con los demás porcentajes regionales.',
+    unidad: '0–1',
     grupo: 'subdistribucion',
     formato: 'porcentaje',
     step: '0.0001',
@@ -155,13 +178,14 @@ const GRUPO_TITULO: Record<FactorMeta['grupo'], string> = {
 
 const GRUPO_DESCRIPCION: Record<FactorMeta['grupo'], string> = {
   base: 'Estos factores multiplican el número de quirófanos para obtener el volumen anual estimado.',
-  distribucion: 'Estos porcentajes reparten el volumen total entre anestesias generales y regionales.',
+  distribucion:
+    'Estos porcentajes reparten el volumen total entre anestesias generales y regionales.',
   subdistribucion:
     'Estos porcentajes dividen las anestesias regionales entre epidurales, subdurales y mixtas.',
 };
 
 export default function ParametrosPage() {
-  usePageTitle('Parámetros de Anestesias', 'Configuración de Educación Médica');
+  usePageTitle('Parámetros', 'Configuración de Educación Médica');
 
   const [anio, setAnio] = useState<number>(() => new Date().getFullYear());
   const [parametros, setParametros] = useState<ParametroAnestesia[]>([]);
@@ -225,10 +249,7 @@ export default function ParametrosPage() {
 
     setSaving(true);
     try {
-      const response = await educacionMedicaApi.parametrosAnestesias.upsert(
-        anio,
-        payload
-      );
+      const response = await educacionMedicaApi.parametrosAnestesias.upsert(anio, payload);
       if (response.data.success) {
         toast.success('Parámetros guardados correctamente');
         fetchParametros(anio);
@@ -280,12 +301,19 @@ export default function ParametrosPage() {
     );
   }, [sortedParametros]);
 
-  const hayCambiosSinGuardar = useMemo(() => {
-    return sortedParametros.some((p) => {
+  const factoresConfigurados = useMemo(
+    () => sortedParametros.filter((p) => CLAVE_A_NOMBRE[p.clave] !== undefined),
+    [sortedParametros]
+  );
+
+  const cambiosPendientes = useMemo(() => {
+    return factoresConfigurados.filter((p) => {
       const actual = valores[p.clave];
       return actual !== undefined && actual !== String(p.valor);
-    });
-  }, [sortedParametros, valores]);
+    }).length;
+  }, [factoresConfigurados, valores]);
+
+  const hayCambiosSinGuardar = cambiosPendientes > 0;
 
   const factoresPorGrupo = useMemo(() => {
     const groups: Record<FactorMeta['grupo'], FactorMeta[]> = {
@@ -300,164 +328,274 @@ export default function ParametrosPage() {
   }, []);
 
   return (
-    <div className="space-y-6">
-      {/* Header explicativo */}
-      <Card className="border-l-4 border-l-primary">
-        <CardHeader>
-          <div className="flex items-center gap-2">
-            <Calculator className="h-5 w-5 text-primary" />
-            <CardTitle>¿Qué hacen estos factores?</CardTitle>
-          </div>
-          <CardDescription className="max-w-3xl">
-            Los factores definen cómo se proyecta el consumo de anestesias a partir del número de
-            quirófanos de cada hospital. Cada hospital con quirófanos se recalcula automáticamente
-            cuando presionas <strong>Recalcular anestesias</strong>.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-4 rounded-lg bg-muted/50 p-4 text-sm sm:grid-cols-2 lg:grid-cols-3">
-            <div className="space-y-1">
-              <span className="font-semibold text-primary">Anestesias Totales</span>
-              <p className="text-muted-foreground">
-                Quirófanos × Cirugías/día × Días laborables
-              </p>
-            </div>
-            <div className="space-y-1">
-              <span className="font-semibold text-primary">Generales y Regionales</span>
-              <p className="text-muted-foreground">
-                Totales × pct_generales / pct_regionales
-              </p>
-            </div>
-            <div className="space-y-1">
-              <span className="font-semibold text-primary">Epidurales, subdurales y mixtas</span>
-              <p className="text-muted-foreground">
-                Regionales × pct_epidurales / pct_subdurales / pct_mixtas
-              </p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+    <div className="mx-auto w-full max-w-[1500px] space-y-4">
+      <Tabs defaultValue="anestesias" className="w-full">
+        <TabsList className="bg-muted/60 grid h-12 w-full max-w-xl grid-cols-2 gap-1 rounded-xl p-1">
+          <TabsTrigger
+            value="anestesias"
+            className="rounded-lg border-0 text-sm font-semibold text-muted-foreground transition-colors data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm"
+          >
+            Anestesias
+          </TabsTrigger>
+          <TabsTrigger
+            value="planificacion"
+            className="rounded-lg border-0 text-sm font-semibold text-muted-foreground transition-colors data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm"
+          >
+            Planificación y reglas
+          </TabsTrigger>
+        </TabsList>
 
-      {/* Acciones */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Año de configuración</CardTitle>
-          <CardDescription>
-            Selecciona el año que quieres consultar o editar. Cada año tiene su propio conjunto de
-            factores.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
-            <div className="w-full sm:w-48">
-              <label
-                htmlFor="anio"
-                className="mb-2 block text-sm font-medium"
-              >
-                Año
-              </label>
-              <Input
-                id="anio"
-                type="number"
-                value={anio}
-                onChange={(e) => setAnio(Number(e.target.value))}
-              />
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Button onClick={handleSave} disabled={saving || loading}>
-                {saving && (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                )}
-                <Save className="mr-2 h-4 w-4" />
-                Guardar factores
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => setConfirmOpen(true)}
-                disabled={recalculando || loading}
-              >
-                {recalculando && (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                )}
-                <RefreshCcw className="mr-2 h-4 w-4" />
-                Recalcular anestesias
-              </Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Factores agrupados */}
-      {loading ? (
-        <div className="flex items-center gap-2 text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" />
-          Cargando parámetros...
-        </div>
-      ) : parametros.length === 0 ? (
-        <Card>
-          <CardContent className="py-8 text-center text-muted-foreground">
-            No hay parámetros configurados para el año {anio}.
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="space-y-8">
-          {(['base', 'distribucion', 'subdistribucion'] as const).map((grupo) => (
-            <div key={grupo} className="space-y-4">
-              <div>
-                <h2 className="text-lg font-semibold">{GRUPO_TITULO[grupo]}</h2>
-                <p className="text-sm text-muted-foreground">{GRUPO_DESCRIPCION[grupo]}</p>
+        <TabsContent value="anestesias" className="mt-4 space-y-4">
+          <Card className="sticky top-0 z-20 border border-slate-200/80 bg-card/95 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-card/80 dark:border-slate-800">
+            <CardContent className="flex flex-col gap-3 p-4 lg:flex-row lg:items-end lg:justify-between">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+                <div className="space-y-1.5">
+                  <label htmlFor="anio" className="text-xs font-medium text-muted-foreground">
+                    Año de configuración
+                  </label>
+                  <div
+                    className="flex items-center gap-1 rounded-lg border border-slate-200/70 bg-slate-50/70 p-1 dark:border-slate-800 dark:bg-slate-900/40"
+                    role="group"
+                    aria-label="Año de configuración"
+                  >
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 rounded-md"
+                      onClick={() => setAnio((actual) => actual - 1)}
+                      aria-label="Año anterior"
+                    >
+                      <ChevronLeft className="h-3.5 w-3.5" />
+                    </Button>
+                    <CalendarRange className="h-3.5 w-3.5 text-slate-400" />
+                    <span
+                      id="anio"
+                      className="min-w-14 text-center text-xs font-semibold tabular-nums"
+                    >
+                      {anio}
+                    </span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 rounded-md"
+                      onClick={() => setAnio((actual) => actual + 1)}
+                      aria-label="Año siguiente"
+                    >
+                      <ChevronRight className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {loading
+                    ? 'Cargando factores...'
+                    : `${factoresConfigurados.length} factores configurados · ${cambiosPendientes} ${
+                        cambiosPendientes === 1 ? 'cambio sin guardar' : 'cambios sin guardar'
+                      }`}
+                </p>
               </div>
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-                {factoresPorGrupo[grupo].map((factor) => {
-                  const parametro = parametrosDict[factor.clave];
-                  if (!parametro) return null;
+              <div className="flex flex-wrap gap-2">
+                <Button onClick={handleSave} disabled={saving || loading} className="rounded-xl">
+                  {saving ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Save className="mr-2 h-4 w-4" />
+                  )}
+                  Guardar factores
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => setConfirmOpen(true)}
+                  disabled={recalculando || loading}
+                  className="rounded-xl"
+                >
+                  {recalculando ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <RefreshCcw className="mr-2 h-4 w-4" />
+                  )}
+                  Recalcular anestesias
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
 
-                  const valorActual =
-                    valores[factor.clave] !== undefined
-                      ? valores[factor.clave]
-                      : String(parametro.valor);
+          {hayCambiosSinGuardar && (
+            <CatalogBanner
+              tone="warning"
+              title={`${cambiosPendientes} ${
+                cambiosPendientes === 1 ? 'cambio sin guardar' : 'cambios sin guardar'
+              }`}
+              action={
+                <Button size="sm" className="h-8 rounded-lg" onClick={handleSave} disabled={saving}>
+                  {saving ? (
+                    <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Save className="mr-1.5 h-3.5 w-3.5" />
+                  )}
+                  Guardar
+                </Button>
+              }
+            >
+              Los cambios no se aplicarán al recálculo hasta que los guardes.
+            </CatalogBanner>
+          )}
 
-                  return (
-                    <Card key={factor.clave} className="flex flex-col">
-                      <CardHeader className="pb-2">
-                        <div className="flex items-start justify-between gap-2">
-                          <CardTitle className="text-base">{factor.titulo}</CardTitle>
-                          <Badge variant={factor.formato === 'porcentaje' ? 'secondary' : 'default'}>
-                            {factor.formato === 'porcentaje' ? 'Porcentaje' : 'Número'}
-                          </Badge>
-                        </div>
-                        <CardDescription>{factor.descripcion}</CardDescription>
-                      </CardHeader>
-                      <CardContent className="flex-1">
-                        <label
-                          htmlFor={`factor-${factor.clave}`}
-                          className="mb-2 block text-sm font-medium"
+          <Collapsible>
+            <Card className="border bg-card shadow-sm">
+              <CollapsibleTrigger asChild>
+                <button
+                  type="button"
+                  className="group flex w-full items-center justify-between gap-3 p-4 text-left"
+                >
+                  <span className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                    <Calculator className="h-4 w-4 text-primary" />
+                    ¿Cómo se calculan las anestesias?
+                  </span>
+                  <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
+                </button>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <div className="bg-muted/30 grid gap-3 border-t p-4 sm:grid-cols-3">
+                  <div className="rounded-lg border bg-card p-3">
+                    <p className="text-sm font-semibold text-foreground">Anestesias totales</p>
+                    <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                      Quirófanos × cirugías por día × días laborables.
+                    </p>
+                  </div>
+                  <div className="rounded-lg border bg-card p-3">
+                    <p className="text-sm font-semibold text-foreground">Generales y regionales</p>
+                    <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                      Totales × porcentaje de generales o regionales.
+                    </p>
+                  </div>
+                  <div className="rounded-lg border bg-card p-3">
+                    <p className="text-sm font-semibold text-foreground">
+                      Epidurales, subdurales y mixtas
+                    </p>
+                    <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                      Regionales × porcentaje de cada subdistribución.
+                    </p>
+                  </div>
+                </div>
+              </CollapsibleContent>
+            </Card>
+          </Collapsible>
+
+          {/* Factores agrupados */}
+          {loading ? (
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Cargando parámetros...
+            </div>
+          ) : factoresConfigurados.length === 0 ? (
+            <Card>
+              <CardContent className="py-8 text-center text-muted-foreground">
+                No hay parámetros configurados para el año {anio}.
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-8">
+              {(['base', 'distribucion', 'subdistribucion'] as const).map((grupo) => (
+                <div key={grupo} className="space-y-4">
+                  <div>
+                    <h2 className="text-lg font-semibold tracking-tight">{GRUPO_TITULO[grupo]}</h2>
+                    <p className="text-sm text-muted-foreground">{GRUPO_DESCRIPCION[grupo]}</p>
+                  </div>
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+                    {factoresPorGrupo[grupo].map((factor) => {
+                      const parametro = parametrosDict[factor.clave];
+                      if (!parametro) return null;
+
+                      const valorActual =
+                        valores[factor.clave] !== undefined
+                          ? valores[factor.clave]
+                          : String(parametro.valor);
+                      const modificado = valorActual !== String(parametro.valor);
+
+                      return (
+                        <Card
+                          key={factor.clave}
+                          className={cn(
+                            'flex flex-col border-0 shadow-sm transition-shadow hover:shadow-md',
+                            modificado && 'ring-primary/30 ring-1'
+                          )}
                         >
-                          Valor
-                        </label>
-                        <Input
-                          id={`factor-${factor.clave}`}
-                          type="number"
-                          step={factor.step}
-                          value={valorActual}
-                          onChange={(e) => handleValorChange(factor.clave, e.target.value)}
-                          className="w-full"
-                        />
-                      </CardContent>
-                      <CardFooter className="border-t bg-muted/30 px-6 py-3">
-                        <div className="flex items-start gap-2 text-xs text-muted-foreground">
-                          <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                          <span>{factor.impacto}</span>
-                        </div>
-                      </CardFooter>
-                    </Card>
-                  );
-                })}
-              </div>
+                          <CardHeader className="pb-3">
+                            <div className="flex items-start justify-between gap-2">
+                              <CardTitle className="text-base leading-snug">
+                                {factor.titulo}
+                              </CardTitle>
+                              <div className="flex shrink-0 flex-col items-end gap-1">
+                                <Badge
+                                  variant={
+                                    factor.formato === 'porcentaje' ? 'secondary' : 'default'
+                                  }
+                                  className="text-[10px]"
+                                >
+                                  {factor.formato === 'porcentaje' ? 'Porcentaje' : 'Número'}
+                                </Badge>
+                                {modificado && (
+                                  <Badge
+                                    variant="outline"
+                                    className="border-amber-200 bg-amber-50 text-[10px] text-amber-700 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-200"
+                                  >
+                                    Sin guardar
+                                  </Badge>
+                                )}
+                              </div>
+                            </div>
+                            <CardDescription className="leading-relaxed">
+                              {factor.descripcion}
+                            </CardDescription>
+                          </CardHeader>
+                          <CardContent className="flex-1">
+                            <label
+                              htmlFor={`factor-${factor.clave}`}
+                              className="mb-2 block text-sm font-medium"
+                            >
+                              Valor
+                            </label>
+                            <div className="relative">
+                              <Input
+                                id={`factor-${factor.clave}`}
+                                type="number"
+                                step={factor.step}
+                                value={valorActual}
+                                onChange={(e) => handleValorChange(factor.clave, e.target.value)}
+                                className={cn('w-full', factor.unidad && 'pr-24')}
+                              />
+                              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+                                {factor.unidad}
+                              </span>
+                            </div>
+                            {factor.formato === 'porcentaje' && (
+                              <p className="mt-2 text-[11px] text-muted-foreground">
+                                Ejemplo: 0.45 equivale a 45 %.
+                              </p>
+                            )}
+                          </CardContent>
+                          <CardFooter className="bg-muted/30 border-t px-5 py-3">
+                            <div className="flex items-start gap-2 text-xs text-muted-foreground">
+                              <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                              <span>{factor.impacto}</span>
+                            </div>
+                          </CardFooter>
+                        </Card>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
-      )}
+          )}
+        </TabsContent>
+
+        <TabsContent value="planificacion" className="mt-4">
+          <ParametrosPlanificacionCard />
+        </TabsContent>
+      </Tabs>
 
       <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <AlertDialogContent>
@@ -478,9 +616,7 @@ export default function ParametrosPage() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setConfirmOpen(false)}>
-              Cancelar
-            </AlertDialogCancel>
+            <AlertDialogCancel onClick={() => setConfirmOpen(false)}>Cancelar</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
                 setConfirmOpen(false);
@@ -492,8 +628,6 @@ export default function ParametrosPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
-      <ParametrosPlanificacionCard />
     </div>
   );
 }

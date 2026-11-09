@@ -8,7 +8,9 @@ resumen: Hospitales extraordinarios de Educación Médica — hospitales del cat
 
 ## Status
 
-Accepted
+Superseded by ADR-00017
+
+> **Sustituido en el alcance (2026-10-23).** La mecánica de visita/taller extraordinario se conserva, pero el universo de hospitales ya no es fijo “catálogo fuera de la selección”: se define por el parámetro `alcance_hospital_extraordinario` (`EJECUTIVO`/`GERENCIA`/`SELECCION`/`CATALOGO`) de [[decisiones/00017_tercera-gerencia-imss-bienestar]]. El resto del ADR sigue vigente como referencia del mecanismo (visita en ruta activa, taller `Programado`, equipo EV+EP, motivo/auditoría).
 
 > **Aprobado (2026-10-10).** Implementación (scripts 0028/0029 + backend + frontend), pruebas unitarias y verificación E2E completas (visita y taller extraordinarios, captura asistida, hospitales elegibles); documentación y diagramas sincronizados.
 >

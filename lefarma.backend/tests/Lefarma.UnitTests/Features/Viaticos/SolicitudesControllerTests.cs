@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using FluentAssertions;
+using Lefarma.API.Domain.Entities.EducacionMedica;
 using Lefarma.API.Domain.Entities.Viaticos;
 using Lefarma.API.Infrastructure.Data;
 using Lefarma.API.Shared.Constants;
@@ -126,6 +127,213 @@ public class SolicitudesControllerTests
         guardada.IdUsuarioSolicitante.Should().Be(4242);
         db.Solicitudes.AsNoTracking().Any(x => x.IdUsuarioSolicitante == 9999)
             .Should().BeFalse("el id del body no debe crear filas ajenas");
+    }
+
+    // ---------------- POST /api/viaticos/solicitudes/desde-educacion-medica ----------------
+
+    [Fact]
+    public async Task PostDesdeEducacionMedica_CreaLigaYReutilizaMismoConjunto()
+    {
+        using var ctx = new TestContext();
+        ctx.SembrarRutaConVisitas(9, new[] { 101, 102, 103, 104 });
+        using var cliente = ctx.Servidor.CreateClient();
+        cliente.DefaultRequestHeaders.Add("X-Test-UserId", "7001");
+        cliente.DefaultRequestHeaders.Add("X-Test-Permissions", Permissions.Viaticos.Solicitar);
+
+        var body = new
+        {
+            id_ruta = 9,
+            id_seleccion_mensual = 3,
+            id_ruta_visitas = new[] { 101, 102 },
+            gerencia = "EM",
+            datos = new { destinos = new[] { 101, 102 } }
+        };
+
+        var resp = await cliente.PostAsJsonAsync("/api/viaticos/solicitudes/desde-educacion-medica", body);
+        resp.StatusCode.Should().Be(HttpStatusCode.Created);
+
+        var creada = await resp.Content.ReadFromJsonAsync<ApiEnvelope<SolicitudDesdeEmDtoJson>>();
+        creada.Should().NotBeNull();
+        creada!.Success.Should().BeTrue();
+        creada.Data.Should().NotBeNull();
+        creada.Data!.Reutilizado.Should().BeFalse();
+        var id = creada.Data.IdSolicitud;
+
+        using (var scope = ctx.Servidor.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var guardada = await db.Solicitudes
+                .AsNoTracking()
+                .Include(s => s.OrigenEmVisitas)
+                .SingleAsync(s => s.IdSolicitud == id);
+            guardada.SistemaOrigen.Should().Be("educacion_medica");
+            guardada.Estado.Should().Be("borrador");
+            guardada.NumPuntos.Should().Be(2);
+            guardada.OrigenEmVisitas.Select(l => l.IdRutaVisita).OrderBy(v => v)
+                .Should().Equal(101, 102);
+            guardada.OrigenEmVisitas.Should().OnlyContain(l => l.IdRuta == 9 && l.IdSeleccionMensual == 3);
+        }
+
+        var respReuso = await cliente.PostAsJsonAsync("/api/viaticos/solicitudes/desde-educacion-medica", body);
+        respReuso.StatusCode.Should().Be(HttpStatusCode.OK);
+        var reutilizada = await respReuso.Content.ReadFromJsonAsync<ApiEnvelope<SolicitudDesdeEmDtoJson>>();
+        reutilizada!.Data!.Reutilizado.Should().BeTrue();
+        reutilizada.Data.IdSolicitud.Should().Be(id);
+
+        // Un conjunto distinto (sin traslape) crea otra cotización.
+        var respOtra = await cliente.PostAsJsonAsync("/api/viaticos/solicitudes/desde-educacion-medica", new
+        {
+            id_ruta = 9,
+            id_ruta_visitas = new[] { 103, 104 },
+            datos = new { destinos = new[] { 103, 104 } }
+        });
+        respOtra.StatusCode.Should().Be(HttpStatusCode.Created);
+        var otra = await respOtra.Content.ReadFromJsonAsync<ApiEnvelope<SolicitudDesdeEmDtoJson>>();
+        otra!.Data!.IdSolicitud.Should().NotBe(id);
+        otra.Data.Reutilizado.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task PostDesdeEducacionMedica_RutaConEspecialistasDistintos_Retorna409()
+    {
+        using var ctx = new TestContext();
+        ctx.SembrarRutaConVisitas(12, new[] { 601 }, idEspecialista: 20);
+        using (var scope = ctx.Servidor.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            db.RutasVisitas.Add(new RutaVisita
+            {
+                IdRutaVisita = 602,
+                IdRuta = 12,
+                IdEspecialista = 21,
+                FechaVisita = new DateOnly(2026, 10, 21),
+                Orden = 2,
+                FechaCreacion = DateTime.UtcNow,
+                FechaModificacion = DateTime.UtcNow,
+            });
+            db.SaveChanges();
+        }
+
+        using var cliente = ctx.Servidor.CreateClient();
+        cliente.DefaultRequestHeaders.Add("X-Test-UserId", "7004");
+        cliente.DefaultRequestHeaders.Add("X-Test-Permissions", Permissions.Viaticos.Solicitar);
+
+        var resp = await cliente.PostAsJsonAsync("/api/viaticos/solicitudes/desde-educacion-medica", new
+        {
+            id_ruta = 12,
+            id_ruta_visitas = new[] { 601, 602 },
+            datos = new { destinos = new[] { 601, 602 } }
+        });
+
+        resp.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        (await resp.Content.ReadAsStringAsync()).Should().Contain("especialistas distintos");
+    }
+
+    [Theory]
+    [InlineData(Ruta.EstadoArchivada)]
+    [InlineData(Ruta.EstadoCancelada)]
+    [InlineData(Ruta.EstadoRechazada)]
+    public async Task PostDesdeEducacionMedica_RutaNoVigente_Retorna409(string estadoRuta)
+    {
+        using var ctx = new TestContext();
+        ctx.SembrarRutaConVisitas(11, new[] { 501 }, estado: estadoRuta);
+        using var cliente = ctx.Servidor.CreateClient();
+        cliente.DefaultRequestHeaders.Add("X-Test-UserId", "7005");
+        cliente.DefaultRequestHeaders.Add("X-Test-Permissions", Permissions.Viaticos.Solicitar);
+
+        var resp = await cliente.PostAsJsonAsync("/api/viaticos/solicitudes/desde-educacion-medica", new
+        {
+            id_ruta = 11,
+            id_ruta_visitas = new[] { 501 },
+            datos = new { destinos = new[] { 501 } }
+        });
+
+        resp.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        var texto = await resp.Content.ReadAsStringAsync();
+        texto.Should().Contain(estadoRuta);
+        texto.Should().Contain("no se puede cotizar");
+    }
+
+    [Fact]
+    public async Task PostDesdeEducacionMedica_RutaCerrada_PermiteCotizar()
+    {
+        using var ctx = new TestContext();
+        ctx.SembrarRutaConVisitas(13, new[] { 502 }, estado: Ruta.EstadoCerrada);
+        using var cliente = ctx.Servidor.CreateClient();
+        cliente.DefaultRequestHeaders.Add("X-Test-UserId", "7006");
+        cliente.DefaultRequestHeaders.Add("X-Test-Permissions", Permissions.Viaticos.Solicitar);
+
+        var resp = await cliente.PostAsJsonAsync("/api/viaticos/solicitudes/desde-educacion-medica", new
+        {
+            id_ruta = 13,
+            id_ruta_visitas = new[] { 502 },
+            datos = new { destinos = new[] { 502 } }
+        });
+
+        resp.StatusCode.Should().Be(HttpStatusCode.Created);
+    }
+
+    [Fact]
+    public async Task PostDesdeEducacionMedica_VisitaEnCotizacionActiva_Retorna409ConFolio()
+    {
+        using var ctx = new TestContext();
+        const int userId = 7002;
+        ctx.SembrarRutaConVisitas(10, new[] { 201 });
+        _ = ctx.SembrarCotizacionEducacionMedica(
+            userId, idRuta: 10, idRutaVisitas: new[] { 201 }, estado: "enviada", folio: "VIA-EM-9999");
+
+        using var cliente = ctx.Servidor.CreateClient();
+        cliente.DefaultRequestHeaders.Add("X-Test-UserId", userId.ToString());
+        cliente.DefaultRequestHeaders.Add("X-Test-Permissions", Permissions.Viaticos.Solicitar);
+
+        var resp = await cliente.PostAsJsonAsync("/api/viaticos/solicitudes/desde-educacion-medica", new
+        {
+            id_ruta = 10,
+            id_ruta_visitas = new[] { 201 },
+            datos = new { destinos = new[] { 201 } }
+        });
+
+        resp.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        var texto = await resp.Content.ReadAsStringAsync();
+        texto.Should().Contain("VIA-EM-9999");
+    }
+
+    // ---------------- GET /api/viaticos/solicitudes/por-ruta/{idRuta} ----------------
+
+    [Fact]
+    public async Task GetPorRuta_DevuelveTodasConFolioEstadoYTotal()
+    {
+        using var ctx = new TestContext();
+        const int userId = 7003;
+        var conTotal = ctx.SembrarCotizacionEducacionMedica(
+            userId, idRuta: 12, idRutaVisitas: new[] { 301, 302 }, estado: "enviada", total: 1500.50m, folio: "VIA-EM-A");
+        var sinTotal = ctx.SembrarCotizacionEducacionMedica(
+            userId, idRuta: 12, idRutaVisitas: new[] { 401, 402 }, estado: "borrador", folio: "VIA-EM-B");
+        _ = ctx.SembrarCotizacionEducacionMedica(
+            userId, idRuta: 99, idRutaVisitas: new[] { 501 }, estado: "enviada", total: 10m, folio: "VIA-EM-X");
+
+        using var cliente = ctx.Servidor.CreateClient();
+        cliente.DefaultRequestHeaders.Add("X-Test-UserId", userId.ToString());
+        cliente.DefaultRequestHeaders.Add("X-Test-Permissions", Permissions.Viaticos.Solicitar);
+
+        var resp = await cliente.GetAsync("/api/viaticos/solicitudes/por-ruta/12");
+
+        resp.StatusCode.Should().Be(HttpStatusCode.OK);
+        var envelope = await resp.Content.ReadFromJsonAsync<ApiEnvelope<List<SolicitudPorRutaDtoJson>>>();
+        envelope.Should().NotBeNull();
+        envelope!.Data.Should().NotBeNull();
+        envelope.Data!.Select(x => x.IdSolicitud).Should().BeEquivalentTo(new[] { conTotal, sinTotal });
+
+        var primera = envelope.Data.Single(x => x.IdSolicitud == conTotal);
+        primera.Folio.Should().Be("VIA-EM-A");
+        primera.Estado.Should().Be("enviada");
+        primera.Total.Should().Be(1500.50m);
+        primera.IdRutaVisitas.Should().BeEquivalentTo(new[] { 301, 302 });
+
+        var segunda = envelope.Data.Single(x => x.IdSolicitud == sinTotal);
+        segunda.Folio.Should().Be("VIA-EM-B");
+        segunda.Total.Should().BeNull();
+        segunda.IdRutaVisitas.Should().BeEquivalentTo(new[] { 401, 402 });
     }
 
     // ---------------- GET /api/viaticos/solicitudes/mis ----------------
@@ -290,6 +498,49 @@ public class SolicitudesControllerTests
         var envelope = await resp.Content.ReadFromJsonAsync<ApiEnvelope<SolicitudDtoJson>>();
         envelope!.Data!.Eventos.Should().HaveCount(1);
         envelope.Data.Eventos[0].Payload.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task PutOpciones_ConTotal_LoPersisteEnDatosJson()
+    {
+        using var ctx = new TestContext();
+        const int userId = 7100;
+        var idSolicitud = ctx.SembrarSolicitud(userId, "MIA -> MTY");
+
+        using var cliente = ctx.Servidor.CreateClient();
+        cliente.DefaultRequestHeaders.Add("X-Test-UserId", userId.ToString());
+        cliente.DefaultRequestHeaders.Add("X-Test-Permissions", Permissions.Viaticos.Solicitar);
+
+        var resp = await cliente.PutAsJsonAsync($"/api/viaticos/solicitudes/{idSolicitud}/opciones", new
+        {
+            cotizacion = new
+            {
+                total = 1234.56m,
+                opciones = new[]
+                {
+                    new
+                    {
+                        tipo = "vuelo",
+                        linea = "Aeromexico",
+                        precio = 1234.56m,
+                        moneda = "MXN",
+                        url_compra = "https://ejemplo.test/vuelo",
+                        fuente = "GoogleFlights",
+                        fue_elegida = true,
+                        ruta_captura = (string?)null,
+                    }
+                }
+            }
+        });
+
+        resp.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        using var scope = ctx.Servidor.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var guardada = await db.Solicitudes.AsNoTracking().SingleAsync(s => s.IdSolicitud == idSolicitud);
+        using var datos = JsonDocument.Parse(guardada.DatosJson);
+        datos.RootElement.GetProperty("total").GetDecimal().Should().Be(1234.56m);
+        datos.RootElement.GetProperty("linea").GetString().Should().Be("MIA -> MTY");
     }
 
     // ---------------- PUT /api/viaticos/solicitudes/{id}/opciones ----------------
@@ -744,6 +995,85 @@ public class SolicitudesControllerTests
             s.IdUsuarioSolicitante.Should().Be(userIdEsperado);
         }
 
+        public void SembrarRutaConVisitas(
+            int idRuta,
+            int[] idRutaVisitas,
+            int idEspecialista = 20,
+            string estado = Ruta.EstadoCreada)
+        {
+            using var scope = Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var ahora = DateTime.UtcNow;
+            db.Rutas.Add(new Ruta
+            {
+                IdRuta = idRuta,
+                IdSeleccionMensual = 3,
+                IdEspecialista = idEspecialista,
+                Version = 1,
+                Nombre = $"Ruta prueba {idRuta}",
+                Estado = estado,
+                FechaCreacion = ahora,
+                FechaModificacion = ahora,
+            });
+            for (var i = 0; i < idRutaVisitas.Length; i++)
+            {
+                db.RutasVisitas.Add(new RutaVisita
+                {
+                    IdRutaVisita = idRutaVisitas[i],
+                    IdRuta = idRuta,
+                    IdEspecialista = idEspecialista,
+                    FechaVisita = new DateOnly(2026, 10, 21),
+                    Orden = i + 1,
+                    FechaCreacion = ahora,
+                    FechaModificacion = ahora,
+                });
+            }
+            db.SaveChanges();
+        }
+
+        public int SembrarCotizacionEducacionMedica(
+            int duenoId,
+            int idRuta,
+            int[] idRutaVisitas,
+            string estado = "borrador",
+            decimal? total = null,
+            string? folio = null)
+        {
+            using var scope = Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var ahora = DateTime.UtcNow;
+            var s = new Solicitud
+            {
+                IdUsuarioSolicitante = duenoId,
+                IdUsuarioCreacion = duenoId,
+                Periodo = ahora.ToString("yyyy-MM"),
+                Gerencia = "EM",
+                Estado = estado,
+                SistemaOrigen = "educacion_medica",
+                NumPuntos = idRutaVisitas.Length,
+                Folio = folio,
+                DatosJson = total.HasValue ? JsonSerializer.Serialize(new { total = total.Value }) : "{}",
+                Activo = true,
+                FechaCreacion = ahora,
+                FechaModificacion = ahora,
+            };
+            db.Solicitudes.Add(s);
+            db.SaveChanges();
+
+            foreach (var idVisita in idRutaVisitas)
+            {
+                db.SolicitudOrigenEmVisitas.Add(new SolicitudOrigenEmVisita
+                {
+                    IdSolicitud = s.IdSolicitud,
+                    IdRuta = idRuta,
+                    IdRutaVisita = idVisita,
+                    FechaCreacion = ahora,
+                });
+            }
+            db.SaveChanges();
+            return s.IdSolicitud;
+        }
+
         public int SembrarSolicitud(int duenoId, string linea, bool activo = true, string estado = "borrador")
         {
             using var scope = Services.CreateScope();
@@ -858,6 +1188,42 @@ public class SolicitudesControllerTests
 
         [JsonPropertyName("eventos")]
         public List<SolicitudEventoDtoJson> Eventos { get; set; } = new();
+    }
+
+    private sealed class SolicitudDesdeEmDtoJson
+    {
+        [JsonPropertyName("id_solicitud")]
+        public int IdSolicitud { get; set; }
+
+        [JsonPropertyName("folio")]
+        public string? Folio { get; set; }
+
+        [JsonPropertyName("reutilizado")]
+        public bool Reutilizado { get; set; }
+    }
+
+    private sealed class SolicitudPorRutaDtoJson
+    {
+        [JsonPropertyName("id_solicitud")]
+        public int IdSolicitud { get; set; }
+
+        [JsonPropertyName("folio")]
+        public string? Folio { get; set; }
+
+        [JsonPropertyName("estado")]
+        public string Estado { get; set; } = string.Empty;
+
+        [JsonPropertyName("num_puntos")]
+        public int NumPuntos { get; set; }
+
+        [JsonPropertyName("total")]
+        public decimal? Total { get; set; }
+
+        [JsonPropertyName("fecha_creacion")]
+        public DateTime FechaCreacion { get; set; }
+
+        [JsonPropertyName("id_ruta_visitas")]
+        public List<int> IdRutaVisitas { get; set; } = new();
     }
 
     private sealed class SolicitudOpcionDtoJson

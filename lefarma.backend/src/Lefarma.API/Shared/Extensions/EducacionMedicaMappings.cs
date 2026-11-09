@@ -74,7 +74,11 @@ public static class EducacionMedicaMappings
             AnestesiasMixtasNoObesos = extension.AnestesiasMixtasNoObesos,
             EsAlmacen = extension.EsAlmacen,
             EsFarmacia = extension.EsFarmacia,
-            EsSedeTaller = extension.EsSedeTaller
+            EsSedeTaller = extension.EsSedeTaller,
+            MostrarEducacionMedica = extension.MostrarEducacionMedica,
+            MotivoClasificacion = extension.MotivoClasificacion,
+            RequiereRevision = extension.RequiereRevision,
+            ClasificacionManual = extension.ClasificacionManual
         };
     }
 
@@ -165,7 +169,10 @@ public static class EducacionMedicaMappings
         };
     }
 
-    public static SeleccionRegionDto ToResponse(this SeleccionRegion region, Dictionary<int, string> nombresEquipos)
+    public static SeleccionRegionDto ToResponse(
+        this SeleccionRegion region,
+        Dictionary<int, string> nombresEquipos,
+        Dictionary<int, string>? nombresUsuarios = null)
     {
         return new SeleccionRegionDto
         {
@@ -177,6 +184,14 @@ public static class EducacionMedicaMappings
             IdEquipo = region.IdEquipo,
             NombreEquipo = region.IdEquipo.HasValue
                 ? nombresEquipos.GetValueOrDefault(region.IdEquipo.Value, $"Equipo {region.IdEquipo}")
+                : null,
+            IdEjecutivo = region.IdEjecutivo,
+            NombreEjecutivo = region.IdEjecutivo.HasValue
+                ? nombresUsuarios?.GetValueOrDefault(region.IdEjecutivo.Value)
+                : null,
+            IdEspecialista = region.IdEspecialista,
+            NombreEspecialista = region.IdEspecialista.HasValue
+                ? nombresUsuarios?.GetValueOrDefault(region.IdEspecialista.Value)
                 : null,
             IdRegionCatalogo = region.IdRegionCatalogo,
             Algoritmo = region.Algoritmo,

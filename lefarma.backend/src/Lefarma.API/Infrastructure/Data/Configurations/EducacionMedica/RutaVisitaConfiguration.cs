@@ -15,6 +15,9 @@ public class RutaVisitaConfiguration : IEntityTypeConfiguration<RutaVisita>
         builder.Property(e => e.IdRuta).HasColumnName("id_ruta");
         builder.Property(e => e.IdSeleccionHospital).HasColumnName("id_seleccion_hospital");
         builder.Property(e => e.IdHospital).HasColumnName("id_hospital");
+        builder.Property(e => e.IdEjecutivo).HasColumnName("id_ejecutivo");
+        builder.Property(e => e.IdEspecialista).HasColumnName("id_especialista");
+        builder.Property(e => e.IdTipoVisita).HasColumnName("id_tipo_visita");
         builder.Property(e => e.FechaVisita).HasColumnName("fecha_visita");
         // Script 0007 declara orden TINYINT; el entity usa int. La conversion
         // explicita evita InvalidCastException (Byte -> Int32) al materializar.
@@ -51,5 +54,15 @@ public class RutaVisitaConfiguration : IEntityTypeConfiguration<RutaVisita>
             .IsUnique()
             .HasFilter("[id_seleccion_hospital] IS NOT NULL")
             .HasDatabaseName("UX_rutas_visitas_hospital");
+
+        builder.HasIndex(e => e.IdEjecutivo).HasDatabaseName("IX_rutas_visitas_ejecutivo");
+        builder.HasIndex(e => e.IdEspecialista).HasDatabaseName("IX_rutas_visitas_especialista");
+        builder.HasIndex(e => e.IdTipoVisita).HasDatabaseName("IX_rutas_visitas_tipo_visita");
+
+        builder.HasOne<TipoVisita>()
+            .WithMany()
+            .HasForeignKey(e => e.IdTipoVisita)
+            .HasConstraintName("FK_rutas_visitas_tipo_visita")
+            .OnDelete(DeleteBehavior.Restrict);
     }
 }

@@ -13,6 +13,7 @@ public class MatrizIndividualConfiguration : IEntityTypeConfiguration<MatrizIndi
 
         builder.Property(e => e.IdMatrizIndividual).HasColumnName("id_matriz_individual");
         builder.Property(e => e.IdEquipo).HasColumnName("id_equipo");
+        builder.Property(e => e.IdEjecutivo).HasColumnName("id_ejecutivo");
         builder.Property(e => e.Periodo).HasColumnName("periodo");
         builder.Property(e => e.EsBloqueado).HasColumnName("es_bloqueado");
         builder.Property(e => e.FechaBloqueo).HasColumnName("fecha_bloqueo");
@@ -24,7 +25,16 @@ public class MatrizIndividualConfiguration : IEntityTypeConfiguration<MatrizIndi
 
         builder.HasIndex(e => new { e.IdEquipo, e.Periodo })
             .IsUnique()
-            .HasDatabaseName("UQ_matrices_individuales_equipo_periodo");
+            .HasFilter("[id_equipo] IS NOT NULL")
+            .HasDatabaseName("UX_matrices_individuales_equipo_periodo");
+
+        builder.HasIndex(e => new { e.IdEjecutivo, e.Periodo })
+            .IsUnique()
+            .HasFilter("[id_ejecutivo] IS NOT NULL")
+            .HasDatabaseName("UX_matrices_individuales_ejecutivo_periodo");
+
+        builder.HasIndex(e => e.IdEjecutivo)
+            .HasDatabaseName("IX_matrices_individuales_ejecutivo");
 
         builder.HasOne(e => e.Equipo)
             .WithMany()

@@ -4,11 +4,16 @@
 --      (y 00007_modulo-matriz-talleres.md para la matriz)
 --
 -- CÓMO USAR
---   Entorno NUEVO: 0016 (esquema) -> 0017 (seeds) -> 0018 (este script).
+--   Entorno NUEVO: 0016 (esquema) -> 0030 (catálogos) -> 0035 (parámetros)
+--                  -> 0018 (este script). Si el Asokam está nuevo, 0017.
 --   Entornos ya migrados: este script es el VIGENTE; se puede re-ejecutar para
 --   recrear los flujos EM (borra y recrea; ver ADVERTENCIA).
 --
---   ⚠️ Ejecutar el script COMPLETO en un solo lote (sqlcmd -i, SSMS F5 o
+--   Este script crea la columna config.workflow_pasos.permite_editar si falta
+--   y la incluye en todos los pasos que siembra. En una BD nueva NO hace falta
+--   ejecutar 0046 (queda solo para entornos existentes).
+--
+--   ADVERTENCIA: Ejecutar el script COMPLETO en un solo lote (sqlcmd -i, SSMS F5 o
 --      DBeaver "Execute script" / Alt+X). NO ejecutarlo sentencia por sentencia:
 --      contiene BEGIN TRY/CATCH y una transacción que abarcan todo el cuerpo.
 --
@@ -131,6 +136,20 @@ BEGIN TRY
             + N'. Aplica primero 0016 (esquema) y 0017 (seeds), y vuelve a ejecutar 0018.';
         RAISERROR(@mensaje, 16, 1);
     END
+
+    -- =========================================================================
+    -- 0b. Edición por paso: columna requerida por la configuración del workflow
+    --     0018 la crea si falta para que una BD nueva quede completa sin 0046.
+    -- =========================================================================
+    IF COL_LENGTH('config.workflow_pasos', 'permite_editar') IS NULL
+    BEGIN
+        ALTER TABLE config.workflow_pasos
+            ADD permite_editar BIT NOT NULL
+                CONSTRAINT DF_workflow_pasos_permite_editar DEFAULT (0);
+        PRINT 'Columna [config.workflow_pasos].[permite_editar] agregada.';
+    END
+    ELSE
+        PRINT 'Columna [config.workflow_pasos].[permite_editar] ya existe. Skip.';
 
     -- =========================================================================
     -- 1. TIPOS DE ACCIÓN EM POR PROCESO (único por codigo + codigo_proceso)
@@ -332,14 +351,14 @@ BEGIN TRY
     SET @wfSelImss = SCOPE_IDENTITY();
     PRINT 'Workflow [Selección mensual - IMSS] creado (id ' + CAST(@wfSelImss AS VARCHAR(10)) + ').';
 
-    INSERT INTO config.workflow_pasos (id_workflow, orden, nombre_paso, id_estado, descripcion_ayuda, es_inicio, es_final, requiere_firma, requiere_comentario, requiere_adjunto, permite_adjunto, activo)
+    INSERT INTO config.workflow_pasos (id_workflow, orden, nombre_paso, id_estado, descripcion_ayuda, es_inicio, es_final, requiere_firma, requiere_comentario, requiere_adjunto, permite_adjunto, activo, permite_editar)
     VALUES
-        (@wfSelImss,  0, 'Creada',                         @eCreada,   'Selección capturada; editable solo en este paso.',                                   1, 0, 0, 0, 0, 1, 1),
-        (@wfSelImss, 10, 'Firma Gerencia General',         @eRevision, 'Gerencia General firma y solicita la firma del Gerente de Ventas (IDT-003 5.1.3).', 0, 0, 1, 0, 0, 1, 1),
-        (@wfSelImss, 20, 'Firma Gerente de Ventas - IMSS', @eRevision, 'Firma del Gerente de Ventas de la gerencia IMSS; cierra (Queda autorizada) o rechaza.', 0, 0, 1, 0, 0, 1, 1),
-        (@wfSelImss, 30, 'Cerrada',                        @eCerrada,  'Selección completa y autorizada; habilita la planificación de rutas.',               0, 1, 0, 0, 0, 1, 1),
-        (@wfSelImss, 40, 'Rechazada',                      @eRechazada,'Selección rechazada en alguna firma.',                                               0, 1, 0, 0, 0, 1, 1),
-        (@wfSelImss, 50, 'Cancelada',                      @eCancelada,'Selección cancelada por el creador.',                                                0, 1, 0, 0, 0, 1, 1);
+        (@wfSelImss,  0, 'Creada',                         @eCreada,   'Selección capturada; editable solo en este paso.',                                   1, 0, 0, 0, 0, 1, 1, 1),
+        (@wfSelImss, 10, 'Firma Gerencia General',         @eRevision, 'Gerencia General firma y solicita la firma del Gerente de Ventas (IDT-003 5.1.3).', 0, 0, 1, 0, 0, 1, 1, 1),
+        (@wfSelImss, 20, 'Firma Gerente de Ventas - IMSS', @eRevision, 'Firma del Gerente de Ventas de la gerencia IMSS; cierra (Queda autorizada) o rechaza.', 0, 0, 1, 0, 0, 1, 1, 1),
+        (@wfSelImss, 30, 'Cerrada',                        @eCerrada,  'Selección completa y autorizada; habilita la planificación de rutas.',               0, 1, 0, 0, 0, 1, 1, 0),
+        (@wfSelImss, 40, 'Rechazada',                      @eRechazada,'Selección rechazada en alguna firma.',                                               0, 1, 0, 0, 0, 1, 1, 0),
+        (@wfSelImss, 50, 'Cancelada',                      @eCancelada,'Selección cancelada por el creador.',                                                0, 1, 0, 0, 0, 1, 1, 0);
 
     DECLARE @siCreada INT = (SELECT id_paso FROM config.workflow_pasos WHERE id_workflow = @wfSelImss AND orden = 0);
     DECLARE @siGg     INT = (SELECT id_paso FROM config.workflow_pasos WHERE id_workflow = @wfSelImss AND orden = 10);
@@ -370,14 +389,14 @@ BEGIN TRY
     SET @wfSelDesc = SCOPE_IDENTITY();
     PRINT 'Workflow [Selección mensual - Descentralizado] creado (id ' + CAST(@wfSelDesc AS VARCHAR(10)) + ').';
 
-    INSERT INTO config.workflow_pasos (id_workflow, orden, nombre_paso, id_estado, descripcion_ayuda, es_inicio, es_final, requiere_firma, requiere_comentario, requiere_adjunto, permite_adjunto, activo)
+    INSERT INTO config.workflow_pasos (id_workflow, orden, nombre_paso, id_estado, descripcion_ayuda, es_inicio, es_final, requiere_firma, requiere_comentario, requiere_adjunto, permite_adjunto, activo, permite_editar)
     VALUES
-        (@wfSelDesc,  0, 'Creada',                                    @eCreada,   'Selección capturada; editable solo en este paso.',                                   1, 0, 0, 0, 0, 1, 1),
-        (@wfSelDesc, 10, 'Firma Gerencia General',                    @eRevision, 'Gerencia General firma y solicita la firma del Gerente de Ventas (IDT-003 5.1.3).', 0, 0, 1, 0, 0, 1, 1),
-        (@wfSelDesc, 20, 'Firma Gerente de Ventas - Descentralizado', @eRevision, 'Firma del Gerente de Ventas de la gerencia Descentralizado; cierra (Queda autorizada) o rechaza.', 0, 0, 1, 0, 0, 1, 1),
-        (@wfSelDesc, 30, 'Cerrada',                                   @eCerrada,  'Selección completa y autorizada; habilita la planificación de rutas.',               0, 1, 0, 0, 0, 1, 1),
-        (@wfSelDesc, 40, 'Rechazada',                                 @eRechazada,'Selección rechazada en alguna firma.',                                               0, 1, 0, 0, 0, 1, 1),
-        (@wfSelDesc, 50, 'Cancelada',                                 @eCancelada,'Selección cancelada por el creador.',                                                0, 1, 0, 0, 0, 1, 1);
+        (@wfSelDesc,  0, 'Creada',                                    @eCreada,   'Selección capturada; editable solo en este paso.',                                   1, 0, 0, 0, 0, 1, 1, 1),
+        (@wfSelDesc, 10, 'Firma Gerencia General',                    @eRevision, 'Gerencia General firma y solicita la firma del Gerente de Ventas (IDT-003 5.1.3).', 0, 0, 1, 0, 0, 1, 1, 1),
+        (@wfSelDesc, 20, 'Firma Gerente de Ventas - Descentralizado', @eRevision, 'Firma del Gerente de Ventas de la gerencia Descentralizado; cierra (Queda autorizada) o rechaza.', 0, 0, 1, 0, 0, 1, 1, 1),
+        (@wfSelDesc, 30, 'Cerrada',                                   @eCerrada,  'Selección completa y autorizada; habilita la planificación de rutas.',               0, 1, 0, 0, 0, 1, 1, 0),
+        (@wfSelDesc, 40, 'Rechazada',                                 @eRechazada,'Selección rechazada en alguna firma.',                                               0, 1, 0, 0, 0, 1, 1, 0),
+        (@wfSelDesc, 50, 'Cancelada',                                 @eCancelada,'Selección cancelada por el creador.',                                                0, 1, 0, 0, 0, 1, 1, 0);
 
     DECLARE @sdCreada INT = (SELECT id_paso FROM config.workflow_pasos WHERE id_workflow = @wfSelDesc AND orden = 0);
     DECLARE @sdGg     INT = (SELECT id_paso FROM config.workflow_pasos WHERE id_workflow = @wfSelDesc AND orden = 10);
@@ -408,15 +427,15 @@ BEGIN TRY
     SET @wfRutImss = SCOPE_IDENTITY();
     PRINT 'Workflow [Rutas - IMSS] creado (id ' + CAST(@wfRutImss AS VARCHAR(10)) + ').';
 
-    INSERT INTO config.workflow_pasos (id_workflow, orden, nombre_paso, id_estado, descripcion_ayuda, es_inicio, es_final, requiere_firma, requiere_comentario, requiere_adjunto, permite_adjunto, activo)
+    INSERT INTO config.workflow_pasos (id_workflow, orden, nombre_paso, id_estado, descripcion_ayuda, es_inicio, es_final, requiere_firma, requiere_comentario, requiere_adjunto, permite_adjunto, activo, permite_editar)
     VALUES
-        (@wfRutImss,  0, 'Creada',                            @eCreada,           'Propuesta generada; editable solo en este paso.',                                       1, 0, 0, 0, 0, 1, 1),
-        (@wfRutImss, 10, 'Firma Gerente de Ventas - IMSS',    @eRevision,         'Firma del Gerente de Ventas IMSS (concentra y firma, IDT-003 5.2.3).',                  0, 0, 1, 0, 0, 1, 1),
-        (@wfRutImss, 20, 'Revisión Coordinador Administrativo', @ePreparacion,    'Revisa costos y firma la matriz (IDT-004 5.2).',                                        0, 0, 1, 0, 0, 1, 1),
-        (@wfRutImss, 30, 'Autorización Dirección Corporativa',  @eRevisionDirector,'Dirección Corporativa cierra (rutas confirmadas) o rechaza (IDT-004 5.2).',            0, 0, 1, 0, 0, 1, 1),
-        (@wfRutImss, 40, 'Cerrada',                           @eCerrada,          'Rutas confirmadas; se publican las asignaciones a los ejecutivos.',                     0, 1, 0, 0, 0, 1, 1),
-        (@wfRutImss, 50, 'Rechazada',                         @eRechazada,        'Versión rechazada en alguna firma.',                                                    0, 1, 0, 0, 0, 1, 1),
-        (@wfRutImss, 60, 'Cancelada',                         @eCancelada,        'Versión cancelada; habilita regenerar (solo el creador puede cancelar).',               0, 1, 0, 0, 0, 1, 1);
+        (@wfRutImss,  0, 'Creada',                            @eCreada,           'Propuesta generada; editable solo en este paso.',                                       1, 0, 0, 0, 0, 1, 1, 0),
+        (@wfRutImss, 10, 'Firma Gerente de Ventas - IMSS',    @eRevision,         'Firma del Gerente de Ventas IMSS (concentra y firma, IDT-003 5.2.3).',                  0, 0, 1, 0, 0, 1, 1, 0),
+        (@wfRutImss, 20, 'Revisión Coordinador Administrativo', @ePreparacion,    'Revisa costos y firma la matriz (IDT-004 5.2).',                                        0, 0, 1, 0, 0, 1, 1, 0),
+        (@wfRutImss, 30, 'Autorización Dirección Corporativa',  @eRevisionDirector,'Dirección Corporativa cierra (rutas confirmadas) o rechaza (IDT-004 5.2).',            0, 0, 1, 0, 0, 1, 1, 0),
+        (@wfRutImss, 40, 'Cerrada',                           @eCerrada,          'Rutas confirmadas; se publican las asignaciones a los ejecutivos.',                     0, 1, 0, 0, 0, 1, 1, 0),
+        (@wfRutImss, 50, 'Rechazada',                         @eRechazada,        'Versión rechazada en alguna firma.',                                                    0, 1, 0, 0, 0, 1, 1, 0),
+        (@wfRutImss, 60, 'Cancelada',                         @eCancelada,        'Versión cancelada; habilita regenerar (solo el creador puede cancelar).',               0, 1, 0, 0, 0, 1, 1, 0);
 
     DECLARE @riCreada INT = (SELECT id_paso FROM config.workflow_pasos WHERE id_workflow = @wfRutImss AND orden = 0);
     DECLARE @riGv     INT = (SELECT id_paso FROM config.workflow_pasos WHERE id_workflow = @wfRutImss AND orden = 10);
@@ -452,15 +471,15 @@ BEGIN TRY
     SET @wfRutDesc = SCOPE_IDENTITY();
     PRINT 'Workflow [Rutas - Descentralizado] creado (id ' + CAST(@wfRutDesc AS VARCHAR(10)) + ').';
 
-    INSERT INTO config.workflow_pasos (id_workflow, orden, nombre_paso, id_estado, descripcion_ayuda, es_inicio, es_final, requiere_firma, requiere_comentario, requiere_adjunto, permite_adjunto, activo)
+    INSERT INTO config.workflow_pasos (id_workflow, orden, nombre_paso, id_estado, descripcion_ayuda, es_inicio, es_final, requiere_firma, requiere_comentario, requiere_adjunto, permite_adjunto, activo, permite_editar)
     VALUES
-        (@wfRutDesc,  0, 'Creada',                                       @eCreada,           'Propuesta generada; editable solo en este paso.',                                       1, 0, 0, 0, 0, 1, 1),
-        (@wfRutDesc, 10, 'Firma Gerente de Ventas - Descentralizado',    @eRevision,         'Firma del Gerente de Ventas Descentralizado (concentra y firma, IDT-003 5.2.3).',      0, 0, 1, 0, 0, 1, 1),
-        (@wfRutDesc, 20, 'Revisión Coordinador Administrativo',          @ePreparacion,      'Revisa costos y firma la matriz (IDT-004 5.2).',                                        0, 0, 1, 0, 0, 1, 1),
-        (@wfRutDesc, 30, 'Autorización Dirección Corporativa',           @eRevisionDirector, 'Dirección Corporativa cierra (rutas confirmadas) o rechaza (IDT-004 5.2).',            0, 0, 1, 0, 0, 1, 1),
-        (@wfRutDesc, 40, 'Cerrada',                                      @eCerrada,          'Rutas confirmadas; se publican las asignaciones a los ejecutivos.',                     0, 1, 0, 0, 0, 1, 1),
-        (@wfRutDesc, 50, 'Rechazada',                                    @eRechazada,        'Versión rechazada en alguna firma.',                                                    0, 1, 0, 0, 0, 1, 1),
-        (@wfRutDesc, 60, 'Cancelada',                                    @eCancelada,        'Versión cancelada; habilita regenerar (solo el creador puede cancelar).',               0, 1, 0, 0, 0, 1, 1);
+        (@wfRutDesc,  0, 'Creada',                                       @eCreada,           'Propuesta generada; editable solo en este paso.',                                       1, 0, 0, 0, 0, 1, 1, 0),
+        (@wfRutDesc, 10, 'Firma Gerente de Ventas - Descentralizado',    @eRevision,         'Firma del Gerente de Ventas Descentralizado (concentra y firma, IDT-003 5.2.3).',      0, 0, 1, 0, 0, 1, 1, 0),
+        (@wfRutDesc, 20, 'Revisión Coordinador Administrativo',          @ePreparacion,      'Revisa costos y firma la matriz (IDT-004 5.2).',                                        0, 0, 1, 0, 0, 1, 1, 0),
+        (@wfRutDesc, 30, 'Autorización Dirección Corporativa',           @eRevisionDirector, 'Dirección Corporativa cierra (rutas confirmadas) o rechaza (IDT-004 5.2).',            0, 0, 1, 0, 0, 1, 1, 0),
+        (@wfRutDesc, 40, 'Cerrada',                                      @eCerrada,          'Rutas confirmadas; se publican las asignaciones a los ejecutivos.',                     0, 1, 0, 0, 0, 1, 1, 0),
+        (@wfRutDesc, 50, 'Rechazada',                                    @eRechazada,        'Versión rechazada en alguna firma.',                                                    0, 1, 0, 0, 0, 1, 1, 0),
+        (@wfRutDesc, 60, 'Cancelada',                                    @eCancelada,        'Versión cancelada; habilita regenerar (solo el creador puede cancelar).',               0, 1, 0, 0, 0, 1, 1, 0);
 
     DECLARE @rdCreada INT = (SELECT id_paso FROM config.workflow_pasos WHERE id_workflow = @wfRutDesc AND orden = 0);
     DECLARE @rdGv     INT = (SELECT id_paso FROM config.workflow_pasos WHERE id_workflow = @wfRutDesc AND orden = 10);
@@ -496,16 +515,16 @@ BEGIN TRY
     SET @wfMatImss = SCOPE_IDENTITY();
     PRINT 'Workflow [Matriz de talleres - IMSS] creado (id ' + CAST(@wfMatImss AS VARCHAR(10)) + ').';
 
-    INSERT INTO config.workflow_pasos (id_workflow, orden, nombre_paso, id_estado, descripcion_ayuda, es_inicio, es_final, requiere_firma, requiere_comentario, requiere_adjunto, permite_adjunto, activo)
+    INSERT INTO config.workflow_pasos (id_workflow, orden, nombre_paso, id_estado, descripcion_ayuda, es_inicio, es_final, requiere_firma, requiere_comentario, requiere_adjunto, permite_adjunto, activo, permite_editar)
     VALUES
-        (@wfMatImss,  0, 'Creada',                           @eCreada,           'Los equipos de pareo capturan talleres; la matriz es editable solo en este paso.',  1, 0, 0, 0, 0, 1, 1),
-        (@wfMatImss, 10, 'Firma Gerente de Ventas - IMSS',   @eRevision,         'El Gerente de Ventas IMSS revisa la concentración por equipo y firma la matriz (IDT-003 5.2.3).', 0, 0, 1, 0, 0, 1, 1),
-        (@wfMatImss, 20, 'Registro de costos - AEM',         @ePreparacion,      'El Auxiliar Administrativo de Educación Médica registra los costos (muestras, folletos, envío, box lunch) y envía (IDT-004 5.1).', 0, 0, 0, 0, 0, 1, 1),
-        (@wfMatImss, 30, 'Revisión de costos - CA',          @eRevision,         'El Coordinador Administrativo revisa los costos contra políticas y firma (IDT-004 5.2).', 0, 0, 1, 0, 0, 1, 1),
-        (@wfMatImss, 40, 'Autorización - DC',                @eRevisionDirector, 'Dirección Corporativa cierra (matriz autorizada) o rechaza (IDT-004 5.2).',          0, 0, 1, 0, 0, 1, 1),
-        (@wfMatImss, 50, 'Cerrada',                          @eCerrada,          'Matriz completa y autorizada; los talleres pasan a Autorizado.',                    0, 1, 0, 0, 0, 1, 1),
-        (@wfMatImss, 60, 'Rechazada',                        @eRechazada,        'Matriz rechazada en alguna firma.',                                                 0, 1, 0, 0, 0, 1, 1),
-        (@wfMatImss, 70, 'Cancelada',                        @eCancelada,        'Matriz cancelada por el creador.',                                                  0, 1, 0, 0, 0, 1, 1);
+        (@wfMatImss,  0, 'Creada',                           @eCreada,           'Los equipos de pareo capturan talleres; la matriz es editable solo en este paso.',  1, 0, 0, 0, 0, 1, 1, 0),
+        (@wfMatImss, 10, 'Firma Gerente de Ventas - IMSS',   @eRevision,         'El Gerente de Ventas IMSS revisa la concentración por equipo y firma la matriz (IDT-003 5.2.3).', 0, 0, 1, 0, 0, 1, 1, 0),
+        (@wfMatImss, 20, 'Registro de costos - AEM',         @ePreparacion,      'El Auxiliar Administrativo de Educación Médica registra los costos (muestras, folletos, envío, box lunch) y envía (IDT-004 5.1).', 0, 0, 0, 0, 0, 1, 1, 0),
+        (@wfMatImss, 30, 'Revisión de costos - CA',          @eRevision,         'El Coordinador Administrativo revisa los costos contra políticas y firma (IDT-004 5.2).', 0, 0, 1, 0, 0, 1, 1, 0),
+        (@wfMatImss, 40, 'Autorización - DC',                @eRevisionDirector, 'Dirección Corporativa cierra (matriz autorizada) o rechaza (IDT-004 5.2).',          0, 0, 1, 0, 0, 1, 1, 0),
+        (@wfMatImss, 50, 'Cerrada',                          @eCerrada,          'Matriz completa y autorizada; los talleres pasan a Autorizado.',                    0, 1, 0, 0, 0, 1, 1, 0),
+        (@wfMatImss, 60, 'Rechazada',                        @eRechazada,        'Matriz rechazada en alguna firma.',                                                 0, 1, 0, 0, 0, 1, 1, 0),
+        (@wfMatImss, 70, 'Cancelada',                        @eCancelada,        'Matriz cancelada por el creador.',                                                  0, 1, 0, 0, 0, 1, 1, 0);
 
     DECLARE @miCreada INT = (SELECT id_paso FROM config.workflow_pasos WHERE id_workflow = @wfMatImss AND orden = 0);
     DECLARE @miGv     INT = (SELECT id_paso FROM config.workflow_pasos WHERE id_workflow = @wfMatImss AND orden = 10);
@@ -546,16 +565,16 @@ BEGIN TRY
     SET @wfMatDesc = SCOPE_IDENTITY();
     PRINT 'Workflow [Matriz de talleres - Descentralizado] creado (id ' + CAST(@wfMatDesc AS VARCHAR(10)) + ').';
 
-    INSERT INTO config.workflow_pasos (id_workflow, orden, nombre_paso, id_estado, descripcion_ayuda, es_inicio, es_final, requiere_firma, requiere_comentario, requiere_adjunto, permite_adjunto, activo)
+    INSERT INTO config.workflow_pasos (id_workflow, orden, nombre_paso, id_estado, descripcion_ayuda, es_inicio, es_final, requiere_firma, requiere_comentario, requiere_adjunto, permite_adjunto, activo, permite_editar)
     VALUES
-        (@wfMatDesc,  0, 'Creada',                                    @eCreada,           'Los equipos de pareo capturan talleres; la matriz es editable solo en este paso.',  1, 0, 0, 0, 0, 1, 1),
-        (@wfMatDesc, 10, 'Firma Gerente de Ventas - Descentralizado', @eRevision,         'El Gerente de Ventas Descentralizado revisa la concentración por equipo y firma la matriz (IDT-003 5.2.3).', 0, 0, 1, 0, 0, 1, 1),
-        (@wfMatDesc, 20, 'Registro de costos - AEM',                  @ePreparacion,      'El Auxiliar Administrativo de Educación Médica registra los costos (muestras, folletos, envío, box lunch) y envía (IDT-004 5.1).', 0, 0, 0, 0, 0, 1, 1),
-        (@wfMatDesc, 30, 'Revisión de costos - CA',                   @eRevision,         'El Coordinador Administrativo revisa los costos contra políticas y firma (IDT-004 5.2).', 0, 0, 1, 0, 0, 1, 1),
-        (@wfMatDesc, 40, 'Autorización - DC',                         @eRevisionDirector, 'Dirección Corporativa cierra (matriz autorizada) o rechaza (IDT-004 5.2).',          0, 0, 1, 0, 0, 1, 1),
-        (@wfMatDesc, 50, 'Cerrada',                                   @eCerrada,          'Matriz completa y autorizada; los talleres pasan a Autorizado.',                    0, 1, 0, 0, 0, 1, 1),
-        (@wfMatDesc, 60, 'Rechazada',                                 @eRechazada,        'Matriz rechazada en alguna firma.',                                                 0, 1, 0, 0, 0, 1, 1),
-        (@wfMatDesc, 70, 'Cancelada',                                 @eCancelada,        'Matriz cancelada por el creador.',                                                  0, 1, 0, 0, 0, 1, 1);
+        (@wfMatDesc,  0, 'Creada',                                    @eCreada,           'Los equipos de pareo capturan talleres; la matriz es editable solo en este paso.',  1, 0, 0, 0, 0, 1, 1, 0),
+        (@wfMatDesc, 10, 'Firma Gerente de Ventas - Descentralizado', @eRevision,         'El Gerente de Ventas Descentralizado revisa la concentración por equipo y firma la matriz (IDT-003 5.2.3).', 0, 0, 1, 0, 0, 1, 1, 0),
+        (@wfMatDesc, 20, 'Registro de costos - AEM',                  @ePreparacion,      'El Auxiliar Administrativo de Educación Médica registra los costos (muestras, folletos, envío, box lunch) y envía (IDT-004 5.1).', 0, 0, 0, 0, 0, 1, 1, 0),
+        (@wfMatDesc, 30, 'Revisión de costos - CA',                   @eRevision,         'El Coordinador Administrativo revisa los costos contra políticas y firma (IDT-004 5.2).', 0, 0, 1, 0, 0, 1, 1, 0),
+        (@wfMatDesc, 40, 'Autorización - DC',                         @eRevisionDirector, 'Dirección Corporativa cierra (matriz autorizada) o rechaza (IDT-004 5.2).',          0, 0, 1, 0, 0, 1, 1, 0),
+        (@wfMatDesc, 50, 'Cerrada',                                   @eCerrada,          'Matriz completa y autorizada; los talleres pasan a Autorizado.',                    0, 1, 0, 0, 0, 1, 1, 0),
+        (@wfMatDesc, 60, 'Rechazada',                                 @eRechazada,        'Matriz rechazada en alguna firma.',                                                 0, 1, 0, 0, 0, 1, 1, 0),
+        (@wfMatDesc, 70, 'Cancelada',                                 @eCancelada,        'Matriz cancelada por el creador.',                                                  0, 1, 0, 0, 0, 1, 1, 0);
 
     DECLARE @mdCreada INT = (SELECT id_paso FROM config.workflow_pasos WHERE id_workflow = @wfMatDesc AND orden = 0);
     DECLARE @mdGv     INT = (SELECT id_paso FROM config.workflow_pasos WHERE id_workflow = @wfMatDesc AND orden = 10);
@@ -698,12 +717,38 @@ BEGIN TRY
     WHERE NOT EXISTS (SELECT 1 FROM config.workflows w2 WHERE w2.id_workflow = v.id_workflow);
     PRINT 'Backfill de rutas_versiones: ' + CAST(@@ROWCOUNT AS VARCHAR(10)) + ' fila(s) re-vinculada(s).';
 
+    -- 5.6 Backfill: re-vincular matrices generales huérfanas al paso inicial
+    --      (0018 borra y recrea los workflows; sin este backfill las matrices
+    --      existentes quedan apuntando a workflows que ya no existen).
+    UPDATE educacion_medica.matrices_generales
+    SET id_workflow = w.id_workflow,
+        id_paso_actual = p.id_paso,
+        id_estado = p.id_estado,
+        fecha_modificacion = GETDATE()
+    FROM educacion_medica.matrices_generales mg
+    JOIN (VALUES
+            (1, @wfMatImss),
+            (2, @wfMatDesc)
+         ) AS g(id_tipo_gerencia, id_workflow)
+        ON g.id_tipo_gerencia = mg.id_tipo_gerencia
+    JOIN config.workflows w
+        ON w.id_workflow = g.id_workflow
+       AND w.activo = 1
+    JOIN config.workflow_pasos p
+        ON p.id_workflow = w.id_workflow
+       AND p.es_inicio = 1
+       AND p.activo = 1
+    WHERE NOT EXISTS (SELECT 1 FROM config.workflows w2 WHERE w2.id_workflow = mg.id_workflow);
+    PRINT 'Backfill de matrices_generales: ' + CAST(@@ROWCOUNT AS VARCHAR(10)) + ' fila(s) re-vinculada(s).';
+
     COMMIT TRANSACTION;
     PRINT '0018 completado: 6 flujos EM (selección, rutas, matriz) con patrón Creada + Cerrada/Rechazada/Cancelada.';
 
     -- =========================================================================
     -- VERIFICACIÓN (ejecutar aparte) y PASOS MANUALES EN EL FRONTEND
     -- =========================================================================
+    -- NOTA: si reejecutas 0018, ejecuta después 0040 para recrear los mappings
+    --       TIPO_GERENCIA de EDUCACION_MEDICA_MATRIZ que este script elimina en 2.3.
     -- SELECT id_workflow, nombre, codigo_proceso FROM config.workflows
     --   WHERE codigo_proceso LIKE 'EDUCACION_MEDICA%' ORDER BY codigo_proceso, nombre;
     -- SELECT p.id_workflow, p.orden, p.nombre_paso, e.codigo AS estado, p.es_inicio, p.es_final, p.requiere_firma

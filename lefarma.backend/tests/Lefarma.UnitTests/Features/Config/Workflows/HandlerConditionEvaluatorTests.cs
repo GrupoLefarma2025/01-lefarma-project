@@ -294,22 +294,6 @@ public class HandlerConditionEvaluatorTests
     }
 
     [Fact]
-    public async Task EducacionMedicaRutas_TipoGerencia_Se_Evalua()
-    {
-        await using var ctx = CrearContexto();
-
-        var coincide = await Evaluar(
-            ctx, """{"aplica":{"tipoGerencia":[1]}}""", Ruta(tipoGerencia: 1),
-            CodigoProceso.EDUCACION_MEDICA_RUTAS);
-        coincide.Should().BeTrue();
-
-        var noCoincide = await Evaluar(
-            ctx, """{"aplica":{"tipoGerencia":[2]}}""", Ruta(tipoGerencia: 1),
-            CodigoProceso.EDUCACION_MEDICA_RUTAS);
-        noCoincide.Should().BeFalse();
-    }
-
-    [Fact]
     public async Task Proceso_No_Soportado_Con_Aplica_Retorna_True()
     {
         await using var ctx = CrearContexto();

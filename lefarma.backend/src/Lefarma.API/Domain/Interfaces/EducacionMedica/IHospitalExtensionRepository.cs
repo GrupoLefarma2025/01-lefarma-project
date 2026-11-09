@@ -13,6 +13,10 @@ public interface IHospitalExtensionRepository
         IEnumerable<int> idsHospital,
         CancellationToken cancellationToken = default);
 
+    Task<List<Domain.Entities.EducacionMedica.HospitalExtension>> GetByHospitalIdsIncludingInactiveAsync(
+        IEnumerable<int> idsHospital,
+        CancellationToken cancellationToken = default);
+
     Task<Domain.Entities.EducacionMedica.HospitalExtension> CreateAsync(
         Domain.Entities.EducacionMedica.HospitalExtension extension,
         CancellationToken cancellationToken = default);
