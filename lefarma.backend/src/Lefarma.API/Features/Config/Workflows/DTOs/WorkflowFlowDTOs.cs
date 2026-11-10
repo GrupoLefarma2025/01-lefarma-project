@@ -34,6 +34,8 @@ namespace Lefarma.API.Features.Config.Workflows.DTOs
         public int? IdRol { get; set; }
         public string? NombreUsuario { get; set; }
         public string? NombreRol { get; set; }
+        /// <summary>Puesto oficial del participante según Asistencias.dbo.vwEmpleados.</summary>
+        public string? PuestoUsuario { get; set; }
         public bool RequiereJefeInmediato { get; set; }
         public int? NivelJefe { get; set; }
     }

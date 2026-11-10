@@ -3,6 +3,7 @@ using Lefarma.API.Domain.Entities.Config;
 using Lefarma.API.Domain.Entities.Rh;
 using Lefarma.API.Domain.Interfaces;
 using Lefarma.API.Domain.Interfaces.Config;
+using Lefarma.API.Domain.Interfaces.Rh;
 using Lefarma.API.Features.Config.Workflows.DTOs;
 using Lefarma.API.Features.Notifications.DTOs;
 using Lefarma.API.Infrastructure.Data;
@@ -22,16 +23,19 @@ public class WorkflowService : BaseService, IWorkflowService
         private readonly ApplicationDbContext _context;
         private readonly AsokamDbContext _asokamContext;
         private readonly INotificationService _notificationService;
+        private readonly IEmpleadoRepository _empleadoRepository;
         protected override string EntityName => "Workflow";
 
         public WorkflowService(IWorkflowRepository repo, ApplicationDbContext context,
-            AsokamDbContext asokamContext, IWideEventAccessor wideEventAccessor, INotificationService notificationService)
+            AsokamDbContext asokamContext, IWideEventAccessor wideEventAccessor, INotificationService notificationService,
+            IEmpleadoRepository empleadoRepository)
             : base(wideEventAccessor)
         {
             _repo = repo;
             _context = context;
             _asokamContext = asokamContext;
             _notificationService = notificationService;
+            _empleadoRepository = empleadoRepository;
         }
 
         public async Task<ErrorOr<IEnumerable<WorkflowResponse>>> GetAllAsync(WorkflowRequest query)
@@ -128,6 +132,8 @@ public class WorkflowService : BaseService, IWorkflowService
                         .Select(r => new { r.IdRol, r.NombreRol })
                         .ToDictionaryAsync(r => r.IdRol, r => r.NombreRol)
                     : new Dictionary<int, string>();
+                // Puesto oficial del participante para títulos/etiquetas del flujo.
+                var puestosUsuarios = await ResolverPuestosUsuariosAsync(idsUsuarios);
 
                 var response = workflows.Select(w => new WorkflowFlowResponse
                 {
@@ -164,6 +170,10 @@ public class WorkflowService : BaseService, IWorkflowService
                                         nombresUsuarios.TryGetValue(pa.IdUsuario.Value, out var nombreUsuario)
                                             ? nombreUsuario
                                             : null,
+                                    PuestoUsuario = pa.IdUsuario.HasValue &&
+                                        puestosUsuarios.TryGetValue(pa.IdUsuario.Value, out var puestoUsuario)
+                                            ? puestoUsuario
+                                            : null,
                                     NombreRol = pa.IdRol.HasValue &&
                                         nombresRoles.TryGetValue(pa.IdRol.Value, out var nombreRol)
                                             ? nombreRol
@@ -181,6 +191,29 @@ public class WorkflowService : BaseService, IWorkflowService
             {
                 EnrichWideEvent("GetAllFlow", exception: ex);
                 return CommonErrors.DatabaseError("obtener workflows para flujo");
+            }
+        }
+
+        /// <summary>
+        /// Puesto oficial de los participantes con usuario, tomado de Asistencias.dbo.vwEmpleados
+        /// (la columna Puesto de app.Usuarios está en «Sin asignar»). Si Asistencias no responde,
+        /// el flujo se devuelve sin puestos en lugar de romper la pantalla.
+        /// </summary>
+        private async Task<Dictionary<int, string?>> ResolverPuestosUsuariosAsync(List<int> idsUsuarios)
+        {
+            if (idsUsuarios.Count == 0) return new Dictionary<int, string?>();
+
+            try
+            {
+                var empleados = await _empleadoRepository.ObtenerEmpleadosPorUsuariosAsync(idsUsuarios);
+                return empleados.ToDictionary(
+                    kvp => kvp.Key,
+                    kvp => string.IsNullOrWhiteSpace(kvp.Value.Puesto) ? null : kvp.Value.Puesto.Trim());
+            }
+            catch (Exception ex)
+            {
+                EnrichWideEvent("GetAllFlowPuestos", exception: ex);
+                return new Dictionary<int, string?>();
             }
         }
 
