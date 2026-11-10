@@ -1,4 +1,4 @@
-﻿using Lefarma.API.Features.Config.Workflows.DTOs;
+using Lefarma.API.Features.Config.Workflows.DTOs;
 using Lefarma.API.Features.Rh.SolicitudesPersonal.DTOs;
 using Lefarma.API.Shared.Extensions;
 using Lefarma.API.Shared.Models;
@@ -70,6 +70,28 @@ public class SolicitudPersonalController : ControllerBase
         var result = await _service.GetAllAsync(query, GetUserId(), rolesUsuario, puedeVerTodas);
         return result.ToActionResult(this, data => Ok(new ApiResponse<int>
         { Success = true, Message = "Conteo obtenido exitosamente.", Data = data.TotalCount }));
+    }
+
+    [HttpGet("autorizaciones-incidencias")]
+    [SwaggerOperation(Summary = "Incidencias que el usuario ha autorizado en un mes (contadas por el día de la incidencia).")]
+    public async Task<IActionResult> GetAutorizacionesIncidencias([FromQuery] int? anio, [FromQuery] int? mes)
+    {
+        var hoy = DateTime.Now;
+        var anioFinal = anio ?? hoy.Year;
+        var mesFinal = mes ?? hoy.Month;
+
+        if (anioFinal < 2000 || anioFinal > 2100 || mesFinal < 1 || mesFinal > 12)
+        {
+            return BadRequest(new ApiResponse<object>
+            {
+                Success = false,
+                Message = "El año debe estar entre 2000 y 2100 y el mes entre 1 y 12."
+            });
+        }
+
+        var result = await _service.ObtenerAutorizacionesIncidenciasAsync(GetUserId(), anioFinal, mesFinal);
+        return result.ToActionResult(this, data => Ok(new ApiResponse<AutorizacionesIncidenciasResponse>
+        { Success = true, Message = "Incidencias autorizadas obtenidas exitosamente.", Data = data }));
     }
 
     [HttpGet("{id}")]

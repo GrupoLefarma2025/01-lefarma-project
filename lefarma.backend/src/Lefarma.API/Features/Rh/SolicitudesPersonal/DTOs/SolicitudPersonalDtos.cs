@@ -1,4 +1,4 @@
-﻿using Lefarma.API.Domain.Entities.Rh;
+using Lefarma.API.Domain.Entities.Rh;
 
 namespace Lefarma.API.Features.Rh.SolicitudesPersonal.DTOs
 {
@@ -118,5 +118,41 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal.DTOs
         public TimeSpan? Entro { get; set; }
         public TimeSpan? Salida { get; set; }
         public TimeSpan? Salio { get; set; }
+    }
+
+    /// <summary>
+    /// Solicitudes (incidencias, permisos y demás categorías) del equipo del usuario cuyo
+    /// día cae en el mes indicado. Se cuentan por el día de la incidencia (no por el día
+    /// de la firma) y se excluyen las canceladas y rechazadas.
+    /// </summary>
+    public class AutorizacionesIncidenciasResponse
+    {
+        public int Anio { get; set; }
+        public int Mes { get; set; }
+        public int Total { get; set; }
+        public List<AutorizacionIncidenciaPorEmpleado> PorEmpleado { get; set; } = new();
+        public List<AutorizacionIncidenciaDetalle> Detalle { get; set; } = new();
+    }
+
+    public class AutorizacionIncidenciaPorEmpleado
+    {
+        public int IdUsuario { get; set; }
+        public string Nombre { get; set; } = string.Empty;
+        public int Total { get; set; }
+    }
+
+    public class AutorizacionIncidenciaDetalle
+    {
+        public int IdSolicitud { get; set; }
+        public string Folio { get; set; } = string.Empty;
+        public int IdUsuarioSolicitante { get; set; }
+        public string EmpleadoNombre { get; set; } = string.Empty;
+        public string TipoSolicitud { get; set; } = string.Empty;
+        public string? Motivo { get; set; }
+        /// <summary>Fecha del día justificado (el eje del conteo).</summary>
+        public DateTime? FechaIncidencia { get; set; }
+        /// <summary>Día en que el jefe firmó la solicitud; nulo si aún no la ha firmado.</summary>
+        public DateTime? FechaAutorizacion { get; set; }
+        public string? EstadoNombre { get; set; }
     }
 }

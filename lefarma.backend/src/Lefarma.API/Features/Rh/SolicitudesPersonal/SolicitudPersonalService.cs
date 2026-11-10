@@ -1,4 +1,4 @@
-﻿using ErrorOr;
+using ErrorOr;
 using Lefarma.API.Domain.Entities.Catalogos;
 using Lefarma.API.Domain.Entities.Config;
 using Lefarma.API.Domain.Entities.Rh;
@@ -1709,6 +1709,129 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
             {
                 EnrichWideEvent("ObtenerCalendario", exception: ex);
                 return CommonErrors.DatabaseError("obtener el calendario de solicitudes");
+            }
+        }
+
+        /// <summary>
+        /// Incidencias (solicitudes de cualquier categoría) del equipo del usuario cuyo día
+        /// cae en el mes indicado. Se cuentan por el día de la incidencia (no por el de la
+        /// firma) y se excluyen las canceladas y rechazadas.
+        /// </summary>
+        public async Task<ErrorOr<AutorizacionesIncidenciasResponse>> ObtenerAutorizacionesIncidenciasAsync(
+            int idUsuario, int anio, int mes)
+        {
+            try
+            {
+                var respuesta = new AutorizacionesIncidenciasResponse { Anio = anio, Mes = mes };
+
+                var miNomina = await _empleadoRepository.ResolverNominaPorUsuarioAsync(idUsuario);
+                if (!miNomina.HasValue)
+                    return respuesta;
+
+                var nominasSubordinados = await _empleadoRepository.ObtenerNominasSubordinadosAsync(miNomina.Value)
+                    ?? new List<long>();
+                if (nominasSubordinados.Count == 0)
+                    return respuesta;
+
+                var idsSubordinados = (await _empleadoRepository.ResolverIdsUsuarioPorNominasAsync(nominasSubordinados))
+                    .Values
+                    .Distinct()
+                    .ToList();
+                if (idsSubordinados.Count == 0)
+                    return respuesta;
+
+                var desde = new DateTime(anio, mes, 1);
+                var hasta = desde.AddMonths(1);
+
+                var solicitudes = await _context.SolicitudesPersonal.AsNoTracking()
+                    .Where(s => idsSubordinados.Contains(s.IdUsuarioSolicitante ?? s.IdUsuarioCreador)
+                                && s.FechaInicio != null
+                                && s.FechaInicio >= desde
+                                && s.FechaInicio < hasta
+                                && s.Estado != null
+                                && s.Estado.Codigo != "CANCELADA"
+                                && s.Estado.Codigo != "RECHAZADA")
+                    .Select(s => new
+                    {
+                        s.IdSolicitud,
+                        s.Folio,
+                        IdUsuarioSolicitante = s.IdUsuarioSolicitante ?? s.IdUsuarioCreador,
+                        s.FechaInicio,
+                        s.Motivo,
+                        TipoSolicitud = s.TipoSolicitud != null ? s.TipoSolicitud.Nombre : string.Empty,
+                        EstadoNombre = s.Estado != null ? s.Estado.Nombre : null
+                    })
+                    .OrderByDescending(s => s.FechaInicio)
+                    .ThenBy(s => s.Folio)
+                    .ToListAsync();
+
+                if (solicitudes.Count == 0)
+                    return respuesta;
+
+                // Día en que yo firmé cada solicitud (si la firmé), para mostrarlo en el detalle.
+                var idsSolicitudes = solicitudes.Select(s => s.IdSolicitud).ToList();
+                var misFirmas = await (
+                    from b in _context.WorkflowBitacoras.AsNoTracking()
+                    join a in _context.WorkflowAcciones.AsNoTracking() on b.IdAccion equals a.IdAccion
+                    join ta in _context.WorkflowTiposAccion.AsNoTracking() on a.IdTipoAccion equals ta.IdTipoAccion
+                    where b.TipoEntidad == CodigoProceso.SOLICITUD_PERSONAL
+                          && b.IdUsuario == idUsuario
+                          && ta.Codigo == "AUTORIZAR"
+                          && idsSolicitudes.Contains(b.IdEntidad)
+                          && !(b.DatosSnapshot ?? string.Empty).Contains("\"omisionAutomatica\":true")
+                    select new { b.IdEntidad, b.FechaEvento }).ToListAsync();
+
+                var firmaPorSolicitud = misFirmas
+                    .GroupBy(f => f.IdEntidad)
+                    .ToDictionary(g => g.Key, g => (DateTime?)g.Max(f => f.FechaEvento));
+
+                var idsSolicitantes = solicitudes.Select(s => s.IdUsuarioSolicitante).Distinct().ToList();
+                var nombres = await _asokamContext.Usuarios.AsNoTracking()
+                    .Where(u => idsSolicitantes.Contains(u.IdUsuario))
+                    .ToDictionaryAsync(
+                        u => u.IdUsuario,
+                        u => u.NombreCompleto ?? u.SamAccountName ?? $"Usuario {u.IdUsuario}");
+
+                string NombreEmpleado(int id) =>
+                    nombres.TryGetValue(id, out var nombre) ? nombre : $"Usuario {id}";
+
+                var detalle = solicitudes
+                    .Select(s => new AutorizacionIncidenciaDetalle
+                    {
+                        IdSolicitud = s.IdSolicitud,
+                        Folio = s.Folio,
+                        IdUsuarioSolicitante = s.IdUsuarioSolicitante,
+                        EmpleadoNombre = NombreEmpleado(s.IdUsuarioSolicitante),
+                        TipoSolicitud = s.TipoSolicitud,
+                        Motivo = s.Motivo,
+                        FechaIncidencia = s.FechaInicio,
+                        FechaAutorizacion = firmaPorSolicitud.TryGetValue(s.IdSolicitud, out var firma) ? firma : null,
+                        EstadoNombre = s.EstadoNombre
+                    })
+                    .ToList();
+
+                var porEmpleado = detalle
+                    .GroupBy(d => new { d.IdUsuarioSolicitante, d.EmpleadoNombre })
+                    .Select(g => new AutorizacionIncidenciaPorEmpleado
+                    {
+                        IdUsuario = g.Key.IdUsuarioSolicitante,
+                        Nombre = g.Key.EmpleadoNombre,
+                        Total = g.Count()
+                    })
+                    .OrderByDescending(x => x.Total)
+                    .ThenBy(x => x.Nombre)
+                    .ToList();
+
+                EnrichWideEvent("ObtenerAutorizacionesIncidencias", count: detalle.Count);
+                respuesta.Total = detalle.Count;
+                respuesta.PorEmpleado = porEmpleado;
+                respuesta.Detalle = detalle;
+                return respuesta;
+            }
+            catch (Exception ex)
+            {
+                EnrichWideEvent("ObtenerAutorizacionesIncidencias", exception: ex);
+                return CommonErrors.DatabaseError("obtener las autorizaciones de solicitudes");
             }
         }
 

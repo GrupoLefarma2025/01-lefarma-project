@@ -1,4 +1,4 @@
-﻿using ErrorOr;
+using ErrorOr;
 using Lefarma.API.Features.Rh.SolicitudesPersonal.DTOs;
 using Lefarma.API.Shared.Models;
 
@@ -14,5 +14,7 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
         Task<ErrorOr<MisLimitesResponse>> ObtenerLimitesSolicitudesAsync(int idUsuario, int idUsuarioObjetivo, bool puedeVerTodas);
         Task<ErrorOr<IEnumerable<CalendarioGlobalEvento>>> ObtenerCalendarioAsync(
             CalendarioGlobalRequest request, int idUsuarioActual);
+        Task<ErrorOr<AutorizacionesIncidenciasResponse>> ObtenerAutorizacionesIncidenciasAsync(
+            int idUsuario, int anio, int mes);
     }
 }
