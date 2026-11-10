@@ -25,7 +25,7 @@ BEGIN TRY
     IF COL_LENGTH('config.workflow_pasos', 'permite_editar') IS NULL
     BEGIN
         ALTER TABLE config.workflow_pasos
-        ADD permite_editar BIT NOT NULL
+        ADD permite_editar BIT NULL
             CONSTRAINT DF_workflow_pasos_permite_editar DEFAULT (0);
 
         PRINT 'Columna [permite_editar] agregada a config.workflow_pasos.';
