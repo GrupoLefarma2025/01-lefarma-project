@@ -42,7 +42,12 @@ import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { toApiError } from '@/utils/errors';
 import { API } from '@/shared/api/apiClient';
-import { calendarioApi, misIncidenciasChecadoApi, misDiasJornadaApi, diasHabilesApi } from '../services/rh.api';
+import {
+  calendarioApi,
+  misIncidenciasChecadoApi,
+  misDiasJornadaApi,
+  diasHabilesApi,
+} from '../services/rh.api';
 import type { ApiResponse } from '@/types/api.types';
 import type {
   CalendarioGlobalEvento,
@@ -317,15 +322,17 @@ function EventoBadge({
       }
       className={cn(
         'mb-1 flex w-full items-center gap-1.5 rounded border px-1.5 py-0.5 text-left text-xs leading-tight transition-colors hover:brightness-95',
+        'max-sm:justify-center max-sm:px-0',
+        'lg:mb-0 lg:px-1 lg:py-0 lg:text-[11px] lg:leading-none',
         style.bg,
         style.border,
         style.text,
         isPast && 'opacity-60',
-        esCanceladaORechazada && 'opacity-50 line-through'
+        esCanceladaORechazada && 'line-through opacity-50'
       )}
     >
       <span className={cn('h-1.5 w-1.5 shrink-0 rounded-full', style.dot)} />
-      <span className="truncate">
+      <span className="hidden truncate sm:block">
         {evento.tipo} · {evento.folio}
       </span>
     </button>
@@ -349,11 +356,13 @@ function IncidenciaBadge({
       className={cn(
         'mb-1 flex w-full items-center gap-1.5 rounded border px-1.5 py-0.5 text-left text-xs leading-tight transition-colors hover:brightness-95',
         'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300',
+        'max-sm:justify-center max-sm:px-0',
+        'lg:mb-0 lg:px-1 lg:py-0 lg:text-[11px] lg:leading-none',
         isPast && 'opacity-60'
       )}
     >
       <AlertTriangle className="h-3 w-3 shrink-0" />
-      <span className="truncate">{label ?? 'Incidencia'}</span>
+      <span className="hidden truncate sm:block">{label ?? 'Incidencia'}</span>
     </button>
   );
 }
@@ -566,6 +575,57 @@ function DetalleModal({
   );
 }
 
+/**
+ * `lg` es el punto donde el dashboard pone el calendario a la altura de la
+ * ventana. Fuera de ese punto las filas crecen con su contenido.
+ */
+function useEsEscritorio() {
+  const [esEscritorio, setEsEscritorio] = useState(() =>
+    typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+      ? window.matchMedia('(min-width: 1024px)').matches
+      : false
+  );
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
+    const consulta = window.matchMedia('(min-width: 1024px)');
+    const actualizar = () => setEsEscritorio(consulta.matches);
+    consulta.addEventListener('change', actualizar);
+    return () => consulta.removeEventListener('change', actualizar);
+  }, []);
+
+  return esEscritorio;
+}
+
+/**
+ * Cuántos eventos caben por día cuando el calendario se ajusta al alto de la
+ * ventana. Se recalcula al cambiar el tamaño de la ventana o el zoom del
+ * navegador para que ninguna celda recorte sus eventos.
+ */
+function useEventosVisibles(
+  gridRef: React.RefObject<HTMLDivElement | null>,
+  filas: number,
+  activo: boolean
+) {
+  const [visibles, setVisibles] = useState(3);
+
+  useEffect(() => {
+    if (!activo) return;
+    const grid = gridRef.current;
+    if (!grid || typeof ResizeObserver === 'undefined') return;
+
+    const observador = new ResizeObserver(() => {
+      const altoFila = (grid.clientHeight - Math.max(0, filas - 1)) / Math.max(1, filas);
+      // 8px de relleno + 22px del número de día; cada evento compacto mide ~15px.
+      setVisibles(Math.max(1, Math.floor((altoFila - 30) / 15)));
+    });
+    observador.observe(grid);
+    return () => observador.disconnect();
+  }, [gridRef, filas, activo]);
+
+  return visibles;
+}
+
 export function MiCalendario({ onSolicitudGuardada }: { onSolicitudGuardada?: () => void } = {}) {
   const hoy = new Date();
   const [anio, setAnio] = useState(hoy.getFullYear());
@@ -578,7 +638,11 @@ export function MiCalendario({ onSolicitudGuardada }: { onSolicitudGuardada?: ()
   const [solicitudModalOpen, setSolicitudModalOpen] = useState(false);
   const [confirmCloseCrear, setConfirmCloseCrear] = useState(false);
   const crearDirtyRef = useRef(false);
+  const gridRef = useRef<HTMLDivElement>(null);
   const { dias, loading, refetch, checaDeshabilitado } = useCalendario(anio, mes);
+  const esEscritorio = useEsEscritorio();
+  const filas = Math.max(1, Math.ceil(dias.length / 7));
+  const eventosVisibles = useEventosVisibles(gridRef, filas, esEscritorio);
 
   const handleAddSolicitud = () => {
     setIncidenciaParaSolicitud(incidenciaSeleccionada);
@@ -618,24 +682,18 @@ export function MiCalendario({ onSolicitudGuardada }: { onSolicitudGuardada?: ()
     return Array.from({ length: 11 }, (_, i) => String(anioActual - 5 + i));
   }, [anioActual]);
 
-  // Vista móvil: días con contenido (solicitudes, incidencia u hoy) en orden cronológico.
-  const diasAgenda = useMemo(
-    () => dias.filter((d) => d.esActual && (d.eventos.length > 0 || d.incidencia || d.esHoy)),
-    [dias]
-  );
-  const hoyLocal = useMemo(() => toLocalMidnight(new Date()), []);
-
   return (
     <>
-      <Card className="border-0 shadow-sm">
-        <CardHeader className="flex flex-col gap-4 space-y-0 pb-4 sm:flex-row sm:items-center sm:justify-between">
+      <Card className="border-0 shadow-sm lg:flex lg:h-full lg:min-h-[32rem] lg:flex-col">
+        <CardHeader className="flex flex-col gap-4 space-y-0 pb-4 sm:flex-row sm:items-center sm:justify-between lg:shrink-0 lg:p-4 lg:pb-3">
           <div className="space-y-1">
             <CardTitle className="flex items-center gap-2 text-lg">
               <CalendarDays className="h-5 w-5 text-primary" />
               Mi calendario de solicitudes
             </CardTitle>
             <CardDescription className="text-xs">
-              Solicitudes por día desde su creación (incluye canceladas y rechazadas). Haz clic en un evento para ver el detalle.
+              Solicitudes por día desde su creación (incluye canceladas y rechazadas). Haz clic en
+              un evento para ver el detalle.
             </CardDescription>
             {checaDeshabilitado && (
               <p className="text-xs text-amber-700 dark:text-amber-400">
@@ -709,226 +767,179 @@ export function MiCalendario({ onSolicitudGuardada }: { onSolicitudGuardada?: ()
           </div>
         </CardHeader>
 
-        <CardContent className="pt-0">
-          <div className="mb-2 hidden sm:flex sm:items-center sm:justify-between">
+        <CardContent className="pt-0 lg:flex lg:min-h-0 lg:flex-1 lg:flex-col lg:p-4 lg:pt-0">
+          <div className="mb-2 hidden sm:flex sm:items-center sm:justify-between lg:mb-1 lg:shrink-0">
             <h3 className="text-base font-semibold capitalize">{formatMesAnio(anio, mes)}</h3>
           </div>
 
-          <div className="hidden grid-cols-7 gap-px overflow-hidden rounded-lg border bg-border text-xs font-medium text-muted-foreground sm:grid">
+          <div className="grid grid-cols-7 gap-px overflow-hidden rounded-lg border bg-border text-[10px] font-medium text-muted-foreground sm:text-xs lg:shrink-0">
             {DIAS_SEMANA.map((dia) => (
-              <div key={dia} className="bg-muted px-2 py-2 text-center uppercase tracking-wide">
+              <div
+                key={dia}
+                className="bg-muted px-1 py-1.5 text-center uppercase tracking-wide sm:px-2 sm:py-2 lg:py-1"
+              >
                 {dia}
               </div>
             ))}
           </div>
 
           {loading && dias.length === 0 ? (
-            <>
-              <div className="mt-2 hidden grid-cols-7 gap-px rounded-lg border bg-border sm:grid">
-                {Array.from({ length: 35 }).map((_, i) => (
-                  <div key={i} className="min-h-[100px] bg-card p-2 sm:min-h-[120px]">
-                    <Skeleton className="mb-2 h-4 w-6" />
-                    <Skeleton className="mb-1 h-5 w-full" />
-                    <Skeleton className="mb-1 h-5 w-full" />
-                  </div>
-                ))}
-              </div>
-              <div className="mt-2 space-y-2 sm:hidden">
-                {[0, 1, 2].map((i) => (
-                  <div key={i} className="rounded-lg border bg-card p-3">
-                    <Skeleton className="mb-2 h-4 w-40" />
-                    <Skeleton className="h-6 w-full" />
-                  </div>
-                ))}
-              </div>
-            </>
+            <div className="mt-2 grid grid-cols-7 gap-px overflow-hidden rounded-lg border bg-border lg:mt-1 lg:min-h-0 lg:flex-1">
+              {Array.from({ length: 42 }).map((_, i) => (
+                <div key={i} className="min-h-[72px] bg-card p-1 sm:min-h-[96px] sm:p-2 lg:min-h-0">
+                  <Skeleton className="mb-1 h-4 w-5" />
+                  <Skeleton className="h-4 w-full" />
+                </div>
+              ))}
+            </div>
           ) : (
             <>
-              <div className="mt-2 hidden grid-cols-7 gap-px rounded-lg border bg-border sm:grid">
-              {dias.map((dia, idx) => {
-                if (!dia.esActual) {
+              <div
+                ref={gridRef}
+                className="mt-2 grid grid-cols-7 gap-px overflow-hidden rounded-lg border bg-border lg:mt-1 lg:min-h-0 lg:flex-1"
+                style={
+                  esEscritorio
+                    ? { gridTemplateRows: `repeat(${filas}, minmax(0, 1fr))` }
+                    : undefined
+                }
+              >
+                {dias.map((dia, idx) => {
+                  if (!dia.esActual) {
+                    return (
+                      <div
+                        key={idx}
+                        className="bg-muted/20 dark:bg-muted/10 min-h-[72px] sm:min-h-[96px] lg:min-h-0"
+                      />
+                    );
+                  }
+
+                  const hoyLocal = toLocalMidnight(new Date());
+                  const isPast = dia.fecha < hoyLocal;
+
+                  const items: React.ReactNode[] = [];
+                  if (dia.incidencia) {
+                    items.push(
+                      <IncidenciaBadge
+                        key={`incidencia-${dia.fecha.toISOString()}`}
+                        isPast={isPast}
+                        label={getIncidenciaLabel(dia.incidencia)}
+                        onClick={() => setIncidenciaSeleccionada(dia.incidencia!)}
+                      />
+                    );
+                  }
+                  dia.eventos.forEach((e) => {
+                    items.push(
+                      <EventoBadge
+                        key={`${e.idSolicitud}-${e.fecha}`}
+                        evento={e}
+                        isPast={isPast}
+                        onClick={() => setDetalleId(e.idSolicitud)}
+                      />
+                    );
+                  });
+
+                  const cupo = esEscritorio ? eventosVisibles : 3;
+                  const hayOcultos = items.length > cupo;
+                  // En escritorio se reserva un renglón para el botón "+N más".
+                  const mostrar =
+                    hayOcultos && esEscritorio
+                      ? Math.max(0, cupo - 1)
+                      : Math.min(items.length, cupo);
+                  const visibles = items.slice(0, mostrar);
+                  const ocultos = items.slice(mostrar);
+
                   return (
                     <div
                       key={idx}
-                      className="min-h-[100px] bg-muted/20 dark:bg-muted/10 sm:min-h-[120px]"
-                    />
-                  );
-                }
-
-                const hoyLocal = toLocalMidnight(new Date());
-                const isPast = dia.fecha < hoyLocal;
-
-                const items: React.ReactNode[] = [];
-                if (dia.incidencia) {
-                  items.push(
-                    <IncidenciaBadge
-                      key={`incidencia-${dia.fecha.toISOString()}`}
-                      isPast={isPast}
-                      label={getIncidenciaLabel(dia.incidencia)}
-                      onClick={() => setIncidenciaSeleccionada(dia.incidencia!)}
-                    />
-                  );
-                }
-                dia.eventos.forEach((e) => {
-                  items.push(
-                    <EventoBadge
-                      key={`${e.idSolicitud}-${e.fecha}`}
-                      evento={e}
-                      isPast={isPast}
-                      onClick={() => setDetalleId(e.idSolicitud)}
-                    />
-                  );
-                });
-
-                const visibles = items.slice(0, 3);
-                const ocultos = items.slice(3);
-
-                return (
-                  <div
-                    key={idx}
-                    className={cn(
-                      'relative min-h-[100px] bg-card p-1.5 transition-colors sm:min-h-[120px] sm:p-2',
-                      dia.esHoy && 'bg-primary/5',
-                      dia.esDiaNoLaborable && 'bg-red-50/40 dark:bg-red-950/20',
-                      !dia.esDiaNoLaborable && dia.esDescanso && 'bg-slate-100/70 dark:bg-slate-900/40'
-                    )}
-                  >
-                    <div className="mb-1 flex items-center justify-between">
-                      <span
-                        className={cn(
-                          'flex h-6 w-6 items-center justify-center rounded-full text-xs font-medium',
-                          dia.esHoy && 'ring-primary/20 bg-primary text-primary-foreground ring-2',
-                          dia.esDiaNoLaborable &&
-                            !dia.esHoy &&
-                            'font-semibold text-red-600 dark:text-red-400',
-                          !dia.esDiaNoLaborable &&
-                            dia.esDescanso &&
-                            !dia.esHoy &&
-                            'font-semibold text-slate-600 dark:text-slate-400'
-                        )}
-                        title={
-                          dia.esDiaNoLaborable
-                            ? (dia.noHabilDescripcion ?? 'Día no laborable')
-                            : dia.esDescanso
-                              ? 'Día de descanso según tu jornada'
-                              : undefined
-                        }
-                      >
-                        {dia.fecha.getDate()}
-                      </span>
-                    </div>
-
-                    {dia.esDiaNoLaborable ? (
-                      <div
-                        title={dia.noHabilDescripcion ?? 'No laborable'}
-                        className="mb-1 truncate rounded bg-red-100 px-1 py-0.5 text-center text-[10px] font-semibold uppercase text-red-700 dark:bg-red-950/50 dark:text-red-300"
-                      >
-                        {dia.noHabilDescripcion ?? 'No laborable'}
-                      </div>
-                    ) : dia.esDescanso ? (
-                      <div
-                        title="Día de descanso según tu jornada"
-                        className="mb-1 truncate rounded bg-slate-200 px-1 py-0.5 text-center text-[10px] font-semibold uppercase text-slate-700 dark:bg-slate-800/60 dark:text-slate-300"
-                      >
-                        Descanso
-                      </div>
-                    ) : null}
-
-                    <div className="flex flex-col">
-                      {visibles}
-
-                      {ocultos.length > 0 && (
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <button
-                              type="button"
-                              className="hover:bg-muted/80 mt-0.5 w-full rounded bg-muted px-1.5 py-0.5 text-left text-xs font-medium text-muted-foreground transition-colors"
-                            >
-                              +{ocultos.length} más
-                            </button>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-64 space-y-2 p-3">
-                            <p className="text-xs font-medium text-muted-foreground">
-                              {dia.fecha.toLocaleDateString('es-MX', {
-                                weekday: 'long',
-                                day: 'numeric',
-                                month: 'long',
-                              })}
-                            </p>
-                            <div className="flex flex-col">
-                              {items.map((item, i) => (
-                                <React.Fragment key={i}>{item}</React.Fragment>
-                              ))}
-                            </div>
-                          </PopoverContent>
-                        </Popover>
+                      className={cn(
+                        'relative min-h-[72px] bg-card p-1 transition-colors sm:min-h-[96px] sm:p-1.5 lg:min-h-0 lg:overflow-hidden lg:p-1',
+                        dia.esHoy && 'bg-primary/5',
+                        dia.esDiaNoLaborable && 'bg-red-50/40 dark:bg-red-950/20',
+                        !dia.esDiaNoLaborable &&
+                          dia.esDescanso &&
+                          'bg-slate-100/70 dark:bg-slate-900/40'
                       )}
-                    </div>
-                  </div>
-                );
-              })}
-              </div>
-
-              {/* Vista móvil: agenda del mes */}
-              <div className="mt-2 space-y-2 sm:hidden">
-                {diasAgenda.length === 0 ? (
-                  <div className="rounded-lg border border-dashed py-10 text-center text-sm text-muted-foreground">
-                    Sin solicitudes ni incidencias este mes.
-                  </div>
-                ) : (
-                  diasAgenda.map((dia) => {
-                    const isPast = dia.fecha < hoyLocal;
-                    return (
-                      <div
-                        key={dia.fecha.toISOString()}
-                        className={cn(
-                          'rounded-lg border bg-card p-3',
-                          dia.esHoy && 'border-primary'
-                        )}
-                      >
-                        <div className="flex items-center justify-between gap-2">
-                          <p className="text-sm font-medium capitalize">
-                            {dia.fecha.toLocaleDateString('es-MX', {
-                              weekday: 'long',
-                              day: 'numeric',
-                              month: 'long',
-                            })}
-                          </p>
-                          {dia.esHoy && <Badge variant="secondary">Hoy</Badge>}
-                        </div>
-                        {(dia.esDiaNoLaborable || dia.esDescanso) && (
-                          <p className="text-xs text-muted-foreground">
-                            {dia.esDiaNoLaborable
-                              ? (dia.noHabilDescripcion ?? 'Día no laborable')
-                              : 'Día de descanso'}
-                          </p>
-                        )}
-                        <div className="mt-2 flex flex-col gap-1">
-                          {dia.incidencia && (
-                            <IncidenciaBadge
-                              isPast={isPast}
-                              label={getIncidenciaLabel(dia.incidencia)}
-                              onClick={() => setIncidenciaSeleccionada(dia.incidencia!)}
-                            />
+                    >
+                      <div className="mb-1 flex items-center justify-between lg:mb-0.5">
+                        <span
+                          className={cn(
+                            'flex h-6 w-6 items-center justify-center rounded-full text-xs font-medium lg:h-5 lg:w-5 lg:text-[10px]',
+                            dia.esHoy &&
+                              'ring-primary/20 bg-primary text-primary-foreground ring-2',
+                            dia.esDiaNoLaborable &&
+                              !dia.esHoy &&
+                              'font-semibold text-red-600 dark:text-red-400',
+                            !dia.esDiaNoLaborable &&
+                              dia.esDescanso &&
+                              !dia.esHoy &&
+                              'font-semibold text-slate-600 dark:text-slate-400'
                           )}
-                          {dia.eventos.map((e) => (
-                            <EventoBadge
-                              key={`${e.idSolicitud}-${e.fecha}`}
-                              evento={e}
-                              isPast={isPast}
-                              onClick={() => setDetalleId(e.idSolicitud)}
-                            />
-                          ))}
-                        </div>
+                          title={
+                            dia.esDiaNoLaborable
+                              ? (dia.noHabilDescripcion ?? 'Día no laborable')
+                              : dia.esDescanso
+                                ? 'Día de descanso según tu jornada'
+                                : undefined
+                          }
+                        >
+                          {dia.fecha.getDate()}
+                        </span>
                       </div>
-                    );
-                  })
-                )}
+
+                      {dia.esDiaNoLaborable ? (
+                        <div
+                          title={dia.noHabilDescripcion ?? 'No laborable'}
+                          className="mb-1 truncate rounded bg-red-100 px-1 py-0.5 text-center text-[10px] font-semibold uppercase text-red-700 dark:bg-red-950/50 dark:text-red-300 max-sm:px-0.5 max-sm:py-px max-sm:text-[9px] lg:hidden"
+                        >
+                          {dia.noHabilDescripcion ?? 'No laborable'}
+                        </div>
+                      ) : dia.esDescanso ? (
+                        <div
+                          title="Día de descanso según tu jornada"
+                          className="mb-1 truncate rounded bg-slate-200 px-1 py-0.5 text-center text-[10px] font-semibold uppercase text-slate-700 dark:bg-slate-800/60 dark:text-slate-300 max-sm:px-0.5 max-sm:py-px max-sm:text-[9px] lg:hidden"
+                        >
+                          Descanso
+                        </div>
+                      ) : null}
+
+                      <div className="flex flex-col lg:gap-0.5">
+                        {visibles}
+
+                        {ocultos.length > 0 && (
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <button
+                                type="button"
+                                className="hover:bg-muted/80 mt-0.5 w-full rounded bg-muted px-1.5 py-0.5 text-left text-xs font-medium text-muted-foreground transition-colors max-sm:px-0 max-sm:text-center lg:mt-0 lg:px-1 lg:py-0 lg:text-[11px] lg:leading-none"
+                              >
+                                +{ocultos.length} más
+                              </button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-64 space-y-2 p-3">
+                              <p className="text-xs font-medium text-muted-foreground">
+                                {dia.fecha.toLocaleDateString('es-MX', {
+                                  weekday: 'long',
+                                  day: 'numeric',
+                                  month: 'long',
+                                })}
+                              </p>
+                              <div className="flex flex-col">
+                                {items.map((item, i) => (
+                                  <React.Fragment key={i}>{item}</React.Fragment>
+                                ))}
+                              </div>
+                            </PopoverContent>
+                          </Popover>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </>
           )}
 
-          <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-muted-foreground">
+          <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-muted-foreground lg:mt-3 lg:shrink-0 lg:gap-x-4 lg:gap-y-1 lg:text-[11px]">
             <div className="flex flex-wrap items-center gap-2">
               <span className="font-medium">Tipos de solicitud:</span>
               {Object.entries({
