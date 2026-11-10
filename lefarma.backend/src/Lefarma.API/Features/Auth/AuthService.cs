@@ -198,7 +198,13 @@ public class AuthService : BaseService, IAuthService
             else
             {
                 usuario.Dominio = request.Domain;
-                usuario.NombreCompleto = adUser?.DisplayName ?? usuario.NombreCompleto;
+                // El nombre lo administra la sincronizacion RH (app.sp_sincroniza_empleados_usuarios):
+                // sobrescribirlo con el displayName del AD revertia en cada login los nombres ya
+                // corregidos y dejaba etiquetas de vacante/puesto. Solo se rellena si esta vacio.
+                if (string.IsNullOrWhiteSpace(usuario.NombreCompleto))
+                {
+                    usuario.NombreCompleto = adUser?.DisplayName ?? request.Username;
+                }
                 usuario.Correo = adUser?.Mail ?? usuario.Correo;
                 usuario.UltimoLogin = DateTime.UtcNow;
             }
