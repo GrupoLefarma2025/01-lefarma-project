@@ -4,6 +4,7 @@ using Lefarma.API.Domain.Entities.Config;
 using Lefarma.API.Domain.Interfaces.Rh;
 using Lefarma.API.Features.Config.EmpleadoJefes.DTOs;
 using Lefarma.API.Infrastructure.Data;
+using Lefarma.API.Shared.Constants;
 using Lefarma.API.Shared.Errors;
 using Microsoft.EntityFrameworkCore;
 
@@ -283,6 +284,19 @@ namespace Lefarma.API.Features.Config.EmpleadoJefes
             if (request.Niveles.Select(n => n.Nivel).Distinct().Count() != request.Niveles.Count)
                 return CommonErrors.Validation("Nivel", "Hay niveles duplicados en la solicitud.");
 
+            var nivelesAplicables = request.Niveles.Count == 0
+                ? Enumerable.Range(1, MaxNivel).ToHashSet()
+                : request.Niveles.Where(n => n.Aplica).Select(n => n.Nivel).ToHashSet();
+
+            await using var transaction = await _context.Database.BeginTransactionAsync();
+
+            var bloqueadas = await ObtenerSolicitudesSinNivelAsync(idUsuario, nivelesAplicables);
+            if (bloqueadas.Count > 0)
+            {
+                await transaction.RollbackAsync();
+                return CrearErrorSolicitudesSinNivel(bloqueadas);
+            }
+
             // Configuración de aplica
             var existentes = await _context.EmpleadoJefesConfig
                 .Where(c => c.IdUsuario == idUsuario)
@@ -356,10 +370,86 @@ namespace Lefarma.API.Features.Config.EmpleadoJefes
             e.FechaModificacion = DateTime.Now;
         }
 
-        await _context.SaveChangesAsync();
+            await _context.SaveChangesAsync();
 
-        return await GetByUsuarioAsync(idUsuario);
+            var filasActivas = await _context.EmpleadoJefesConfig
+                .AsNoTracking()
+                .Where(c => c.IdUsuario == idUsuario && c.Activo)
+                .Select(c => new { c.Nivel, c.Aplica })
+                .ToListAsync();
+
+            var nivelesEfectivos = filasActivas.Count == 0
+                ? Enumerable.Range(1, MaxNivel).ToHashSet()
+                : filasActivas.Where(c => c.Aplica).Select(c => c.Nivel).ToHashSet();
+
+            var bloqueadasPost = await ObtenerSolicitudesSinNivelAsync(idUsuario, nivelesEfectivos);
+            if (bloqueadasPost.Count > 0)
+            {
+                await transaction.RollbackAsync();
+                return CrearErrorSolicitudesSinNivel(bloqueadasPost);
+            }
+
+            await transaction.CommitAsync();
+            await transaction.DisposeAsync();
+
+            return await GetByUsuarioAsync(idUsuario);
         }
+
+        private async Task<List<SolicitudSinNivel>> ObtenerSolicitudesSinNivelAsync(
+            int idUsuario,
+            IReadOnlySet<int> nivelesAplicables,
+            CancellationToken cancellationToken = default)
+        {
+            var pendientes = await (
+                from s in _context.SolicitudesPersonal.AsNoTracking()
+                from p in _context.WorkflowParticipantes.AsNoTracking()
+                where (s.IdUsuarioSolicitante ?? s.IdUsuarioCreador) == idUsuario
+                    && s.IdPasoActual != null
+                    && p.IdPaso == s.IdPasoActual
+                    && p.Activo
+                    && p.RequiereJefeInmediato
+                    && s.Estado != null
+                    && s.Estado.Codigo != WorkflowEstadoCodigo.CERRADA
+                    && s.Estado.Codigo != WorkflowEstadoCodigo.RECHAZADA
+                    && s.Estado.Codigo != WorkflowEstadoCodigo.CANCELADA
+                    && !_context.WorkflowParticipantes.Any(q =>
+                        q.IdPaso == s.IdPasoActual && q.Activo && !q.RequiereJefeInmediato)
+                select new
+                {
+                    s.IdSolicitud,
+                    s.Folio,
+                    Nivel = p.NivelJefe ?? 1
+                })
+                .ToListAsync(cancellationToken);
+
+            return pendientes
+                .GroupBy(x => new { x.IdSolicitud, x.Folio })
+                .Where(g => !g.Any(x => nivelesAplicables.Contains(x.Nivel)))
+                .Select(g => new SolicitudSinNivel(
+                    g.Key.IdSolicitud,
+                    g.Key.Folio,
+                    g.Select(x => x.Nivel).Distinct().OrderBy(n => n).ToList()))
+                .ToList();
+        }
+
+        private static Error CrearErrorSolicitudesSinNivel(IReadOnlyList<SolicitudSinNivel> solicitudes)
+        {
+            const int maxJefes = 5;
+            var detalle = string.Join(", ", solicitudes.Take(maxJefes).Select(s =>
+                $"{s.Folio} (nivel {string.Join("/", s.Niveles)})"));
+            var restantes = solicitudes.Count > maxJefes
+                ? $" y {solicitudes.Count - maxJefes} más"
+                : string.Empty;
+            var encabezado = solicitudes.Count == 1
+                ? "1 solicitud pendiente quedaría sin un nivel de jefe aplicable"
+                : $"{solicitudes.Count} solicitudes pendientes quedarían sin un nivel de jefe aplicable";
+
+            return CommonErrors.Validation(
+                "NivelesJefe",
+                $"No se puede guardar la configuración: {encabezado}: {detalle}{restantes}. Habilita el nivel correspondiente o espera a que se cierren.");
+        }
+
+        private sealed record SolicitudSinNivel(int IdSolicitud, string Folio, List<int> Niveles);
         
 
         public async Task<ErrorOr<WorkflowJefesExcluidosResponse>> GetExcluidosAsync(int idWorkflow)
