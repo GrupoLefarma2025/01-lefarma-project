@@ -19,6 +19,8 @@ interface WorkflowHistorialModalProps {
   estadoNombre?: string | null;
   pasos: WorkflowPasoFlowResponse[];
   historial: HistorialWorkflowItemResponse[];
+  /** Nombres de los jefes esperados por paso, para mostrarlos sin firma. */
+  responsablesPorPaso?: ReadonlyMap<number, string[]>;
   /** Subtítulo del timeline; por defecto "Paso a paso del documento". */
   descripcion?: string;
 }
@@ -37,6 +39,7 @@ export function WorkflowHistorialModal({
   estadoNombre,
   pasos,
   historial,
+  responsablesPorPaso,
   descripcion,
 }: WorkflowHistorialModalProps) {
   return (
@@ -67,6 +70,7 @@ export function WorkflowHistorialModal({
           estadoNombre={estadoNombre}
           pasos={pasos}
           historial={historial}
+          responsablesPorPaso={responsablesPorPaso}
           descripcion={descripcion}
         />
       )}

@@ -89,6 +89,7 @@ import { FlujoOrdenPDF } from '@/components/ordenes/FlujoOrdenPDF';
 import type { ProgresoPasoPDF, HistorialPDFItem, PasoPDFConfig } from '@/components/ordenes/FlujoOrdenPDF';
 import { OrdenCompraPDF } from '@/components/ordenes/OrdenCompraPDF';
 import { toApiError } from '@/utils/errors';
+import { etiquetaResponsables, nombresResponsablesPaso, tituloPasoResponsable } from '@/utils/responsablesPaso';
 import { useAuthStore } from '@/shared/auth/authStore';
 import { SignatureAlert } from '@/components/common/SignatureAlert';
 
@@ -269,6 +270,7 @@ interface WorkflowPasoParticipanteFlowResponse {
   idRol?: number | null;
   nombreUsuario?: string | null;
   nombreRol?: string | null;
+  puestoUsuario?: string | null;
   requiereJefeInmediato: boolean;
   nivelJefe?: number | null;
 }
@@ -2569,15 +2571,20 @@ export default function AutorizacionesOC() {
                               // conservan la fecha de creación.
                               const mostrarTiempoAtencion =
                                 !paso.esInicio && (isActual || isCompletado);
-                              const responsablesPaso = (paso.participantes ?? [])
-                                .map((p) =>
-                                  p.nombreUsuario ||
-                                  p.nombreRol ||
-                                  (p.requiereJefeInmediato
-                                    ? `Jefe inmediato nivel ${p.nivelJefe ?? 1}`
-                                    : null)
-                                )
-                                .filter((nombre): nombre is string => Boolean(nombre));
+                              // El flujo trae los participantes de todos los pasos:
+                              // el responsable se puede mostrar incluso en «En espera».
+                              // Los pasos ya cerrados muestran en su actividad quién actuó.
+                              const mostrarResponsables = !paso.esInicio && !isCompletado && !isOmitido;
+                              const responsablesPaso = mostrarResponsables
+                                ? nombresResponsablesPaso(paso.participantes)
+                                : [];
+                              const textoResponsables = etiquetaResponsables(responsablesPaso);
+                              // El paso «Aprobación Gerente General» es genérico: se muestra
+                              // el nombre y puesto del responsable real del flujo.
+                              const tituloPaso = tituloPasoResponsable(
+                                paso.nombrePaso,
+                                paso.participantes
+                              );
 
                               // Fecha en que la orden llegó a este paso (última transición
                               // cuyo destino es el paso). Para el paso inicial se usa la creación.
@@ -2731,7 +2738,9 @@ export default function AutorizacionesOC() {
                                         <span className="flex-shrink-0 inline-flex h-5 w-5 items-center justify-center rounded bg-muted text-[10px] font-bold text-muted-foreground">
                                           {index + 1}
                                         </span>
-                                        <span className="truncate text-sm font-medium">{paso.nombrePaso}</span>
+                                        <span className="truncate text-sm font-medium" title={tituloPaso}>
+                                          {tituloPaso}
+                                        </span>
                                       </div>
                                       <div className="flex flex-shrink-0 items-center gap-1.5">
                                         {isActual ? (
@@ -2759,6 +2768,14 @@ export default function AutorizacionesOC() {
                                     {paso.descripcionAyuda && !isExpanded && (
                                       <p className="mt-1 ml-7 text-[11px] text-muted-foreground truncate">{paso.descripcionAyuda}</p>
                                     )}
+                                    {textoResponsables && !isExpanded && (
+                                      <p
+                                        className="mt-1 ml-7 truncate text-[11px] text-muted-foreground"
+                                        title={textoResponsables}
+                                      >
+                                        {textoResponsables}
+                                      </p>
+                                    )}
                                     {eventosPaso.length > 0 && !isExpanded && (
                                       <p className="mt-1 ml-7 text-[11px] text-muted-foreground">
                                         {eventosPaso.length} evento(s) · {renderNombreAccion(ultimoEvento)} · {fmtFechaHora(ultimoEvento.fechaEvento)}
@@ -2769,6 +2786,9 @@ export default function AutorizacionesOC() {
                                       <div className="mt-3 ml-1 space-y-3" onClick={e => e.stopPropagation()}>
                                         {paso.descripcionAyuda && (
                                           <p className="text-xs text-muted-foreground">{paso.descripcionAyuda}</p>
+                                        )}
+                                        {textoResponsables && (
+                                          <p className="text-xs text-muted-foreground">{textoResponsables}</p>
                                         )}
 
                                         {/* Historial de actividad */}
@@ -2824,14 +2844,6 @@ export default function AutorizacionesOC() {
                                           {eventosPaso.length === 0 ? (
                                             <div className="rounded border bg-background/80 p-2 text-xs text-muted-foreground">
                                               <p>Sin actividad registrada en este paso.</p>
-                                              {isActual && responsablesPaso.length > 0 && (
-                                                <p className="mt-1">
-                                                  <span className="font-medium text-foreground/80">
-                                                    Responsable(s):
-                                                  </span>{' '}
-                                                  {responsablesPaso.join(' · ')}
-                                                </p>
-                                              )}
                                             </div>
                                           ) : (
                                             <div className="space-y-2">
@@ -2844,11 +2856,23 @@ export default function AutorizacionesOC() {
                                                     idPasoAnterior?: number | null;
                                                     idPasoNuevo?: number | null;
                                                   };
-                                                  transFrom = snap.idPasoAnterior
-                                                    ? (pasosMap.get(snap.idPasoAnterior)?.nombrePaso ?? null)
+                                                  const pasoAnterior = snap.idPasoAnterior
+                                                    ? pasosMap.get(snap.idPasoAnterior)
+                                                    : undefined;
+                                                  const pasoNuevo = snap.idPasoNuevo
+                                                    ? pasosMap.get(snap.idPasoNuevo)
+                                                    : undefined;
+                                                  transFrom = pasoAnterior
+                                                    ? tituloPasoResponsable(
+                                                        pasoAnterior.nombrePaso,
+                                                        pasoAnterior.participantes
+                                                      )
                                                     : null;
-                                                  transTo = snap.idPasoNuevo
-                                                    ? (pasosMap.get(snap.idPasoNuevo)?.nombrePaso ?? null)
+                                                  transTo = pasoNuevo
+                                                    ? tituloPasoResponsable(
+                                                        pasoNuevo.nombrePaso,
+                                                        pasoNuevo.participantes
+                                                      )
                                                     : null;
                                                 } catch { /* ignore */ }
                                               }

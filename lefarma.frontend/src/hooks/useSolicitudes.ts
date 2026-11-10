@@ -8,7 +8,7 @@ import type {
   SolicitudPersonalFilterParams,
 } from '@/types/solicitudPersonal.types';
 import { toApiError } from '@/utils/errors';
-import { pasoSeOmitira } from '@/utils/flujoJefes';
+import { pasoSeOmitira, responsablesJefePaso } from '@/utils/flujoJefes';
 import { toast } from 'sonner';
 import type {
   AccionDisponibleResponse,
@@ -64,6 +64,8 @@ export interface UseSolicitudesAutorizacionesReturn {
 
   workflowsMap: Map<number, WorkflowFlowResponse>;
   pasosWorkflow: import('@/types/solicitudPersonalWorkflow.types').WorkflowPasoFlowResponse[];
+  /** Nombres de los jefes que se esperan en cada paso (para la línea de tiempo). */
+  responsablesPorPaso: Map<number, string[]>;
   getEstadoInfo: (
     solicitud:
       | Pick<SolicitudPersonalResponse, 'estadoNombre' | 'estadoColor' | 'idEstado'>
@@ -437,6 +439,18 @@ export function useSolicitudesAutorizaciones(): UseSolicitudesAutorizacionesRetu
     );
   }, [selectedSolicitud, workflowsMap, jefesConfig, jefesExcluidos, historial]);
 
+  // Jefe esperado por paso: se muestra en la línea de tiempo aunque el paso
+  // todavía no tenga firma, para que se vea quién debe atenderlo.
+  const responsablesPorPaso = useMemo(() => {
+    const map = new Map<number, string[]>();
+    if (!jefesConfig) return map;
+    for (const paso of pasosWorkflow) {
+      const nombres = responsablesJefePaso(paso, jefesConfig, jefesExcluidos);
+      if (nombres.length > 0) map.set(paso.idPaso, nombres);
+    }
+    return map;
+  }, [pasosWorkflow, jefesConfig, jefesExcluidos]);
+
   return {
     solicitudesPropias,
     solicitudesTodas,
@@ -457,6 +471,7 @@ export function useSolicitudesAutorizaciones(): UseSolicitudesAutorizacionesRetu
     historial,
     workflowsMap,
     pasosWorkflow,
+    responsablesPorPaso,
     getEstadoInfo,
     firmar,
     enviarDirector,

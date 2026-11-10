@@ -29,3 +29,42 @@ export function pasoSeOmitira(
     return idJefe == null || jefesExcluidos.has(idJefe);
   });
 }
+
+/**
+ * Nombres de los jefes que el motor esperaría en el paso, con la misma
+ * precedencia que `DebeOmitirsePasoJefeAsync` (override > vista, config del
+ * empleado y exclusiones del workflow). Sirve para mostrar en la línea de
+ * tiempo quién debe firmar aunque todavía no lo haya hecho.
+ */
+export function responsablesJefePaso(
+  paso: WorkflowPasoFlowResponse,
+  config: EmpleadoJefesConfigResponse | null,
+  jefesExcluidos: ReadonlySet<number>
+): string[] {
+  if (!config) return [];
+
+  const nombres: string[] = [];
+  for (const participante of paso.participantes ?? []) {
+    if (!participante.requiereJefeInmediato) continue;
+
+    const nivel = participante.nivelJefe ?? 1;
+    const nivelConfig = config.niveles.find((n) => n.nivel === nivel);
+    const aplica = nivelConfig?.aplica ?? config.esConfigPorDefecto;
+    if (!aplica) continue;
+
+    const idJefe =
+      nivelConfig?.idUsuarioJefeOverride ?? nivelConfig?.idUsuarioJefeVista ?? null;
+    if (idJefe == null || jefesExcluidos.has(idJefe)) continue;
+
+    const nombre = (
+      nivelConfig?.idUsuarioJefeOverride != null
+        ? nivelConfig.nombreJefeOverride
+        : nivelConfig?.nombreJefeVista
+    )?.trim();
+    if (!nombre || nombres.includes(nombre)) continue;
+
+    nombres.push(nombre);
+  }
+
+  return nombres;
+}

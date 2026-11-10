@@ -1,5 +1,11 @@
 import type { OrdenCompraResponse } from '@/types/ordenCompra.types';
 import { resolverLogoEmpresa } from '@/utils/empresaDocumento';
+import {
+  etiquetaResponsables,
+  nombresResponsablesPaso,
+  tituloPasoResponsable,
+  type ParticipantePaso,
+} from '@/utils/responsablesPaso';
 
 // ─── Tipos (reflejados desde AutorizacionesOC) ─────────────────────────────────
 
@@ -22,6 +28,8 @@ export interface PasoPDFConfig {
   descripcionAyuda?: string | null;
   esInicio: boolean;
   esFinal: boolean;
+  /** Participantes configurados del paso (responsables), disponibles para todos los pasos del flujo. */
+  participantes?: ParticipantePaso[];
 }
 
 export type EstadoVisual =
@@ -116,8 +124,10 @@ function getMovimiento(
       idPasoAnterior?: number | null;
       idPasoNuevo?: number | null;
     };
-    const from = s.idPasoAnterior ? pasosMap.get(s.idPasoAnterior)?.nombrePaso : null;
-    const to = s.idPasoNuevo ? pasosMap.get(s.idPasoNuevo)?.nombrePaso : null;
+    const fromPaso = s.idPasoAnterior ? pasosMap.get(s.idPasoAnterior) : undefined;
+    const toPaso = s.idPasoNuevo ? pasosMap.get(s.idPasoNuevo) : undefined;
+    const from = fromPaso ? tituloPasoResponsable(fromPaso.nombrePaso, fromPaso.participantes) : null;
+    const to = toPaso ? tituloPasoResponsable(toPaso.nombrePaso, toPaso.participantes) : null;
     if (!from && !to) return null;
     if (from && to && from !== to) return `${from} → ${to}`;
     if (to) return `Permanece en ${to}`;
@@ -283,6 +293,12 @@ export function FlujoOrdenPDF({ orden, progresoPasos, eventosPorPaso, pasosMap }
             const eventos = eventosPorPaso.get(paso.idPaso) || [];
             const color = ESTADO_COLOR[paso.estadoVisual];
             const isLast = index === progresoPasos.length - 1;
+            const textoResponsables =
+              !paso.esInicio &&
+              paso.estadoVisual !== 'completado' &&
+              paso.estadoVisual !== 'omitido'
+                ? etiquetaResponsables(nombresResponsablesPaso(paso.participantes))
+                : '';
 
             const symbol =
               paso.estadoVisual === 'completado' ? '✓' :
@@ -306,7 +322,9 @@ export function FlujoOrdenPDF({ orden, progresoPasos, eventosPorPaso, pasosMap }
                 {/* Contenido del paso */}
                 <div className="pdf-paso-content">
                   <div className="pdf-paso-header">
-                    <span className="pdf-paso-nombre">{paso.nombrePaso}</span>
+                    <span className="pdf-paso-nombre">
+                      {tituloPasoResponsable(paso.nombrePaso, paso.participantes)}
+                    </span>
                     <span className="pdf-paso-estado" style={{ color, background: `${color}15` }}>
                       {ESTADO_VISUAL_LABEL[paso.estadoVisual]}
                     </span>
@@ -314,6 +332,10 @@ export function FlujoOrdenPDF({ orden, progresoPasos, eventosPorPaso, pasosMap }
 
                   {paso.descripcionAyuda && (
                     <p className="pdf-paso-desc">{paso.descripcionAyuda}</p>
+                  )}
+
+                  {textoResponsables && (
+                    <p className="pdf-paso-desc">{textoResponsables}</p>
                   )}
 
                   {eventos.length === 0 && paso.estadoVisual !== 'pendiente' && paso.estadoVisual !== 'omitido' && (

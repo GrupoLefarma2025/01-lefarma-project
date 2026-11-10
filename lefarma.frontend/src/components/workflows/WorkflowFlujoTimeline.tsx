@@ -113,6 +113,8 @@ interface WorkflowFlujoTimelineProps {
   estadoNombre?: string | null;
   pasos: WorkflowPasoFlowResponse[];
   historial: HistorialWorkflowItemResponse[];
+  /** Nombres de los jefes que se esperan en cada paso (se muestran antes de la firma). */
+  responsablesPorPaso?: ReadonlyMap<number, string[]>;
   /** Subtítulo del encabezado; por defecto "Paso a paso del documento". */
   descripcion?: string;
 }
@@ -127,6 +129,7 @@ export function WorkflowFlujoTimeline({
   estadoNombre,
   pasos,
   historial,
+  responsablesPorPaso,
   descripcion = 'Paso a paso del documento',
 }: WorkflowFlujoTimelineProps) {
   const [expandedHistorial, setExpandedHistorial] = useState<Set<number>>(new Set());
@@ -429,6 +432,7 @@ export function WorkflowFlujoTimeline({
                 item={item}
                 pasosPorId={pasosPorId}
                 comentariosPorPaso={comentariosPorPaso}
+                responsablesPorPaso={responsablesPorPaso}
                 isExpanded={expandedHistorial.has(item.paso.idPaso)}
                 onToggle={() => toggleHistorial(item.paso.idPaso)}
               />
@@ -444,12 +448,14 @@ function PasoItem({
   item,
   pasosPorId,
   comentariosPorPaso,
+  responsablesPorPaso,
   isExpanded,
   onToggle,
 }: {
   item: PasoTimelineItem;
   pasosPorId: Map<number, WorkflowPasoFlowResponse>;
   comentariosPorPaso: Map<number, string>;
+  responsablesPorPaso?: ReadonlyMap<number, string[]>;
   isExpanded: boolean;
   onToggle: () => void;
 }) {
@@ -532,6 +538,10 @@ function PasoItem({
 
   const DotIcon = dotConfig.icon;
   const comentarioPaso = comentariosPorPaso.get(paso.idPaso);
+  const responsables = responsablesPorPaso?.get(paso.idPaso) ?? [];
+  // Se muestra mientras el paso sigue pendiente (actual o sin actividad); en
+  // pasos ya resueltos el evento ya indica quién firmó.
+  const mostrarResponsables = responsables.length > 0 && (isActual || eventos.length === 0);
 
   return (
     <div className="relative pl-10">
@@ -565,6 +575,16 @@ function PasoItem({
 
         {paso.descripcionAyuda && (
           <p className="mt-1 text-[11px] text-muted-foreground">{paso.descripcionAyuda}</p>
+        )}
+
+        {mostrarResponsables && (
+          <div className="mt-1 flex items-center gap-1.5 text-[11px] text-muted-foreground">
+            <UserRound className="h-3 w-3 shrink-0" />
+            <span>
+              {responsables.length === 1 ? 'Responsable:' : 'Responsables:'}{' '}
+              <span className="font-medium text-foreground">{responsables.join(' · ')}</span>
+            </span>
+          </div>
         )}
 
         {/* Resumen del último evento ejecutado en el paso */}

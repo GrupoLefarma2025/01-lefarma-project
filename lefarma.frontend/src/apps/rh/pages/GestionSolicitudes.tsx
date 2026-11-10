@@ -114,6 +114,7 @@ export default function GestionSolicitudes() {
     loadingHistorial,
     historial,
     pasosWorkflow,
+    responsablesPorPaso,
   } = useSolicitudesAutorizaciones();
 
   const [rawItems, setRawItems] = useState<SolicitudPersonalResponse[]>([]);
@@ -854,6 +855,7 @@ export default function GestionSolicitudes() {
         estadoNombre={selectedSolicitud?.estadoNombre}
         pasos={pasosWorkflow}
         historial={historial}
+        responsablesPorPaso={responsablesPorPaso}
       />
 
       {/* ── PDF Print Document — Solicitud de Personal ── */}
