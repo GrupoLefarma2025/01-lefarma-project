@@ -10,6 +10,7 @@ using Lefarma.API.Features.Profile;
 using Lefarma.API.Infrastructure.Data;
 using Lefarma.API.Shared.Constants;
 using Lefarma.API.Shared.Errors;
+using Lefarma.API.Shared.Extensions;
 using Lefarma.API.Shared.Logging;
 using Lefarma.API.Shared.Services;
 using Lefarma.API.Services.Identity;
@@ -178,7 +179,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                     response[i].SegundoAutorizador = autorizador.Nombre;
                     if (autorizador.IdUsuario is int idAutorizador && usuariosInfo.TryGetValue(idAutorizador, out var infoAutorizador))
                     {
-                        response[i].SegundoAutorizadorPuesto = infoAutorizador.Puesto;
+                        response[i].SegundoAutorizadorPuesto = infoAutorizador.Puesto.PuestoVisible();
                         response[i].SegundoAutorizadorArea = infoAutorizador.Departamento;
                     }
                 }
@@ -272,7 +273,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                 response.SegundoAutorizador = autorizador.Nombre;
                 if (autorizador.IdUsuario is int idAutorizador && usuariosInfo.TryGetValue(idAutorizador, out var infoAutorizador))
                 {
-                    response.SegundoAutorizadorPuesto = infoAutorizador.Puesto;
+                    response.SegundoAutorizadorPuesto = infoAutorizador.Puesto.PuestoVisible();
                     response.SegundoAutorizadorArea = infoAutorizador.Departamento;
                 }
                 return response;
@@ -928,7 +929,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
             RazonSocialProveedor = o.Proveedor?.RazonSocial,
             IdUsuarioCreador = o.IdUsuarioCreador,
             SolicitanteNombre = usuariosInfo != null && usuariosInfo.TryGetValue(o.IdUsuarioCreador, out var ui) ? ui.Nombre : null,
-            SolicitantePuesto = usuariosInfo != null && usuariosInfo.TryGetValue(o.IdUsuarioCreador, out ui) ? ui.Puesto : null,
+            SolicitantePuesto = usuariosInfo != null && usuariosInfo.TryGetValue(o.IdUsuarioCreador, out ui) ? ui.Puesto.PuestoVisible() : null,
             SolicitanteArea = usuariosInfo != null && usuariosInfo.TryGetValue(o.IdUsuarioCreador, out ui) ? ui.Departamento : null,
             SolicitanteCorreo = usuariosInfo != null && usuariosInfo.TryGetValue(o.IdUsuarioCreador, out ui) ? ui.Correo : null,
             SinDatosFiscales = o.SinDatosFiscales,

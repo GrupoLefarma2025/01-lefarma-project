@@ -47,6 +47,7 @@ import { cn } from '@/lib/utils';
 import { toApiError } from '@/utils/errors';
 import { fetchFirmaObjectUrl, firmasEndpoints } from '@/services/firmas.service';
 import { waitForPrintImages } from '@/utils/waitForPrintImages';
+import { areaDocumento } from '@/utils/datosSolicitanteDocumento';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -101,7 +102,7 @@ function getGroupLabel(orden: OrdenCompraResponse, agrupacion: AgrupacionKey): s
     case 'empresa':
       return orden.empresaNombre ?? `Empresa ${orden.idEmpresa}`;
     case 'area':
-      return orden.areaNombre ?? `Área ${orden.idArea}`;
+      return areaDocumento(orden);
     case 'proveedor':
       return orden.razonSocialProveedor ?? 'Sin proveedor';
   }
@@ -632,7 +633,7 @@ setNombresFirmas({
                           {getGroupLabel(orden, agrupacion)}
                         </TableCell>
                         <TableCell className="text-xs text-muted-foreground">
-                          {orden.areaNombre ?? `Área ${orden.idArea}`}
+                          {areaDocumento(orden)}
                         </TableCell>
                         <TableCell className="text-xs text-right text-muted-foreground">
                           {orden.fechaLimitePago ? fmtDate(orden.fechaLimitePago) : '—'}

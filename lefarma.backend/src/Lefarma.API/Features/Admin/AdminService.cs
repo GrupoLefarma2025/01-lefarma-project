@@ -2,6 +2,7 @@ using ErrorOr;
 using Lefarma.API.Domain.Entities.Auth;
 using Lefarma.API.Domain.Entities.Catalogos;
 using Lefarma.API.Domain.Interfaces.Admin;
+using Lefarma.API.Domain.Interfaces.Rh;
 using Lefarma.API.Features.Admin.DTOs;
 using Lefarma.API.Shared.Errors;
 using Lefarma.API.Shared.Extensions;
@@ -13,16 +14,19 @@ namespace Lefarma.API.Features.Admin;
 public class AdminService : BaseService, IAdminService
 {
     private readonly IAdminRepository _repository;
+    private readonly IEmpleadoRepository _empleadoRepository;
     private readonly ILogger<AdminService> _logger;
     protected override string EntityName => "Admin";
 
     public AdminService(
         IAdminRepository repository,
+        IEmpleadoRepository empleadoRepository,
         IWideEventAccessor wideEventAccessor,
         ILogger<AdminService> logger)
         : base(wideEventAccessor)
     {
         _repository = repository;
+        _empleadoRepository = empleadoRepository;
         _logger = logger;
     }
 
@@ -42,6 +46,10 @@ public class AdminService : BaseService, IAdminService
             var response = usuarios.Select(u => u.ToResponse(
                 detalles.ContainsKey(u.IdUsuario) ? detalles[u.IdUsuario] : null
             )).ToList();
+
+            // Puesto y área oficiales (Asistencias.dbo.vwEmpleados): app.Usuarios.Puesto
+            // está en 'Sin asignar' y catalogos.areas es un catálogo heredado de puestos.
+            await AsignarPuestoYAreaEmpleadoAsync(response);
 
             EnrichWideEvent(action: "GetAllUsuarios", count: response.Count, additionalContext: new Dictionary<string, object>
             {
@@ -72,6 +80,7 @@ public class AdminService : BaseService, IAdminService
             var detalle = await _repository.GetUsuarioDetalleAsync(id);
 
             var response = usuario.ToResponse(detalle);
+            await AsignarPuestoYAreaEmpleadoAsync([response]);
 
             EnrichWideEvent(action: "GetUsuarioById", entityId: id, nombre: usuario.NombreCompleto);
             return response;
@@ -243,6 +252,38 @@ public class AdminService : BaseService, IAdminService
         {
             EnrichWideEvent(action: "UpdateUsuario", entityId: id, exception: ex);
             return CommonErrors.DatabaseError("actualizar el usuario");
+        }
+    }
+
+    /// <summary>
+    /// Completa PuestoEmpleado y AreaEmpleado desde Asistencias.dbo.vwEmpleados, la
+    /// fuente oficial del portal de incidencias (resuelve por nómina y cae a correo).
+    /// Best-effort: si Asistencias no responde, la lista se devuelve sin esos datos en
+    /// lugar de fallar.
+    /// </summary>
+    private async Task AsignarPuestoYAreaEmpleadoAsync(ICollection<UsuarioResponse> usuarios)
+    {
+        if (usuarios.Count == 0) return;
+
+        try
+        {
+            var empleados = await _empleadoRepository.ObtenerEmpleadosPorUsuariosAsync(
+                usuarios.Select(u => u.IdUsuario).ToList());
+
+            foreach (var usuario in usuarios)
+            {
+                if (!empleados.TryGetValue(usuario.IdUsuario, out var empleado))
+                    continue;
+
+                usuario.PuestoEmpleado = empleado.Puesto.PuestoVisible();
+                usuario.AreaEmpleado = string.IsNullOrWhiteSpace(empleado.Departamento)
+                    ? null
+                    : empleado.Departamento.Trim();
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "No se pudieron obtener puesto y área desde Asistencias.dbo.vwEmpleados; se devuelven vacíos.");
         }
     }
 

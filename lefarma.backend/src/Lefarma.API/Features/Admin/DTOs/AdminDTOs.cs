@@ -17,6 +17,10 @@ namespace Lefarma.API.Features.Admin.DTOs
         public bool EsRobot { get; set; }
         public DateTime FechaCreacion { get; set; }
         public DateTime? UltimoLogin { get; set; }
+        /// <summary>Puesto oficial del empleado según Asistencias.dbo.vwEmpleados.</summary>
+        public string? PuestoEmpleado { get; set; }
+        /// <summary>Área (departamento) oficial del empleado según Asistencias.dbo.vwEmpleados.</summary>
+        public string? AreaEmpleado { get; set; }
         public List<RolBasicoResponse> Roles { get; set; } = [];
         public List<PermisoBasicoResponse> PermisosDirectos { get; set; } = [];
         public UsuarioDetalleResponse? Detalle { get; set; }

@@ -20,7 +20,7 @@ import {
   FormMessage,
   FormDescription,
 } from '@/components/ui/form';
-import { Phone, Bell, Loader2, Smartphone } from 'lucide-react';
+import { Phone, Bell, Loader2, Smartphone, Briefcase } from 'lucide-react';
 import { toast } from 'sonner';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { toApiError } from '@/utils/errors';
@@ -50,7 +50,7 @@ type PerfilFormValues = z.infer<typeof perfilSchema>;
 
 export function PerfilConfig({ firmaCard }: { firmaCard?: ReactNode }) {
   usePageTitle('Mi Perfil', 'Configuración de tu perfil y notificaciones');
-  const { user, fetchProfileSignature } = useAuthStore();
+  const { user, areaEmpleado, puestoEmpleado, fetchProfileSignature } = useAuthStore();
   const [loading, setLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [usuario, setUsuario] = useState<Usuario | null>(null);
@@ -171,6 +171,33 @@ export function PerfilConfig({ firmaCard }: { firmaCard?: ReactNode }) {
 
         {/* Firma Digital */}
         {firmaCard ?? <FirmaUploadCard />}
+
+        {/* Datos del empleado: puesto y área oficiales del portal de incidencias */}
+        {(puestoEmpleado || areaEmpleado) && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Briefcase className="h-5 w-5" />
+                Datos del empleado
+              </CardTitle>
+              <CardDescription>
+                Puesto y área registrados en Asistencias (solo lectura)
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>Puesto</Label>
+                  <Input value={puestoEmpleado || 'Sin puesto registrado'} disabled />
+                </div>
+                <div className="space-y-2">
+                  <Label>Área</Label>
+                  <Input value={areaEmpleado || 'Sin área registrada'} disabled />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Contacto */}
         <Card>

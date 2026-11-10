@@ -10,6 +10,28 @@ namespace Lefarma.API.Shared.Extensions
     public static class StringExtensions
     {
         /// <summary>
+        /// Valor por defecto de app.Usuarios.Puesto para los usuarios que nunca se
+        /// sincronizaron con RH. Nunca debe mostrarse como si fuera un puesto real.
+        /// </summary>
+        public const string PuestoSinAsignar = "Sin asignar";
+
+        /// <summary>
+        /// Devuelve el puesto listo para mostrarse: <c>null</c> cuando llega vacío o con
+        /// el valor por defecto 'Sin asignar' de app.Usuarios; en otro caso el texto recortado.
+        /// El puesto oficial del empleado sale de Asistencias.dbo.vwEmpleados.
+        /// </summary>
+        public static string? PuestoVisible(this string? puesto)
+        {
+            if (string.IsNullOrWhiteSpace(puesto))
+                return null;
+
+            var valor = puesto.Trim();
+            return string.Equals(valor, PuestoSinAsignar, StringComparison.OrdinalIgnoreCase)
+                ? null
+                : valor;
+        }
+
+        /// <summary>
         /// Remueve diacríticos (acentos) de una cadena de texto
         /// </summary>
         /// <param name="text">Texto a normalizar</param>

@@ -10,6 +10,7 @@ using Lefarma.API.Infrastructure.Files;
 using Lefarma.API.Services.Identity;
 using Lefarma.API.Shared.Constants;
 using Lefarma.API.Shared.Errors;
+using Lefarma.API.Shared.Extensions;
 using Lefarma.API.Shared.Logging;
 using Lefarma.API.Shared.Services;
 using Microsoft.AspNetCore.Http;
@@ -683,6 +684,10 @@ public class ProfileService : BaseService, IProfileService
         string? puestoRespaldo,
         CancellationToken cancellationToken)
     {
+        // app.Usuarios/detalle.Puesto suele venir con el valor por defecto 'Sin asignar';
+        // ese texto nunca debe mostrarse como puesto del usuario.
+        var respaldo = puestoRespaldo.PuestoVisible();
+
         try
         {
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -690,16 +695,16 @@ public class ProfileService : BaseService, IProfileService
 
             var empleado = await _empleadoRepository.ObtenerEmpleadoPorUsuarioAsync(userId, timeout.Token);
             if (empleado == null)
-                return (null, puestoRespaldo);
+                return (null, respaldo);
 
             var area = string.IsNullOrWhiteSpace(empleado.Departamento) ? null : empleado.Departamento.Trim();
-            var puesto = string.IsNullOrWhiteSpace(empleado.Puesto) ? puestoRespaldo : empleado.Puesto.Trim();
+            var puesto = empleado.Puesto.PuestoVisible() ?? respaldo;
             return (area, puesto);
         }
         catch (Exception ex)
         {
             EnrichWideEvent(action: "GetProfileAreaPuesto", entityId: userId, exception: ex);
-            return (null, puestoRespaldo);
+            return (null, respaldo);
         }
     }
 

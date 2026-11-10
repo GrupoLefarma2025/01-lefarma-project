@@ -472,7 +472,10 @@ export default function UsuariosList() {
       header: 'Organización',
       cell: ({ row }) => {
         const empresa = empresas.find(e => e.idEmpresa === row.original.detalle?.idEmpresa);
-        const area = areas.find(a => a.idArea === row.original.detalle?.idArea);
+        // El área (departamento) oficial viene de Asistencias.dbo.vwEmpleados; el
+        // catálogo de áreas de CxP solo se usa como respaldo.
+        const areaCatalogo = areas.find(a => a.idArea === row.original.detalle?.idArea);
+        const area = row.original.areaEmpleado?.trim() || areaCatalogo?.nombre;
         return (
           <div className="flex flex-col gap-1">
             {empresa && (
@@ -484,7 +487,7 @@ export default function UsuariosList() {
             {area && (
               <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                 <Briefcase className="h-3 w-3 shrink-0" />
-                <span>{area.nombre}</span>
+                <span>{area}</span>
               </div>
             )}
           </div>
@@ -492,19 +495,14 @@ export default function UsuariosList() {
       },
     },
     {
-      id: 'roles',
-      header: 'Roles',
+      // El puesto oficial del empleado (Asistencias.dbo.vwEmpleados) sustituye al
+      // rol en el listado: los roles se siguen asignando desde el modal de edición.
+      id: 'puesto',
+      header: 'Puesto',
       cell: ({ row }) => (
-        <div className="flex flex-wrap gap-1">
-          {row.original.roles?.map((r, i) => (
-            <Badge key={i} variant="outline" className="text-[10px] py-0 px-1.5">
-              {r.nombreRol}
-            </Badge>
-          ))}
-          {(!row.original.roles || row.original.roles.length === 0) && (
-            <span className="text-xs text-muted-foreground">-</span>
-          )}
-        </div>
+        <span className="text-xs font-medium">
+          {row.original.puestoEmpleado?.trim() || '-'}
+        </span>
       ),
     },
     {

@@ -50,6 +50,10 @@ export interface Usuario {
   esRobot: boolean;
   fechaCreacion: string;
   ultimoLogin?: string;
+  /** Puesto oficial del empleado, desde Asistencias.dbo.vwEmpleados. */
+  puestoEmpleado?: string | null;
+  /** Área (departamento) oficial del empleado, desde Asistencias.dbo.vwEmpleados. */
+  areaEmpleado?: string | null;
   roles: Rol[];
   permisosDirectos: Permiso[];
   detalle?: UsuarioDetalle;

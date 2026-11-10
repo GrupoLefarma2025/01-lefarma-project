@@ -1,6 +1,6 @@
 import React from 'react';
 import type { OrdenCompraResponse } from '@/types/ordenCompra.types';
-import { datosSolicitanteDocumento } from '@/utils/datosSolicitanteDocumento';
+import { areaDocumento, datosSolicitanteDocumento } from '@/utils/datosSolicitanteDocumento';
 import logoImage from '@/assets/logo_concentrado.png?no-inline';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -77,7 +77,7 @@ function getGroupKey(orden: OrdenCompraResponse, agrupacion: AgrupacionKey): str
     case 'empresa':
       return orden.empresaNombre ?? `Empresa ${orden.idEmpresa}`;
     case 'area':
-      return orden.areaNombre ?? `Área ${orden.idArea}`;
+      return areaDocumento(orden);
     case 'proveedor':
       return orden.razonSocialProveedor ?? (orden.idProveedor ? `Proveedor ${orden.idProveedor}` : 'Sin proveedor');
   }
