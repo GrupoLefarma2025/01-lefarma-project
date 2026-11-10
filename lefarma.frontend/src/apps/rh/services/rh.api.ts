@@ -1,6 +1,7 @@
 import { API } from '@/shared/api/apiClient';
 import type { ApiResponse } from '@/types/api.types';
 import type {
+  AutorizacionesIncidenciasResponse,
   CalendarioGlobalEvento,
   CalendarioGlobalRequest,
   CalendarioLaboralRequest,
@@ -129,6 +130,15 @@ export const solicitudesPersonalApi = {
     API.get<ApiResponse<SolicitudPersonalResponse>>(`/solicitudes-personal/${id}`),
 };
 
+/** Incidencias que el jefe autenticado autorizó en un mes (por fecha de su firma). */
+export const autorizacionesIncidenciasApi = {
+  get: (params: { anio: number; mes: number }) =>
+    API.get<ApiResponse<AutorizacionesIncidenciasResponse>>(
+      '/solicitudes-personal/autorizaciones-incidencias',
+      { params }
+    ),
+};
+
 export const tipoSolicitudApi = {
   getAll: (query: TipoSolicitudRequest) =>
     API.get<ApiResponse<TipoSolicitudResponse[]>>(TIPOS_SOLICITUD_ENDPOINT, { params: query }),
@@ -217,6 +227,7 @@ export default {
   empleadoApi,
   incidenciaChecadoConfigApi,
   solicitudesPersonalApi,
+  autorizacionesIncidenciasApi,
   tipoSolicitudApi,
   usuariosCatalogoApi,
   empleadoJefesConfigApi,

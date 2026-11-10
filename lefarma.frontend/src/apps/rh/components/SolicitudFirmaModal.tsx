@@ -22,11 +22,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Loader2, CheckCircle2, AlertCircle, Paperclip } from 'lucide-react';
+import { Loader2, CheckCircle2, AlertCircle, Paperclip, CalendarCheck2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { FileUploader } from '@/components/archivos/FileUploader';
 import type { Archivo, ArchivoListItem } from '@/types/archivo.types';
 import { archivoService } from '@/services/archivoService';
+import { autorizacionesIncidenciasApi } from '../services/rh.api';
+import { periodoLabel } from '../utils/periodos';
 import { API } from '@/shared/api/apiClient';
 import type { ApiResponse } from '@/types/api.types';
 import type {
@@ -164,9 +166,46 @@ export function SolicitudFirmaModal({
   const [archivosExistentes, setArchivosExistentes] = useState<ArchivoListItem[]>([]);
   const [revisiones, setRevisiones] = useState<Record<string, boolean>>({});
   const [confirmDiscard, setConfirmDiscard] = useState(false);
+  const [incidenciasAutorizadasMes, setIncidenciasAutorizadasMes] = useState<number | null>(null);
   const initialCamposRef = useRef<Record<string, unknown>>({});
 
   const camposParaAccion = useMemo(() => getCamposParaAccion(accion), [accion]);
+
+  // Aviso de solo lectura para el jefe: cuántas incidencias tiene su gente en el mes de la
+  // incidencia que está autorizando. Solo se consulta cuando la acción es AUTORIZAR sobre
+  // una incidencia; no ejecuta nada.
+  const periodoConteo = useMemo(() => {
+    const fecha = solicitud.fechaInicio ? new Date(solicitud.fechaInicio) : null;
+    if (fecha && !Number.isNaN(fecha.getTime())) {
+      return { anio: fecha.getFullYear(), mes: fecha.getMonth() + 1 };
+    }
+    const hoy = new Date();
+    return { anio: hoy.getFullYear(), mes: hoy.getMonth() + 1 };
+  }, [solicitud.fechaInicio]);
+  const mostrarConteoMes =
+    open && accion?.tipoAccionCodigo === 'AUTORIZAR' && solicitud.categoria === '1';
+
+  useEffect(() => {
+    if (!mostrarConteoMes) {
+      setIncidenciasAutorizadasMes(null);
+      return;
+    }
+
+    let cancelado = false;
+    autorizacionesIncidenciasApi
+      .get({ anio: periodoConteo.anio, mes: periodoConteo.mes })
+      .then((res) => {
+        if (cancelado) return;
+        setIncidenciasAutorizadasMes(res.data?.success ? (res.data.data?.total ?? 0) : null);
+      })
+      .catch(() => {
+        if (!cancelado) setIncidenciasAutorizadasMes(null);
+      });
+
+    return () => {
+      cancelado = true;
+    };
+  }, [mostrarConteoMes, periodoConteo, solicitud.idSolicitud]);
 
   const isDirty = useMemo(() => {
     if (comentario.trim()) return true;
@@ -433,6 +472,18 @@ export function SolicitudFirmaModal({
             </p>
           )}
         </div>
+
+        {mostrarConteoMes && incidenciasAutorizadasMes != null && (
+          <div className="flex items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800 dark:border-emerald-900/60 dark:bg-emerald-950/30 dark:text-emerald-200">
+            <CalendarCheck2 className="h-4 w-4 shrink-0" />
+            <span>
+              En {periodoLabel(periodoConteo.anio, periodoConteo.mes)} llevas{' '}
+              <strong>{incidenciasAutorizadasMes}</strong>{' '}
+              {incidenciasAutorizadasMes === 1 ? 'incidencia autorizada' : 'incidencias autorizadas'}{' '}
+              (incluyendo ésta).
+            </span>
+          </div>
+        )}
 
         {camposParaAccion.length > 0 && (
           <div className="space-y-3">

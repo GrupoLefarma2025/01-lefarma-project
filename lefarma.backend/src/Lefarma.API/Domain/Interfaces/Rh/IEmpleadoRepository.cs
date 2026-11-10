@@ -21,6 +21,14 @@ public interface IEmpleadoRepository
         IEnumerable<long> nominas,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Nóminas de los empleados que reportan a la nómina indicada en cualquiera de los
+    /// niveles de jefe (vwEmpleadosYJefes de Asistencias).
+    /// </summary>
+    Task<List<long>> ObtenerNominasSubordinadosAsync(
+        long nomina,
+        CancellationToken cancellationToken = default);
+
     Task<List<int>> ResolverIdsUsuarioPorFiltroEmpleadoAsync(
         string? nombre,
         string? empresa,

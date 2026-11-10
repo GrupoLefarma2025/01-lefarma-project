@@ -512,3 +512,36 @@ export interface CreateIncidenciaChecadoConfigRequest {
 export interface UpdateIncidenciaChecadoConfigRequest extends CreateIncidenciaChecadoConfigRequest {
   idConfig: number;
 }
+
+/**
+ * Incidencias (solicitudes de cualquier categoría) de los subordinados del usuario cuyo
+ * día cae en el mes indicado. Se cuentan por el día de la incidencia (no por el día de
+ * la firma) y se excluyen las canceladas y rechazadas.
+ */
+export interface AutorizacionesIncidenciasResponse {
+  anio: number;
+  mes: number;
+  total: number;
+  porEmpleado: AutorizacionIncidenciaPorEmpleado[];
+  detalle: AutorizacionIncidenciaDetalle[];
+}
+
+export interface AutorizacionIncidenciaPorEmpleado {
+  idUsuario: number;
+  nombre: string;
+  total: number;
+}
+
+export interface AutorizacionIncidenciaDetalle {
+  idSolicitud: number;
+  folio: string;
+  idUsuarioSolicitante: number;
+  empleadoNombre: string;
+  tipoSolicitud: string;
+  motivo?: string | null;
+  /** Fecha del día justificado (el eje del conteo). */
+  fechaIncidencia?: string | null;
+  /** Día en que el jefe firmó la solicitud; nulo si aún no la ha firmado. */
+  fechaAutorizacion?: string | null;
+  estadoNombre?: string | null;
+}

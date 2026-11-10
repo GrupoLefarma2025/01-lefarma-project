@@ -15,6 +15,7 @@ import type {
 import { isEstadoTerminal } from '@/hooks/useSolicitudes';
 import { usePermission } from '@/hooks/usePermission';
 import { IncidenciaJustificarFlow } from './IncidenciaJustificarFlow';
+import { MisAutorizacionesIncidenciasBadge } from './MisAutorizacionesIncidenciasBadge';
 
 function fmtFechaCorta(fecha: string) {
   const d = new Date(fecha);
@@ -86,22 +87,38 @@ export function MisPendientesCard({ refreshKey }: { refreshKey?: number } = {}) 
   return (
     <>
       <Card className="border-0 shadow-sm">
-        <CardHeader className="pb-3">
-          <div className="flex items-start justify-between gap-2">
-            <div className="min-w-0 space-y-2">
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <AlertTriangle className="h-5 w-5 text-primary" />
+        <CardHeader className="px-4 py-2.5">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+              <CardTitle className="flex shrink-0 items-center gap-1.5 text-sm font-semibold">
+                <AlertTriangle className="h-4 w-4 text-primary" />
                 Mis pendientes
               </CardTitle>
-              <p className="text-xs text-muted-foreground">Incidencias de {periodoIncidencia}</p>
+              <span className="text-xs text-muted-foreground">
+                Incidencias de {periodoIncidencia}
+              </span>
 
-              {!loading && !sinPendientes && (
-                <div className="flex flex-wrap items-center gap-2">
+              <MisAutorizacionesIncidenciasBadge refreshKey={refreshKey} />
+
+              {loading ? null : sinPendientes ? (
+                checaDeshabilitado ? (
+                  <span className="inline-flex items-center gap-1 text-xs text-slate-600 dark:text-slate-400">
+                    <Info className="h-3 w-3 shrink-0" />
+                    Checado deshabilitado
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 text-xs text-emerald-700 dark:text-emerald-400">
+                    <CheckCircle2 className="h-3 w-3 shrink-0" />
+                    Sin pendientes por ahora
+                  </span>
+                )
+              ) : (
+                <>
                   {pendientes.length > 0 && (
                     <button
                       type="button"
                       onClick={() => setCollapsed(false)}
-                      className="inline-flex items-center rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-800 transition-colors hover:bg-red-200"
+                      className="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800 transition-colors hover:bg-red-200"
                     >
                       {pendientes.length}{' '}
                       {pendientes.length === 1
@@ -113,7 +130,7 @@ export function MisPendientesCard({ refreshKey }: { refreshKey?: number } = {}) 
                     <button
                       type="button"
                       onClick={() => setCollapsed(false)}
-                      className="inline-flex items-center rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-800 transition-colors hover:bg-blue-200"
+                      className="inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800 transition-colors hover:bg-blue-200"
                     >
                       {solicitudesEnTramite.length}{' '}
                       {solicitudesEnTramite.length === 1
@@ -121,7 +138,7 @@ export function MisPendientesCard({ refreshKey }: { refreshKey?: number } = {}) 
                         : 'solicitudes en trámite'}
                     </button>
                   )}
-                </div>
+                </>
               )}
             </div>
 
@@ -131,7 +148,7 @@ export function MisPendientesCard({ refreshKey }: { refreshKey?: number } = {}) 
                 onClick={() => setCollapsed((prev) => !prev)}
                 aria-expanded={!collapsed}
                 aria-label={collapsed ? 'Expandir pendientes' : 'Colapsar pendientes'}
-                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
               >
                 {collapsed ? (
                   <ChevronDown className="h-4 w-4" />
@@ -144,26 +161,11 @@ export function MisPendientesCard({ refreshKey }: { refreshKey?: number } = {}) 
         </CardHeader>
 
         {loading ? (
-          <CardContent className="space-y-2 pt-0">
-            <Skeleton className="h-5 w-56" />
-            <Skeleton className="h-12 w-full" />
-          </CardContent>
-        ) : sinPendientes ? (
-          <CardContent className="pt-0">
-            {checaDeshabilitado ? (
-              <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50/60 px-3 py-2 text-sm text-slate-700 dark:border-slate-800 dark:bg-slate-950/30 dark:text-slate-300">
-                <Info className="h-4 w-4 shrink-0" />
-                No se muestran incidencias porque tu registro de checado está deshabilitado.
-              </div>
-            ) : (
-              <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50/60 px-3 py-2 text-sm text-emerald-800 dark:border-emerald-900/60 dark:bg-emerald-950/30 dark:text-emerald-200">
-                <CheckCircle2 className="h-4 w-4 shrink-0" />
-                No tienes pendientes por ahora.
-              </div>
-            )}
+          <CardContent className="px-4 pb-3 pt-0">
+            <Skeleton className="h-4 w-full max-w-md" />
           </CardContent>
         ) : mostrarDetalle ? (
-          <CardContent className="space-y-4 pt-0">
+          <CardContent className="space-y-3 px-4 pb-4 pt-0">
             {checaDeshabilitado && pendientes.length === 0 && (
               <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50/60 px-3 py-2 text-xs text-slate-700 dark:border-slate-800 dark:bg-slate-950/30 dark:text-slate-300">
                 <Info className="h-3.5 w-3.5 shrink-0" />

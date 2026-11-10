@@ -2,6 +2,7 @@ using System.Reflection;
 using ErrorOr;
 using FluentAssertions;
 using Lefarma.API.Domain.Entities.Asistencias;
+using Lefarma.API.Domain.Entities.Auth;
 using Lefarma.API.Domain.Entities.Catalogos;
 using Lefarma.API.Domain.Entities.Config;
 using Lefarma.API.Domain.Entities.Rh;
@@ -18,6 +19,7 @@ using Lefarma.API.Features.Rh.SolicitudesPersonal.DTOs;
 using Lefarma.API.Features.Rh.SolicitudesPersonal.Settings;
 using Lefarma.API.Infrastructure.Data;
 using Lefarma.API.Infrastructure.Data.Repositories.Rh;
+using Lefarma.API.Shared.Constants;
 using Lefarma.API.Shared.Logging;
 using IncidenciasChecadoEntity = Lefarma.API.Domain.Entities.Asistencias.IncidenciasChecado;
 using Microsoft.EntityFrameworkCore;
@@ -79,7 +81,8 @@ public class SolicitudPersonalServiceTests
         IAdminRepository? adminRepository = null,
         IProfileService? profileService = null,
         ISolicitudPersonalRepository? repository = null,
-        IIncidenciasChecadoRepository? incidenciasRepository = null)
+        IIncidenciasChecadoRepository? incidenciasRepository = null,
+        AsokamDbContext? asokamContext = null)
     {
         return new SolicitudPersonalService(
             adminRepository ?? Mock.Of<IAdminRepository>(),
@@ -87,7 +90,7 @@ public class SolicitudPersonalServiceTests
             tipoRepository ?? Mock.Of<ITipoSolicitudRepository>(),
             workflowResolver ?? Mock.Of<IWorkflowResolver>(),
             context,
-            CreateAsokamInMemoryContext(),
+            asokamContext ?? CreateAsokamInMemoryContext(),
             Mock.Of<IJefeInmediatoResolver>(),
             firmasService ?? Mock.Of<ISolicitudPersonalFirmasService>(),
             empleadoRepository ?? Mock.Of<IEmpleadoRepository>(),
@@ -1362,5 +1365,221 @@ public class SolicitudPersonalServiceTests
 
         result.IsError.Should().BeFalse();
         result.Value.Items.Should().ContainSingle(i => i.Folio == "SOL-PENDIENTE");
+    }
+
+    // ── Incidencias de los subordinados por mes (Dashboard RH) ────────────────
+
+    private static AsokamDbContext SeedUsuariosAsokam(params (int Id, string Nombre)[] usuarios)
+    {
+        var asokam = CreateAsokamInMemoryContext();
+        foreach (var (id, nombre) in usuarios)
+        {
+            asokam.Usuarios.Add(new Usuario { IdUsuario = id, NombreCompleto = nombre, EsActivo = true });
+        }
+        asokam.SaveChanges();
+        return asokam;
+    }
+
+    private static WorkflowBitacora EventoBitacora(
+        int idEvento, int idUsuario, int idAccion, int idEntidad, DateTime fecha, string? snapshot = null) => new()
+        {
+            IdEvento = idEvento,
+            IdWorkflow = 10,
+            IdPaso = 97,
+            IdAccion = idAccion,
+            IdUsuario = idUsuario,
+            TipoEntidad = CodigoProceso.SOLICITUD_PERSONAL,
+            IdEntidad = idEntidad,
+            FechaEvento = fecha,
+            DatosSnapshot = snapshot,
+        };
+
+    private static SolicitudPersonal SolicitudDelDia(
+        int id, string folio, int idTipo, int idSolicitante, int idEstado, DateTime dia) => new()
+        {
+            IdSolicitud = id,
+            Folio = folio,
+            IdEmpresa = 1,
+            IdSucursal = 1,
+            IdUsuarioCreador = idSolicitante,
+            IdUsuarioSolicitante = idSolicitante,
+            IdEstado = idEstado,
+            IdWorkflow = 10,
+            IdTipoSolicitud = idTipo,
+            FechaCreacion = dia,
+            FechaInicio = dia,
+        };
+
+    /// <summary>
+    /// El usuario 5 es jefe (nómina 500) de dos subordinados: 11 (nómina 501) y 12 (nómina 502).
+    /// </summary>
+    private static Mock<IEmpleadoRepository> MockEmpleadosConSubordinados()
+    {
+        var empleados = new Mock<IEmpleadoRepository>();
+        empleados
+            .Setup(r => r.ResolverNominaPorUsuarioAsync(5, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(500L);
+        empleados
+            .Setup(r => r.ObtenerNominasSubordinadosAsync(500L, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<long> { 501, 502 });
+        empleados
+            .Setup(r => r.ResolverIdsUsuarioPorNominasAsync(It.IsAny<IEnumerable<long>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Dictionary<long, int> { [501] = 11, [502] = 12 });
+        return empleados;
+    }
+
+    /// <summary>
+    /// Escenario del mes de referencia: dos solicitudes de subordinados con día en el mes
+    /// (una cerrada y una en revisión), una de otro mes y dos cancelada/rechazada que no
+    /// deben contar.
+    /// </summary>
+    private static void SeedIncidenciasDeSubordinados(ApplicationDbContext context, DateTime mesBase)
+    {
+        SeedCatalogosDeSolicitud(context); // tipo 1 = Permiso
+
+        context.TiposSolicitud.Add(new TipoSolicitud
+        {
+            IdTipoSolicitud = 2,
+            Nombre = "Retardo menor a 20 minutos",
+            Descripcion = "Retardo menor a 20 minutos",
+            Clave = "RETARDO_MENOR_20",
+            Categoria = CategoriaSolicitud.Incidencia,
+            Activo = true,
+        });
+
+        context.WorkflowEstados.AddRange(
+            new WorkflowEstados { IdEstado = 7, Codigo = "CERRADA", Nombre = "Cerrada", Activo = true },
+            new WorkflowEstados { IdEstado = 2, Codigo = "REVISION", Nombre = "Revisión", Activo = true },
+            new WorkflowEstados { IdEstado = 9, Codigo = "CANCELADA", Nombre = "Cancelada", Activo = true },
+            new WorkflowEstados { IdEstado = 8, Codigo = "RECHAZADA", Nombre = "Rechazada", Activo = true });
+
+        context.WorkflowTiposAccion.Add(new WorkflowTipoAccion
+        {
+            IdTipoAccion = 1, Codigo = "AUTORIZAR", Nombre = "Autorizar", Activo = true,
+            CodigoProceso = CodigoProceso.SOLICITUD_PERSONAL
+        });
+        context.WorkflowAcciones.Add(new WorkflowAccion
+        { IdAccion = 100, IdPasoOrigen = 96, IdPasoDestino = 97, IdTipoAccion = 1, Activo = true });
+
+        var inicio = new DateTime(mesBase.Year, mesBase.Month, 1);
+
+        context.SolicitudesPersonal.AddRange(
+            // Cuentan: día en el mes (una cerrada y una en revisión).
+            SolicitudDelDia(1, "SOL-OK-1", idTipo: 2, idSolicitante: 11, idEstado: 7, inicio.AddDays(2)),
+            SolicitudDelDia(2, "SOL-BORRADOR", idTipo: 1, idSolicitante: 12, idEstado: 2, inicio.AddDays(1)),
+            // No cuentan: día de otro mes.
+            SolicitudDelDia(3, "SOL-OTRO-MES", idTipo: 1, idSolicitante: 11, idEstado: 7, inicio.AddDays(-1)),
+            // No cuentan: cancelada y rechazada.
+            SolicitudDelDia(4, "SOL-CANCELADA", idTipo: 2, idSolicitante: 11, idEstado: 9, inicio.AddDays(4)),
+            SolicitudDelDia(5, "SOL-RECHAZADA", idTipo: 2, idSolicitante: 11, idEstado: 8, inicio.AddDays(5)));
+
+        context.WorkflowBitacoras.AddRange(
+            // Mi firma sobre la solicitud cerrada (la única que firmé).
+            EventoBitacora(1, idUsuario: 5, idAccion: 100, idEntidad: 1, inicio.AddDays(3)),
+            // Firma de otro usuario: no cambia nada.
+            EventoBitacora(2, idUsuario: 9, idAccion: 100, idEntidad: 1, inicio.AddDays(3)),
+            // Fila de paso omitido: no es una firma.
+            EventoBitacora(3, idUsuario: 5, idAccion: 100, idEntidad: 1, inicio.AddDays(3),
+                snapshot: "{\"omisionAutomatica\":true,\"motivo\":\"NivelSinJefe\"}"));
+    }
+
+    [Fact]
+    public async Task ObtenerAutorizacionesIncidenciasAsync_Cuenta_Incidencias_Del_Mes_De_Los_Subordinados()
+    {
+        var context = CreateInMemoryContext();
+        var mes = new DateTime(2026, 11, 1);
+        SeedIncidenciasDeSubordinados(context, mes);
+        context.SaveChanges();
+
+        var service = CreateService(
+            context,
+            asokamContext: SeedUsuariosAsokam((11, "Ana Subordinada"), (12, "Beto Subordinado")),
+            empleadoRepository: MockEmpleadosConSubordinados().Object);
+
+        var result = await service.ObtenerAutorizacionesIncidenciasAsync(idUsuario: 5, anio: mes.Year, mes: mes.Month);
+
+        result.IsError.Should().BeFalse();
+        result.Value.Anio.Should().Be(mes.Year);
+        result.Value.Mes.Should().Be(mes.Month);
+        result.Value.Total.Should().Be(2);
+        result.Value.Detalle.Select(d => d.Folio).Should().BeEquivalentTo(new[] { "SOL-OK-1", "SOL-BORRADOR" });
+        result.Value.Detalle.Should().OnlyContain(d => d.FechaIncidencia!.Value.Month == mes.Month);
+        result.Value.Detalle.Should().Contain(d => d.EmpleadoNombre == "Ana Subordinada");
+        result.Value.Detalle.Should().Contain(d => d.EmpleadoNombre == "Beto Subordinado");
+        result.Value.PorEmpleado.Should().HaveCount(2);
+        result.Value.PorEmpleado.Should().ContainSingle(p => p.IdUsuario == 11 && p.Nombre == "Ana Subordinada" && p.Total == 1);
+        result.Value.PorEmpleado.Should().ContainSingle(p => p.IdUsuario == 12 && p.Nombre == "Beto Subordinado" && p.Total == 1);
+    }
+
+    [Fact]
+    public async Task ObtenerAutorizacionesIncidenciasAsync_Incluye_Mi_Firma_Cuando_La_He_Firmado()
+    {
+        var context = CreateInMemoryContext();
+        var mes = new DateTime(2026, 11, 1);
+        SeedIncidenciasDeSubordinados(context, mes);
+        context.SaveChanges();
+
+        var service = CreateService(
+            context,
+            asokamContext: SeedUsuariosAsokam((11, "Ana Subordinada"), (12, "Beto Subordinado")),
+            empleadoRepository: MockEmpleadosConSubordinados().Object);
+
+        var result = await service.ObtenerAutorizacionesIncidenciasAsync(idUsuario: 5, anio: mes.Year, mes: mes.Month);
+
+        result.IsError.Should().BeFalse();
+        var firmada = result.Value.Detalle.Single(d => d.Folio == "SOL-OK-1");
+        firmada.FechaAutorizacion.Should().Be(new DateTime(mes.Year, mes.Month, 4, 0, 0, 0));
+        firmada.EstadoNombre.Should().Be("Cerrada");
+        var pendiente = result.Value.Detalle.Single(d => d.Folio == "SOL-BORRADOR");
+        pendiente.FechaAutorizacion.Should().BeNull();
+        pendiente.EstadoNombre.Should().Be("Revisión");
+    }
+
+    [Fact]
+    public async Task ObtenerAutorizacionesIncidenciasAsync_Sin_Subordinados_Devuelve_Cero()
+    {
+        var context = CreateInMemoryContext();
+        var mes = new DateTime(2026, 11, 1);
+        SeedIncidenciasDeSubordinados(context, mes);
+        context.SaveChanges();
+
+        var empleados = new Mock<IEmpleadoRepository>();
+        empleados
+            .Setup(r => r.ResolverNominaPorUsuarioAsync(5, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(500L);
+        empleados
+            .Setup(r => r.ObtenerNominasSubordinadosAsync(500L, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<long>());
+
+        var service = CreateService(context, empleadoRepository: empleados.Object);
+
+        var result = await service.ObtenerAutorizacionesIncidenciasAsync(idUsuario: 5, anio: mes.Year, mes: mes.Month);
+
+        result.IsError.Should().BeFalse();
+        result.Value.Total.Should().Be(0);
+        result.Value.PorEmpleado.Should().BeEmpty();
+        result.Value.Detalle.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task ObtenerAutorizacionesIncidenciasAsync_Sin_Nomina_Devuelve_Cero()
+    {
+        var context = CreateInMemoryContext();
+        var mes = new DateTime(2026, 11, 1);
+        SeedIncidenciasDeSubordinados(context, mes);
+        context.SaveChanges();
+
+        var empleados = new Mock<IEmpleadoRepository>();
+        empleados
+            .Setup(r => r.ResolverNominaPorUsuarioAsync(5, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((long?)null);
+
+        var service = CreateService(context, empleadoRepository: empleados.Object);
+
+        var result = await service.ObtenerAutorizacionesIncidenciasAsync(idUsuario: 5, anio: mes.Year, mes: mes.Month);
+
+        result.IsError.Should().BeFalse();
+        result.Value.Total.Should().Be(0);
+        result.Value.Detalle.Should().BeEmpty();
     }
 }

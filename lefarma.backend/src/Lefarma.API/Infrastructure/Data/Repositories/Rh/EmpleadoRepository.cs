@@ -125,6 +125,24 @@ public class EmpleadoRepository : IEmpleadoRepository
         return resultado;
     }
 
+    public async Task<List<long>> ObtenerNominasSubordinadosAsync(
+        long nomina,
+        CancellationToken cancellationToken = default)
+    {
+        return await _asistenciasContext.VwEmpleadosYJefes
+            .AsNoTracking()
+            .Where(v => v.Nomina != null
+                        && v.Nomina != nomina
+                        && (v.NominaJefe == nomina
+                            || v.NominaJefe2 == nomina
+                            || v.NominaJefe3 == nomina
+                            || v.NominaJefe4 == nomina
+                            || v.NominaJefe5 == nomina))
+            .Select(v => v.Nomina!.Value)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task<List<int>> ResolverIdsUsuarioPorFiltroEmpleadoAsync(
         string? nombre,
         string? empresa,
