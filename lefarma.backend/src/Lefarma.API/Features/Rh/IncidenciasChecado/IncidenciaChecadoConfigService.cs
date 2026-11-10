@@ -295,20 +295,20 @@ public class IncidenciaChecadoConfigService : IIncidenciaChecadoConfigService
                 return item.ChecoEntrada &&
                        item.Entrada.HasValue &&
                        item.Entro.HasValue &&
-                       MinutosEnRango((int)(item.Entro.Value - item.Entrada.Value).TotalMinutes, regla.MinutosMin, regla.MinutosMax);
+                       MinutosEnRango(MinutosDeReloj(item.Entrada.Value, item.Entro.Value), regla.MinutosMin, regla.MinutosMax);
 
             case "TARDANZA_SALIDA":
                 return item.ChecoSalida &&
                        item.Salida.HasValue &&
                        item.Salio.HasValue &&
-                       MinutosEnRango((int)(item.Salio.Value - item.Salida.Value).TotalMinutes, regla.MinutosMin, regla.MinutosMax);
+                       MinutosEnRango(MinutosDeReloj(item.Salida.Value, item.Salio.Value), regla.MinutosMin, regla.MinutosMax);
 
             case "SALIDA_ANTICIPADA":
                 return item.ChecoSalida &&
                        item.Salida.HasValue &&
                        item.Salio.HasValue &&
-                       item.Salio.Value < item.Salida.Value &&
-                       MinutosEnRango((int)(item.Salida.Value - item.Salio.Value).TotalMinutes, regla.MinutosMin, regla.MinutosMax);
+                       TruncarAMinuto(item.Salio.Value) < TruncarAMinuto(item.Salida.Value) &&
+                       MinutosEnRango(MinutosDeReloj(item.Salio.Value, item.Salida.Value), regla.MinutosMin, regla.MinutosMax);
 
             case "OMISION_ENTRADA":
                 return regla.RegistroEntrada &&
@@ -335,6 +335,20 @@ public class IncidenciaChecadoConfigService : IIncidenciaChecadoConfigService
             return false;
         return true;
     }
+
+    /// <summary>
+    /// Minutos entre dos horas contando los límites de minuto, igual que
+    /// DATEDIFF(MINUTE, ...) del resumen SQL (045_sp_incidencias_checado_resumen...)
+    /// y que la notificación (que arma las horas en formato hh:mm).
+    /// Ej.: 18:10:57 → 18:30:00 son 20 minutos, no 19. Con el truncamiento anterior
+    /// ((int)TotalMinutes) el calendario descartaba los días límite que la
+    /// notificación y el reporte sí contaban, y el día no aparecía en el calendario.
+    /// </summary>
+    private static int MinutosDeReloj(TimeSpan desde, TimeSpan hasta) =>
+        (int)(TruncarAMinuto(hasta) - TruncarAMinuto(desde)).TotalMinutes;
+
+    private static TimeSpan TruncarAMinuto(TimeSpan valor) =>
+        new(valor.Hours, valor.Minutes, 0);
 
     private static TimeSpan? ParseTimeSpan(string? valor)
     {
