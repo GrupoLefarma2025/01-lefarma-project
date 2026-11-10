@@ -95,9 +95,39 @@ public class WorkflowService : BaseService, IWorkflowService
             {
                 var workflows = await _repo.GetQueryable()
                     .Where(w => w.Activo)
-                    .Include(w => w.Pasos)
+                    .Include(w => w.Pasos).ThenInclude(p => p.Participantes)
                     .OrderBy(w => w.Nombre)
                     .ToListAsync();
+
+                var participantes = workflows
+                    .SelectMany(w => w.Pasos)
+                    .SelectMany(p => p.Participantes)
+                    .Where(p => p.Activo)
+                    .ToList();
+
+                var idsUsuarios = participantes
+                    .Where(p => p.IdUsuario.HasValue)
+                    .Select(p => p.IdUsuario!.Value)
+                    .Distinct()
+                    .ToList();
+                var idsRoles = participantes
+                    .Where(p => p.IdRol.HasValue)
+                    .Select(p => p.IdRol!.Value)
+                    .Distinct()
+                    .ToList();
+
+                var nombresUsuarios = idsUsuarios.Count > 0
+                    ? await _asokamContext.Usuarios.AsNoTracking()
+                        .Where(u => idsUsuarios.Contains(u.IdUsuario))
+                        .Select(u => new { u.IdUsuario, u.NombreCompleto })
+                        .ToDictionaryAsync(u => u.IdUsuario, u => u.NombreCompleto)
+                    : new Dictionary<int, string?>();
+                var nombresRoles = idsRoles.Count > 0
+                    ? await _asokamContext.Roles.AsNoTracking()
+                        .Where(r => idsRoles.Contains(r.IdRol))
+                        .Select(r => new { r.IdRol, r.NombreRol })
+                        .ToDictionaryAsync(r => r.IdRol, r => r.NombreRol)
+                    : new Dictionary<int, string>();
 
                 var response = workflows.Select(w => new WorkflowFlowResponse
                 {
@@ -123,7 +153,24 @@ public class WorkflowService : BaseService, IWorkflowService
                             RequiereComentario = p.RequiereComentario,
                             RequiereAdjunto = p.RequiereAdjunto,
                             PermiteAdjunto = p.PermiteAdjunto,
-                            PermiteEditar = p.PermiteEditar
+                            PermiteEditar = p.PermiteEditar,
+                            Participantes = p.Participantes
+                                .Where(pa => pa.Activo)
+                                .Select(pa => new WorkflowPasoParticipanteFlowResponse
+                                {
+                                    IdUsuario = pa.IdUsuario,
+                                    IdRol = pa.IdRol,
+                                    NombreUsuario = pa.IdUsuario.HasValue &&
+                                        nombresUsuarios.TryGetValue(pa.IdUsuario.Value, out var nombreUsuario)
+                                            ? nombreUsuario
+                                            : null,
+                                    NombreRol = pa.IdRol.HasValue &&
+                                        nombresRoles.TryGetValue(pa.IdRol.Value, out var nombreRol)
+                                            ? nombreRol
+                                            : null,
+                                    RequiereJefeInmediato = pa.RequiereJefeInmediato,
+                                    NivelJefe = pa.NivelJefe
+                                }).ToList()
                         }).ToList()
                 }).ToList();
 

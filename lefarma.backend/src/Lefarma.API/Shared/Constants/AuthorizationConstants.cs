@@ -22,6 +22,9 @@ public static class Permissions
         public const string Delete = "ordenes.delete";
         public const string Approve = "ordenes.approve";
         public const string CambiarEmpresa = "orden_compra.puede_cambiar_empresa";
+        public const string VerTodas = "orden_compra.puede_ver_todas_las_ordenes";
+        public const string VerPorEmpresa = "orden_compra.puede_ver_por_empresa";
+        public const string VerPorFlujo = "orden_compra.puede_ver_por_flujo";
     }
 
     public static class Usuarios
@@ -62,6 +65,19 @@ public static class Permissions
     {
         public const string View = "workflows.view";
         public const string Manage = "workflows.manage";
+    }
+
+    /// <summary>
+    /// Módulo Configuración: variables globales, bitácora y API keys de integraciones.
+    /// </summary>
+    public static class Configuracion
+    {
+        public const string View = "configuracion.view";
+        public const string Create = "configuracion.create";
+        public const string Update = "configuracion.update";
+        public const string History = "configuracion.history";
+        public const string Restore = "configuracion.restore";
+        public const string ApiKeys = "configuracion.api_keys";
     }
 
     public static class Proveedores

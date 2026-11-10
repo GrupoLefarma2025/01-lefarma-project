@@ -4,6 +4,7 @@ using Lefarma.API.Domain.Interfaces;
 using Lefarma.API.Features.Archivos.Settings;
 using Lefarma.API.Features.Firmas.DTOs;
 using Lefarma.API.Features.Notifications.DTOs;
+using Lefarma.API.Features.OrdenesCompra.Visibilidad;
 using Lefarma.API.Infrastructure.Data;
 using Lefarma.API.Infrastructure.Files;
 using Lefarma.API.Shared.Constants;
@@ -30,6 +31,7 @@ public class FirmasService : BaseService, IFirmasService
     private readonly INotificationService _notificationService;
     private readonly IOptions<ArchivosSettings> _archivosSettings;
     private readonly IFileCipher _cipher;
+    private readonly IOrdenCompraVisibilidadService _visibilidadOrdenCompra;
     protected override string EntityName => "Firmas";
 
     public FirmasService(
@@ -38,6 +40,7 @@ public class FirmasService : BaseService, IFirmasService
         INotificationService notificationService,
         IOptions<ArchivosSettings> archivosSettings,
         IFileCipher cipher,
+        IOrdenCompraVisibilidadService visibilidadOrdenCompra,
         IWideEventAccessor wideEventAccessor)
         : base(wideEventAccessor)
     {
@@ -46,6 +49,7 @@ public class FirmasService : BaseService, IFirmasService
         _notificationService = notificationService;
         _archivosSettings = archivosSettings;
         _cipher = cipher;
+        _visibilidadOrdenCompra = visibilidadOrdenCompra;
     }
 
     private string FirmasDir => Path.Combine(_archivosSettings.Value.PrivatePath, "firmas");
@@ -54,6 +58,11 @@ public class FirmasService : BaseService, IFirmasService
     // Nombre lógico válido: "firmas|ine/{userId}_{yyyyMMddHHmmss}.{ext}" (sin traversal).
     private static readonly Regex LogicalNameRegex = new(
         @"^(?<dir>firmas|ine)/(?<file>\d+_\d{14}\.(?:png|jpg|jpeg|pdf))$",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    // Firma legacy CxP: "firmas_usuarios/{archivo}.{png|jpg|jpeg}" (sin traversal).
+    private static readonly Regex LegacyFirmaRegex = new(
+        @"^firmas_usuarios/(?<file>[A-Za-z0-9_-]+\.(?:png|jpg|jpeg))$",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     private (string Directorio, string Archivo)? SplitLogical(string? logical, string dirEsperada)
@@ -505,6 +514,46 @@ public class FirmasService : BaseService, IFirmasService
     }
 
     /// <summary>
+    /// Firma vigente para el concentrado de órdenes. Prefiere la firma cifrada
+    /// de RH; si no existe o no se puede leer, usa la firma legacy de CxP.
+    /// </summary>
+    public async Task<ErrorOr<ArchivoProtegidoResponse>> GetFirmaVigenteConLegacyAsync(
+        int idUsuario, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var firmas = await _appContext.UsuariosDetalle
+                .AsNoTracking()
+                .Where(d => d.IdUsuario == idUsuario)
+                .Select(d => new { d.FirmaPathCifrada, d.FirmaPath })
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (!string.IsNullOrWhiteSpace(firmas?.FirmaPathCifrada))
+            {
+                var cifrada = await ServirFirmaAsync(
+                    "GetFirmaVigenteConLegacy", idUsuario, firmas.FirmaPathCifrada, cancellationToken);
+                if (!cifrada.IsError)
+                    return cifrada;
+            }
+
+            if (!string.IsNullOrWhiteSpace(firmas?.FirmaPath))
+            {
+                var legacy = await ServirFirmaLegacyAsync(
+                    "GetFirmaVigenteConLegacy", idUsuario, firmas.FirmaPath, cancellationToken);
+                if (!legacy.IsError)
+                    return legacy;
+            }
+
+            return CommonErrors.NotFound("Firma", $"Usuario {idUsuario}");
+        }
+        catch (Exception ex)
+        {
+            EnrichWideEvent(action: "GetFirmaVigenteConLegacy", entityId: idUsuario, exception: ex);
+            return CommonErrors.DatabaseError("obtener la firma vigente");
+        }
+    }
+
+    /// <summary>
     /// Firma usada en un evento de la bitácora del workflow. Autorización estricta:
     /// solo quien puede ver el documento del evento (SP/OC). Si el evento no tiene
     /// firmaArchivo capturado (documentos anteriores a la captura), se sirve la
@@ -540,12 +589,48 @@ public class FirmasService : BaseService, IFirmasService
             }
 
             // Preferir la firma capturada en el evento (Fase 2); si no, la vigente del actor.
+            // OC también puede referenciar la firma legacy de CxP.
             var firmaEvento = ExtraerFirmaArchivo(evento.DatosSnapshot);
             if (!string.IsNullOrWhiteSpace(firmaEvento))
             {
                 var servida = await ServirFirmaAsync("GetFirmaBitacora", evento.IdUsuario, firmaEvento, cancellationToken);
                 if (!servida.IsError)
                     return servida;
+
+                if (evento.TipoEntidad == CodigoProceso.ORDEN_COMPRA)
+                {
+                    var servidaLegacy = await ServirFirmaLegacyAsync(
+                        "GetFirmaBitacora", evento.IdUsuario, firmaEvento, cancellationToken);
+                    if (!servidaLegacy.IsError)
+                        return servidaLegacy;
+                }
+            }
+
+            // Eventos históricos de OC sin referencia capturada: usar la firma vigente
+            // del actor, prefiriendo la cifrada RH y luego la legacy CxP.
+            if (evento.TipoEntidad == CodigoProceso.ORDEN_COMPRA)
+            {
+                var firmas = await _appContext.UsuariosDetalle
+                    .AsNoTracking()
+                    .Where(d => d.IdUsuario == evento.IdUsuario)
+                    .Select(d => new { d.FirmaPathCifrada, d.FirmaPath })
+                    .FirstOrDefaultAsync(cancellationToken);
+
+                if (!string.IsNullOrWhiteSpace(firmas?.FirmaPathCifrada))
+                {
+                    var servida = await ServirFirmaAsync(
+                        "GetFirmaBitacora", evento.IdUsuario, firmas.FirmaPathCifrada, cancellationToken);
+                    if (!servida.IsError)
+                        return servida;
+                }
+
+                if (!string.IsNullOrWhiteSpace(firmas?.FirmaPath))
+                {
+                    var servidaLegacy = await ServirFirmaLegacyAsync(
+                        "GetFirmaBitacora", evento.IdUsuario, firmas.FirmaPath, cancellationToken);
+                    if (!servidaLegacy.IsError)
+                        return servidaLegacy;
+                }
             }
 
             return await GetFirmaVigenteAsync(evento.IdUsuario, cancellationToken);
@@ -637,6 +722,42 @@ public class FirmasService : BaseService, IFirmasService
         return CommonErrors.NotFound("Firma", $"Usuario {idUsuarioObjetivo}");
     }
 
+    /// <summary>
+    /// Sirve la firma legacy de CxP almacenada bajo BasePath/firmas_usuarios.
+    /// Solo acepta la ruta lógica esperada y evita traversal fuera de esa carpeta.
+    /// </summary>
+    private async Task<ErrorOr<ArchivoProtegidoResponse>> ServirFirmaLegacyAsync(
+        string accion, int idUsuarioObjetivo, string? firmaRef, CancellationToken cancellationToken)
+    {
+        var normalizada = firmaRef?.Replace('\\', '/').TrimStart('/');
+        var match = LegacyFirmaRegex.Match(normalizada ?? string.Empty);
+        if (!match.Success)
+        {
+            EnrichWideEvent(action: accion, entityId: idUsuarioObjetivo, notFound: true, additionalContext: Ctx(("archivo", firmaRef)));
+            return CommonErrors.NotFound("Firma", $"Usuario {idUsuarioObjetivo}");
+        }
+
+        var archivo = match.Groups["file"].Value;
+        var raiz = Path.GetFullPath(Path.Combine(_archivosSettings.Value.BasePath, "firmas_usuarios"));
+        var rutaFisica = Path.GetFullPath(Path.Combine(raiz, archivo));
+
+        if (!rutaFisica.StartsWith(raiz + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)
+            || !File.Exists(rutaFisica))
+        {
+            EnrichWideEvent(action: accion, entityId: idUsuarioObjetivo, notFound: true, additionalContext: Ctx(("archivo", firmaRef)));
+            return CommonErrors.NotFound("Firma", $"Usuario {idUsuarioObjetivo}");
+        }
+
+        var bytes = await File.ReadAllBytesAsync(rutaFisica, cancellationToken);
+        EnrichWideEvent(action: accion, entityId: idUsuarioObjetivo, additionalContext: Ctx(("archivo", firmaRef)));
+        return new ArchivoProtegidoResponse
+        {
+            Contenido = bytes,
+            ContentType = ContentTypePorExtension(archivo),
+            NombreArchivo = archivo
+        };
+    }
+
     // Quien puede ver la solicitud: creador, solicitante, participante del flujo o "ver todas".
     private async Task<bool> PuedeVerSolicitudAsync(int idSolicitud, int idUsuario, IReadOnlyCollection<string> permisos, CancellationToken cancellationToken)
     {
@@ -660,27 +781,10 @@ public class FirmasService : BaseService, IFirmasService
                 && b.IdEntidad == idSolicitud && b.IdUsuario == idUsuario, cancellationToken);
     }
 
-    // Quien puede ver la orden: creador, participante del flujo o "ver todas las órdenes".
+    // Quien puede ver la orden: política única de visibilidad (servicio de órdenes de compra).
     private async Task<bool> PuedeVerOrdenAsync(int idOrden, int idUsuario, IReadOnlyCollection<string> permisos, CancellationToken cancellationToken)
     {
-        if (permisos.Contains("orden_compra.puede_ver_todas_las_ordenes"))
-            return true;
-
-        var idCreador = await _appContext.OrdenesCompra
-            .AsNoTracking()
-            .Where(o => o.IdOrden == idOrden)
-            .Select(o => (int?)o.IdUsuarioCreador)
-            .FirstOrDefaultAsync(cancellationToken);
-
-        if (idCreador == null)
-            return false;
-        if (idCreador == idUsuario)
-            return true;
-
-        return await _appContext.WorkflowBitacoras
-            .AsNoTracking()
-            .AnyAsync(b => b.TipoEntidad == CodigoProceso.ORDEN_COMPRA
-                && b.IdEntidad == idOrden && b.IdUsuario == idUsuario, cancellationToken);
+        return await _visibilidadOrdenCompra.PuedeVerAsync(idOrden, idUsuario, cancellationToken);
     }
 
     private static string? ExtraerFirmaArchivo(string? datosSnapshot, string clave = "firmaArchivo")

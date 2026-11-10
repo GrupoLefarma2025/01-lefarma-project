@@ -5,6 +5,7 @@ import {
   resolverLogoEmpresa,
   resolverNombreEmpresaDocumento,
 } from '@/utils/empresaDocumento';
+import { datosSolicitanteDocumento } from '@/utils/datosSolicitanteDocumento';
 
 interface HistorialWorkflowItem {
   idEvento: number;
@@ -422,13 +423,7 @@ export function OrdenCompraPDF({ orden, historial = [], pasosWorkflow = [], prov
       : n.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const _logoSrc = resolverLogoEmpresa(Number(orden.idEmpresa), orden.empresaNombre);
 
-  const esCorreoGrupolefarma = (orden.solicitanteCorreo ?? '')
-    .toLowerCase()
-    .trim()
-    .endsWith('@grupolefarma.com.mx');
-  const nombreSolicitanteMostrar = esCorreoGrupolefarma
-    ? (orden.segundoAutorizador ?? orden.solicitanteNombre ?? '-')
-    : (orden.solicitanteNombre ?? '-');
+  const solicitanteDocumento = datosSolicitanteDocumento(orden);
 
   return (
     <div id="orden-compra-pdf-print" style={s.page}>
@@ -464,13 +459,13 @@ export function OrdenCompraPDF({ orden, historial = [], pasosWorkflow = [], prov
               {orden.sucursalNombre?.toUpperCase() ?? orden.idSucursal ?? '-'}
             </td>
             <td style={s.thBlue}>Área</td>
-            <td style={s.tdValue}>{orden.areaNombre?.toUpperCase() ?? orden.idArea ?? '-'}</td>
+            <td style={s.tdValue}>{solicitanteDocumento.area?.toUpperCase() ?? orden.areaNombre?.toUpperCase() ?? orden.idArea ?? '-'}</td>
           </tr>
           <tr>
             <td style={s.thBlue}>Nombre del solicitante</td>
-            <td style={s.tdValue}>{nombreSolicitanteMostrar}</td>
+            <td style={s.tdValue}>{solicitanteDocumento.nombre}</td>
             <td style={s.thBlue}>Puesto</td>
-            <td style={s.tdValue}>{orden.solicitantePuesto ?? '-'}</td>
+            <td style={s.tdValue}>{solicitanteDocumento.puesto ?? '-'}</td>
             <td style={s.thBlue}>Fecha máxima de pago</td>
             <td style={s.tdValue}>
               {orden.fechaLimitePago ? fmtDate(orden.fechaLimitePago) : '-'}

@@ -1,6 +1,8 @@
 using System.Globalization;
 using System.Text.Json;
+using Lefarma.API.Domain.Entities.Asistencias;
 using Lefarma.API.Domain.Entities.Viaticos;
+using Lefarma.API.Domain.Interfaces.Rh;
 using Lefarma.API.Features.Viaticos.DTOs;
 using Lefarma.API.Infrastructure.Data;
 using Lefarma.API.Shared.Authorization;
@@ -10,6 +12,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Swashbuckle.AspNetCore.Annotations;
 
 namespace Lefarma.API.Features.Viaticos;
@@ -35,11 +38,19 @@ public class AprobacionesController : ControllerBase
 {
     private readonly ApplicationDbContext _context;
     private readonly AsokamDbContext _asokamContext;
+    private readonly IEmpleadoRepository _empleadoRepository;
+    private readonly ILogger<AprobacionesController> _logger;
 
-    public AprobacionesController(ApplicationDbContext context, AsokamDbContext asokamContext)
+    public AprobacionesController(
+        ApplicationDbContext context,
+        AsokamDbContext asokamContext,
+        IEmpleadoRepository empleadoRepository,
+        ILogger<AprobacionesController> logger)
     {
         _context = context;
         _asokamContext = asokamContext;
+        _empleadoRepository = empleadoRepository;
+        _logger = logger;
     }
 
     [HttpGet("solicitudes")]
@@ -104,6 +115,32 @@ public class AprobacionesController : ControllerBase
             })
             .ToListAsync(ct);
 
+        // Total de respaldo para la columna "Costo del viaje": las solicitudes
+        // creadas por el wizard guardan el precio en solicitud_opciones (la
+        // opcion elegida), no en datos_json.$.total. Sin este respaldo el
+        // concentrado imprime "—" aunque el viaje ya tenga precio. Un query
+        // extra por pagina, igual que el directorio: nunca uno por fila.
+        //
+        // El mismo query trae el tipo de cada opcion elegida: es lo que
+        // resuelve "Transporte" (vuelo/autobus/auto) para las solicitudes del
+        // wizard, que tampoco escriben $.avion ni $.autobus en el snapshot.
+        var idsSolicitudes = filas.Select(f => f.IdSolicitud).ToList();
+        var opcionesElegidas = await _context.SolicitudOpciones
+            .AsNoTracking()
+            .Where(o => idsSolicitudes.Contains(o.IdSolicitud) && o.FueElegida)
+            .Select(o => new { o.IdSolicitud, o.Tipo, o.Precio, o.Moneda })
+            .ToListAsync(ct);
+        var totalPorOpciones = opcionesElegidas
+            .GroupBy(o => o.IdSolicitud)
+            .ToDictionary(
+                g => g.Key,
+                g => TotalDeOpcionesElegidas(g.Select(o => (o.Precio, o.Moneda))));
+        var tiposOpcionPorSolicitud = opcionesElegidas
+            .GroupBy(o => o.IdSolicitud)
+            .ToDictionary(
+                g => g.Key,
+                g => g.Select(o => o.Tipo).ToList());
+
         // Un solo query extra al directorio para resolver los nombres de
         // todos los solicitantes de la pagina (evita N+1). Se filtra por
         // EsActivo: un usuario dado de baja no debe exponer su nombre en la
@@ -123,6 +160,29 @@ public class AprobacionesController : ControllerBase
             .Where(u => u.EsActivo && idsSolicitantes.Contains(u.IdUsuario))
             .Select(u => new { u.IdUsuario, u.NombreCompleto })
             .ToDictionaryAsync(u => u.IdUsuario, u => u.NombreCompleto, ct);
+
+        // Puesto y fecha de nacimiento para el formato "Solicitud de avión":
+        // son datos de personal (Asistencias.vwEmpleados), no del snapshot. Se
+        // resuelven en lote para toda la pagina; si el empleado no aparece
+        // (o la persona que viaja no es el solicitante) el documento imprime
+        // "—". Una sola llamada, nunca una por fila.
+        //
+        // Asistencias vive en otro servidor: un dato que solo sirve para
+        // imprimir no puede tumbar la bandeja, asi que un fallo degrada a
+        // "—" y se registra en el log.
+        var empleados = new Dictionary<int, VwEmpleado>();
+        try
+        {
+            empleados = await _empleadoRepository.ObtenerEmpleadosPorUsuariosAsync(
+                idsSolicitantes,
+                ct);
+        }
+        catch (Exception excepcion) when (excepcion is not OperationCanceledException)
+        {
+            _logger.LogWarning(
+                excepcion,
+                "No se pudieron resolver los empleados del directorio de asistencias para la bandeja de viaticos.");
+        }
 
         // El snapshot se parsea UNA vez por fila; cada clave se lee con el
         // mismo lector tolerante (null si falta, no es numerica o el JSON
@@ -156,6 +216,13 @@ public class AprobacionesController : ControllerBase
         {
             var datos = datosPorSolicitud[f.IdSolicitud];
             var (fechaSalida, fechaRegreso) = LeerRangoViajeDesdeJson(datos);
+            var persona = LeerObjeto(datos, "persona");
+            // El puesto y la fecha de nacimiento son del empleado SOLICITANTE:
+            // solo se imprimen cuando la persona que viaja es el/ella misma.
+            var empleado = EsPersonaMia(datos)
+                           && empleados.TryGetValue(f.IdUsuarioSolicitante, out var empleadoSolicitante)
+                ? empleadoSolicitante
+                : null;
             return new SolicitudBandejaDto
             {
                 IdSolicitud = f.IdSolicitud,
@@ -184,7 +251,21 @@ public class AprobacionesController : ControllerBase
                 Hospedaje = LeerConcepto(datos, "hospedaje"),
                 Comida = LeerConcepto(datos, "comida"),
                 Taxi = LeerConcepto(datos, "taxi"),
-                Total = LeerTotalDesdeJson(datos),
+                // El total del snapshot manda (ruta autorizada o cotizacion
+                // importada); si no existe, se usa el de las opciones elegidas.
+                Total = LeerTotalDesdeJson(datos) ?? totalPorOpciones.GetValueOrDefault(f.IdSolicitud),
+                TipoTransporte = ResolverTipoTransporte(
+                    datos,
+                    tiposOpcionPorSolicitud.GetValueOrDefault(f.IdSolicitud)),
+                PersonaNombre = LeerTextoDesdeJson(persona, "nombre"),
+                Motivo = LeerTextoDesdeJson(persona, "motivo"),
+                Puesto = string.IsNullOrWhiteSpace(empleado?.Puesto)
+                    ? null
+                    : empleado.Puesto.Trim(),
+                FechaNacimiento = empleado?.Fechanacimiento?.ToString(
+                    "yyyy-MM-dd",
+                    CultureInfo.InvariantCulture),
+                Trayectos = ComponerTrayectos(datos, fechaSalida, fechaRegreso),
                 FechaCreacion = f.FechaCreacion,
                 FechaModificacion = f.FechaModificacion,
                 Recalculada = f.TieneOpciones || TieneCalculo(datos),
@@ -944,6 +1025,35 @@ public class AprobacionesController : ControllerBase
         => LeerConcepto(snapshot, "total");
 
     /// <summary>
+    /// Total de respaldo cuando el snapshot no trae <c>$.total</c>: suma los
+    /// precios de las opciones <c>fue_elegida</c> de la solicitud. Es la misma
+    /// regla que aplica el detalle del admin (las opciones descartadas nunca
+    /// suman al total). Devuelve <c>null</c> —nunca 0— cuando ninguna elegida
+    /// trae precio o cuando mezclan monedas: una sola cifra en dos monedas
+    /// seria una mentira. Un precio sin moneda se asume MXN, igual que el
+    /// frontend (<c>totalDeOpcionesElegidas</c>).
+    /// </summary>
+    private static decimal? TotalDeOpcionesElegidas(IEnumerable<(decimal? Precio, string? Moneda)> opciones)
+    {
+        var conPrecio = opciones.Where(o => o.Precio.HasValue).ToList();
+        if (conPrecio.Count == 0)
+        {
+            return null;
+        }
+
+        var monedas = conPrecio
+            .Select(o => string.IsNullOrWhiteSpace(o.Moneda) ? "MXN" : o.Moneda!.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        if (monedas.Count > 1)
+        {
+            return null;
+        }
+
+        return conPrecio.Sum(o => o.Precio!.Value);
+    }
+
+    /// <summary>
     /// Extrae una clave de texto del snapshot <c>solicitudes.datos_json</c>
     /// (<c>$.destino</c>, <c>$.origen</c>, <c>$.fecha_salida</c>, ...). Es el
     /// unico lector de strings del snapshot: lo comparten el destino, el origen
@@ -1002,23 +1112,36 @@ public class AprobacionesController : ControllerBase
     /// </summary>
     private static string? LeerDestinosDesdeJson(JsonElement? snapshot)
     {
+        var puntos = LeerPuntosDestino(snapshot);
+        return puntos.Count > 0 ? string.Join(" - ", puntos) : null;
+    }
+
+    /// <summary>
+    /// Ciudades de destino del itinerario, en orden y sin repetir. Acepta el
+    /// snapshot actual (<c>$.destinos[].punto</c>) y el texto del flujo
+    /// anterior (<c>$.destino</c>). Devuelve lista vacia —nunca lanza— cuando
+    /// no hay ningun destino legible.
+    /// </summary>
+    private static List<string> LeerPuntosDestino(JsonElement? snapshot)
+    {
+        var puntos = new List<string>();
         if (snapshot is not { } raiz)
         {
-            return null;
+            return puntos;
         }
 
         var texto = LeerTextoDesdeJson(raiz, "destino");
         if (texto is not null)
         {
-            return texto;
+            puntos.Add(texto);
+            return puntos;
         }
 
         if (!raiz.TryGetProperty("destinos", out var destinos) || destinos.ValueKind != JsonValueKind.Array)
         {
-            return null;
+            return puntos;
         }
 
-        var puntos = new List<string>();
         foreach (var destino in destinos.EnumerateArray())
         {
             var punto = LeerPunto(destino);
@@ -1028,7 +1151,7 @@ public class AprobacionesController : ControllerBase
             }
         }
 
-        return puntos.Count > 0 ? string.Join(" - ", puntos) : null;
+        return puntos;
     }
 
     /// <summary>
@@ -1055,6 +1178,223 @@ public class AprobacionesController : ControllerBase
         => snapshot is { } raiz
            && raiz.TryGetProperty("calculo", out var calculo)
            && calculo.ValueKind == JsonValueKind.Object;
+
+    /// <summary>
+    /// Lee un objeto del snapshot (<c>$.persona</c>, <c>$.calculo</c>, ...).
+    /// Devuelve <c>null</c> —nunca lanza— cuando la clave falta o no es un
+    /// objeto: un snapshot incompleto no rompe la bandeja.
+    /// </summary>
+    private static JsonElement? LeerObjeto(JsonElement? snapshot, string clave)
+    {
+        if (snapshot is not { } raiz
+            || !raiz.TryGetProperty(clave, out var valor)
+            || valor.ValueKind != JsonValueKind.Object)
+        {
+            return null;
+        }
+
+        return valor;
+    }
+
+    /// <summary>
+    /// Ruta que manda para el documento: la <c>calculo_autorizado</c> (ultima
+    /// version revisada y confirmada) y, si no existe, la <c>calculo</c> del
+    /// envio. Null cuando la solicitud no tiene ninguna.
+    /// </summary>
+    private static JsonElement? LeerCalculo(JsonElement? snapshot)
+        => LeerObjeto(snapshot, "calculo_autorizado") ?? LeerObjeto(snapshot, "calculo");
+
+    /// <summary>
+    /// Tramos del calculo (<c>$.calculo.tramos[]</c>) como objetos JSON, en el
+    /// orden del itinerario. Lista vacia cuando no hay ninguno legible.
+    /// </summary>
+    private static List<JsonElement> LeerTramos(JsonElement? calculo)
+    {
+        var tramos = new List<JsonElement>();
+        if (calculo is not { } raiz
+            || !raiz.TryGetProperty("tramos", out var lista)
+            || lista.ValueKind != JsonValueKind.Array)
+        {
+            return tramos;
+        }
+
+        foreach (var tramo in lista.EnumerateArray())
+        {
+            if (tramo.ValueKind == JsonValueKind.Object)
+            {
+                tramos.Add(tramo);
+            }
+        }
+
+        return tramos;
+    }
+
+    /// <summary>
+    /// ¿La persona que viaja es el propio solicitante (<c>persona.modo</c>
+    /// ausente o <c>mia</c>)? Solo entonces tiene sentido imprimir su puesto y
+    /// fecha de nacimiento del directorio de personal.
+    /// </summary>
+    private static bool EsPersonaMia(JsonElement? snapshot)
+    {
+        var modo = LeerTextoDesdeJson(LeerObjeto(snapshot, "persona"), "modo");
+        return modo is null || string.Equals(modo, "mia", StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// ¿El viaje tiene regreso? Manda <c>$.retorno.necesario</c>. Los snapshots
+    /// viejos sin esa clave se consideran de ida y vuelta cuando el calculo trae
+    /// mas de un tramo (lo resuelve <see cref="ComponerTrayectos"/>).
+    /// </summary>
+    private static bool HayRetorno(JsonElement? snapshot)
+    {
+        var retorno = LeerObjeto(snapshot, "retorno");
+        return retorno is { } objeto
+               && objeto.TryGetProperty("necesario", out var necesario)
+               && necesario.ValueKind == JsonValueKind.True;
+    }
+
+    /// <summary>
+    /// Medio de transporte resuelto para la columna "Transporte" y el filtro
+    /// "Tipo de viaje": <c>aereo</c> | <c>autobus</c> | <c>propio</c> |
+    /// <c>solicitado</c> | <c>sin-clasificar</c>.
+    ///
+    /// El wizard nunca escribe <c>$.avion</c> ni <c>$.autobus</c>: el medio real
+    /// vive en la opcion FUE_ELEGIDA y el modo en <c>calculo.modo_transporte</c>
+    /// o <c>transporte.modo</c>. <c>solicitado</c> es "la empresa gestiona el
+    /// viaje y aun no se elige medio": no es un dato faltante, es un estado del
+    /// viaje.
+    /// </summary>
+    private static string ResolverTipoTransporte(
+        JsonElement? snapshot,
+        IReadOnlyCollection<string>? tiposOpcion)
+    {
+        // 1) Cotizacion importada: el desglose por concepto ya dice el medio.
+        if (LeerDecimal(snapshot, "avion") is not null)
+        {
+            return "aereo";
+        }
+
+        if (LeerDecimal(snapshot, "autobus") is not null)
+        {
+            return "autobus";
+        }
+
+        if (LeerDecimal(snapshot, "gasolina") is not null
+            || LeerDecimal(snapshot, "vehiculo_propio") is not null)
+        {
+            return "propio";
+        }
+
+        // 2) Opcion elegida del wizard.
+        var tipos = (tiposOpcion ?? Array.Empty<string>())
+            .Select(tipo => tipo.Trim().ToLowerInvariant())
+            .ToList();
+        if (tipos.Contains("vuelo") || tipos.Contains("avion"))
+        {
+            return "aereo";
+        }
+
+        if (tipos.Contains("autobus"))
+        {
+            return "autobus";
+        }
+
+        if (tipos.Contains("auto") || tipos.Contains("renta"))
+        {
+            return "propio";
+        }
+
+        // 3) Modo del wizard.
+        var modo = LeerTextoDesdeJson(LeerCalculo(snapshot), "modo_transporte")
+                   ?? LeerTextoDesdeJson(LeerObjeto(snapshot, "transporte"), "modo");
+        if (string.Equals(modo, "propio", StringComparison.OrdinalIgnoreCase))
+        {
+            return "propio";
+        }
+
+        if (string.Equals(modo, "solicitado", StringComparison.OrdinalIgnoreCase))
+        {
+            return "solicitado";
+        }
+
+        return "sin-clasificar";
+    }
+
+    /// <summary>
+    /// Itinerario imprimible del formato "Solicitud de avion": ida y vuelta,
+    /// maximo dos tramos. La ida sale del primer tramo del calculo (fecha, hora
+    /// planeada, origen y destino) y la vuelta del ultimo; «Regreso al origen»
+    /// es una etiqueta del motor, asi que el destino de la vuelta es la ciudad
+    /// de origen. Sin calculo se compone con el rango y los destinos del
+    /// snapshot. Un tramo sin ningun dato no se agrega: el documento imprime
+    /// "—" en vez de inventar.
+    /// </summary>
+    private static List<TrayectoBandejaDto> ComponerTrayectos(
+        JsonElement? snapshot,
+        string? fechaSalida,
+        string? fechaRegreso)
+    {
+        var trayectos = new List<TrayectoBandejaDto>();
+        var tramos = LeerTramos(LeerCalculo(snapshot));
+        var origen = LeerOrigenDesdeJson(snapshot);
+        var destinos = LeerPuntosDestino(snapshot);
+
+        var ida = new TrayectoBandejaDto
+        {
+            Fecha = fechaSalida,
+            Origen = origen,
+            Destino = destinos.Count > 0 ? destinos[0] : null,
+        };
+        var vuelta = new TrayectoBandejaDto
+        {
+            Fecha = fechaRegreso,
+            Origen = destinos.Count > 0 ? destinos[^1] : null,
+            Destino = origen,
+        };
+
+        if (tramos.Count > 0)
+        {
+            var primerTramo = tramos[0];
+            ida.Fecha = LeerTextoDesdeJson(primerTramo, "salida_fecha") ?? ida.Fecha;
+            ida.Hora = LeerTextoDesdeJson(primerTramo, "salida_hora");
+            ida.Origen = LeerTextoDesdeJson(primerTramo, "de") ?? ida.Origen;
+            ida.Destino = LeerTextoDesdeJson(primerTramo, "a") ?? ida.Destino;
+        }
+
+        if (tramos.Count > 1)
+        {
+            var ultimoTramo = tramos[^1];
+            vuelta.Fecha = LeerTextoDesdeJson(ultimoTramo, "salida_fecha") ?? vuelta.Fecha;
+            vuelta.Hora = LeerTextoDesdeJson(ultimoTramo, "salida_hora");
+            vuelta.Origen = LeerTextoDesdeJson(ultimoTramo, "de") ?? vuelta.Origen;
+            var destinoCalculado = LeerTextoDesdeJson(ultimoTramo, "a");
+            if (destinoCalculado is not null
+                && !string.Equals(destinoCalculado, "Regreso al origen", StringComparison.OrdinalIgnoreCase))
+            {
+                vuelta.Destino = destinoCalculado;
+            }
+        }
+
+        if (TieneDatosTrayecto(ida))
+        {
+            trayectos.Add(ida);
+        }
+
+        // Solo hay vuelta si el viaje la declara o si el calculo trae regreso.
+        if (TieneDatosTrayecto(vuelta) && (tramos.Count > 1 || HayRetorno(snapshot)))
+        {
+            trayectos.Add(vuelta);
+        }
+
+        return trayectos;
+    }
+
+    /** Un tramo sin fecha, hora ni ciudades no aporta nada al documento. */
+    private static bool TieneDatosTrayecto(TrayectoBandejaDto trayecto)
+        => trayecto.Fecha is not null
+           || trayecto.Hora is not null
+           || trayecto.Origen is not null
+           || trayecto.Destino is not null;
 
     /// <summary>
     /// Rango de fechas del viaje para la columna "Fecha" del concentrado

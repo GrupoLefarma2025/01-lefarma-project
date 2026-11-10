@@ -1,5 +1,6 @@
 using Lefarma.API.Features.Config.Workflows.DTOs;
 using Lefarma.API.Features.OrdenesCompra.Firmas.DTOs;
+using Lefarma.API.Features.OrdenesCompra.Visibilidad;
 using Lefarma.API.Shared.Authorization;
 using Lefarma.API.Shared.Constants;
 using Lefarma.API.Shared.Extensions;
@@ -18,15 +19,27 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
     public class OrdenCompraFirmasController : ControllerBase
     {
         private readonly IOrdenCompraFirmasService _service;
+        private readonly IOrdenCompraVisibilidadService _visibilidad;
         private readonly IConfiguration _configuration;
-        public OrdenCompraFirmasController(IOrdenCompraFirmasService service, IConfiguration configuration)
+        public OrdenCompraFirmasController(
+            IOrdenCompraFirmasService service,
+            IOrdenCompraVisibilidadService visibilidad,
+            IConfiguration configuration)
         {
             _service = service;
+            _visibilidad = visibilidad;
             _configuration = configuration;
         }
 
         private int GetUserId() =>
             int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var id) ? id : 0;
+
+        private IActionResult RespuestaSinPermiso() =>
+            StatusCode(403, new ApiResponse<object>
+            {
+                Success = false,
+                Message = "No tiene permiso para ver esta orden."
+            });
 
         [HttpPost("{id}/firmar")]
         [SwaggerOperation(
@@ -43,6 +56,9 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
         [SwaggerOperation(Summary = "Obtener acciones disponibles para una orden según su estado actual")]
         public async Task<IActionResult> GetAcciones(int id)
         {
+            if (!await _visibilidad.PuedeVerAsync(id, GetUserId(), HttpContext.RequestAborted))
+                return RespuestaSinPermiso();
+
             var result = await _service.GetAccionesDisponiblesAsync(id, GetUserId());
             return result.ToActionResult(this, data => Ok(new ApiResponse<IEnumerable<AccionDisponibleResponse>>
             { Success = true, Message = "Acciones obtenidas exitosamente.", Data = data }));
@@ -52,6 +68,9 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
         [SwaggerOperation(Summary = "Obtener metadatos de una acción para construir modal dinámico")]
         public async Task<IActionResult> GetAccionMetadata(int id, int idAccion)
         {
+            if (!await _visibilidad.PuedeVerAsync(id, GetUserId(), HttpContext.RequestAborted))
+                return RespuestaSinPermiso();
+
             var result = await _service.GetAccionMetadataAsync(id, idAccion, GetUserId());
             return result.ToActionResult(this, data => Ok(new ApiResponse<AccionMetadataResponse>
             { Success = true, Message = "Metadatos de acción obtenidos exitosamente.", Data = data }));
@@ -74,6 +93,9 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
         [SwaggerOperation(Summary = "Obtener historial de transiciones del workflow para una orden")]
         public async Task<IActionResult> GetHistorialWorkflow(int id)
         {
+            if (!await _visibilidad.PuedeVerAsync(id, GetUserId(), HttpContext.RequestAborted))
+                return RespuestaSinPermiso();
+
             var result = await _service.GetHistorialAsync(id);
             return result.ToActionResult(this, data => Ok(new ApiResponse<IEnumerable<HistorialWorkflowItemResponse>>
             { Success = true, Message = "Historial de workflow obtenido exitosamente.", Data = data }));

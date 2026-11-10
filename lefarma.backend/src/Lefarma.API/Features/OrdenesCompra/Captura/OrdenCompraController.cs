@@ -1,4 +1,5 @@
     using Lefarma.API.Features.OrdenesCompra.Captura.DTOs;
+using Lefarma.API.Features.OrdenesCompra.Visibilidad;
 using Lefarma.API.Shared.Authorization;
 using Lefarma.API.Shared.Constants;
 using Lefarma.API.Shared.Extensions;
@@ -17,19 +18,28 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
     public class OrdenCompraController : ControllerBase
     {
         private readonly IOrdenCompraService _service;
+        private readonly IOrdenCompraVisibilidadService _visibilidad;
         private readonly IConfiguration _configuration;
 
-        public OrdenCompraController(IOrdenCompraService service, IConfiguration configuration)
+        public OrdenCompraController(
+            IOrdenCompraService service,
+            IOrdenCompraVisibilidadService visibilidad,
+            IConfiguration configuration)
         {
             _service = service;
+            _visibilidad = visibilidad;
             _configuration = configuration;
         }
 
         private int GetUserId() =>
             int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var id) ? id : 0;
 
-        private bool TienePermiso(string permiso) =>
-            User.Claims.Any(c => c.Type == "permission" && c.Value == permiso);
+        private IActionResult RespuestaSinPermiso() =>
+            StatusCode(403, new ApiResponse<object>
+            {
+                Success = false,
+                Message = "No tiene permiso para ver esta orden."
+            });
 
         [HttpGet]
         [SwaggerOperation(Summary = "Obtener ordenes de compra con filtros")]
@@ -39,13 +49,10 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
             {
                 query = new OrdenCompraRequest();
             }
-            var puedeVerTodas = TienePermiso("orden_compra.puede_ver_todas_las_ordenes");
-            var rolesUsuario = User.Claims
-                .Where(c => c.Type == ClaimTypes.Role)
-                .Select(c => int.TryParse(c.Value, out var r) ? r : 0)
-                .Where(r => r > 0)
-                .ToList();
-            var result = await _service.GetAllAsync(query, GetUserId(), rolesUsuario, puedeVerTodas);
+
+            var idUsuario = GetUserId();
+            var alcance = await _visibilidad.ResolverAsync(idUsuario, HttpContext.RequestAborted);
+            var result = await _service.GetAllAsync(query, idUsuario, alcance, HttpContext.RequestAborted);
             return result.ToActionResult(this, data => Ok(new ApiResponse<IEnumerable<OrdenCompraResponse>>
             { Success = true, Message = "Órdenes obtenidas exitosamente.", Data = data }));
         }
@@ -54,6 +61,9 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
         [SwaggerOperation(Summary = "Obtener orden de compra por ID")]
         public async Task<IActionResult> GetById(int id)
         {
+            if (!await _visibilidad.PuedeVerAsync(id, GetUserId(), HttpContext.RequestAborted))
+                return RespuestaSinPermiso();
+
             var result = await _service.GetByIdAsync(id);
             return result.ToActionResult(this, data => Ok(new ApiResponse<OrdenCompraResponse>
             { Success = true, Message = "Orden obtenida exitosamente.", Data = data }));

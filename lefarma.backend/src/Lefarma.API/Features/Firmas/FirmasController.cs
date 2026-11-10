@@ -174,7 +174,7 @@ public class FirmasController : ControllerBase
                 Message = "No tiene permiso para consultar la firma de otros usuarios."
             });
 
-        var result = await _firmasService.GetFirmaVigenteAsync(idUsuario, cancellationToken);
+        var result = await _firmasService.GetFirmaVigenteConLegacyAsync(idUsuario, cancellationToken);
         return result.ToActionResult(this, firma => File(firma.Contenido, firma.ContentType, firma.NombreArchivo));
     }
 

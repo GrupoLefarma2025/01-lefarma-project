@@ -407,12 +407,20 @@ export function SolicitudFirmaModal({
             variant={esRechazo ? 'destructive' : 'default'}
           >
             {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {`Confirmar ${accion?.tipoAccionNombre?.toLowerCase() ?? 'acción'}`}
+            {isSubmitting
+              ? 'Procesando…'
+              : `Confirmar ${accion?.tipoAccionNombre?.toLowerCase() ?? 'acción'}`}
           </Button>
         </div>
       }
     >
-      <div className="space-y-4">
+      <div className="space-y-4" aria-busy={isSubmitting}>
+        {isSubmitting && (
+          <div className="flex items-center gap-2 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-800 dark:border-blue-800 dark:bg-blue-950/20 dark:text-blue-300">
+            <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
+            <span>Procesando la acción… espera un momento, no cierres esta ventana.</span>
+          </div>
+        )}
         <div className="bg-muted/30 rounded-md border p-3">
           <p className="text-sm font-semibold">{solicitud.folio}</p>
           <p className="text-xs text-muted-foreground">

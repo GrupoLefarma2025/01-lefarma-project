@@ -69,6 +69,12 @@ import {
   CommandList,
 } from '@/components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import type { CreateOrdenCompraRequest } from '@/types/ordenCompra.types';
 import type {
   Empresa,
@@ -468,8 +474,10 @@ export default function CrearOrdenCompra() {
     usuarioDetalle,
     resolveArea,
     hasFirma,
+    hasFirmaLegacy,
     puedeSeleccionarEmpresas,
   } = useAuthStore();
+  const sinFirma = hasFirma === false && hasFirmaLegacy === false;
   const [isSaving, setIsSaving] = useState(false);
   const [datosGeneralesOpen, setDatosGeneralesOpen] = useState(false);
   const datosGeneralesRef = useRef<HTMLDivElement>(null);
@@ -965,7 +973,7 @@ export default function CrearOrdenCompra() {
     console.log('🔵 [handleSave] id (URL):', id);
 
     setIsSaving(true);
-     if (hasFirma === false) {
+    if (sinFirma) {
       toast.warning('No has cargado tu firma digital', {
         description: 'Ve a Configuración {'>'} Perfil para subir tu firma y poder guardar órdenes de compra.',
         duration: 6000,
@@ -1189,7 +1197,7 @@ export default function CrearOrdenCompra() {
   }
   return (
     <div className="space-y-6">
-      {hasFirma === false && <SignatureAlert />}
+      {sinFirma && <SignatureAlert />}
       <Form {...form}>
         <form className="space-y-6">
           {/* Card: Datos Generales */}
@@ -1989,22 +1997,41 @@ export default function CrearOrdenCompra() {
                           <span className="bg-primary/10 ring-primary/20 inline-flex items-center rounded-full px-4 py-1.5 text-sm font-bold text-primary ring-1">
                             Total {fmt(lineTotal)}
                           </span>
-                          <Popover>
-                            <PopoverTrigger asChild>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                title="Ajuste por redondeo"
-                                className={cn(
-                                  'h-7 w-7',
-                                  p?.ajusteRedondeo != null && 'text-primary'
-                                )}
-                              >
-                                <CircleDollarSign className="h-3.5 w-3.5" />
-                              </Button>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-56 p-3" align="end">
+                          <TooltipProvider delayDuration={200}>
+                            <Popover>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <PopoverTrigger asChild>
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      size="sm"
+                                      aria-label="Ajuste por redondeo"
+                                      className={cn(
+                                        'h-8 gap-1.5 rounded-full border-primary/30 bg-primary/5 px-3 text-xs font-semibold text-primary shadow-sm hover:border-primary/50 hover:bg-primary/10',
+                                        p?.ajusteRedondeo != null &&
+                                          'border-primary bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground'
+                                      )}
+                                    >
+                                      <CircleDollarSign className="h-4 w-4" />
+                                      Redondeo
+                                      {p?.ajusteRedondeo != null && (
+                                        <span className="tabular-nums">
+                                          {p.ajusteRedondeo > 0 ? '+' : '−'}
+                                          {fmt(Math.abs(p.ajusteRedondeo))}
+                                        </span>
+                                      )}
+                                    </Button>
+                                  </PopoverTrigger>
+                                </TooltipTrigger>
+                                <TooltipContent side="top" className="max-w-64 text-center">
+                                  <p className="font-semibold">Ajuste por redondeo</p>
+                                  <p className="opacity-90">
+                                    Ajusta solo el total de esta partida. Rango: −$5.00 a $5.00.
+                                  </p>
+                                </TooltipContent>
+                              </Tooltip>
+                              <PopoverContent className="w-56 p-3" align="end">
                               <FormField
                                 control={form.control}
                                 name={`partidas.${index}.ajusteRedondeo`}
@@ -2040,7 +2067,8 @@ export default function CrearOrdenCompra() {
                                 )}
                               />
                             </PopoverContent>
-                          </Popover>
+                            </Popover>
+                          </TooltipProvider>
                           <Button
                             type="button"
                             variant="ghost"

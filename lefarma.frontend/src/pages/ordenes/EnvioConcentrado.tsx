@@ -192,11 +192,12 @@ export default function EnvioConcentrado() {
   const isSingleOrden = ordenesSeleccionadas.length === 1;
   const singleOrden = isSingleOrden ? ordenesSeleccionadas[0] : null;
 
-  // Firmas del concentrado: ya no son URLs públicas; se descargan como blobs
-  // autenticados ("elaboró" = mi firma; "revisó" = usuario 73, Marco Polo).
-  const REVISO_USUARIO_ID = 73;
-  const [firmaElaboroUrl, setFirmaElaboroUrl] = useState<string | undefined>(undefined);
+  // Firmas del concentrado: se descargan como blobs autenticados y siempre
+  // corresponden a los firmantes fijos, sin depender del usuario logueado.
+  const REVISO_USUARIO_ID = 73; // Marco Polo
+  const AUTORIZO_USUARIO_ID = 63; // Diego
   const [firmaRevisoUrl, setFirmaRevisoUrl] = useState<string | undefined>(undefined);
+  const [firmaAutorizoUrl, setFirmaAutorizoUrl] = useState<string | undefined>(undefined);
   // Precarga: generarPdfBlob espera a que ambas firmas estén resueltas.
   const firmasListasRef = useRef<Promise<void>>(Promise.resolve());
 
@@ -204,26 +205,26 @@ export default function EnvioConcentrado() {
     let cancelled = false;
     const created: string[] = [];
     firmasListasRef.current = (async () => {
-      const [elaboro, reviso] = await Promise.all([
-        user?.id ? fetchFirmaObjectUrl(firmasEndpoints.miFirma) : Promise.resolve(null),
+      const [reviso, autorizo] = await Promise.all([
         fetchFirmaObjectUrl(firmasEndpoints.firmaUsuario(REVISO_USUARIO_ID)),
+        fetchFirmaObjectUrl(firmasEndpoints.firmaUsuario(AUTORIZO_USUARIO_ID)),
       ]);
       if (cancelled) {
-        [elaboro, reviso].forEach((u) => u && URL.revokeObjectURL(u));
+        [reviso, autorizo].forEach((u) => u && URL.revokeObjectURL(u));
         return;
       }
-      if (elaboro) created.push(elaboro);
       if (reviso) created.push(reviso);
-      setFirmaElaboroUrl(elaboro ?? undefined);
+      if (autorizo) created.push(autorizo);
       setFirmaRevisoUrl(reviso ?? undefined);
+      setFirmaAutorizoUrl(autorizo ?? undefined);
     })();
     return () => {
       cancelled = true;
       created.forEach((u) => URL.revokeObjectURL(u));
     };
-  }, [user?.id]);
+  }, []);
 
-  // ── Nombres completos de Revisó (44) y Autorizó (41) para etiquetas ──────
+  // ── Nombres completos de Revisó (73) y Autorizó (63) para etiquetas ──────
   const [nombresFirmas, setNombresFirmas] = useState<{ reviso?: string; autorizo?: string }>({});
 
   useEffect(() => {
@@ -278,23 +279,6 @@ setNombresFirmas({
       cancelled = true;
     };
   }, [singleOrden?.idProveedor]);
-
-  // ── Grupos para la vista previa ───────────────────────────────────────────
-  const grupos = useMemo(() => {
-    const map = new Map<string, OrdenCompraResponse[]>();
-    for (const o of ordenesSeleccionadas) {
-      const key = getGroupLabel(o, agrupacion);
-      if (!map.has(key)) map.set(key, []);
-      map.get(key)!.push(o);
-    }
-    return Array.from(map.entries())
-      .sort(([a], [b]) => a.localeCompare(b, 'es-MX'))
-      .map(([grupo, items]) => ({
-        grupo,
-        items,
-        subtotal: items.reduce((s, o) => s + o.total, 0),
-      }));
-  }, [ordenesSeleccionadas, agrupacion]);
 
   // ── Vista previa / Imprimir PDF ──────────────────────────────────────────
   const handlePrint = async () => {
@@ -390,12 +374,16 @@ setNombresFirmas({
       ordenes: ordenesSeleccionadas,
       agrupacion,
       generadoPor: user?.nombre ?? user?.username,
-      firmaAutorizo: firmaElaboroUrl,
+      firmaAutorizo: firmaAutorizoUrl,
       firmaReviso: firmaRevisoUrl,
       nombreAutorizo: nombresFirmas.autorizo,
       nombreReviso: nombresFirmas.reviso,
     });
   }
+
+  // ── Vista previa del concentrado (varias órdenes) ────────────────────────
+  // Se renderiza el mismo componente que se usa para imprimir, contenido al
+  // ancho del panel (nunca en el portal oculto, que crecía sin límite).
 
   const handleSimularEnvio = async () => {
     if (ordenesSeleccionadas.length === 0) return;
@@ -718,65 +706,25 @@ setNombresFirmas({
               <div className="bg-white shadow-sm rounded overflow-hidden">
                 <OrdenCompraConcentradoPDF 
                   orden={singleOrden} 
-                  firmaSolicitante={firmaElaboroUrl}
-                  nombreSolicitante={user?.nombre ?? user?.username}
                   firmaReviso={firmaRevisoUrl}
                   nombreReviso={nombresFirmas.reviso}
-                  firmaAutorizo={firmaElaboroUrl}
+                  firmaAutorizo={firmaAutorizoUrl}
                   nombreAutorizo={nombresFirmas.autorizo}
                   proveedoresMap={proveedoresMap} 
                 />
               </div>
             ) : (
-              <div id="envio-concentrado-preview" className="bg-white shadow-sm rounded overflow-hidden">
-                {/* Resumen de grupos en preview */}
-                <div className="p-4 border-b bg-slate-50 text-xs text-muted-foreground flex items-center gap-4">
-                  <span>
-                    <strong className="text-foreground">{grupos.length}</strong>{' '}
-                    {grupos.length === 1 ? 'grupo' : 'grupos'} · agrupado por{' '}
-                    <strong className="text-foreground">{AGRUPACION_LABELS[agrupacion]}</strong>
-                  </span>
-                  <span className="ml-auto font-semibold text-foreground">
-                    Total: {fmtMoney(totalSeleccionado)}
-                  </span>
-                </div>
-                {/* Grupos preview */}
-                <div className="divide-y">
-                  {grupos.map(({ grupo, items, subtotal }) => (
-                    <div key={grupo} className="p-3">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs font-semibold uppercase tracking-wide text-slate-600">
-                          {grupo}
-                        </span>
-                        <span className="text-xs font-bold text-slate-800">
-                          {fmtMoney(subtotal)}
-                        </span>
-                      </div>
-                      <div className="space-y-0.5">
-                        {items.map((o) => (
-                          <div
-                            key={o.idOrden}
-                            className="flex items-center justify-between text-xs py-0.5 px-2 rounded bg-slate-50 border border-slate-100"
-                          >
-                            <span className="font-mono text-slate-700">{o.folio}</span>
-                            <span className="text-slate-500">
-                              {o.areaNombre ?? `Área ${o.idArea}`}
-                            </span>
-                            <span className="font-medium text-slate-800">
-                              {fmtMoney(o.total)}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                {/* Total general */}
-                <div className="p-3 bg-slate-50 border-t flex justify-end">
-                  <div className="text-sm font-bold text-slate-800">
-                    Total general: {fmtMoney(totalSeleccionado)}
-                  </div>
-                </div>
+              <div className="bg-white shadow-sm rounded overflow-hidden">
+                <EnvioConcentradoPDF
+                  id="envio-concentrado-panel-preview"
+                  ordenes={ordenesSeleccionadas}
+                  agrupacion={agrupacion}
+                  generadoPor={user?.nombre ?? user?.username}
+                  firmaAutorizo={firmaAutorizoUrl}
+                  firmaReviso={firmaRevisoUrl}
+                  nombreAutorizo={nombresFirmas.autorizo}
+                  nombreReviso={nombresFirmas.reviso}
+                />
               </div>
             )}
           </div>
@@ -803,11 +751,9 @@ setNombresFirmas({
               <OrdenCompraConcentradoPDF
                 id="envio-concentrado-pdf-preview"
                 orden={singleOrden}
-                firmaSolicitante={firmaElaboroUrl}
-                nombreSolicitante={user?.nombre ?? user?.username}
                 firmaReviso={firmaRevisoUrl}
                 nombreReviso={nombresFirmas.reviso}
-                firmaAutorizo={firmaElaboroUrl}
+                firmaAutorizo={firmaAutorizoUrl}
                 nombreAutorizo={nombresFirmas.autorizo}
                 proveedoresMap={proveedoresMap}
               />
@@ -817,7 +763,7 @@ setNombresFirmas({
                 ordenes={ordenesSeleccionadas}
                 agrupacion={agrupacion}
                 generadoPor={user?.nombre ?? user?.username}
-                firmaAutorizo={firmaElaboroUrl}
+                firmaAutorizo={firmaAutorizoUrl}
                 firmaReviso={firmaRevisoUrl}
                 nombreAutorizo={nombresFirmas.autorizo}
                 nombreReviso={nombresFirmas.reviso}
@@ -944,24 +890,18 @@ setNombresFirmas({
 
       {createPortal(
         <div id="envio-concentrado-pdf-portal" style={{ position: 'fixed', left: '-9999px', top: 0 }}>
-          {isSingleOrden && singleOrden ? (
+          {/* Solo el concentrado individual se captura con html2canvas desde este
+              portal. El de varias órdenes se arma con jsPDF y su tabla mide
+              ~11900px de ancho mínimo: dentro de este portal (position:fixed sin
+              ancho) crecía más allá del viewport y tapaba la pantalla. */}
+          {isSingleOrden && singleOrden && (
             <OrdenCompraConcentradoPDF
               orden={singleOrden}
-              firmaSolicitante={firmaElaboroUrl}
-              nombreSolicitante={user?.nombre ?? user?.username}
               firmaReviso={firmaRevisoUrl}
               nombreReviso={nombresFirmas.reviso}
-              firmaAutorizo={firmaElaboroUrl}
+              firmaAutorizo={firmaAutorizoUrl}
               nombreAutorizo={nombresFirmas.autorizo}
               proveedoresMap={proveedoresMap}
-            />
-          ) : (
-            <EnvioConcentradoPDF
-              ordenes={ordenesSeleccionadas}
-              agrupacion={agrupacion}
-              generadoPor={user?.nombre ?? user?.username}
-              firmaAutorizo={firmaElaboroUrl}
-              firmaReviso={firmaRevisoUrl}
             />
           )}
         </div>,

@@ -140,7 +140,14 @@ export default function SolicitudesPersonal() {
     try {
       const res = await API.get<ApiResponse<PagedResult<SolicitudPersonalResponse>>>(
         '/solicitudes-personal',
-        { params: { verTodas: false, pageSize: 100, ...buildApiFilters(filters) } }
+        {
+          params: {
+            verTodas: false,
+            pageSize: 100,
+            soloPendientes: targetTab === 'pendientes',
+            ...buildApiFilters(filters),
+          },
+        }
       );
       if (res.data?.success) {
         setData(res.data.data?.items ?? []);
@@ -333,11 +340,13 @@ export default function SolicitudesPersonal() {
       });
       return;
     }
-    selectSolicitud(s.idSolicitud);
+    // Abre el modal de inmediato con la fila como respaldo: así el usuario ve
+    // el progreso (loader) mientras llegan detalle, historial y acciones.
+    selectSolicitud(s.idSolicitud, s);
+    toggleModal('firma', true);
+    fetchAcciones(s.idSolicitud);
     await fetchDetalleCompleto(s.idSolicitud);
     await fetchHistorial(s.idSolicitud);
-    fetchAcciones(s.idSolicitud);
-    toggleModal('firma', true);
   };
 
   const handleOpenArchivos = async (s: SolicitudPersonalResponse) => {
@@ -347,7 +356,7 @@ export default function SolicitudesPersonal() {
   };
 
   const handleOpenHistorial = async (s: SolicitudPersonalResponse) => {
-    selectSolicitud(s.idSolicitud);
+    selectSolicitud(s.idSolicitud, s);
     await fetchDetalleCompleto(s.idSolicitud);
     fetchHistorial(s.idSolicitud);
     toggleModal('historial', true);
@@ -572,7 +581,7 @@ export default function SolicitudesPersonal() {
       <SolicitudAccionesModal
         open={modalStates.firma}
         onClose={() => closeModal('firma')}
-        loading={loadingAcciones}
+        loading={loadingAcciones || loadingDetalle || loadingHistorial}
         solicitud={selectedSolicitud}
         acciones={acciones}
         historial={historial}
@@ -641,7 +650,11 @@ export default function SolicitudesPersonal() {
         titulo="Historial de solicitud"
         encabezado={
           selectedSolicitud ? (
-            <SolicitudHeaderCard solicitud={selectedSolicitud} getEstadoInfo={getEstadoInfo} />
+            <SolicitudHeaderCard
+              solicitud={selectedSolicitud}
+              getEstadoInfo={getEstadoInfo}
+              compact
+            />
           ) : undefined
         }
         cargando={loadingHistorial}

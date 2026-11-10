@@ -5,6 +5,7 @@ import {
   resolverLogoEmpresa,
   resolverNombreEmpresaDocumento,
 } from '@/utils/empresaDocumento';
+import { datosSolicitanteDocumento } from '@/utils/datosSolicitanteDocumento';
 
 interface ProveedorInfo {
   idProveedor: number;
@@ -307,6 +308,7 @@ const EMPTY_LINES = 7;
 
 export function OrdenCompraConcentradoPDF({ orden, firmaSolicitante, firmaReviso, firmaAutorizo, nombreSolicitante, nombreReviso, nombreAutorizo, id = 'orden-compra-concentrado-pdf-print', proveedoresMap }: Props) {
   const proveedores = proveedoresMap ?? new Map<number, ProveedorInfo>();
+  const solicitanteDocumento = datosSolicitanteDocumento(orden);
   const emptyRows = Math.max(0, EMPTY_LINES - (orden.partidas?.length ?? 0));
 
   const fmt = (n: number) =>
@@ -348,13 +350,13 @@ export function OrdenCompraConcentradoPDF({ orden, firmaSolicitante, firmaReviso
               {orden.sucursalNombre?.toUpperCase() ?? orden.idSucursal ?? '-'}
             </td>
             <td style={s.thBlue}>Área</td>
-            <td style={s.tdValue}>{orden.areaNombre?.toUpperCase() ?? orden.idArea ?? '-'}</td>
+            <td style={s.tdValue}>{solicitanteDocumento.area?.toUpperCase() ?? orden.areaNombre?.toUpperCase() ?? orden.idArea ?? '-'}</td>
           </tr>
           <tr>
             <td style={s.thBlue}>Nombre del solicitante</td>
-            <td style={s.tdValue}>{orden.solicitanteNombre ?? '-'}</td>
+            <td style={s.tdValue}>{solicitanteDocumento.nombre}</td>
             <td style={s.thBlue}>Puesto</td>
-            <td style={s.tdValue}>{orden.solicitantePuesto ?? '-'}</td>
+            <td style={s.tdValue}>{solicitanteDocumento.puesto ?? '-'}</td>
             <td style={s.thBlue}>Fecha máxima de pago</td>
             <td style={s.tdValue}>
               {orden.fechaLimitePago ? fmtDate(orden.fechaLimitePago) : '-'}

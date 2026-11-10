@@ -72,6 +72,8 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
   hasFirmaLegacy: null,
   firmaEnComprobacion: null,
   puedeSeleccionarEmpresas: false,
+  areaEmpleado: null,
+  puestoEmpleado: null,
   usuarioDetalle: null,
   profileError: null,
 
@@ -151,6 +153,10 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
         });
         void refreshPermissions();
         startPermissionsPolling();
+        // El encabezado muestra área/puesto del empleado desde /profile; en el
+        // flujo de 2 pasos no hay paso 3 que lo dispare. Sin bloqueo: si el
+        // perfil falla, el encabezado simplemente omite esos datos.
+        void get().fetchProfileSignature();
         return;
       }
 
@@ -359,6 +365,8 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       hasFirmaLegacy: null,
       firmaEnComprobacion: null,
       puedeSeleccionarEmpresas: false,
+      areaEmpleado: null,
+      puestoEmpleado: null,
       usuarioDetalle: null,
     });
 
@@ -438,11 +446,19 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     if (profileInflight) return profileInflight;
     profileInflight = (async () => {
       try {
-        const response = await API.get<ApiResponse<{ puedeSeleccionarEmpresas: boolean; detalle?: { firmaPath?: string; firmaPathCifrada?: string; firmaEnComprobacion?: boolean } }>>('/profile');
-        const detalle = response.data.data?.detalle;
+        const response = await API.get<ApiResponse<{ puedeSeleccionarEmpresas: boolean; areaEmpleado?: string | null; puestoEmpleado?: string | null; detalle?: { firmaPath?: string; firmaPathCifrada?: string; firmaEnComprobacion?: boolean } }>>('/profile');
+        const data = response.data.data;
+        const detalle = data?.detalle;
         const firmaCifrada = detalle?.firmaPathCifrada;
-        const puedeSeleccionar = response.data.data?.puedeSeleccionarEmpresas ?? false;
-        set({ hasFirma: !!firmaCifrada, hasFirmaLegacy: !!detalle?.firmaPath, firmaEnComprobacion: detalle?.firmaEnComprobacion ?? false, puedeSeleccionarEmpresas: puedeSeleccionar });
+        const puedeSeleccionar = data?.puedeSeleccionarEmpresas ?? false;
+        set({
+          hasFirma: !!firmaCifrada,
+          hasFirmaLegacy: !!detalle?.firmaPath,
+          firmaEnComprobacion: detalle?.firmaEnComprobacion ?? false,
+          puedeSeleccionarEmpresas: puedeSeleccionar,
+          areaEmpleado: data?.areaEmpleado ?? null,
+          puestoEmpleado: data?.puestoEmpleado ?? null,
+        });
       } catch {
         set({ hasFirma: false, hasFirmaLegacy: false });
       } finally {
@@ -459,7 +475,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
 
   loadProfile: async () => {
     try {
-      const response = await API.get<ApiResponse<{ puedeSeleccionarEmpresas: boolean; detalle?: { idEmpresa?: number; idSucursal?: number; idArea?: number; firmaPath?: string; firmaPathCifrada?: string; firmaEnComprobacion?: boolean } }>>('/profile');
+      const response = await API.get<ApiResponse<{ puedeSeleccionarEmpresas: boolean; areaEmpleado?: string | null; puestoEmpleado?: string | null; detalle?: { idEmpresa?: number; idSucursal?: number; idArea?: number; firmaPath?: string; firmaPathCifrada?: string; firmaEnComprobacion?: boolean } }>>('/profile');
       const data = response.data.data;
       const detalle = data?.detalle;
       set({
@@ -471,6 +487,8 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
             }
           : null,
         puedeSeleccionarEmpresas: data?.puedeSeleccionarEmpresas ?? false,
+        areaEmpleado: data?.areaEmpleado ?? null,
+        puestoEmpleado: data?.puestoEmpleado ?? null,
         hasFirma: detalle ? !!detalle.firmaPathCifrada : false,
         hasFirmaLegacy: detalle ? !!detalle.firmaPath : false,
         firmaEnComprobacion: detalle?.firmaEnComprobacion ?? false,
@@ -519,6 +537,8 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
         hasFirmaLegacy: null,
         firmaEnComprobacion: null,
         puedeSeleccionarEmpresas: false,
+        areaEmpleado: null,
+        puestoEmpleado: null,
       });
 
       useConfigStore.getState().updatePerfil({

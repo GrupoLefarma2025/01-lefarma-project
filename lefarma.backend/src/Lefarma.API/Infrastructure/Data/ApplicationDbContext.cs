@@ -1,6 +1,7 @@
 using Lefarma.API.Domain.Entities.Auth;
 using Lefarma.API.Domain.Entities.Catalogos;
 using Lefarma.API.Domain.Entities.Config;
+using Lefarma.API.Domain.Entities.Configuracion;
 using Lefarma.API.Domain.Entities.EducacionMedica;
 using Lefarma.API.Domain.Entities.Viaticos;
 using Lefarma.API.Domain.Entities.Logging;
@@ -55,6 +56,12 @@ public class ApplicationDbContext : DbContext
         public DbSet<WorkflowMapping> WorkflowMappings { get; set; }
         public DbSet<WorkflowEstados> WorkflowEstados { get; set; }
         public DbSet<WorkflowTipoAccion> WorkflowTiposAccion { get; set; }
+        public DbSet<UsuarioAlcanceEmpresa> UsuariosAlcanceEmpresa { get; set; }
+
+        // DbSets - Configuración (variables globales)
+        public DbSet<ConfigVariable> ConfigVariables { get; set; }
+        public DbSet<ConfigVariableBitacora> ConfigVariablesBitacora { get; set; }
+        public DbSet<ConfigIntegracion> ConfigIntegraciones { get; set; }
 
         // DbSets - Operaciones
         public DbSet<OrdenCompra> OrdenesCompra { get; set; }

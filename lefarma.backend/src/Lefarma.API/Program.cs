@@ -36,6 +36,7 @@ using Lefarma.API.Features.Notifications.Services;
 using Lefarma.API.Features.Notifications.Services.Channels;
 using Lefarma.API.Features.OrdenesCompra.Captura;
 using Lefarma.API.Features.OrdenesCompra.Firmas;
+using Lefarma.API.Features.OrdenesCompra.Visibilidad;
 using Lefarma.API.Features.Profile;
 using Lefarma.API.Features.Firmas;
 using Lefarma.API.Features.Rh.IncidenciasChecado;
@@ -227,6 +228,7 @@ builder.Services.AddScoped<Lefarma.API.Features.Config.EmpleadoJefes.IEmpleadoJe
                        Lefarma.API.Features.Config.EmpleadoJefes.EmpleadoJefesConfigService>();
 
 builder.Services.AddScoped<IOrdenCompraService, OrdenCompraService>();
+builder.Services.AddScoped<IOrdenCompraVisibilidadService, OrdenCompraVisibilidadService>();
 builder.Services.AddScoped<IOrdenCompraFirmasService, OrdenCompraFirmasService>();
 
 builder.Services.Configure<SolicitudesPersonalSettings>(
@@ -326,6 +328,16 @@ builder.Services.AddScoped<IAdminService, AdminService>();
     builder.Services.AddSingleton<ISseService, SseService>();
 builder.Services.AddSingleton<ISseTicketService, SseTicketService>();
 builder.Services.AddMemoryCache();
+
+// Configuración (variables globales): CRUD + bitácora, caché de runtime e integraciones.
+builder.Services.AddScoped<Lefarma.API.Features.Configuracion.IConfiguracionService,
+                           Lefarma.API.Features.Configuracion.ConfiguracionService>();
+builder.Services.AddScoped<Lefarma.API.Features.Configuracion.IConfiguracionRuntimeService,
+                           Lefarma.API.Features.Configuracion.ConfiguracionRuntimeService>();
+builder.Services.AddScoped<Lefarma.API.Features.Configuracion.IConfiguracionIntegracionesService,
+                           Lefarma.API.Features.Configuracion.ConfiguracionIntegracionesService>();
+builder.Services.AddScoped<Lefarma.API.Features.Configuracion.IIntegracionApiKeyService,
+                           Lefarma.API.Features.Configuracion.IntegracionApiKeyService>();
 
 // Capturas de viaticos (T8): servicio + runner del script de Playwright.
 // Configuracion bajo appsettings: CapturasSettings (whitelist, ruta script, timeout).

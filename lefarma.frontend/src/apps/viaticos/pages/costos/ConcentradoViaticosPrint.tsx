@@ -130,8 +130,12 @@ const tableStyle: CSSProperties = {
   tableLayout: 'fixed',
 };
 
-/** Firmas del renglon de autorizacion del FOR-008: tres REVISO y un AUTORIZO. */
-const revisores: [string, string, string][] = [
+/**
+ * Firmas del renglon de autorizacion del concentrado: tres REVISO y un
+ * AUTORIZO. Se comparten con el formato «Solicitud de avión» porque el bloque
+ * de firmas es el mismo en ambos formatos (ver `ConcentradoVuelosPrint`).
+ */
+const REVISORES: [string, string, string][] = [
   ['REVISÓ', 'Coordinador Administrativo', 'Erick Israel Aguilera Diaz'],
   ['REVISÓ', 'Gerente General', 'Luis Pozo  Urquizo'],
   ['REVISÓ', 'Gerente de Administración y Finanzas', 'Diego Angel Villaseñor Garduño'],
@@ -156,7 +160,14 @@ function sumaColumna(filas: SolicitudConcentrado[], concepto: ConceptoConcentrad
   return conocidos.length ? conocidos.reduce((a, b) => a + b, 0) : null;
 }
 
-function Firmas({ filas }: { filas: [string, string, string][] }) {
+/**
+ * Bloque de firmas del concentrado (REVISÓ/AUTORIZÓ). Es el mismo en el FOR-008
+ * y en el formato «Solicitud de avión», por eso vive aquí y se reutiliza. Sin
+ * `filas` usa los revisores fijos del formato.
+ */
+export function Firmas({
+  filas = REVISORES,
+}: { filas?: [string, string, string][] } = {}) {
   return (
     <table
       className="concentrado-firmas"
@@ -380,7 +391,7 @@ export function ConcentradoViaticosPrint({
         </tfoot>
       </table>
 
-      <Firmas filas={revisores} />
+      <Firmas />
 
       <footer
         style={{

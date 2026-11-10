@@ -8,6 +8,7 @@ import { AutoVerify } from '@/components/AutoVerify';
 import { useTokenRefresh } from '@/hooks/useTokenRefresh';
 import { setNavigate } from '@/lib/navigation';
 import { ConnectionLostOverlay } from '@/components/connection/ConnectionLostOverlay';
+import { ConfigSyncProvider } from '@/shared/configuracion/ConfigSyncProvider';
 
 function NavigationRegistrar() {
   const navigate = useNavigate();
@@ -51,7 +52,9 @@ function App() {
   return (
     <BrowserRouter basename={import.meta.env.BASE_URL}>
       <NavigationRegistrar />
-      <BaseAppRoutes />
+      <ConfigSyncProvider>
+        <BaseAppRoutes />
+      </ConfigSyncProvider>
       <Toaster />
       <ConnectionLostOverlay />
     </BrowserRouter>

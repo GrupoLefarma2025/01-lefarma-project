@@ -17,11 +17,16 @@ public class AuthController : ControllerBase
 {
     private readonly IAuthService _authService;
     private readonly ISseService _sseService;
+    private readonly ISseTicketService _sseTicketService;
 
-    public AuthController(IAuthService authService, ISseService sseService)
+    public AuthController(
+        IAuthService authService,
+        ISseService sseService,
+        ISseTicketService sseTicketService)
     {
         _authService = authService;
         _sseService = sseService;
+        _sseTicketService = sseTicketService;
     }
 
     /// <summary>
@@ -143,22 +148,63 @@ public class AuthController : ControllerBase
     }
 
 /// <summary>
-    /// SSE endpoint for real-time user synchronization.
+    /// Genera un ticket de corta duración para establecer la conexión SSE.
+    /// Evita enviar el JWT completo en la URL del EventSource.
     /// </summary>
     [Authorize]
-    [HttpGet("sse")]
+    [HttpPost("sse-ticket")]
     [SwaggerOperation(
-        Summary = "SSE: Sincronizacion en tiempo real",
-        Description = "Establece una conexion Server-Sent Events para recibir actualizaciones del usuario en tiempo real.")]
-    [SwaggerResponse(200, "Conexion SSE establecida")]
-    public async Task SseConnect(CancellationToken cancellationToken)
+        Summary = "SSE: generar ticket de conexion",
+        Description = "Genera un ticket de un solo uso para abrir el canal Server-Sent Events sin exponer el token en la URL.")]
+    [SwaggerResponse(200, "Ticket generado")]
+    [SwaggerResponse(401, "No autenticado")]
+    public IActionResult CreateSseTicket()
     {
         var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier);
         if (userIdClaim == null || !int.TryParse(userIdClaim.Value, out var userId))
         {
-            Response.StatusCode = 401;
+            return Unauthorized(new { error = "Identidad de usuario inválida." });
+        }
+
+        var ticket = _sseTicketService.GenerateTicket(userId);
+        return Ok(new { ticket, expiresInSeconds = 300 });
+    }
+
+    /// <summary>
+    /// SSE endpoint for real-time user synchronization.
+    /// </summary>
+    [AllowAnonymous]
+    [HttpGet("sse")]
+    [SwaggerOperation(
+        Summary = "SSE: Sincronizacion en tiempo real",
+        Description = "Establece una conexion Server-Sent Events. Acepta un ticket de un solo uso o un JWT valido en el encabezado Authorization.")]
+    [SwaggerResponse(200, "Conexion SSE establecida")]
+    [SwaggerResponse(401, "Ticket invalido, expirado o sin autenticacion")]
+    public async Task SseConnect([FromQuery] string? ticket, CancellationToken cancellationToken)
+    {
+        int userId;
+
+        // Si ya viene un JWT valido (por ejemplo, una prueba con curl), se usa.
+        var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier);
+        if (userIdClaim != null && int.TryParse(userIdClaim.Value, out var authenticatedUserId))
+        {
+            userId = authenticatedUserId;
+        }
+        else if (!string.IsNullOrWhiteSpace(ticket)
+                 && _sseTicketService.ValidateAndConsumeTicket(ticket) is int ticketUserId)
+        {
+            userId = ticketUserId;
+        }
+        else
+        {
+            Response.StatusCode = StatusCodes.Status401Unauthorized;
             return;
         }
+
+        Response.ContentType = "text/event-stream";
+        Response.Headers.Append("Cache-Control", "no-cache");
+        Response.Headers.Append("Connection", "keep-alive");
+        Response.Headers.Append("X-Accel-Buffering", "no");
 
         await _sseService.RegisterConnectionAsync(userId, Response, cancellationToken);
     }

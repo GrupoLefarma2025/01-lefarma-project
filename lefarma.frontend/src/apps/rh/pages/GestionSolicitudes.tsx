@@ -336,7 +336,7 @@ export default function GestionSolicitudes() {
   };
 
   const handleOpenHistorial = (s: SolicitudPersonalResponse) => {
-    selectSolicitud(s.idSolicitud);
+    selectSolicitud(s.idSolicitud, s);
     fetchDetalleCompleto(s.idSolicitud);
     fetchHistorial(s.idSolicitud);
     toggleModal('historial', true);
@@ -842,7 +842,11 @@ export default function GestionSolicitudes() {
         titulo="Historial de solicitud"
         encabezado={
           selectedSolicitud ? (
-            <SolicitudHeaderCard solicitud={selectedSolicitud} getEstadoInfo={getEstadoInfo} />
+            <SolicitudHeaderCard
+              solicitud={selectedSolicitud}
+              getEstadoInfo={getEstadoInfo}
+              compact
+            />
           ) : undefined
         }
         cargando={loadingHistorial}

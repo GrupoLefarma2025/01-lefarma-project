@@ -1,5 +1,6 @@
 import React from 'react';
 import type { OrdenCompraResponse } from '@/types/ordenCompra.types';
+import { datosSolicitanteDocumento } from '@/utils/datosSolicitanteDocumento';
 import logoImage from '@/assets/logo_concentrado.png?no-inline';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -126,7 +127,7 @@ function buildRows(ordenes: OrdenCompraResponse[], agrupacion: AgrupacionKey): O
     rows.push({
       folio: o.folio,
       fechaElaboracion: o.fechaCreacion ? fmtDate(o.fechaCreacion) : '—',
-      solicitante: o.solicitanteNombre ?? '—',
+      solicitante: datosSolicitanteDocumento(o).nombre,
       fechaLimitePago: o.fechaLimitePago ? fmtDate(o.fechaLimitePago) : '—',
       mes: o.fechaLimitePago ? getMes(o.fechaLimitePago) : '—',
       sucursal: o.sucursalNombre ?? `Suc. ${o.idSucursal}`,
@@ -199,7 +200,7 @@ function buildPartidaRows(ordenes: OrdenCompraResponse[], agrupacion: Agrupacion
         folio: o.folio,
         numeroPartida: p.numeroPartida,
         fechaElaboracion: o.fechaCreacion ? fmtDate(o.fechaCreacion) : '—',
-        solicitante: o.solicitanteNombre ?? '—',
+        solicitante: datosSolicitanteDocumento(o).nombre,
         fechaLimitePago: o.fechaLimitePago ? fmtDate(o.fechaLimitePago) : '—',
         mes: o.fechaLimitePago ? getMes(o.fechaLimitePago) : '—',
         sucursal: o.sucursalNombre ?? `Suc. ${o.idSucursal}`,

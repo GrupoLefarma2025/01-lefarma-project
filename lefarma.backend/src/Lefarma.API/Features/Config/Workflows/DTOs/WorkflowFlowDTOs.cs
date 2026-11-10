@@ -25,5 +25,16 @@ namespace Lefarma.API.Features.Config.Workflows.DTOs
         public bool RequiereAdjunto { get; set; }
         public bool PermiteAdjunto { get; set; }
         public bool PermiteEditar { get; set; }
+        public List<WorkflowPasoParticipanteFlowResponse> Participantes { get; set; } = new();
+    }
+
+    public class WorkflowPasoParticipanteFlowResponse
+    {
+        public int? IdUsuario { get; set; }
+        public int? IdRol { get; set; }
+        public string? NombreUsuario { get; set; }
+        public string? NombreRol { get; set; }
+        public bool RequiereJefeInmediato { get; set; }
+        public int? NivelJefe { get; set; }
     }
 }

@@ -3,8 +3,10 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using FluentAssertions;
+using Lefarma.API.Domain.Entities.Asistencias;
 using Lefarma.API.Domain.Entities.Auth;
 using Lefarma.API.Domain.Entities.Viaticos;
+using Lefarma.API.Domain.Interfaces.Rh;
 using Lefarma.API.Features.Viaticos;
 using Lefarma.API.Infrastructure.Data;
 using Lefarma.API.Shared.Constants;
@@ -16,6 +18,7 @@ using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Moq;
 
 namespace Lefarma.UnitTests.Features.Viaticos;
 
@@ -314,6 +317,252 @@ public class AprobacionesControllerTests
             envelope.Data!.Single(x => x.IdSolicitud == id).Total.Should().BeNull();
         // Un total explicito SI es un dato y se conserva.
         envelope.Data!.Single(x => x.IdSolicitud == conTotal).Total.Should().Be(700m);
+    }
+
+    [Fact]
+    public async Task Bandeja_SinTotalEnElSnapshot_UsaElTotalDeLasOpcionesElegidas()
+    {
+        using var ctx = new TestContext();
+        const int adminId = 5850;
+
+        // El wizard guarda el precio en solicitud_opciones, no en datos_json:
+        // sin el respaldo, "Costo del viaje" se quedaria en "—".
+        var unaElegida = ctx.SembrarSolicitud(8851, "enviada", """{"destino":"PUEBLA"}""");
+        ctx.SembrarOpcion(unaElegida, "vuelo", "Vuelo elegido", 3500m, fueElegida: true);
+        ctx.SembrarOpcion(unaElegida, "vuelo", "Vuelo alterno", 9000m, fueElegida: false);
+
+        // Las elegidas se suman entre si; las descartadas nunca suman.
+        var dosElegidas = ctx.SembrarSolicitud(8852, "enviada", "");
+        ctx.SembrarOpcion(dosElegidas, "vuelo", "Vuelo", 1000m, fueElegida: true);
+        ctx.SembrarOpcion(dosElegidas, "hotel", "Hotel", 500.50m, fueElegida: true);
+
+        // Sin precio de proveedor: null ("no se sabe"), nunca 0.
+        var sinPrecio = ctx.SembrarSolicitud(8853, "enviada", "");
+        ctx.SembrarOpcion(sinPrecio, "hotel", "Hotel estimado", null, fueElegida: true);
+
+        // Dos monedas no se pueden sumar en una sola cifra: null.
+        var mixta = ctx.SembrarSolicitud(8854, "enviada", "");
+        ctx.SembrarOpcion(mixta, "vuelo", "Vuelo", 1000m, fueElegida: true, moneda: "MXN");
+        ctx.SembrarOpcion(mixta, "hotel", "Hotel", 200m, fueElegida: true, moneda: "USD");
+
+        // El total del snapshot (ruta autorizada o cotizacion importada) manda.
+        var conTotal = ctx.SembrarSolicitud(8855, "enviada", """{"total":700}""");
+        ctx.SembrarOpcion(conTotal, "vuelo", "Vuelo", 3500m, fueElegida: true);
+
+        using var cliente = ctx.Servidor.CreateClient();
+        cliente.DefaultRequestHeaders.Add("X-Test-UserId", adminId.ToString());
+        cliente.DefaultRequestHeaders.Add("X-Test-Permissions", Permissions.Viaticos.Autorizar);
+
+        var resp = await cliente.GetAsync("/api/viaticos/solicitudes");
+
+        resp.StatusCode.Should().Be(HttpStatusCode.OK);
+        var envelope = await resp.Content.ReadFromJsonAsync<ApiEnvelope<List<BandejaItemJson>>>();
+        envelope!.Success.Should().BeTrue();
+
+        decimal? Total(int id) => envelope.Data!.Single(x => x.IdSolicitud == id).Total;
+
+        Total(unaElegida).Should().Be(3500m);
+        Total(dosElegidas).Should().Be(1500.50m);
+        Total(sinPrecio).Should().BeNull();
+        Total(mixta).Should().BeNull();
+        Total(conTotal).Should().Be(700m);
+    }
+
+    // ---------------- GET /api/viaticos/solicitudes: transporte e itinerario ----------------
+
+    [Fact]
+    public async Task Bandeja_ResuelveElTipoDeTransporteDelMedioElegidoYDelModo()
+    {
+        using var ctx = new TestContext();
+        const int adminId = 5900;
+
+        // El wizard no escribe $.avion: el medio sale de la opcion elegida.
+        var conVuelo = ctx.SembrarSolicitud(8901, "enviada", """{"destino":"CANCUN"}""");
+        ctx.SembrarOpcion(conVuelo, "vuelo", "Vuelo elegido", 3500m, fueElegida: true);
+        var conAutobus = ctx.SembrarSolicitud(8902, "enviada", """{"destino":"TOLUCA"}""");
+        ctx.SembrarOpcion(conAutobus, "autobus", "Autobus", 600m, fueElegida: true);
+        var conAuto = ctx.SembrarSolicitud(8903, "enviada", """{"destino":"PUEBLA"}""");
+        ctx.SembrarOpcion(conAuto, "auto", "Renta de auto", 900m, fueElegida: true);
+
+        // Sin medio elegido manda el modo del wizard.
+        var modoPropio = ctx.SembrarSolicitud(
+            8904, "enviada",
+            """{"transporte":{"modo":"propio"},"calculo":{"modo_transporte":"propio","tramos":[]}}""");
+        var modoSolicitado = ctx.SembrarSolicitud(
+            8905, "enviada",
+            """{"transporte":{"modo":"solicitado"},"calculo":{"modo_transporte":"solicitado","tramos":[]}}""");
+
+        // Cotizacion importada: el concepto del snapshot ya dice el medio.
+        var importada = ctx.SembrarSolicitud(8906, "enviada", """{"avion":9000,"total":9000}""");
+        var sinDatos = ctx.SembrarSolicitud(8907, "enviada", """{"destino":"QUERETARO"}""");
+
+        using var cliente = ctx.Servidor.CreateClient();
+        cliente.DefaultRequestHeaders.Add("X-Test-UserId", adminId.ToString());
+        cliente.DefaultRequestHeaders.Add("X-Test-Permissions", Permissions.Viaticos.Autorizar);
+
+        var resp = await cliente.GetAsync("/api/viaticos/solicitudes");
+
+        resp.StatusCode.Should().Be(HttpStatusCode.OK);
+        var envelope = await resp.Content.ReadFromJsonAsync<ApiEnvelope<List<BandejaItemJson>>>();
+        envelope!.Success.Should().BeTrue();
+
+        string Transporte(int id) => envelope.Data!.Single(x => x.IdSolicitud == id).TipoTransporte;
+
+        Transporte(conVuelo).Should().Be("aereo");
+        Transporte(conAutobus).Should().Be("autobus");
+        Transporte(conAuto).Should().Be("propio");
+        Transporte(modoPropio).Should().Be("propio");
+        // "Solicitado" no es un dato faltante: la empresa gestiona el viaje y
+        // aun no se elige medio.
+        Transporte(modoSolicitado).Should().Be("solicitado");
+        Transporte(importada).Should().Be("aereo");
+        Transporte(sinDatos).Should().Be("sin-clasificar");
+    }
+
+    [Fact]
+    public async Task Bandeja_ComponeLosTrayectosDeIdaYVueltaDelCalculo()
+    {
+        using var ctx = new TestContext();
+        const int adminId = 5950;
+        var conCalculo = ctx.SembrarSolicitud(
+            8951, "autorizada",
+            """
+            {"rango":{"inicio":"2026-10-30","fin":"2026-11-02"},
+             "origen":{"punto":{"municipio":"CDMX"}},
+             "destinos":[{"punto":{"municipio":"Morelia"},"debeEstarFecha":"2026-10-30"}],
+             "retorno":{"necesario":true},
+             "persona":{"modo":"mia","nombre":"Ana Viajera","motivo":"Taller de marca"},
+             "calculo":{"modo_transporte":"solicitado","tramos":[
+               {"de":"CDMX","a":"Morelia","salida_fecha":"2026-10-30","salida_hora":"08:00"},
+               {"de":"Morelia","a":"Regreso al origen","salida_fecha":"2026-11-02","salida_hora":"18:30"}]}}
+            """);
+        // Sin regreso: el documento imprime solo la ida.
+        var soloIda = ctx.SembrarSolicitud(
+            8952, "autorizada",
+            """
+            {"rango":{"inicio":"2026-10-30","fin":"2026-10-30"},
+             "origen":{"punto":{"municipio":"CDMX"}},
+             "destinos":[{"punto":{"municipio":"Toluca"}}],
+             "retorno":{"necesario":false},
+             "calculo":{"tramos":[{"de":"CDMX","a":"Toluca","salida_fecha":"2026-10-30","salida_hora":"07:00"}]}}
+            """);
+
+        using var cliente = ctx.Servidor.CreateClient();
+        cliente.DefaultRequestHeaders.Add("X-Test-UserId", adminId.ToString());
+        cliente.DefaultRequestHeaders.Add("X-Test-Permissions", Permissions.Viaticos.Autorizar);
+
+        var resp = await cliente.GetAsync("/api/viaticos/solicitudes");
+
+        resp.StatusCode.Should().Be(HttpStatusCode.OK);
+        var envelope = await resp.Content.ReadFromJsonAsync<ApiEnvelope<List<BandejaItemJson>>>();
+        envelope!.Success.Should().BeTrue();
+
+        var idaYVuelta = envelope.Data!.Single(x => x.IdSolicitud == conCalculo);
+        idaYVuelta.Trayectos.Should().HaveCount(2);
+        idaYVuelta.Trayectos[0].Should().BeEquivalentTo(new
+        {
+            Fecha = "2026-10-30",
+            Hora = "08:00",
+            Origen = "CDMX",
+            Destino = "Morelia",
+        });
+        // "Regreso al origen" es una etiqueta del motor: el destino impreso es
+        // la ciudad de origen, no la etiqueta.
+        idaYVuelta.Trayectos[1].Should().BeEquivalentTo(new
+        {
+            Fecha = "2026-11-02",
+            Hora = "18:30",
+            Origen = "Morelia",
+            Destino = "CDMX",
+        });
+
+        // Persona y motivo salen del snapshot tal cual.
+        idaYVuelta.PersonaNombre.Should().Be("Ana Viajera");
+        idaYVuelta.Motivo.Should().Be("Taller de marca");
+
+        var deIda = envelope.Data!.Single(x => x.IdSolicitud == soloIda);
+        deIda.Trayectos.Should().ContainSingle();
+        deIda.Trayectos[0].Destino.Should().Be("Toluca");
+    }
+
+    [Fact]
+    public async Task Bandeja_ResuelvePuestoYFechaDeNacimientoSoloSiViajaElSolicitante()
+    {
+        using var ctx = new TestContext();
+        const int adminId = 5960;
+        const int viajeroId = 8961;
+
+        ctx.EmpleadoRepository
+            .Setup(r => r.ObtenerEmpleadosPorUsuariosAsync(
+                It.IsAny<IEnumerable<int>>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Dictionary<int, VwEmpleado>
+            {
+                [viajeroId] = new()
+                {
+                    Nombre = "Ana",
+                    Apellidos = "Viajera",
+                    Puesto = "  Coordinadora  ",
+                    Fechanacimiento = new DateTime(1990, 5, 17),
+                },
+            });
+
+        var viajaElSolicitante = ctx.SembrarSolicitud(
+            viajeroId, "enviada", """{"persona":{"modo":"mia","nombre":"Ana Viajera"}}""");
+        var viajaOtraPersona = ctx.SembrarSolicitud(
+            viajeroId, "enviada", """{"persona":{"modo":"otra","nombre":"Beto Invitado"}}""");
+
+        using var cliente = ctx.Servidor.CreateClient();
+        cliente.DefaultRequestHeaders.Add("X-Test-UserId", adminId.ToString());
+        cliente.DefaultRequestHeaders.Add("X-Test-Permissions", Permissions.Viaticos.Autorizar);
+
+        var resp = await cliente.GetAsync("/api/viaticos/solicitudes");
+
+        resp.StatusCode.Should().Be(HttpStatusCode.OK);
+        var envelope = await resp.Content.ReadFromJsonAsync<ApiEnvelope<List<BandejaItemJson>>>();
+        envelope!.Success.Should().BeTrue();
+
+        var propia = envelope.Data!.Single(x => x.IdSolicitud == viajaElSolicitante);
+        propia.Puesto.Should().Be("Coordinadora");
+        propia.FechaNacimiento.Should().Be("1990-05-17");
+        propia.PersonaNombre.Should().Be("Ana Viajera");
+
+        // Si viaja otra persona no se imprime el dato del solicitante: seria
+        // el puesto y el cumpleanos de quien no viaja.
+        var ajena = envelope.Data!.Single(x => x.IdSolicitud == viajaOtraPersona);
+        ajena.Puesto.Should().BeNull();
+        ajena.FechaNacimiento.Should().BeNull();
+        ajena.PersonaNombre.Should().Be("Beto Invitado");
+    }
+
+    [Fact]
+    public async Task Bandeja_SiElDirectorioDeAsistenciasFalla_DevuelveLaBandejaSinPuesto()
+    {
+        using var ctx = new TestContext();
+        const int adminId = 5970;
+        ctx.EmpleadoRepository
+            .Setup(r => r.ObtenerEmpleadosPorUsuariosAsync(
+                It.IsAny<IEnumerable<int>>(),
+                It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("Asistencias no responde"));
+
+        var solicitud = ctx.SembrarSolicitud(
+            8971, "enviada", """{"persona":{"modo":"mia","nombre":"Ana Viajera"},"total":100}""");
+
+        using var cliente = ctx.Servidor.CreateClient();
+        cliente.DefaultRequestHeaders.Add("X-Test-UserId", adminId.ToString());
+        cliente.DefaultRequestHeaders.Add("X-Test-Permissions", Permissions.Viaticos.Autorizar);
+
+        var resp = await cliente.GetAsync("/api/viaticos/solicitudes");
+
+        // Un dato que solo sirve para imprimir no puede tumbar la pantalla.
+        resp.StatusCode.Should().Be(HttpStatusCode.OK);
+        var envelope = await resp.Content.ReadFromJsonAsync<ApiEnvelope<List<BandejaItemJson>>>();
+        envelope!.Success.Should().BeTrue();
+        var fila = envelope.Data!.Single(x => x.IdSolicitud == solicitud);
+        fila.Puesto.Should().BeNull();
+        fila.FechaNacimiento.Should().BeNull();
+        fila.PersonaNombre.Should().Be("Ana Viajera");
     }
 
     // ---------------- GET /api/viaticos/solicitudes: origen y fecha FOR-008 ----------------
@@ -945,8 +1194,21 @@ public class AprobacionesControllerTests
         private readonly string _asokamDbName = $"AprobacionesCtrl-Asokam-{Guid.NewGuid():N}";
         public TestServer Servidor { get; }
 
+        /// <summary>
+        /// Directorio de personal que resuelve puesto y fecha de nacimiento del
+        /// formato "Solicitud de avión". Por defecto no resuelve a nadie: los
+        /// tests que necesitan esos datos configuran su propia respuesta.
+        /// </summary>
+        public Mock<IEmpleadoRepository> EmpleadoRepository { get; } = new();
+
         public TestContext()
         {
+            EmpleadoRepository
+                .Setup(r => r.ObtenerEmpleadosPorUsuariosAsync(
+                    It.IsAny<IEnumerable<int>>(),
+                    It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new Dictionary<int, VwEmpleado>());
+
             var options = new DbContextOptionsBuilder<ApplicationDbContext>()
                 .UseInMemoryDatabase(databaseName: _dbName)
                 .Options;
@@ -964,6 +1226,7 @@ public class AprobacionesControllerTests
                     services.AddRouting();
                     services.AddDbContext<ApplicationDbContext>(o => o.UseInMemoryDatabase(_dbName));
                     services.AddDbContext<AsokamDbContext>(o => o.UseInMemoryDatabase(_asokamDbName));
+                    services.AddSingleton<IEmpleadoRepository>(EmpleadoRepository.Object);
                     services.AddAuthentication(PermisosEndpointTests.TestAuthHandler.NombreEsquema)
                         .AddScheme<AuthenticationSchemeOptions, PermisosEndpointTests.TestAuthHandler>(
                             PermisosEndpointTests.TestAuthHandler.NombreEsquema, _ => { });
@@ -1058,7 +1321,8 @@ public class AprobacionesControllerTests
             bool fueElegida,
             string? datosJson = null,
             string? urlCompra = null,
-            string fuente = "proveedor")
+            string fuente = "proveedor",
+            string? moneda = "MXN")
         {
             using var scope = Servidor.Host.Services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
@@ -1069,7 +1333,7 @@ public class AprobacionesControllerTests
                 Linea = linea,
                 DatosJson = datosJson,
                 Precio = precio,
-                Moneda = "MXN",
+                Moneda = moneda,
                 UrlCompra = urlCompra,
                 Fuente = fuente,
                 FueElegida = fueElegida,
@@ -1185,5 +1449,38 @@ public class AprobacionesControllerTests
 
         [JsonPropertyName("total")]
         public decimal? Total { get; set; }
+
+        [JsonPropertyName("tipo_transporte")]
+        public string TipoTransporte { get; set; } = string.Empty;
+
+        [JsonPropertyName("persona_nombre")]
+        public string? PersonaNombre { get; set; }
+
+        [JsonPropertyName("motivo")]
+        public string? Motivo { get; set; }
+
+        [JsonPropertyName("puesto")]
+        public string? Puesto { get; set; }
+
+        [JsonPropertyName("fecha_nacimiento")]
+        public string? FechaNacimiento { get; set; }
+
+        [JsonPropertyName("trayectos")]
+        public List<TrayectoItemJson> Trayectos { get; set; } = new();
+    }
+
+    private sealed class TrayectoItemJson
+    {
+        [JsonPropertyName("fecha")]
+        public string? Fecha { get; set; }
+
+        [JsonPropertyName("hora")]
+        public string? Hora { get; set; }
+
+        [JsonPropertyName("origen")]
+        public string? Origen { get; set; }
+
+        [JsonPropertyName("destino")]
+        public string? Destino { get; set; }
     }
 }

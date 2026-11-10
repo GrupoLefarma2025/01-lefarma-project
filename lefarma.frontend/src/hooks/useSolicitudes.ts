@@ -1,12 +1,14 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { API } from '@/shared/api/apiClient';
 import type { ApiResponse } from '@/types/api.types';
+import type { EmpleadoJefesConfigResponse } from '@/types/jefesNiveles.types';
 import type {
   PagedResult,
   SolicitudPersonalResponse,
   SolicitudPersonalFilterParams,
 } from '@/types/solicitudPersonal.types';
 import { toApiError } from '@/utils/errors';
+import { pasoSeOmitira } from '@/utils/flujoJefes';
 import { toast } from 'sonner';
 import type {
   AccionDisponibleResponse,
@@ -17,6 +19,16 @@ import type {
 } from '@/types/solicitudPersonalWorkflow.types';
 
 const ESTADOS_TERMINALES = ['cerrada', 'cancelada', 'rechazada'];
+
+interface JefesExcluidosResponse {
+  idWorkflow: number;
+  idUsuariosJefe: number[];
+}
+
+interface FiltroFlujo {
+  config: EmpleadoJefesConfigResponse | null;
+  excluidos: Set<number>;
+}
 
 function isEstadoTerminal(estadoNombre?: string | null): boolean {
   if (!estadoNombre) return false;
@@ -37,7 +49,7 @@ export interface UseSolicitudesAutorizacionesReturn {
 
   selectedId: number | null;
   selectedSolicitud: SolicitudPersonalResponse | null;
-  selectSolicitud: (id: number | null) => void;
+  selectSolicitud: (id: number | null, fallback?: SolicitudPersonalResponse | null) => void;
 
   loadingDetalle: boolean;
   fetchDetalleCompleto: (id: number) => Promise<void>;
@@ -93,6 +105,54 @@ export function useSolicitudesAutorizaciones(): UseSolicitudesAutorizacionesRetu
   const [workflowsMap, setWorkflowsMap] = useState<Map<number, WorkflowFlowResponse>>(new Map());
   const [workflowsLoaded, setWorkflowsLoaded] = useState(false);
   const [isSubmittingFirma, setIsSubmittingFirma] = useState(false);
+
+  // Configuración de jefes del solicitante y exclusiones del workflow de la
+  // solicitud seleccionada: sirven para no pintar en la línea de tiempo los
+  // pasos de jefe que el motor omitirá (p. ej. niveles 4-5 sin cuenta).
+  const [jefesConfig, setJefesConfig] = useState<EmpleadoJefesConfigResponse | null>(null);
+  const [jefesExcluidos, setJefesExcluidos] = useState<Set<number>>(() => new Set());
+  const filtroFlujoCache = useRef(new Map<string, FiltroFlujo>());
+
+  const cargarFiltroFlujo = useCallback(async (solicitud: SolicitudPersonalResponse) => {
+    if (!solicitud.idWorkflow) {
+      setJefesConfig(null);
+      setJefesExcluidos(new Set());
+      return;
+    }
+
+    const idUsuario = solicitud.idUsuarioSolicitante ?? solicitud.idUsuarioCreador;
+    const clave = `${solicitud.idWorkflow}:${idUsuario}`;
+    const cache = filtroFlujoCache.current.get(clave);
+    if (cache) {
+      setJefesConfig(cache.config);
+      setJefesExcluidos(cache.excluidos);
+      return;
+    }
+
+    try {
+      const [configRes, excluidosRes] = await Promise.all([
+        API.get<ApiResponse<EmpleadoJefesConfigResponse>>(
+          `/config/empleados/${idUsuario}/jefes-config`
+        ),
+        API.get<ApiResponse<JefesExcluidosResponse>>(
+          `/config/workflows/${solicitud.idWorkflow}/jefes-excluidos`
+        ),
+      ]);
+
+      const config = configRes.data?.success ? (configRes.data.data ?? null) : null;
+      const excluidos = new Set(
+        excluidosRes.data?.success ? (excluidosRes.data.data?.idUsuariosJefe ?? []) : []
+      );
+
+      filtroFlujoCache.current.set(clave, { config, excluidos });
+      setJefesConfig(config);
+      setJefesExcluidos(excluidos);
+    } catch {
+      // Sin datos se muestra el flujo completo (comportamiento anterior).
+      setJefesConfig(null);
+      setJefesExcluidos(new Set());
+    }
+  }, []);
 
   const fetchWorkflowsFlow = useCallback(async () => {
     try {
@@ -229,23 +289,32 @@ export function useSolicitudesAutorizaciones(): UseSolicitudesAutorizacionesRetu
   );
 
   const selectSolicitud = useCallback(
-    (id: number | null) => {
+    (id: number | null, fallback?: SolicitudPersonalResponse | null) => {
       setSelectedId(id);
       if (id != null) {
         const fromList =
+          fallback ??
           solicitudesPropias.find((s) => s.idSolicitud === id) ??
           solicitudesTodas.find((s) => s.idSolicitud === id) ??
           null;
         setSelectedSolicitud(fromList);
         setAcciones([]);
         setHistorial([]);
+        if (fromList) {
+          void cargarFiltroFlujo(fromList);
+        } else {
+          setJefesConfig(null);
+          setJefesExcluidos(new Set());
+        }
       } else {
         setSelectedSolicitud(null);
         setAcciones([]);
         setHistorial([]);
+        setJefesConfig(null);
+        setJefesExcluidos(new Set());
       }
     },
-    [solicitudesPropias, solicitudesTodas]
+    [solicitudesPropias, solicitudesTodas, cargarFiltroFlujo]
   );
 
   const firmar = useCallback(
@@ -352,8 +421,21 @@ export function useSolicitudesAutorizaciones(): UseSolicitudesAutorizacionesRetu
     if (!selectedSolicitud?.idWorkflow) return [];
     const workflow = workflowsMap.get(selectedSolicitud.idWorkflow);
     if (!workflow) return [];
-    return (workflow.pasos || []).filter((p) => p.activo).sort((a, b) => a.orden - b.orden);
-  }, [selectedSolicitud, workflowsMap]);
+    const pasos = (workflow.pasos || [])
+      .filter((p) => p.activo)
+      .sort((a, b) => a.orden - b.orden);
+
+    // Oculta los pasos de jefe que el motor omitirá para este solicitante. Se
+    // conservan el paso actual y los ya visitados para no perder su historial.
+    if (!jefesConfig) return pasos;
+    const pasosConEventos = new Set(historial.map((h) => h.idPaso));
+    return pasos.filter(
+      (paso) =>
+        paso.idPaso === selectedSolicitud.idPasoActual ||
+        pasosConEventos.has(paso.idPaso) ||
+        !pasoSeOmitira(paso, jefesConfig, jefesExcluidos)
+    );
+  }, [selectedSolicitud, workflowsMap, jefesConfig, jefesExcluidos, historial]);
 
   return {
     solicitudesPropias,

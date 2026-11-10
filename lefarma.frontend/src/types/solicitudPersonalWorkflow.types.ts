@@ -77,6 +77,15 @@ export interface HistorialWorkflowItemResponse {
   fechaEvento: string;
 }
 
+export interface WorkflowPasoParticipanteFlowResponse {
+  idUsuario?: number | null;
+  idRol?: number | null;
+  nombreUsuario?: string | null;
+  nombreRol?: string | null;
+  requiereJefeInmediato: boolean;
+  nivelJefe?: number | null;
+}
+
 export interface WorkflowPasoFlowResponse {
   idPaso: number;
   orden: number;
@@ -90,6 +99,7 @@ export interface WorkflowPasoFlowResponse {
   requiereComentario: boolean;
   requiereAdjunto: boolean;
   permiteAdjunto: boolean;
+  participantes?: WorkflowPasoParticipanteFlowResponse[];
 }
 
 export interface WorkflowFlowResponse {

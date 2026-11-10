@@ -36,6 +36,12 @@ public interface IFirmasService
     Task<ErrorOr<ArchivoProtegidoResponse>> GetFirmaVigenteAsync(int idUsuario, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Firma vigente para el concentrado de órdenes: prefiere la firma cifrada de RH
+    /// y usa la firma legacy de CxP cuando el usuario no tiene firma RH.
+    /// </summary>
+    Task<ErrorOr<ArchivoProtegidoResponse>> GetFirmaVigenteConLegacyAsync(int idUsuario, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Firma usada en un evento de la bitácora del workflow, con autorización estricta
     /// por documento (SP/OC). Fallback a la firma vigente del actor si el evento no
     /// tiene firmaArchivo capturado.

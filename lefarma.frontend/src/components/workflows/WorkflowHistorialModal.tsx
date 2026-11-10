@@ -48,15 +48,16 @@ export function WorkflowHistorialModal({
       }}
       title={
         <div className="flex items-center gap-2">
-          <History className="h-5 w-5" />
+          <History className="h-4 w-4" />
           <span>{titulo}</span>
         </div>
       }
       size="full"
+      compact
     >
-      {encabezado && <div className="mb-4">{encabezado}</div>}
+      {encabezado && <div className="mb-2">{encabezado}</div>}
       {cargando ? (
-        <div className="flex items-center justify-center py-16 text-sm text-muted-foreground">
+        <div className="flex items-center justify-center py-10 text-sm text-muted-foreground">
           <Loader2 className="mr-2 h-5 w-5 animate-spin" />
           Cargando historial...
         </div>
