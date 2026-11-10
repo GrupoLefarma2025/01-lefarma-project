@@ -498,7 +498,7 @@ public class ComprobanteService : IComprobanteService
 
         if (!comprobantes.Any()) return CommonErrors.NotFound("Comprobante", "No hay comprobantes para eliminar");
 
-        return await EliminarComprobantesAsync(comprobantes, idOrden, ct);
+        return await EliminarComprobantesAsync(comprobantes, idOrden, idUsuario, ct);
     }
 
     public async Task<ErrorOr<bool>> EliminarAsync(int idComprobante, int idUsuario, CancellationToken ct = default)
@@ -510,7 +510,7 @@ public class ComprobanteService : IComprobanteService
         if (comprobante is null)
             return CommonErrors.NotFound("Comprobante", idComprobante.ToString());
 
-        return await EliminarComprobantesAsync([comprobante], null, ct);
+        return await EliminarComprobantesAsync([comprobante], null, idUsuario, ct);
     }
 
     public async Task<ErrorOr<PartidaFacturacionResponse>> EliminarAsignacionAsync(
@@ -543,7 +543,7 @@ public class ComprobanteService : IComprobanteService
 
             if (!tieneOtrasAsignaciones)
             {
-                await DesactivarArchivosComprobanteAsync(comprobante.IdComprobante, ct);
+                await DesactivarArchivosComprobanteAsync(comprobante.IdComprobante, idUsuario, ct);
                 comprobante.Activo = false;
                 comprobante.Estado = 3;
                 comprobante.FechaModificacion = DateTime.UtcNow;
@@ -565,7 +565,11 @@ public class ComprobanteService : IComprobanteService
         }
     }
 
-    private async Task<ErrorOr<bool>> EliminarComprobantesAsync(List<Comprobante> comprobantes, int? idOrden, CancellationToken ct)
+    private async Task<ErrorOr<bool>> EliminarComprobantesAsync(
+        List<Comprobante> comprobantes,
+        int? idOrden,
+        int idUsuario,
+        CancellationToken ct)
     {
         var categoria = comprobantes[0].Categoria;
         await using var tx = await _db.Database.BeginTransactionAsync(ct);
@@ -585,7 +589,7 @@ public class ComprobanteService : IComprobanteService
                     .Where(cp => cp.IdComprobante == comprobante.IdComprobante)
                     .ExecuteUpdateAsync(s => s.SetProperty(cp => cp.Activo, false), ct);
 
-                await DesactivarArchivosComprobanteAsync(comprobante.IdComprobante, ct);
+                await DesactivarArchivosComprobanteAsync(comprobante.IdComprobante, idUsuario, ct);
 
                 //Se cambia a soft delete para mantener el historial de comprobantes eliminados
                 comprobante.Activo = false;
@@ -644,7 +648,10 @@ public class ComprobanteService : IComprobanteService
         await RecalcularEstadoPartidaAsync(asignacion.IdPartida, ct);
     }
 
-    private async Task DesactivarArchivosComprobanteAsync(int idComprobante, CancellationToken ct)
+    private async Task DesactivarArchivosComprobanteAsync(
+        int idComprobante,
+        int idUsuario,
+        CancellationToken ct)
     {
         var archivosRelacionados = await _db.Archivos
             .Where(a => a.EntidadTipo == "OrdenCompra"
@@ -654,7 +661,7 @@ public class ComprobanteService : IComprobanteService
             .ToListAsync(ct);
 
         foreach (var archivo in archivosRelacionados)
-            await _archivoService.DeleteAsync(archivo.Id, ct);
+            await _archivoService.DeleteAsync(archivo.Id, idUsuario, ct);
     }
 
     public async Task<ErrorOr<List<HistorialComprobanteResponse>>> GetHistorialComprobantesAsync(

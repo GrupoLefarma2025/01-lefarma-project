@@ -437,6 +437,18 @@ public class NotificationService : INotificationService
             userIds.AddRange(roleUserIds);
         }
 
+        // Agregar correos explícitos del request (no necesariamente usuarios del sistema)
+        if (channelRequest.Emails != null && channelRequest.Emails.Count > 0)
+        {
+            foreach (var correo in channelRequest.Emails)
+            {
+                if (EsCorreoValido(correo))
+                {
+                    emails.Add(correo.Trim());
+                }
+            }
+        }
+
         // Remove duplicates
         userIds = userIds.Distinct().ToList();
 
@@ -454,7 +466,26 @@ public class NotificationService : INotificationService
             _logger.LogDebug("Resolved {UserCount} users to {EmailCount} emails", userIds.Count, users.Count);
         }
 
-        return emails;
+        return emails.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+    }
+
+    /// <summary>Validación mínima de un correo explícito; el canal vuelve a validar al enviar.</summary>
+    internal static bool EsCorreoValido(string? correo)
+    {
+        if (string.IsNullOrWhiteSpace(correo))
+        {
+            return false;
+        }
+
+        try
+        {
+            _ = new System.Net.Mail.MailAddress(correo.Trim());
+            return true;
+        }
+        catch (FormatException)
+        {
+            return false;
+        }
     }
 
     /// <summary>

@@ -7,6 +7,7 @@ using Lefarma.API.Domain.Interfaces.Logging;
 using Lefarma.API.Domain.Interfaces.Operaciones;
 using Lefarma.API.Domain.Interfaces.Rh;
 using Lefarma.API.Features.Admin;
+using Lefarma.API.Features.Archivos.Notifications;
 using Lefarma.API.Features.Archivos.Services;
 using Lefarma.API.Features.Archivos.Settings;
 using Lefarma.API.Features.Auth;
@@ -193,6 +194,9 @@ builder.Services.Configure<ArchivosSettings>(
 builder.Services.AddSingleton<Lefarma.API.Infrastructure.Files.IFileCipher, Lefarma.API.Infrastructure.Files.AesFileCipher>();
 builder.Services.AddScoped<IArchivoRepository, ArchivoRepository>();
 builder.Services.AddScoped<IArchivoService, ArchivoService>();
+builder.Services.Configure<ArchivosEliminacionSettings>(
+    builder.Configuration.GetSection("ArchivosEliminacion"));
+builder.Services.AddScoped<IArchivoEliminacionNotifier, ArchivoEliminacionNotifier>();
 
 // Repositorios - Config y Operaciones
 builder.Services.AddScoped<IWorkflowRepository, WorkflowRepository>();

@@ -2,10 +2,12 @@ using ErrorOr;
 using Lefarma.API.Domain.Entities.Archivos;
 using Lefarma.API.Domain.Interfaces;
 using Lefarma.API.Features.Archivos.DTOs;
+using Lefarma.API.Features.Archivos.Notifications;
 using Lefarma.API.Features.Archivos.Settings;
 using Lefarma.API.Infrastructure.Data;
 using Lefarma.API.Shared.Errors;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
 namespace Lefarma.API.Features.Archivos.Services;
@@ -14,17 +16,20 @@ public class ArchivoService : IArchivoService
     private readonly IArchivoRepository _repository;
     private readonly ArchivosSettings _settings;
     private readonly AsokamDbContext _asokamDb;
+    private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<ArchivoService> _logger;
 
     public ArchivoService(
         IArchivoRepository repository,
         IOptions<ArchivosSettings> settings,
         AsokamDbContext asokamDb,
+        IServiceScopeFactory scopeFactory,
         ILogger<ArchivoService> logger)
     {
         _repository = repository;
         _settings = settings.Value;
         _asokamDb = asokamDb;
+        _scopeFactory = scopeFactory;
         _logger = logger;
     }
 
@@ -200,11 +205,30 @@ public class ArchivoService : IArchivoService
         return (stream, archivo.NombreOriginal, archivo.TipoMime);
     }
 
-    public async Task<ErrorOr<bool>> DeleteAsync(int id, CancellationToken cancellationToken = default)
+    public async Task<ErrorOr<bool>> DeleteAsync(
+        int id,
+        int? usuarioId = null,
+        CancellationToken cancellationToken = default)
     {
         var archivo = await _repository.GetByIdAsync(id, cancellationToken);
         if (archivo == null)
             return CommonErrors.NotFound("Archivo");
+
+        // Se captura antes del borrado lógico: después la entidad queda inactiva
+        // y fuera de seguimiento al terminar la petición.
+        var evento = new ArchivoEliminadoEvento(
+            archivo.Id,
+            archivo.EntidadTipo,
+            archivo.EntidadId,
+            archivo.Carpeta,
+            archivo.NombreOriginal,
+            archivo.Extension,
+            archivo.TamanoBytes,
+            archivo.Metadata,
+            archivo.FechaCreacion,
+            archivo.UsuarioId,
+            usuarioId,
+            DateTime.Now);
 
         // Renombrar archivo físico
         var rutaActual = Path.Combine(_settings.BasePath, archivo.Carpeta, archivo.NombreFisico);
@@ -218,7 +242,10 @@ public class ArchivoService : IArchivoService
 
         await _repository.DeleteAsync(id, cancellationToken);
 
-        _logger.LogInformation("Archivo eliminado (soft delete): {Id}", id);
+        _logger.LogInformation("Archivo eliminado (soft delete): {Id} por usuario {UsuarioId}", id, usuarioId);
+
+        // Aviso por correo fuera del request: no debe retrasar ni tumbar el borrado.
+        ArchivoEliminacionDispatch.Enviar(_scopeFactory, evento);
 
         return true;
     }

@@ -91,6 +91,11 @@ public class NotificationChannelRequest
     public List<string>? RoleNames { get; set; }
 
     /// <summary>
+    /// Correos explícitos (no necesariamente usuarios del sistema) que reciben la notificación.
+    /// </summary>
+    public List<string>? Emails { get; set; }
+
+    /// <summary>
     /// Channel-specific configuration data
     /// </summary>
     public Dictionary<string, object>? ChannelSpecificData { get; set; }

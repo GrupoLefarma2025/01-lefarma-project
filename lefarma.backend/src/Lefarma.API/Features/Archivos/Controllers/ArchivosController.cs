@@ -290,7 +290,7 @@ public class ArchivosController : ControllerBase
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> Delete(int id)
     {
-        var result = await _service.DeleteAsync(id);
+        var result = await _service.DeleteAsync(id, GetUserId());
 
         return result.ToActionResult(this, _ => Ok(new ApiResponse<object>
         {
