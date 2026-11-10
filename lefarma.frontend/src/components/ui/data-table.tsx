@@ -113,7 +113,16 @@ export interface DataTableProps<TData> {
   /** Estado vacío personalizado cuando no hay filas. */
   emptyState?: ReactNode;
 
+  /**
+   * Nombre histórico del flag de carga. Se conserva porque muchas pantallas
+   * ya lo pasan; para código nuevo se prefiere `loader`.
+   */
   loading?: boolean;
+  /**
+   * Activa el skeleton de filas (mismas columnas visibles de la tabla).
+   * Es opcional: si no se pasa, la tabla se comporta como siempre.
+   */
+  loader?: boolean;
   density?: 'compact' | 'standard' | 'comfortable';
   pageSizeOverride?: number; // renombrado para evitar conflicto con el pageSize existente
 }
@@ -247,6 +256,7 @@ export function DataTable<TData>({
   onSelectionChange,
   getRowId,
   loading = false,
+  loader,
   density,
   pageSizeOverride,
   manualPagination,
@@ -260,6 +270,8 @@ export function DataTable<TData>({
   const tableDensity = density || ui.componentes.tables.density;
   const tablePageSize = pageSizeOverride || pageSize || ui.componentes.tables.defaultPageSize;
   const skeletonRowCount = Math.min(tablePageSize, 10);
+  // `loader` es el nombre preferido; `loading` sigue funcionando por compatibilidad.
+  const isLoading = loader ?? loading;
 
   const selectionColumn = useMemo<ColumnDef<TData>>(() => ({
     id: 'select',
@@ -712,7 +724,7 @@ export function DataTable<TData>({
                   ))}
                 </TableHeader>
                 <TableBody>
-                  {loading ? (
+                  {isLoading ? (
                     <TableSkeletonRows
                       rowCount={skeletonRowCount}
                       columnIds={table.getVisibleLeafColumns().map((column) => column.id)}
@@ -770,7 +782,7 @@ export function DataTable<TData>({
             <div className="flex flex-wrap items-center justify-between gap-2 border-t border-muted px-4 py-2 text-xs text-muted-foreground">
               <div className="flex items-center gap-3">
                 <span>
-                  {loading ? (
+                  {isLoading ? (
                     'Cargando…'
                   ) : (
                     <>
@@ -854,7 +866,7 @@ export function DataTable<TData>({
             <div className="flex flex-wrap items-center justify-between gap-2 border-t border-muted px-4 py-2">
               {showRowCount && (
                 <span className="text-xs text-muted-foreground">
-                  {loading ? (
+                  {isLoading ? (
                     'Cargando…'
                   ) : manualPagination && totalCount !== undefined ? (
                     <>

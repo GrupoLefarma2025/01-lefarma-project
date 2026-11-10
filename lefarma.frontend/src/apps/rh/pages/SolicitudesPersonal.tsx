@@ -74,6 +74,7 @@ export default function SolicitudesPersonal() {
     fetchHistorial,
     historial,
     pasosWorkflow,
+    responsablesPorPaso,
     getEstadoInfo,
     firmar,
     enviarDirector,
@@ -105,8 +106,10 @@ export default function SolicitudesPersonal() {
   const [workflowEstados, setWorkflowEstados] = useState<WorkflowEstado[]>([]);
   const [dataPendientes, setDataPendientes] = useState<SolicitudPersonalResponse[]>([]);
   const [dataMias, setDataMias] = useState<SolicitudPersonalResponse[]>([]);
-  const [loadingPendientes, setLoadingPendientes] = useState(false);
-  const [loadingMias, setLoadingMias] = useState(false);
+  // Arrancan en true: la primera carga dispara al montar, así la tabla pinta el
+  // skeleton desde el primer frame en vez de un "Sin resultados" fugaz.
+  const [loadingPendientes, setLoadingPendientes] = useState(true);
+  const [loadingMias, setLoadingMias] = useState(true);
   const [totalTerminadas, setTotalTerminadas] = useState(0);
   const [limitesRefreshKey, setLimitesRefreshKey] = useState(0);
   const [confirmCloseCrear, setConfirmCloseCrear] = useState(false);
@@ -520,7 +523,7 @@ export default function SolicitudesPersonal() {
         <TabsContent value="pendientes" className="mt-3 w-full">
           <SolicitudesTable
             data={solicitudesPendientes}
-            loading={loadingCurrentTab}
+            loader={loadingCurrentTab}
             title="Solicitudes pendientes"
             subtitle="Solicitudes que aún no se cierran, cancelan o rechazan"
             getEstadoInfo={getEstadoInfo}
@@ -534,7 +537,7 @@ export default function SolicitudesPersonal() {
         <TabsContent value="mias" className="mt-3 w-full">
           <SolicitudesTable
             data={solicitudesMias}
-            loading={loadingCurrentTab}
+            loader={loadingCurrentTab}
             title="Mis solicitudes terminadas"
             subtitle="Cerradas, canceladas o rechazadas"
             getEstadoInfo={getEstadoInfo}
@@ -662,6 +665,7 @@ export default function SolicitudesPersonal() {
         estadoNombre={selectedSolicitud?.estadoNombre}
         pasos={pasosWorkflow}
         historial={historial}
+        responsablesPorPaso={responsablesPorPaso}
       />
 
       <Modal
