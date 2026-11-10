@@ -90,65 +90,72 @@ export const Header = ({ showContext = false, configPath, showHelp = false, onOp
     : hasFirma === false;
 
   return (
-    <header className={`h-16 bg-card relative flex items-center justify-between px-4 sm:px-6 ${sinFirma ? 'border-b-2 border-amber-400 dark:border-amber-500' : 'border-b border-border'}`}>
-      {/* Left side: Toggle + Location Info (hidden on mobile) */}
-      <div className="flex items-center gap-4">
-        <SidebarTrigger />
+    <header className={`h-16 bg-card grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-4 px-4 sm:px-6 ${sinFirma ? 'border-b-2 border-amber-400 dark:border-amber-500' : 'border-b border-border'}`}>
+      {/*
+        Tres zonas en columnas iguales a los lados y el título al centro, para
+        que el título de la página nunca se encime con el contexto de ubicación
+        (empresa/sucursal/área/puesto). El contexto trunca con elipsis cuando no
+        cabe y va soltando datos en pantallas angostas.
+      */}
 
-        {/* Empresa + Sucursal: md+ only */}
-         {/* Empresa + Sucursal + Área: solo cuando la app usa contexto (CxP) */}
+      {/* Izquierda: toggle del sidebar + contexto de ubicación (solo apps con contexto, p. ej. CxP) */}
+      <div className="flex min-w-0 items-center gap-4 overflow-hidden">
+        <SidebarTrigger className="shrink-0" />
+
         {showContext && (
-        <div className="hidden md:flex items-center gap-4">
-          <div className="h-4 w-px bg-border" />
-          <div className="flex items-center gap-2 text-sm">
-            <Building2 className="h-4 w-4 text-muted-foreground" />
-            <span className="text-foreground font-medium">{empresa?.nombre || 'Sin empresa'}</span>
+        <div className="hidden min-w-0 items-center gap-4 lg:flex">
+          <div className="h-4 w-px shrink-0 bg-border" />
+          <div className="flex shrink-0 items-center gap-2 text-sm">
+            <Building2 className="h-4 w-4 shrink-0 text-muted-foreground" />
+            <span className="min-w-0 max-w-[180px] truncate text-foreground font-medium" title={empresa?.nombre}>{empresa?.nombre || 'Sin empresa'}</span>
           </div>
-          <div className="h-4 w-px bg-border" />
-          <div className="flex items-center gap-2 text-sm">
-            <MapPin className="h-4 w-4 text-muted-foreground" />
-            <span className="text-muted-foreground">{sucursal?.nombre || 'Sin sucursal'}</span>
+          <div className="h-4 w-px shrink-0 bg-border" />
+          <div className="flex shrink-0 items-center gap-2 text-sm">
+            <MapPin className="h-4 w-4 shrink-0 text-muted-foreground" />
+            <span className="min-w-0 max-w-[180px] truncate text-muted-foreground" title={sucursal?.nombre}>{sucursal?.nombre || 'Sin sucursal'}</span>
           </div>
           {areaMostrada && (
             <>
-              <div className="h-4 w-px bg-border" />
-              <div className="flex items-center gap-2 text-sm">
-                <Layers className="h-4 w-4 text-muted-foreground" />
-                <span className="max-w-[220px] truncate text-muted-foreground">{areaMostrada}</span>
+              <div className="hidden h-4 w-px shrink-0 bg-border xl:block" />
+              <div className="hidden min-w-0 items-center gap-2 text-sm xl:flex">
+                <Layers className="h-4 w-4 shrink-0 text-muted-foreground" />
+                <span className="min-w-0 max-w-[220px] truncate text-muted-foreground" title={areaMostrada}>{areaMostrada}</span>
               </div>
             </>
           )}
           {puestoMostrado && (
             <>
-              <div className="h-4 w-px bg-border" />
-              <div className="flex items-center gap-2 text-sm">
-                <Briefcase className="h-4 w-4 text-muted-foreground" />
-                <span className="max-w-[220px] truncate text-muted-foreground">{puestoMostrado}</span>
+              <div className="hidden h-4 w-px shrink-0 bg-border min-[1800px]:block" />
+              <div className="hidden min-w-0 items-center gap-2 text-sm min-[1800px]:flex">
+                <Briefcase className="h-4 w-4 shrink-0 text-muted-foreground" />
+                <span className="min-w-0 max-w-[220px] truncate text-muted-foreground" title={puestoMostrado}>{puestoMostrado}</span>
               </div>
             </>
           )}
         </div>
         )}
+      </div>
+
+      {/* Centro: Título de la página (solo md+) */}
+      {title ? (
+        <div className="hidden min-w-0 max-w-[40vw] text-center md:block">
+          <p className="truncate text-sm font-semibold text-foreground leading-tight" title={title}>{title}</p>
+          {subtitle && (
+            <p className="truncate text-xs text-muted-foreground leading-tight" title={subtitle}>{subtitle}</p>
+          )}
+        </div>
+      ) : (
+        <div className="hidden md:block" />
+      )}
+
+   {/* Lado derecho: aviso de firma + Tema + Notificaciones + Menú de usuario */}
+      <div className="flex min-w-0 items-center justify-end gap-2">
         {sinFirma && (
-          <div className="hidden md:flex items-center gap-1.5 rounded-full border border-amber-400 dark:border-amber-500/60 bg-amber-50 dark:bg-amber-500/10 px-2.5 py-0.5 text-xs text-amber-700 dark:text-amber-400">
+          <div className="hidden md:flex shrink-0 items-center gap-1.5 rounded-full border border-amber-400 dark:border-amber-500/60 bg-amber-50 dark:bg-amber-500/10 px-2.5 py-0.5 text-xs text-amber-700 dark:text-amber-400">
             <PenLine className="h-3 w-3" />
             <span>Sin firma digital</span>
           </div>
         )}
-      </div>
-
-      {/* Centro: Título de la página (solo md+) */}
-      {title && (
-        <div className="absolute left-1/2 -translate-x-1/2 text-center hidden md:block">
-          <p className="text-sm font-semibold text-foreground leading-tight">{title}</p>
-          {subtitle && (
-            <p className="text-xs text-muted-foreground leading-tight">{subtitle}</p>
-          )}
-        </div>
-      )}
-
-   {/* Lado derecho: Tema + Notificaciones + Menú de usuario */}
-      <div className="flex items-center gap-2">
         {showHelp && onOpenHelp && (
           <Button
             variant="ghost"
