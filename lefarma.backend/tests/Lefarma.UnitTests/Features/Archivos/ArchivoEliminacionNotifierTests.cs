@@ -48,9 +48,8 @@ public class ArchivoEliminacionNotifierTests
     [Fact]
     public void ConstruirAsunto_Debe_Incluir_El_Folio_O_Usar_El_Generico()
     {
-        var asunto = ArchivoEliminacionNotifier.ConstruirAsunto("OC-2026-00012");
-
-        asunto.Should().Contain("OC-2026-00012");
+        ArchivoEliminacionNotifier.ConstruirAsunto("OC-2026-00012")
+            .Should().Be("Archivo eliminado — OC-2026-00012");
 
         ArchivoEliminacionNotifier.ConstruirAsunto(string.Empty).Should().Be("Archivo eliminado");
     }
@@ -138,6 +137,26 @@ public class ArchivoEliminacionNotifierTests
 
         limitados.Should().HaveCount(2);
         limitados.Should().Equal("a@b.com", "c@d.com");
+    }
+
+    [Fact]
+    public void ResolverCorreosAdicionales_Debe_Preferir_La_Variable_Y_Caer_A_La_Configuracion()
+    {
+        // La variable del módulo Configuración manda sobre appsettings.
+        ArchivoEliminacionNotifier.ResolverCorreosAdicionales(
+                new[] { "variable@b.com" },
+                new[] { "config@b.com" })
+            .Should().Equal("variable@b.com");
+
+        // Sin variable disponible se usa la lista de appsettings.
+        ArchivoEliminacionNotifier.ResolverCorreosAdicionales(null, new[] { "config@b.com" })
+            .Should().Equal("config@b.com");
+
+        // Variable vacía: configuración explícita, no se cae al respaldo.
+        ArchivoEliminacionNotifier.ResolverCorreosAdicionales(Array.Empty<string>(), new[] { "config@b.com" })
+            .Should().BeEmpty();
+
+        ArchivoEliminacionNotifier.ResolverCorreosAdicionales(null, null).Should().BeEmpty();
     }
 
     [Fact]

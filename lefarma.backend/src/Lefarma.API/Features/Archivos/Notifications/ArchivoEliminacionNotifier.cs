@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using Lefarma.API.Domain.Interfaces;
 using Lefarma.API.Features.Archivos.Settings;
+using Lefarma.API.Features.Configuracion;
 using Lefarma.API.Features.Notifications.DTOs;
 using Lefarma.API.Infrastructure.Data;
 using Lefarma.API.Shared.Constants;
@@ -23,6 +24,9 @@ public class ArchivoEliminacionNotifier : IArchivoEliminacionNotifier
 {
     internal const string EntidadOrdenCompra = "OrdenCompra";
 
+    /// <summary>Variable del módulo Configuración con los correos adicionales (array de correos).</summary>
+    internal const string ClaveCorreosAdicionales = "cxp.eliminacion-archivos.correos";
+
     private const string CarpetaAdjuntosOrden = "ordenes-compra";
     private const string CarpetaComprobantes = "comprobantes";
     private const string CanalEmail = "email";
@@ -34,6 +38,7 @@ public class ArchivoEliminacionNotifier : IArchivoEliminacionNotifier
     private readonly ApplicationDbContext _db;
     private readonly AsokamDbContext _asokam;
     private readonly IOptions<ArchivosEliminacionSettings> _settings;
+    private readonly IConfiguracionRuntimeService _configuracion;
     private readonly INotificationService _notificaciones;
     private readonly IConfiguration _configuration;
     private readonly ILogger<ArchivoEliminacionNotifier> _logger;
@@ -42,6 +47,7 @@ public class ArchivoEliminacionNotifier : IArchivoEliminacionNotifier
         ApplicationDbContext db,
         AsokamDbContext asokam,
         IOptions<ArchivosEliminacionSettings> settings,
+        IConfiguracionRuntimeService configuracion,
         INotificationService notificaciones,
         IConfiguration configuration,
         ILogger<ArchivoEliminacionNotifier> logger)
@@ -49,6 +55,7 @@ public class ArchivoEliminacionNotifier : IArchivoEliminacionNotifier
         _db = db;
         _asokam = asokam;
         _settings = settings;
+        _configuracion = configuracion;
         _notificaciones = notificaciones;
         _configuration = configuration;
         _logger = logger;
@@ -86,7 +93,7 @@ public class ArchivoEliminacionNotifier : IArchivoEliminacionNotifier
             var creadorConCorreo = creador is { EsActivo: true }
                 && !string.IsNullOrWhiteSpace(creador.Correo);
 
-            var correosAdicionales = NormalizarCorreosAdicionales(_settings.Value.CorreosAdicionales);
+            var correosAdicionales = await ResolverCorreosAdicionalesAsync(ct);
 
             if (!creadorConCorreo && correosAdicionales.Count == 0)
             {
@@ -175,7 +182,7 @@ public class ArchivoEliminacionNotifier : IArchivoEliminacionNotifier
     internal static string ConstruirAsunto(string? folio)
         => string.IsNullOrWhiteSpace(folio)
             ? "Archivo eliminado"
-            : $"Archivo eliminado — OC {folio.Trim()}";
+            : $"Archivo eliminado — {folio.Trim()}";
 
     /// <summary>
     /// Cuerpo del correo: la frase del requisito (quién, archivo, fecha/hora y OC)
@@ -290,6 +297,37 @@ public class ArchivoEliminacionNotifier : IArchivoEliminacionNotifier
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .Take(Math.Max(1, maximo))
             .ToList();
+    }
+
+    /// <summary>
+    /// La variable del módulo Configuración manda; si no existe o no es válida se
+    /// usa la lista de appsettings como respaldo.
+    /// </summary>
+    internal static IReadOnlyList<string> ResolverCorreosAdicionales(
+        IReadOnlyList<string>? deVariable,
+        IReadOnlyList<string>? deConfiguracion)
+        => NormalizarCorreosAdicionales(deVariable ?? deConfiguracion);
+
+    private async Task<IReadOnlyList<string>> ResolverCorreosAdicionalesAsync(CancellationToken ct)
+    {
+        var variable = await _configuracion.GetAsync<List<string>>(ClaveCorreosAdicionales, ct);
+
+        if (!variable.IsError)
+        {
+            return ResolverCorreosAdicionales(variable.Value, _settings.Value.CorreosAdicionales);
+        }
+
+        var respaldo = ResolverCorreosAdicionales(null, _settings.Value.CorreosAdicionales);
+
+        if (respaldo.Count > 0)
+        {
+            _logger.LogInformation(
+                "La variable {Clave} no está disponible ({Error}); se usan los correos de appsettings.",
+                ClaveCorreosAdicionales,
+                variable.FirstError.Description);
+        }
+
+        return respaldo;
     }
 
     /// <summary>Validación mínima de un correo; el canal vuelve a validar al enviar.</summary>
