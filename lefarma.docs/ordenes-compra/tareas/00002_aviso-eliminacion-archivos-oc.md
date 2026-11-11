@@ -13,7 +13,8 @@ Estado al 2026-11-10: implementado y verificado de forma estática (build + test
 
 - [x] **T0.2 Notificador del aviso**
   - `Features/Archivos/Notifications/`: `ArchivoEliminadoEvento`, `IArchivoEliminacionNotifier`, `ArchivoEliminacionNotifier` y `ArchivoEliminacionDispatch` (fire-and-forget con scope propio).
-  - `Features/Archivos/Settings/ArchivosEliminacionSettings.cs` y `appsettings.json` → `ArchivosEliminacion:CorreosAdicionales` (vacío).
+  - `Features/Archivos/Settings/ArchivosEliminacionSettings.cs` y `appsettings.json` → `ArchivosEliminacion:CorreosAdicionales` (vacío) como **respaldo**.
+  - Los correos adicionales se leen primero de la variable `cxp.eliminacion-archivos.correos` (`IConfiguracionRuntimeService`); si no existe o no es válida, se usa `appsettings`. La variable manda.
   - Regla: solo `EntidadTipo = "OrdenCompra"`; omite si quien elimina es `IdUsuarioCreador`; destinatarios = correo del creador + lista configurada (máximo 10, validados y sin duplicados).
   - Correo con el layout de `ORDEN_COMPRA` de `config.workflow_canal_templates` (o respaldo propio), enlace a `/cxp/ordenes/autorizaciones?idOrden=…`, remitente «Cuentas por Pagar».
   - Verificación: build sin errores.
@@ -29,9 +30,10 @@ Estado al 2026-11-10: implementado y verificado de forma estática (build + test
 
 ## Pendiente para operar
 
-- [ ] Capturar los correos adicionales en `appsettings` de cada ambiente (`ArchivosEliminacion:CorreosAdicionales`). Mientras esté vacío, el aviso solo llega al creador de la OC.
+- [ ] Crear la variable `cxp.eliminacion-archivos.correos` en el módulo Configuración (tipo `array`, destino solo Backend) con los correos del negocio. En cuanto exista, manda sobre `appsettings`.
+- [ ] Como respaldo, o si se prefiere no crear la variable todavía, capturar los correos en `appsettings` de cada ambiente (`ArchivosEliminacion:CorreosAdicionales`). Mientras ambos estén vacíos, el aviso solo llega al creador de la OC.
 - [ ] Publicar y probar en dev: eliminar un archivo de una OC cuyo creador sea otro usuario y confirmar el correo; eliminar un archivo propio y confirmar que no se envía.
-- [ ] Si más adelante se migra la configuración al módulo de variables, cambiar solo la fuente de `CorreosAdicionales`.
+- [ ] Correo de muestra enviado el 2026-11-10 a 6@grupolefarma.com.mx generado con el código real (OC-2026-00099, usuario 71) para revisar el formato.
 
 ## Criterios de aceptación
 
@@ -39,4 +41,5 @@ Estado al 2026-11-10: implementado y verificado de forma estática (build + test
 - [x] Se envía un correo por archivo eliminado (adjuntos de la orden y comprobantes).
 - [x] El correo muestra quién eliminó, el nombre del archivo, la fecha y hora y el folio de la OC (cubierto por pruebas).
 - [x] El borrado no espera al SMTP ni falla si el envío falla.
+- [x] La lista de correos adicionales admite la variable del módulo Configuración y el respaldo de `appsettings`.
 - [ ] Prueba real de envío en dev (pendiente, requiere correos y SMTP).
