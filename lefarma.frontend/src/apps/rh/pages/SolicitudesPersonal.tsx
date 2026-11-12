@@ -594,22 +594,20 @@ export default function SolicitudesPersonal() {
           const ok = await firmar(req, false, buildApiFilters(appliedFilters));
           if (ok) {
             //closeModal('firma');
-            await Promise.all([
+            void Promise.all([
               fetchTabData('pendientes', appliedFiltersByTab.pendientes),
               fetchTabData('mias', appliedFiltersByTab.mias),
-            ]);
-            setLimitesRefreshKey((k) => k + 1);
+            ]).then(() => setLimitesRefreshKey((k) => k + 1));
           }
           return ok;
         }}
         onEnviarDirector={async (req, pdfBlob, archivoSoporte) => {
           const ok = await enviarDirector(req, pdfBlob, archivoSoporte);
           if (ok) {
-            await Promise.all([
+            void Promise.all([
               fetchTabData('pendientes', appliedFiltersByTab.pendientes),
               fetchTabData('mias', appliedFiltersByTab.mias),
-            ]);
-            setLimitesRefreshKey((k) => k + 1);
+            ]).then(() => setLimitesRefreshKey((k) => k + 1));
           }
           return ok;
         }}
