@@ -95,6 +95,7 @@ public class ComprobanteService : IComprobanteService
         CfdiPreviewResponse? cfdi = null;
         bool esCfdi = request.TipoComprobante == "cfdi";
         bool esPago = request.Categoria == "pago";
+        int? idBorradorAbandonado = null;
 
         if (esCfdi && !string.IsNullOrEmpty(xmlContent))
         {
@@ -107,8 +108,20 @@ public class ComprobanteService : IComprobanteService
                 return CommonErrors.Validation("XmlInvalido", $"El XML no es un CFDI valido: {ex.Message}");
             }
 
-            if (cfdi.Uuid != null && await _repo.UuidExisteAsync(cfdi.Uuid, ct))
-                return CommonErrors.Conflict("Comprobante", "Ya existe una factura registrada con este UUID CFDI");
+            if (cfdi.Uuid is not null)
+            {
+                // Un comprobante activo con el mismo UUID y sin asignaciones es un
+                // borrador de una carga que nunca se completo: se reemplaza.
+                // Si ya tiene asignaciones, el CFDI esta realmente registrado.
+                var duplicado = await _repo.GetActivoPorUuidAsync(cfdi.Uuid, ct);
+                if (duplicado is not null)
+                {
+                    if (duplicado.Asignaciones.Any(a => a.Activo))
+                        return CommonErrors.Conflict("Comprobante", "Ya existe una factura registrada con este UUID CFDI");
+
+                    idBorradorAbandonado = duplicado.IdComprobante;
+                }
+            }
 
             if (cfdi.Uuid is not null && cfdi.RfcEmisor is not null && cfdi.RfcReceptor is not null)
             {
@@ -134,6 +147,30 @@ public class ComprobanteService : IComprobanteService
         await using var tx = await _db.Database.BeginTransactionAsync(ct);
         try
         {
+            // Baja del borrador abandonado dentro de la transaccion: si algo falla
+            // al registrar la nueva carga, el comprobante anterior no se pierde.
+            if (idBorradorAbandonado is int idBorrador)
+            {
+                var desactivado = await _db.Comprobantes
+                    .Where(c => c.IdComprobante == idBorrador && (c.Activo ?? true))
+                    .Where(c => !c.Asignaciones.Any(a => a.Activo))
+                    .ExecuteUpdateAsync(s => s
+                        .SetProperty(c => c.Activo, false)
+                        .SetProperty(c => c.Estado, (byte)3)
+                        .SetProperty(c => c.FechaModificacion, DateTime.UtcNow), ct);
+
+                if (desactivado == 0)
+                {
+                    await tx.RollbackAsync(ct);
+                    return CommonErrors.Conflict("Comprobante", "Ya existe una factura registrada con este UUID CFDI");
+                }
+
+                await DesactivarArchivosComprobanteAsync(idBorrador, ct);
+                _logger.LogInformation(
+                    "Se reemplazo el comprobante {IdBorrador} sin asignaciones al volver a subir el UUID {Uuid}",
+                    idBorrador, cfdi?.Uuid);
+            }
+
             var total = cfdi?.Total ?? request.TotalManual ?? request.MontoPago ?? 0m;
 
             var comprobante = new Comprobante
@@ -193,7 +230,7 @@ public class ComprobanteService : IComprobanteService
                     nombrePaso    = request.NombrePaso,
                     nombreAccion  = request.NombreAccion
                 }, _jsonUtf8);
-                await _archivoService.SubirAsync(
+                var xmlGuardado = await _archivoService.SubirAsync(
                     xmlMs, xmlName, "application/xml",
                     new SubirArchivoRequest
                     {
@@ -203,6 +240,14 @@ public class ComprobanteService : IComprobanteService
                         Metadata    = meta
                     },
                     idUsuario, ct);
+
+                if (xmlGuardado.IsError)
+                {
+                    _logger.LogWarning(
+                        "No se pudo guardar el XML del CFDI {Uuid} de la orden {IdOrden}: {Codigo} - {Descripcion}",
+                        cfdi?.Uuid, request.IdOrden,
+                        xmlGuardado.FirstError.Code, xmlGuardado.FirstError.Description);
+                }
             }
 
             if (archivoStream != null && archivoFileName != null && archivoContentType != null)
