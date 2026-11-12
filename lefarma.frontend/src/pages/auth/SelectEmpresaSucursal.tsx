@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/shared/auth/authStore';
 import { authService } from '@/shared/auth/authService';
@@ -95,14 +95,18 @@ export default function SelectEmpresaSucursal() {
       // REQ-001/005: push catalogs to the store so resolveArea has data.
       store.setCatalogs(empresasData, sucursalesData, areasData);
 
-      setEmpresas(empresasData);
+      // Solo empresas activas: una empresa dada de baja no se ofrece.
+      const empresasSeleccionables = empresasData.filter(
+        (empresa) => empresa.activo !== false
+      );
+      setEmpresas(empresasSeleccionables);
       setSucursales(sucursalesData);
 
       // REQ-003: seed empresa/sucursal from detalle when valid in catalogs
       // (detalle canonical); localStorage lazy-init above is fallback only.
       const detalle = useAuthStore.getState().usuarioDetalle;
       if (detalle && detalle.idEmpresa > 0) {
-        const empresaValida = empresasData.some(
+        const empresaValida = empresasSeleccionables.some(
           (e) => String(e.idEmpresa) === String(detalle.idEmpresa)
         );
         if (empresaValida) {

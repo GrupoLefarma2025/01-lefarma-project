@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuthStore } from '@/shared/auth/authStore';
 import { authService } from '@/shared/auth/authService';
 import { Empresa, Sucursal } from '@/types/auth.types';
@@ -82,7 +82,8 @@ export default function CambiarUbicacionModal({
         authService.getSucursales(),
       ]);
 
-      setEmpresas(empresasData);
+      // Solo empresas activas: una empresa dada de baja no se ofrece.
+      setEmpresas(empresasData.filter((empresa) => empresa.activo !== false));
       setSucursales(sucursalesData);
     } catch (err: unknown) {
       const message =

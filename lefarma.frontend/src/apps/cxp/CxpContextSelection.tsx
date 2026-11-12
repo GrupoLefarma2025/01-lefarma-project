@@ -105,15 +105,30 @@ export function CxpContextSelection() {
     });
   }, [areas, effectiveEmpresa]);
 
+  // Empresas que se ofrecen en el selector: las dadas de baja no aparecen. Si
+  // el usuario NO puede elegir, se mantiene su empresa asignada para que el
+  // campo (deshabilitado) la muestre tal cual.
+  const empresasDisponibles = useMemo(() => {
+    if (!puedeSeleccionarEmpresas) return empresas;
+    return empresas.filter((empresa) => empresa.activo !== false);
+  }, [empresas, puedeSeleccionarEmpresas]);
+
   // --- Ajustes de estado durante el render (recomendado vs. setState dentro de useEffect) ---
 
   // Pre-cargar empresa/sucursal/área del usuario como DEFAULT cuando puede
   // seleccionar (cuando no puede, ya se resuelven vía autoSelected*). Solo
   // siembra valores editables; este slot solo se monta en loginStep === 3.
   if (puedeSeleccionarEmpresas && usuarioDetalle && !selectedEmpresa) {
-    if (usuarioDetalle.idEmpresa > 0) setSelectedEmpresa(String(usuarioDetalle.idEmpresa));
-    if (usuarioDetalle.idSucursal > 0) setSelectedSucursal(String(usuarioDetalle.idSucursal));
-    if (usuarioDetalle.idArea && usuarioDetalle.idArea > 0) setSelectedArea(String(usuarioDetalle.idArea));
+    // Solo sembrar la empresa del detalle si sigue disponible en el selector:
+    // una empresa dada de baja no debe quedar seleccionada de forma invisible.
+    const empresaDisponible = empresasDisponibles.some(
+      (empresa) => String(empresa.idEmpresa) === String(usuarioDetalle.idEmpresa)
+    );
+    if (empresaDisponible) {
+      if (usuarioDetalle.idEmpresa > 0) setSelectedEmpresa(String(usuarioDetalle.idEmpresa));
+      if (usuarioDetalle.idSucursal > 0) setSelectedSucursal(String(usuarioDetalle.idSucursal));
+      if (usuarioDetalle.idArea && usuarioDetalle.idArea > 0) setSelectedArea(String(usuarioDetalle.idArea));
+    }
   }
 
   // Si no hay un área válida para la empresa elegida, caer al primero [0]
@@ -207,7 +222,7 @@ export function CxpContextSelection() {
             <SelectValue placeholder="Selecciona una empresa" />
           </SelectTrigger>
           <SelectContent>
-            {empresas.map((empresa, index) => (
+            {empresasDisponibles.map((empresa, index) => (
               <SelectItem
                 key={empresa.idEmpresa || `empresa-${index}`}
                 value={String(empresa.idEmpresa || '')}
