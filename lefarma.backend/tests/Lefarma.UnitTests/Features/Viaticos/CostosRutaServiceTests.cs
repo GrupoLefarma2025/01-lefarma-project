@@ -462,6 +462,108 @@ public class CostosRutaServiceTests
     }
 
     [Fact]
+    public async Task Hospedaje_En_Ciudad_No_Sembrada_UsaLaZonaDefault_NoCDMX()
+    {
+        // Cuernavaca no esta en las 9 ciudades puntuales y queda fuera del radio
+        // de snap (25 km). Usa la zona E (resto) y NO hereda los $3,533 de CDMX.
+        CostosRutaPersonaInput Persona() => new()
+        {
+            Nombre = "Ana",
+            CarroPropio = true,
+            Gasolina = "magna",
+            Draft = false,
+            Trabajo = new CostosRutaTrabajoInput { HoraEntrada = "08:00", HoraSalida = "18:30" },
+            Lugares =
+            [
+                new CostosRutaLugarInput
+                {
+                    Orden = 1, Tipo = "salida", Nombre = "CDMX base",
+                    Latitud = 19.4326, Longitud = -99.1332,
+                    FechaSalida = "2026-10-15", HoraSalida = "06:00",
+                },
+                new CostosRutaLugarInput
+                {
+                    Orden = 2, Tipo = "hotel", Nombre = "Hotel Cuernavaca",
+                    Municipio = "Cuernavaca", Estado = "Morelos",
+                    Latitud = 18.9242, Longitud = -99.2216,
+                    FechaLlegada = "2026-10-15", HoraLlegada = "20:00",
+                    FechaSalida = "2026-10-16", HoraSalida = "07:00",
+                },
+            ],
+        };
+        using var handler = new HotelesOverpassHandler();
+        using var http = new HttpClient(handler);
+        using var cache = new MemoryCache(new MemoryCacheOptions());
+        var resp = await CalculoCostosRuta.CalcularAsync(new CostosRutaRequest { Personas = [Persona()] }, http, cache);
+
+        var hoteles = resp.Resultados[0].HotelesPropuestos;
+        hoteles.Should().NotBeEmpty();
+        hoteles.Should().OnlyContain(h => h.Ciudad == "Cuernavaca");
+        hoteles.Should().OnlyContain(h => h.PrecioNoche == 1500 && h.PrecioTotal == 1500);
+        hoteles.Should().OnlyContain(h => h.TipoPrecio == "referencia_tabulador");
+        hoteles.Should().OnlyContain(h => h.Proveedor == "Tabulador SHCP (zona E)");
+
+        var referencia = hoteles.First(h => h.Nombre.Contains("(referencia)"));
+        referencia.Link.Should().StartWith("https://www.google.com/travel/search?q=");
+        referencia.Link.Should().Contain("checkin=2026-10-15").And.Contain("checkout=2026-10-16");
+        referencia.LinkReserva.Should().StartWith("https://www.booking.com/searchresults.es.html?ss=Cuernavaca");
+
+        foreach (var p in resp.Propuestas)
+        {
+            p.Hospedaje.Should().Be(1500, "la zona E es la referencia para el resto de los municipios");
+            p.Incumplimientos.Should().NotContain(m => m.Contains("$3,533"));
+        }
+    }
+
+    [Fact]
+    public async Task Hospedaje_UsaElMunicipioDeLaBd_AntesQueElNombreDelPunto()
+    {
+        // La direccion del mapa puede ser una localidad ("Manzana Cuarta...").
+        // El catalogo viaticos.municipios_cat debe resolver Ixtlahuaca sin
+        // depender de Nominatim ni del texto de la direccion.
+        CostosRutaPersonaInput Persona() => new()
+        {
+            Nombre = "Ana",
+            CarroPropio = true,
+            Gasolina = "magna",
+            Draft = false,
+            Trabajo = new CostosRutaTrabajoInput { HoraEntrada = "08:00", HoraSalida = "18:30" },
+            Lugares =
+            [
+                new CostosRutaLugarInput
+                {
+                    Orden = 1, Tipo = "salida", Nombre = "CDMX base",
+                    Latitud = 19.4326, Longitud = -99.1332,
+                    FechaSalida = "2026-10-15", HoraSalida = "06:00",
+                },
+                new CostosRutaLugarInput
+                {
+                    Orden = 2, Tipo = "hotel", Nombre = "Manzana Cuarta De Santa Cruz Tepexpan",
+                    Municipio = "Manzana Cuarta De Santa Cruz Tepexpan", Estado = "Estado de México",
+                    Latitud = 19.576353, Longitud = -99.724563,
+                    FechaLlegada = "2026-10-15", HoraLlegada = "20:00",
+                    FechaSalida = "2026-10-16", HoraSalida = "07:00",
+                },
+            ],
+        };
+        using var handler = new HotelesOverpassHandler();
+        using var http = new HttpClient(handler);
+        using var cache = new MemoryCache(new MemoryCacheOptions());
+        var resp = await CalculoCostosRuta.CalcularAsync(
+            new CostosRutaRequest { Personas = [Persona()] }, http, cache, CancellationToken.None,
+            new List<MunicipioCercano>
+            {
+                new("Ixtlahuaca", 19.601536, -99.797639),
+                new("Jiquipilco", 19.591621, -99.632833),
+            });
+
+        var referencia = resp.Resultados[0].HotelesPropuestos.First(h => h.Nombre.Contains("(referencia)"));
+        referencia.Ciudad.Should().Be("Ixtlahuaca");
+        referencia.Link.Should().Contain("hoteles%20en%20Ixtlahuaca");
+        referencia.Link.Should().Contain("Estado%20de%20M%C3%A9xico");
+    }
+
+    [Fact]
     public async Task Personas_Vacias_Lanza_400()
     {
         var controller = new CostosRutaController(new FabricaFake(new FallaTodoHandler()), new MemoryCache(new MemoryCacheOptions()), CrearContexto());
@@ -522,6 +624,58 @@ public class CostosRutaServiceTests
         resp.Propuestas.Should().HaveCount(6);
         var tipo3 = resp.Propuestas.First(p => p.Clave == "tipo3-avion");
         tipo3.Tramos.Should().Contain(t => t.Modo == "avion");
+    }
+
+    [Fact]
+    public async Task Viaje_Sin_Iata_Usa_Aeropuerto_Cercano_Y_Taxi()
+    {
+        // Tekax no tiene IATA ni ruta directa de ClickBus: el motor debe volar
+        // a Merida (MID) y cobrar el taxi MID -> Tekax, sin exigir punto a punto.
+        var (http, cache) = Infra();
+        var resp = await CalculoCostosRuta.CalcularAsync(new CostosRutaRequest
+        {
+            Personas =
+            [
+                new CostosRutaPersonaInput
+                {
+                    Nombre = "Benjamin",
+                    CarroPropio = false,
+                    Gasolina = "magna",
+                    Draft = false,
+                    Lugares =
+                    [
+                        new CostosRutaLugarInput
+                        {
+                            Orden = 1, Tipo = "salida", Nombre = "Catedral CDMX",
+                            Municipio = "Ciudad de México", Estado = "Ciudad de México",
+                            Latitud = 19.4343821, Longitud = -99.1330651,
+                        },
+                        new CostosRutaLugarInput
+                        {
+                            Orden = 2, Tipo = "taller", Nombre = "Tekax",
+                            Municipio = "Tekax", Estado = "Yucatán",
+                            Latitud = 20.34462694382967, Longitud = -89.08777788955403,
+                            FechaInicioActividad = "2026-11-24", HoraInicioActividad = "08:36",
+                        },
+                    ],
+                },
+            ],
+        }, http, cache);
+
+        var tramo = resp.Resultados[0].Tramos[0];
+        var vuelo = tramo.Opciones.Single(o => o.Modo == "avion");
+        vuelo.TerminalDestino.Should().NotBeNull();
+        vuelo.TerminalDestino!.Nombre.Should().Contain("(MID)");
+        vuelo.Nota.Should().Contain("aeropuerto más cercano");
+        vuelo.Comprar.Url.Should().StartWith("https://www.kayak.com.mx/flights/MEX-MID/2026-11-");
+        vuelo.MinutosTaxiDestino.Should().BeGreaterThan(0);
+        vuelo.ATiempo.Should().BeTrue(
+            "el motor debe preferir el vuelo del dia anterior cuando el del dia limite no alcanza");
+        DateTime.Parse(vuelo.Llegada, System.Globalization.CultureInfo.InvariantCulture)
+            .AddMinutes(vuelo.MinutosTaxiDestino ?? 0).Should()
+            .BeOnOrBefore(new DateTime(2026, 11, 24, 8, 36, 0));
+        resp.Propuestas.Single(p => p.Clave == "tipo3-avion").Tramos
+            .Should().Contain(t => t.Modo == "avion");
     }
 
     [Fact]
@@ -672,10 +826,31 @@ public class CostosRutaServiceTests
     }
 
     [Fact]
+    public async Task ClickBus_UsaLaTerminalMasCercana_CuandoLaLocalidadNoEstaEnSuCatalogo()
+    {
+        // VIA-21-0027 cae en "Manzana Cuarta De Santa Cruz Tepexpan", una
+        // localidad que ClickBus no lista. Debe usar Toluca (mismo estado, ~32
+        // km) en vez de dejar el autobus sin link.
+        using var handler = new ClickBusCercanoHandler();
+        using var http = new HttpClient(handler);
+        using var cache = new MemoryCache(new MemoryCacheOptions());
+
+        var viajes = await CalculoCostosRuta.BuscarBusesClickBusAsync(
+            http, "Jiquipilco", "Ciudad de México", new DateOnly(2026, 11, 23), cache,
+            CancellationToken.None, "Estado de México", "Ciudad de México",
+            19.576353, -99.724563, 19.4326, -99.1332);
+
+        viajes.Should().BeEmpty("el handler devuelve una busqueda sin viajes");
+        handler.TripsUrl.Should().NotBeNull();
+        handler.TripsUrl.Should().Contain("from=toluca-edo-mex-todas-las-terminales");
+        handler.TripsUrl.Should().Contain("to=ciudad-de-mexico-df");
+    }
+
+    [Fact]
     public async Task Vuelos_Estimados_Abren_Una_Busqueda_Real_Con_La_Ruta_Y_La_Fecha()
     {
         // Las aerolineas no cotizan en el motor: el boton debe abrir una
-        // busqueda real (Google Flights) en vez de la portada de la aerolinea.
+        // busqueda real (Kayak) en vez de la portada de la aerolinea.
         var (http, cache) = Infra();
         var request = new CostosRutaRequest
         {
@@ -712,11 +887,57 @@ public class CostosRutaServiceTests
         var resp = await CalculoCostosRuta.CalcularAsync(request, http, cache);
 
         var vuelo = resp.Resultados[0].Tramos[0].Opciones.First(o => o.Modo == "avion");
-        vuelo.Comprar.Url.Should().StartWith("https://www.google.com/travel/flights?q=");
-        vuelo.Comprar.Url.Should().Contain(Uri.EscapeDataString(
-            "Flights from MEX to DGO on 2026-10-2"));
-        vuelo.Comprar.Url.Should().Contain("&curr=MXN&hl=es-MX");
-        vuelo.Comprar.Sitio.Should().Be("Google Flights");
+        vuelo.Comprar.Url.Should().StartWith("https://www.kayak.com.mx/flights/MEX-DGO/2026-10-2");
+        vuelo.Comprar.Url.Should().Contain("sort=bestflight_a");
+        vuelo.Comprar.Sitio.Should().Be("Kayak");
+        vuelo.TipoPrecio.Should().Be("estimado");
+    }
+
+    [Theory]
+    [InlineData("Monterrey", 25.6866, -100.3161, "Xalapa", 19.5438, -96.9102, "MTY-JAL")]
+    [InlineData("Ciudad de México", 19.4326, -99.1332, "Ciudad Obregón", 27.4826, -109.9300, "MEX-CEN")]
+    [InlineData("Ciudad de México", 19.4326, -99.1332, "Ciudad Victoria", 23.7369, -99.1461, "MEX-CVM")]
+    public async Task Vuelos_Usan_El_Codigo_IATA_Validado_De_La_Ciudad(
+        string origen, double latOrigen, double lonOrigen,
+        string destino, double latDestino, double lonDestino, string rutaEsperada)
+    {
+        // Xalapa (JAL), Ciudad Obregón (CEN) y Ciudad Victoria (CVM) no estaban
+        // en el catalogo y el link salia con el municipio o sin busqueda.
+        var (http, cache) = Infra();
+        var request = new CostosRutaRequest
+        {
+            Personas =
+            [
+                new CostosRutaPersonaInput
+                {
+                    Nombre = "Ana",
+                    CarroPropio = false,
+                    Gasolina = "magna",
+                    Draft = false,
+                    Lugares =
+                    [
+                        new CostosRutaLugarInput
+                        {
+                            Orden = 1, Tipo = "salida", Nombre = $"Base {origen}",
+                            Municipio = origen, Latitud = latOrigen, Longitud = lonOrigen,
+                            FechaSalida = "2026-10-23", HoraSalida = "06:00",
+                        },
+                        new CostosRutaLugarInput
+                        {
+                            Orden = 2, Tipo = "taller", Nombre = $"Sucursal {destino}",
+                            Municipio = destino, Latitud = latDestino, Longitud = lonDestino,
+                            FechaInicioActividad = "2026-10-23", HoraInicioActividad = "12:00",
+                            FechaFinActividad = "2026-10-23", HoraFinActividad = "18:00",
+                        },
+                    ],
+                },
+            ],
+        };
+
+        var resp = await CalculoCostosRuta.CalcularAsync(request, http, cache);
+
+        var vuelo = resp.Resultados[0].Tramos[0].Opciones.First(o => o.Modo == "avion");
+        vuelo.Comprar.Url.Should().StartWith($"https://www.kayak.com.mx/flights/{rutaEsperada}/2026-10-23");
     }
 
     // Catalogo publico de Primera Plus: resuelve "Ciudad de Mexico" a su grupo
@@ -789,5 +1010,39 @@ public class CostosRutaServiceTests
                     Content = new StringContent(cuerpo, Encoding.UTF8, "application/json"),
                 });
         }
+    }
+
+    // Catalogo minimo de ClickBus: Toluca existe, Jiquipilco no. Sirve para
+    // verificar que una localidad cae en la terminal mas cercana del mismo
+    // estado en vez de quedarse sin link.
+    private sealed class ClickBusCercanoHandler : HttpMessageHandler
+    {
+        public string? TripsUrl { get; private set; }
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
+        {
+            var url = request.RequestUri?.ToString() ?? "";
+            if (url.Contains("/places/get-all", StringComparison.Ordinal))
+            {
+                return Ok("""
+                {"places":[
+                  {"slug":"toluca-edo-mex-todas-las-terminales","name":"Toluca, EDO MEX (Todas las Terminales)","city":"Toluca","terminal_type":"Todas las Terminales","place":{"state":{"name":"Estado de México"}},"latitude":19.2926,"longitude":-99.6539},
+                  {"slug":"ciudad-de-mexico-df-(todas-las-terminales)","name":"Ciudad de México (Todas las Terminales)","city":"Ciudad de México","terminal_type":"Todas las Terminales","place":{"state":{"name":"Ciudad de México"}},"latitude":19.4326,"longitude":-99.1332}
+                ]}
+                """);
+            }
+            if (url.Contains("/trips/search", StringComparison.Ordinal))
+            {
+                TripsUrl = url;
+                return Ok("""{"trips":{"going":[]}}""");
+            }
+            return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.NotFound));
+        }
+
+        private static Task<HttpResponseMessage> Ok(string cuerpo) => Task.FromResult(
+            new HttpResponseMessage(System.Net.HttpStatusCode.OK)
+            {
+                Content = new StringContent(cuerpo, Encoding.UTF8, "application/json"),
+            });
     }
 }

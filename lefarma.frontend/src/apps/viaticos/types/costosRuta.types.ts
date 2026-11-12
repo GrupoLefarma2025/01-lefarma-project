@@ -113,6 +113,11 @@ export interface CostosRutaOferta {
   nota: string;
   fuente: string;
   estimado: boolean;
+  /** cotizado | estimado | referencia_tabulador */
+  tipoPrecio?: string;
+  proveedor?: string;
+  disponibilidad?: string;
+  disponibilidadDetalle?: string;
   comprar: CostosRutaCompra;
   /** Ruta del PNG capturado (columna `ruta_captura` de solicitud_opciones). */
   rutaCaptura?: string;
@@ -151,7 +156,16 @@ export interface CostosRutaHotel {
   longitud?: number;
   motivo: string;
   fuente: string;
+  /** cotizado | estimado | referencia_tabulador */
+  tipoPrecio?: string;
+  proveedor?: string;
+  disponibilidad?: string;
+  disponibilidadDetalle?: string;
   link: string;
+  /** Link de Google Maps del hotel, solo para ver el mapa. */
+  linkMapa?: string | null;
+  /** Respaldo de reserva en Booking por ciudad (no se usa para captura). */
+  linkReserva?: string | null;
   /** Ruta del PNG capturado (columna `ruta_captura` de solicitud_opciones). */
   rutaCaptura?: string;
   /** Capturas del JSON de cotizacion de pi (URL o data URI); se usa la primera. */

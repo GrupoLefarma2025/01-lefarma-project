@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 /**
  * captura-viaticos.mjs
  *
@@ -13,6 +12,10 @@
  *   # stdin:
  *   echo '[{"url":"...","nombre":"..."}]' | node scripts/captura-viaticos.mjs
  *
+ * Requisito: `npx playwright install chromium`. El script usa el Chromium
+ * completo (`channel: 'chromium'`), no el headless shell: Kayak bloquea el
+ * headless shell con su pagina anti-bot.
+ *
  * Salida:
  *   - PNGs: <repo>/lefarma.frontend/public/capturas/viaticos/<nombre>.png
  *   - JSON en stdout con un objeto por URL procesada (incluso si ok:false).
@@ -22,7 +25,7 @@
  *   - Maximo 10 URLs por invocacion. Si se reciben mas, devuelve error de
  *     validacion en el JSON sin intentar ninguna.
  *   - Maximo 2 capturas en paralelo.
- *   - Timeout 30s por goto (networkidle); 1500ms extra para estabilizar JS tardio.
+ *   - Timeout 30s por goto (domcontentloaded + espera por sitio); 1500ms extra para estabilizar JS tardio.
  *   - Timeout duro de proceso: 55s (si algo se cuelga, el proceso se mata solo).
  *
  * Lista blanca (whitelist):
@@ -202,6 +205,39 @@ function warnSuffix() {
   return isWhitelistEmpty() ? `; ${WHITELIST_EMPTY_WARNING}` : '';
 }
 
+async function cerrarOverlays(page) {
+  try {
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(300);
+    const botones = page.locator('button[aria-label="Cerrar"], button[aria-label="Close"]');
+    const total = await botones.count();
+    for (let i = 0; i < total; i++) {
+      const boton = botones.nth(i);
+      if (await boton.isVisible().catch(() => false)) {
+        await boton.click({ force: true }).catch(() => {});
+        await page.waitForTimeout(300);
+      }
+    }
+  } catch {
+    // La captura sigue aunque no se pueda cerrar un overlay.
+  }
+}
+
+function errorDePagina(texto) {
+  const t = String(texto ?? '');
+  if (t.trim().length < 80) return 'pagina vacia o sin contenido legible';
+  if (/are you a person or a robot|no soy un robot|no soy un bot|qu[eé] es un bot|piensa que eres un .?bot|solo es apta para humanos|captcha|verifica que eres humano|tr[aá]fico inusual|unusual traffic/i.test(t)) {
+    return 'el sitio pidio captcha o validacion anti-bot';
+  }
+  if (/access denied|forbidden|403 forbidden|404 not found/i.test(t)) {
+    return 'el sitio bloqueo el acceso';
+  }
+  if (/no se encontraron resultados|no se encontró ningún viaje|no hay resultados|sin horarios disponibles/i.test(t)) {
+    return 'la pagina no muestra resultados para la busqueda';
+  }
+  return null;
+}
+
 async function captureOne(browser, item) {
   const rawUrl = item?.url;
   const safeName = sanitizeName(item?.nombre);
@@ -225,17 +261,42 @@ async function captureOne(browser, item) {
   // Viewport fijo y captura de la ventana (no de la pagina completa): en
   // listados largos (ClickBus, ADO) la pagina entera sale como una tira
   // ilegible; lo que importa es el encabezado con los primeros precios.
+  // El User-Agent del headless incluye "HeadlessChrome"; Kayak lo detecta y
+  // devuelve su pagina anti-bot. Se usa el mismo Chromium con un UA normal.
+  const version = browser.version().split('.')[0];
+  const userAgent =
+    `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ` +
+    `(KHTML, like Gecko) Chrome/${version}.0.0.0 Safari/537.36`;
   const ctx = await browser.newContext({
     viewport: { width: 1440, height: 1000 },
     locale: 'es-MX',
     timezoneId: 'America/Mexico_City',
+    userAgent,
   });
   let ctxClosed = false;
   try {
     const page = await ctx.newPage();
     try {
-      await page.goto(rawUrl, { waitUntil: 'networkidle', timeout: PAGE_TIMEOUT_MS });
+      const host = new URL(rawUrl).hostname;
+      const esperaMs = /clickbus\.com\.mx$/i.test(host)
+        ? 15000
+        : /primeraplus\.com\.mx$/i.test(host)
+          ? 10000
+          : 5000;
+      await page.goto(rawUrl, { waitUntil: 'domcontentloaded', timeout: PAGE_TIMEOUT_MS });
+      await page.waitForTimeout(esperaMs);
+      await cerrarOverlays(page);
       await page.waitForTimeout(POST_LOAD_DELAY_MS);
+      const texto = await page.evaluate(() => document.body?.innerText ?? '');
+      const errorPagina = errorDePagina(texto);
+      if (errorPagina) {
+        return {
+          url: rawUrl,
+          ok: false,
+          archivo: null,
+          error: errorPagina + warnSuffix(),
+        };
+      }
       const outPath = join(OUTPUT_DIR, `${safeName}.png`);
       await page.screenshot({ path: outPath });
       return {
@@ -364,21 +425,27 @@ export async function main() {
 
   let browser;
   try {
-    browser = await chromium.launch({ headless: true });
+    // `channel: 'chromium'` usa el Chromium completo de Playwright, no el
+    // headless shell. Kayak detecta el headless shell y devuelve su pagina
+    // anti-bot; con el navegador completo muestra los resultados reales.
+    browser = await chromium.launch({ headless: true, channel: 'chromium' });
     const results = await runWithConcurrency(parsed, MAX_CONCURRENCY, (item) =>
       captureOne(browser, item),
     );
     process.stdout.write(JSON.stringify(results) + '\n');
   } catch (e) {
+    const error = `error iniciando Chromium: ${e?.message ?? String(e)}`;
+    // Un error global se replica por URL para que el backend pueda asociarlo
+    // a cada opcion y no se pierda el motivo real.
     process.stdout.write(
-      JSON.stringify([
-        {
-          url: null,
+      JSON.stringify(
+        parsed.map((item) => ({
+          url: item?.url ?? null,
           ok: false,
           archivo: null,
-          error: `error iniciando Chromium: ${e?.message ?? String(e)}`,
-        },
-      ]) + '\n',
+          error,
+        })),
+      ) + '\n',
     );
   } finally {
     clearTimeout(hardTimer);

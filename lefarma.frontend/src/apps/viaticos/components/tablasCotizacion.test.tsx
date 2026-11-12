@@ -100,7 +100,7 @@ describe('TablaOpciones', () => {
     expect(within(fila('Renta SUV')).getByText('$1967–$2203 MXN total')).toBeInTheDocument();
   });
 
-  it('da un <a href> real a cada fila que trae URL y thumbnail cuando hay captura', async () => {
+  it('da un <a href> real a la compra y abre la captura en un modal', async () => {
     render(
       <TablaOpciones
         titulo="Tramo 1"
@@ -112,15 +112,17 @@ describe('TablaOpciones', () => {
     );
 
     // La captura interna llega por fetch autenticado + object URL (no por <img src> directo).
-    await waitFor(() => expect(screen.getAllByRole('link')).toHaveLength(4));
+    await waitFor(() => expect(screen.getAllByRole('link')).toHaveLength(2));
     const enlaces = screen.getAllByRole('link');
-    // 2 de compra + 2 de captura.
-    expect(enlaces).toHaveLength(4);
+    // Solo los 2 enlaces de compra; las capturas ya no son <a target="_blank">.
+    expect(enlaces).toHaveLength(2);
     for (const enlace of enlaces) {
       expect(enlace.getAttribute('href')).toBeTruthy();
       expect(enlace.getAttribute('target')).toBe('_blank');
       expect(enlace.getAttribute('rel')).toBe('noreferrer');
     }
+    // Cada miniatura es un botón que abre el visor modal.
+    expect(screen.getAllByRole('button', { name: /Ver captura completa/ })).toHaveLength(2);
 
     expect(api.get).toHaveBeenCalledWith('/viaticos/capturas/b.png', { responseType: 'blob' });
     // La externa se pinta directo; la interna, por el object URL autenticado.

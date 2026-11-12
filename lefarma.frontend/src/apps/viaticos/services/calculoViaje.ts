@@ -295,7 +295,13 @@ function opcionDesdeOferta(
     fue_elegida: fueElegida,
     ruta_captura: capturas[0] ?? null,
     capturas,
-    datos,
+    datos: {
+      ...datos,
+      tipo_precio: oferta.tipoPrecio ?? (estimado ? 'estimado' : 'cotizado'),
+      proveedor: oferta.proveedor ?? oferta.comprar?.sitio ?? '',
+      disponibilidad: oferta.disponibilidad ?? '',
+      disponibilidad_detalle: oferta.disponibilidadDetalle ?? '',
+    },
   };
 }
 
@@ -306,17 +312,30 @@ function opcionDesdeHotel(
 ): OpcionCotizacion {
   const capturas = hotel.capturas ?? (hotel.rutaCaptura ? [hotel.rutaCaptura] : []);
   const precio = hotel.precioTotal ?? hotel.precioNoche ?? null;
+  const estimado = hotel.tipoPrecio !== 'cotizado';
   return {
     tipo: 'hotel',
     linea: `${hotel.nombre ?? hotel.lugar} (${hotel.checkIn} al ${hotel.checkOut})`,
     precio: typeof precio === 'number' && Number.isFinite(precio) ? dosDecimales(precio) : null,
     moneda: 'MXN',
     url_compra: urlCompraValida(hotel.link),
-    fuente: fuenteConEstimado(hotel.fuente?.trim() || 'Hotel propuesto', true),
+    fuente: fuenteConEstimado(hotel.fuente?.trim() || 'Hotel propuesto', estimado),
     fue_elegida: fueElegida,
     ruta_captura: capturas[0] ?? null,
     capturas,
-    datos,
+    datos: {
+      ...datos,
+      tipo_precio: hotel.tipoPrecio ?? 'estimado',
+      proveedor: hotel.proveedor ?? hotel.fuente ?? '',
+      disponibilidad: hotel.disponibilidad ?? '',
+      disponibilidad_detalle: hotel.disponibilidadDetalle ?? '',
+      distancia_km: hotel.distanciaKm ?? null,
+      rating: hotel.rating ?? null,
+      rating_count: hotel.ratingCount ?? null,
+      habitaciones: hotel.habitaciones ?? 1,
+      link_mapa: hotel.linkMapa ?? null,
+      link_reserva: hotel.linkReserva ?? null,
+    },
   };
 }
 

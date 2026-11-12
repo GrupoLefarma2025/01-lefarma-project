@@ -1,0 +1,83 @@
+{
+  "version": "1.0.0",
+  "id": "cotizacion-20261112-094217-ciudad-de-mexico-puebla",
+  "creada_en": "2026-11-12T15:44:15.094Z",
+  "consulta": {
+    "origen": {
+      "nombre": "Ciudad de México",
+      "iata": "MEX",
+      "estado": "Ciudad de México"
+    },
+    "destino": {
+      "nombre": "Puebla",
+      "iata": "PBC",
+      "estado": "Puebla"
+    },
+    "fecha_ida": "2026-11-24",
+    "fecha_vuelta": "2026-11-24",
+    "personas": 1,
+    "modo": "Autobús",
+    "proveedor": "ClickBus"
+  },
+  "tramos": [
+    {
+      "tipo": "autobus",
+      "proveedor": "ClickBus",
+      "sentido": "ida",
+      "linea": "AU",
+      "servicio": "Paso",
+      "salida": "05:40",
+      "llegada": "07:10",
+      "duracion": "1h 30m",
+      "escalas": "",
+      "precio": 189,
+      "asientos": 49,
+      "texto_busqueda": "AU 05:40 hrs.",
+      "notas": "",
+      "link": "https://www.clickbus.com.mx/trips?departure_place=ciudad-de-mexico-df-(todas-las-terminales)&arrival_place=puebla-pue-todas-las-terminales&departure_date=2026-11-24",
+      "disponibilidad": "disponible",
+      "disponibilidad_detalle": "39 asientos disponibles",
+      "capturas": [
+        "capturas/ida-opciones.png",
+        "capturas/ida-elegido.png"
+      ],
+      "precio_total": 189
+    },
+    {
+      "tipo": "autobus",
+      "proveedor": "ClickBus",
+      "sentido": "vuelta",
+      "linea": "AU",
+      "servicio": "Local",
+      "salida": "03:15",
+      "llegada": "05:40",
+      "duracion": "2h 25m",
+      "escalas": "",
+      "precio": 196,
+      "asientos": 46,
+      "texto_busqueda": "AU 03:15 hrs.",
+      "notas": "",
+      "link": "https://www.clickbus.com.mx/trips?departure_place=puebla-pue-todas-las-terminales&arrival_place=ciudad-de-mexico-df-(todas-las-terminales)&departure_date=2026-11-24",
+      "disponibilidad": "disponible",
+      "disponibilidad_detalle": "39 asientos disponibles",
+      "capturas": [
+        "capturas/vuelta-opciones.png",
+        "capturas/vuelta-elegido.png"
+      ],
+      "precio_total": 196
+    }
+  ],
+  "hotel": null,
+  "totales": {
+    "transporte": 385,
+    "hotel": 0,
+    "total": 385,
+    "moneda": "MXN"
+  },
+  "notas": [
+    "Precios y disponibilidad obtenidos del buscador en el momento de la consulta; no son una reserva.",
+    "Los conteos de disponibilidad son indicativos y pueden incluir resultados de la zona.",
+    "Las capturas de cada búsqueda y de la opción elegida quedaron en la carpeta capturas/.",
+    "No se incluyó hospedaje en esta cotización."
+  ]
+}
