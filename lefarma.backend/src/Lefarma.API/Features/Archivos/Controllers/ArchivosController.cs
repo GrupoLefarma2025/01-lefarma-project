@@ -2,6 +2,8 @@ using ErrorOr;
 using Lefarma.API.Features.Archivos.DTOs;
 using Lefarma.API.Features.Archivos.Services;
 using Lefarma.API.Infrastructure.Data;
+using Lefarma.API.Shared.Authorization;
+using Lefarma.API.Shared.Constants;
 using Lefarma.API.Shared.Extensions;
 using Lefarma.API.Shared.Models;
 using Microsoft.AspNetCore.Authorization;
@@ -36,6 +38,7 @@ public class ArchivosController : ControllerBase
     /// <param name="file">Archivo a subir.</param>
     /// <returns>Información del archivo subido.</returns>
     [HttpPost("upload")]
+    [HasPermission(Permissions.Documentos.Subir)]
     [RequestSizeLimit(50_000_000)] // 50MB
     [Consumes("multipart/form-data")]
     [SwaggerOperation(Summary = "Subir archivo", Description = "Sube un nuevo archivo al sistema. Tamaño máximo: 50 MB.")]
@@ -148,6 +151,7 @@ public class ArchivosController : ControllerBase
     /// <param name="metadata">Metadatos adicionales opcionales.</param>
     /// <returns>Información del archivo actualizado.</returns>
     [HttpPost("{id:int}/reemplazar")]
+    [HasPermission(Permissions.Documentos.Subir)]
     [RequestSizeLimit(50_000_000)]
     [Consumes("multipart/form-data")]
     [SwaggerOperation(Summary = "Reemplazar archivo", Description = "Reemplaza el contenido de un archivo existente. Tamaño máximo: 50 MB.")]
@@ -284,6 +288,7 @@ public class ArchivosController : ControllerBase
     /// <param name="id">ID del archivo a eliminar.</param>
     /// <returns>Confirmación de eliminación.</returns>
     [HttpDelete("{id:int}")]
+    [HasPermission(Permissions.Documentos.Eliminar)]
     [SwaggerOperation(Summary = "Eliminar archivo", Description = "Elimina un archivo del sistema")]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]

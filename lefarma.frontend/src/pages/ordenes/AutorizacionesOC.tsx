@@ -563,6 +563,8 @@ export default function AutorizacionesOC() {
   const puedeVerTodas = usePermission({ require: 'orden_compra.puede_ver_todas_las_ordenes' });
   const puedeVerPorEmpresa = usePermission({ require: 'orden_compra.puede_ver_por_empresa' });
   const puedeVerPorFlujo = usePermission({ require: 'orden_compra.puede_ver_por_flujo' });
+  const puedeSubirArchivos = usePermission({ require: 'documentos.subir' });
+  const puedeEliminarArchivos = usePermission({ require: 'documentos.eliminar' });
   const mostrarFiltroFlujo = puedeVerTodas || puedeVerPorFlujo;
   const mostrarFiltroCreador = puedeVerTodas || puedeVerPorEmpresa || puedeVerPorFlujo;
 
@@ -3187,19 +3189,21 @@ export default function AutorizacionesOC() {
                                   <History className="mr-1 h-3.5 w-3.5" />
                                   Historial
                                 </Button>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => setIsSubirAdjuntoOpen(!isSubirAdjuntoOpen)}
-                                >
-                                  <Paperclip className="mr-1 h-3.5 w-3.5" />
-                                  Subir
-                                </Button>
+                                {puedeSubirArchivos && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => setIsSubirAdjuntoOpen(!isSubirAdjuntoOpen)}
+                                  >
+                                    <Paperclip className="mr-1 h-3.5 w-3.5" />
+                                    Subir
+                                  </Button>
+                                )}
                               </div>
                             </div>
 
                             {/* Uploader desplegable */}
-                            {isSubirAdjuntoOpen && (
+                            {puedeSubirArchivos && isSubirAdjuntoOpen && (
                               <div className="rounded-lg border bg-muted/20 p-3 space-y-3">
                                 <div className="space-y-1">
                                   <Label className="text-xs text-muted-foreground">Observaciones</Label>
@@ -3315,7 +3319,7 @@ export default function AutorizacionesOC() {
                                             <Download className="h-3.5 w-3.5" />
                                           </Button>
                                         </a>
-                                        {!esComprobante && (
+                                        {!esComprobante && puedeEliminarArchivos && (
                                           <Button
                                             variant="ghost"
                                             size="icon"

@@ -563,23 +563,44 @@ public class AuthService : BaseService, IAuthService
             })
             .ToListAsync(cancellationToken);
 
-        var directUserPermissions = await _asokamContext.UsuariosPermisos
+        // Las filas con EsConcedido = 0 son denegaciones explícitas: restan el permiso
+        // aunque venga del rol (mismo criterio que app.sp_ObtenerPermisosUsuario).
+        var directPermissionRows = await _asokamContext.UsuariosPermisos
             .Include(up => up.Permiso)
             .Where(up => up.IdUsuario == userId && up.Permiso.EsActivo)
             .Where(up => up.FechaExpiracion == null || up.FechaExpiracion > DateTime.UtcNow)
-            .Select(up => new PermissionInfo
+            .Select(up => new
             {
-                IdPermiso = up.Permiso.IdPermiso,
-                CodigoPermiso = up.Permiso.CodigoPermiso,
-                NombrePermiso = up.Permiso.NombrePermiso,
-                Categoria = up.Permiso.Categoria,
-                Recurso = up.Permiso.Recurso,
-                Accion = up.Permiso.Accion
+                up.EsConcedido,
+                up.Permiso.IdPermiso,
+                up.Permiso.CodigoPermiso,
+                up.Permiso.NombrePermiso,
+                up.Permiso.Categoria,
+                up.Permiso.Recurso,
+                up.Permiso.Accion
             })
             .ToListAsync(cancellationToken);
 
+        var deniedCodes = directPermissionRows
+            .Where(up => !up.EsConcedido)
+            .Select(up => up.CodigoPermiso)
+            .ToHashSet(StringComparer.Ordinal);
+
+        var grantedDirectly = directPermissionRows
+            .Where(up => up.EsConcedido)
+            .Select(up => new PermissionInfo
+            {
+                IdPermiso = up.IdPermiso,
+                CodigoPermiso = up.CodigoPermiso,
+                NombrePermiso = up.NombrePermiso,
+                Categoria = up.Categoria,
+                Recurso = up.Recurso,
+                Accion = up.Accion
+            });
+
         var allPermissions = permissionsFromRoles
-            .UnionBy(directUserPermissions, p => p.CodigoPermiso)
+            .Where(p => !deniedCodes.Contains(p.CodigoPermiso))
+            .UnionBy(grantedDirectly, p => p.CodigoPermiso)
             .ToList();
 
         return (userRoles, allPermissions);

@@ -1,9 +1,10 @@
-﻿import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { Upload, X, FileText, AlertCircle, Eye, FileSpreadsheet, Image as ImageIcon, FileCode } from 'lucide-react';
 import { archivoService } from '@/services/archivoService';
 import type { Archivo, SubirArchivoParams } from '@/types/archivo.types';
 import { toast } from 'sonner';
 import { FileViewer } from './FileViewer';
+import { usePermission } from '@/hooks/usePermission';
 
 
 interface FileUploaderProps {
@@ -59,6 +60,7 @@ export function FileUploader({
   const [viewerFile, setViewerFile] = useState<File | null>(null);
   const [imagePreviews, setImagePreviews] = useState<Record<number, string>>({});
   const inputRef = useRef<HTMLInputElement>(null);
+  const puedeSubir = usePermission({ require: 'documentos.subir' });
 
   // Generar/revocar objectURLs para thumbnails de imágenes
   useEffect(() => {
@@ -180,7 +182,7 @@ export function FileUploader({
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
-  if (!open) return null;
+  if (!open || !puedeSubir) return null;
 
   /** Contenido reutilizable en ambos modos */
   const content = (

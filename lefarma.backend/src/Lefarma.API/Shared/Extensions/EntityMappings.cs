@@ -172,7 +172,7 @@ namespace Lefarma.API.Shared.Extensions
                 .Select(ur => ur.Rol.ToRolBasicoResponse())
                 .ToList(),
             PermisosDirectos = entity.UsuariosPermisos
-                .Where(up => up.Permiso.EsActivo)
+                .Where(up => up.EsConcedido && up.Permiso.EsActivo)
                 .Select(up => up.Permiso.ToPermisoBasicoResponse())
                 .ToList(),
             Detalle = detalle?.ToResponse()

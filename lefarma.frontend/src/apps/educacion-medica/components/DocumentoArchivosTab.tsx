@@ -8,6 +8,7 @@ import { FileViewer } from '@/components/archivos/FileViewer';
 import { archivoService } from '@/services/archivoService';
 import type { ArchivoListItem } from '@/types/archivo.types';
 import { toast } from 'sonner';
+import { usePermission } from '@/hooks/usePermission';
 
 const fmtFecha = (dateStr?: string | null) => {
   if (!dateStr) return '-';
@@ -68,6 +69,8 @@ export function DocumentoArchivosTab({ entidadTipo, entidadId, carpeta }: Docume
   const [uploaderOpen, setUploaderOpen] = useState(false);
   const [observaciones, setObservaciones] = useState('');
   const [viewerId, setViewerId] = useState<number | null>(null);
+  const puedeSubirArchivos = usePermission({ require: 'documentos.subir' });
+  const puedeEliminarArchivos = usePermission({ require: 'documentos.eliminar' });
 
   const fetchArchivos = useCallback(async () => {
     setLoading(true);
@@ -121,13 +124,15 @@ export function DocumentoArchivosTab({ entidadTipo, entidadId, carpeta }: Docume
             </span>
           )}
         </p>
-        <Button size="sm" variant="outline" onClick={() => setUploaderOpen((v) => !v)}>
-          <Paperclip className="mr-1 h-3.5 w-3.5" />
-          Subir
-        </Button>
+        {puedeSubirArchivos && (
+          <Button size="sm" variant="outline" onClick={() => setUploaderOpen((v) => !v)}>
+            <Paperclip className="mr-1 h-3.5 w-3.5" />
+            Subir
+          </Button>
+        )}
       </div>
 
-      {uploaderOpen && (
+      {puedeSubirArchivos && uploaderOpen && (
         <div className="bg-muted/20 space-y-3 rounded-lg border p-3">
           <div className="space-y-1">
             <Label className="text-xs text-muted-foreground">Observaciones</Label>
@@ -233,15 +238,17 @@ export function DocumentoArchivosTab({ entidadTipo, entidadId, carpeta }: Docume
                       <Download className="h-3.5 w-3.5" />
                     </Button>
                   </a>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6 hover:text-destructive"
-                    title="Borrar"
-                    onClick={() => handleEliminar(archivo.id)}
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
+                  {puedeEliminarArchivos && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 hover:text-destructive"
+                      title="Borrar"
+                      onClick={() => handleEliminar(archivo.id)}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
                 </div>
               </div>
             );

@@ -18,6 +18,7 @@ import { FileViewer } from '@/components/archivos/FileViewer';
 import { archivoService } from '@/services/archivoService';
 import type { ArchivoListItem } from '@/types/archivo.types';
 import { toast } from 'sonner';
+import { usePermission } from '@/hooks/usePermission';
 
 const fmtFecha = (dateStr?: string | null) => {
   if (!dateStr) return '-';
@@ -72,6 +73,8 @@ export function SolicitudArchivosTab({ idSolicitud }: SolicitudArchivosTabProps)
   const [observaciones, setObservaciones] = useState('');
   const [viewerId, setViewerId] = useState<number | null>(null);
   const [archivoAEliminar, setArchivoAEliminar] = useState<number | null>(null);
+  const puedeSubirArchivos = usePermission({ require: 'documentos.subir' });
+  const puedeEliminarArchivos = usePermission({ require: 'documentos.eliminar' });
 
   const fetchArchivos = useCallback(async () => {
     setLoading(true);
@@ -116,13 +119,15 @@ export function SolicitudArchivosTab({ idSolicitud }: SolicitudArchivosTabProps)
             </span>
           )}
         </p>
-        <Button size="sm" variant="outline" onClick={() => setUploaderOpen((v) => !v)}>
-          <Paperclip className="mr-1 h-4 w-4" />
-          Subir
-        </Button>
+        {puedeSubirArchivos && (
+          <Button size="sm" variant="outline" onClick={() => setUploaderOpen((v) => !v)}>
+            <Paperclip className="mr-1 h-4 w-4" />
+            Subir
+          </Button>
+        )}
       </div>
 
-      {uploaderOpen && (
+      {puedeSubirArchivos && uploaderOpen && (
         <div className="bg-muted/20 space-y-3 rounded-lg border p-3">
           <div className="space-y-1">
             <Label className="text-xs text-muted-foreground">Observaciones</Label>
@@ -234,16 +239,18 @@ export function SolicitudArchivosTab({ idSolicitud }: SolicitudArchivosTabProps)
                       <Download className="h-4 w-4" />
                     </Button>
                   </a>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 hover:text-destructive"
-                    title="Borrar"
-                    aria-label="Borrar archivo"
-                    onClick={() => setArchivoAEliminar(archivo.id)}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+                  {puedeEliminarArchivos && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 hover:text-destructive"
+                      title="Borrar"
+                      aria-label="Borrar archivo"
+                      onClick={() => setArchivoAEliminar(archivo.id)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  )}
                 </div>
               </div>
             );

@@ -27,6 +27,12 @@ public static class Permissions
         public const string VerPorFlujo = "orden_compra.puede_ver_por_flujo";
     }
 
+    public static class Documentos
+    {
+        public const string Subir = "documentos.subir";
+        public const string Eliminar = "documentos.eliminar";
+    }
+
     public static class Usuarios
     {
         public const string View = "usuarios.view";

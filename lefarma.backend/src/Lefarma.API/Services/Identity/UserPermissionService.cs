@@ -62,14 +62,28 @@ public class UserPermissionService
             .ToListAsync();
 
         var now = DateTime.UtcNow;
-        var userPermissions = await _db.UsuariosPermisos
+        // Se cargan también las filas con EsConcedido = 0: son denegaciones explícitas
+        // y restan el permiso que el usuario recibiría por sus roles (mismo criterio
+        // que app.sp_ObtenerPermisosUsuario del sistema anterior).
+        var directPermissions = await _db.UsuariosPermisos
             .Where(up => up.IdUsuario == userId
                          && up.Permiso.EsActivo
-                         && up.EsConcedido
                          && (up.FechaExpiracion == null || up.FechaExpiracion > now))
-            .Select(up => up.Permiso.CodigoPermiso)
+            .Select(up => new { up.EsConcedido, up.Permiso.CodigoPermiso })
             .ToListAsync();
 
-        return new HashSet<string>(rolePermissions.Concat(userPermissions), StringComparer.Ordinal);
+        var denied = directPermissions
+            .Where(up => !up.EsConcedido)
+            .Select(up => up.CodigoPermiso)
+            .ToHashSet(StringComparer.Ordinal);
+
+        var grantedDirectly = directPermissions
+            .Where(up => up.EsConcedido)
+            .Select(up => up.CodigoPermiso);
+
+        return rolePermissions
+            .Where(codigo => !denied.Contains(codigo))
+            .Concat(grantedDirectly)
+            .ToHashSet(StringComparer.Ordinal);
     }
 }
