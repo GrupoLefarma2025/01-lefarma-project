@@ -1,4 +1,5 @@
 import React from 'react';
+import { Loader2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 
@@ -19,6 +20,10 @@ interface ModalProps {
     beforeClose?: () => boolean;
     /** Reduce el espacio vertical del marco (encabezado, separadores y relleno). Útil con zoom alto o pantallas bajas. */
     compact?: boolean;
+    /** Mientras es true, cubre el modal con un indicador de progreso y bloquea su cierre e interacción. */
+    busy?: boolean;
+    /** Texto del indicador de progreso cuando `busy` está activo. */
+    busyLabel?: string;
 }
 
 export const Modal: React.FC<ModalProps> = ({
@@ -33,6 +38,8 @@ export const Modal: React.FC<ModalProps> = ({
     closeOnOutsideClick = false,
     beforeClose,
     compact = false,
+    busy = false,
+    busyLabel,
 }) => {
     // Estilos basados en el tamaño estándar
     const getSizeStyles = () => {
@@ -62,11 +69,15 @@ export const Modal: React.FC<ModalProps> = ({
         <Dialog
             open={open}
             onOpenChange={(o) => {
-                if (!o && beforeClose && !beforeClose()) return;
+                if (!o) {
+                    if (busy) return;
+                    if (beforeClose && !beforeClose()) return;
+                }
                 setOpen(o);
             }}
         >
-            <DialogContent showCloseButton={canClose}
+            <DialogContent showCloseButton={canClose && !busy}
+                aria-busy={busy || undefined}
                 className={cn(
                     'bg-card text-card-foreground border border-border shadow-lg rounded-lg',
                     sizeStyles,
@@ -74,6 +85,17 @@ export const Modal: React.FC<ModalProps> = ({
                 )}
                 onInteractOutside={(e) => { if (!closeOnOutsideClick) e.preventDefault(); }}
             >
+                {busy && (
+                    <div
+                        role="status"
+                        aria-live="polite"
+                        className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-3 rounded-lg bg-background/90 p-6 text-center backdrop-blur-sm"
+                    >
+                        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                        <p className="text-sm font-semibold">{busyLabel ?? 'Procesando…'}</p>
+                        <p className="text-xs text-muted-foreground">No cierres esta ventana.</p>
+                    </div>
+                )}
                 <DialogHeader className="shrink-0">
                     {title && (
                         <DialogTitle className={cn('font-bold', compact ? 'text-base' : 'text-lg')}>

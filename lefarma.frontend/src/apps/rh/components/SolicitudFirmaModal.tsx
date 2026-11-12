@@ -166,6 +166,9 @@ export function SolicitudFirmaModal({
   const [archivosExistentes, setArchivosExistentes] = useState<ArchivoListItem[]>([]);
   const [revisiones, setRevisiones] = useState<Record<string, boolean>>({});
   const [confirmDiscard, setConfirmDiscard] = useState(false);
+  // Cubre el tramo entre el clic y el cierre: el padre apaga isSubmitting antes de que el modal
+  // se cierre, y sin esta bandera el velo desaparecía un instante dejando el modal «pausado».
+  const [procesando, setProcesando] = useState(false);
   const [incidenciasAutorizadasMes, setIncidenciasAutorizadasMes] = useState<number | null>(null);
   const initialCamposRef = useRef<Record<string, unknown>>({});
 
@@ -411,13 +414,19 @@ export function SolicitudFirmaModal({
       datosAdicionales: Object.keys(datosAdicionales).length > 0 ? datosAdicionales : null,
     };
 
-    const ok = await onSubmit(request);
-    if (ok) {
-      cerrar();
+    setProcesando(true);
+    try {
+      const ok = await onSubmit(request);
+      if (ok) {
+        cerrar();
+      }
+    } finally {
+      setProcesando(false);
     }
   };
 
   const estadoInfo = getEstadoInfo(solicitud);
+  const bloqueado = isSubmitting || procesando;
 
   return (
     <>
@@ -428,6 +437,7 @@ export function SolicitudFirmaModal({
         if (!o) cerrar();
       }}
       beforeClose={() => {
+        if (bloqueado) return false;
         if (!isDirty) return true;
         setConfirmDiscard(true);
         return false;
@@ -435,31 +445,27 @@ export function SolicitudFirmaModal({
       title={accion ? `${accion.tipoAccionNombre} solicitud` : 'Acción de la solicitud'}
       subtitle={accion?.tipoAccionDescripcion || undefined}
       size="lg"
+      busy={bloqueado}
+      busyLabel="Procesando la solicitud…"
       footer={
         <div className="flex w-full justify-end gap-2">
-          <Button variant="outline" onClick={cerrar} disabled={isSubmitting}>
+          <Button variant="outline" onClick={cerrar} disabled={bloqueado}>
             Cancelar
           </Button>
           <Button
             onClick={enviar}
-            disabled={isSubmitting}
+            disabled={bloqueado}
             variant={esRechazo ? 'destructive' : 'default'}
           >
-            {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {isSubmitting
+            {bloqueado && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {bloqueado
               ? 'Procesando…'
               : `Confirmar ${accion?.tipoAccionNombre?.toLowerCase() ?? 'acción'}`}
           </Button>
         </div>
       }
     >
-      <div className="space-y-4" aria-busy={isSubmitting}>
-        {isSubmitting && (
-          <div className="flex items-center gap-2 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-800 dark:border-blue-800 dark:bg-blue-950/20 dark:text-blue-300">
-            <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
-            <span>Procesando la acción… espera un momento, no cierres esta ventana.</span>
-          </div>
-        )}
+      <div className="space-y-4" aria-busy={bloqueado}>
         <div className="bg-muted/30 rounded-md border p-3">
           <p className="text-sm font-semibold">{solicitud.folio}</p>
           <p className="text-xs text-muted-foreground">
