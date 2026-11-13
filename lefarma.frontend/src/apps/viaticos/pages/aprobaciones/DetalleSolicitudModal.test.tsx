@@ -147,7 +147,7 @@ describe('DetalleSolicitudModal', () => {
     // La que sí trae, muestra miniatura con alt y abre la imagen grande.
     const miniatura = within(screen.getByTestId('opcion-1')).getByRole('img');
     expect(miniatura.getAttribute('src')).toBe('/caps/1.png');
-    expect(miniatura.closest('a')?.getAttribute('href')).toBe('/caps/1.png');
+    expect(miniatura.closest('button')).not.toBeNull();
   });
 
   it('muestra la fuente distinguiendo estimado de cotizado', async () => {
@@ -187,7 +187,7 @@ describe('DetalleSolicitudModal', () => {
     expect(
       within(screen.getByTestId('opcion-1')).getByRole('link', { name: /Comprar Aeroméxico/ }).getAttribute('href')
     ).toBe('https://ejemplo.mx/comprar/1');
-    expect(within(screen.getByTestId('opcion-2')).getByRole('button', { name: /Comprar sin URL/ })).toBeDefined();
+    expect(within(screen.getByTestId('opcion-2')).getByRole('button', { name: /Sin URL/ })).toBeDefined();
   });
 
   it('funciona sin fila de bandeja: el solicitante ve los datos del detalle', async () => {

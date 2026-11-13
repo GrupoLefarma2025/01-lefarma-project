@@ -1,0 +1,47 @@
+==============================================================================
+COTIZACIÓN cotizacion-20261112-092354-ciudad-de-mexico-campeche
+==============================================================================
+Origen:  Ciudad de México (MEX)
+Destino: Campeche (CPE)
+Ida:     2026-11-24
+Vuelta:  2026-11-25
+Personas: 1
+Medio:   Vuelo
+
+TRANSPORTE
+------------------------------------------------------------------------------
+IDA · Kayak · Aeromexico
+  12:15 → 14:07 · 1h 52m · Directo
+  $4,169.00 por persona · $4,169.00 total · disponible (2 de 2 vuelos)
+  Link: https://www.kayak.com.mx/flights/MEX-CPE/2026-11-24?sort=bestflight_a&fs=cabin=e
+  Captura: capturas/ida-opciones.png
+  Captura: capturas/ida-elegido.png
+
+VUELTA · Kayak · Aeromexico
+  15:33 → 17:35 · 2h 02m · Directo
+  $2,945.00 por persona · $2,945.00 total · disponible (4 de 4 vuelos)
+  Link: https://www.kayak.com.mx/flights/CPE-MEX/2026-11-25?sort=bestflight_a&fs=cabin=e
+  Captura: capturas/vuelta-opciones.png
+  Captura: capturas/vuelta-elegido.png
+
+HOTEL
+------------------------------------------------------------------------------
+Hotel Residencial Edzná Calle 10
+  2026-11-24 a 2026-11-25 · 1 noche(s)
+  Rating: 8.0 (361 comentarios)
+  Zona: Campeche
+  $640.00 por noche · $640.00 total
+  Disponibilidad: disponible (99 alojamientos)
+  Link: https://www.booking.com/searchresults.es.html?ss=Campeche&checkin=2026-11-24&checkout=2026-11-25&group_adults=1&no_rooms=1
+  Captura: capturas/hotel-opciones.png
+  Captura: capturas/hotel-elegido.png
+  Nota: Precio de Booking para toda la estancia; se dividió entre las noches. No incluye impuestos ni cargos.
+
+TOTALES
+------------------------------------------------------------------------------
+Transporte: $7,114.00
+Hotel:      $640.00
+TOTAL:      $7,754.00 MXN
+
+Precios y disponibilidad obtenidos del buscador al momento de la consulta; no son una reserva.
+==============================================================================

@@ -1,0 +1,601 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://grupolefarma.com.mx/schemas/links-viaticos.schema.json",
+  "title": "Banco de pruebas de links de viáticos",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "actualizado",
+    "snapshot_sistema",
+    "casos"
+  ],
+  "properties": {
+    "version": {
+      "type": "string"
+    },
+    "actualizado": {
+      "type": "string",
+      "format": "date"
+    },
+    "snapshot_sistema": {
+      "type": "string",
+      "format": "date"
+    },
+    "fuente_datos": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "estados": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "proveedores": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "nombre",
+          "tipo",
+          "tipo_link"
+        ],
+        "properties": {
+          "nombre": {
+            "type": "string"
+          },
+          "tipo": {
+            "enum": [
+              "vuelo",
+              "hotel",
+              "autobus"
+            ]
+          },
+          "tipo_link": {
+            "enum": [
+              "consulta",
+              "reserva",
+              "mapa",
+              "api"
+            ]
+          },
+          "patron": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "notas": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "casos": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "tipo",
+          "descripcion",
+          "entrada",
+          "sistema_actual",
+          "candidatos"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9-]+$"
+          },
+          "tipo": {
+            "enum": [
+              "vuelo",
+              "hotel",
+              "autobus"
+            ]
+          },
+          "descripcion": {
+            "type": "string"
+          },
+          "prioridad": {
+            "enum": [
+              "alta",
+              "media",
+              "baja"
+            ]
+          },
+          "hospital": {
+            "type": "string"
+          },
+          "entrada": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "sistema_actual": {
+            "type": "object",
+            "additionalProperties": true,
+            "required": [
+              "etiqueta",
+              "estimado"
+            ],
+            "properties": {
+              "etiqueta": {
+                "type": "string"
+              },
+              "precio": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "moneda": {
+                "type": "string"
+              },
+              "fuente": {
+                "type": "string"
+              },
+              "estimado": {
+                "type": "boolean"
+              },
+              "patron": {
+                "type": "string"
+              },
+              "link_ejemplo": {
+                "type": "string"
+              },
+              "links": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "descripcion",
+                    "url"
+                  ],
+                  "properties": {
+                    "descripcion": {
+                      "type": "string"
+                    },
+                    "url": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              "resultado": {
+                "type": "string"
+              },
+              "evidencia": {
+                "type": "string"
+              }
+            }
+          },
+          "candidatos": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "proveedor",
+                "estado",
+                "elegido"
+              ],
+              "properties": {
+                "proveedor": {
+                  "type": "string"
+                },
+                "link": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "estado": {
+                  "enum": [
+                    "pendiente",
+                    "ok",
+                    "sin_resultados",
+                    "error",
+                    "timeout",
+                    "captcha",
+                    "bloqueado",
+                    "no_aplica",
+                    "implementado"
+                  ]
+                },
+                "resultado": {
+                  "type": "string"
+                },
+                "titulo": {
+                  "type": "string"
+                },
+                "url_final": {
+                  "type": "string"
+                },
+                "precio_visible": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "precios_visibles": {
+                  "type": "array",
+                  "items": {
+                    "type": "number"
+                  }
+                },
+                "moneda_precio": {
+                  "type": "string"
+                },
+                "status_http": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "captura": {
+                  "type": "string"
+                },
+                "capturable_sistema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "properties": {
+                    "permitido": {
+                      "type": "boolean"
+                    },
+                    "estado": {
+                      "type": "string"
+                    },
+                    "motivo": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "fecha_prueba": {
+                  "type": "string"
+                },
+                "modo": {
+                  "enum": [
+                    "manual",
+                    "headless",
+                    "agente"
+                  ]
+                },
+                "notas": {
+                  "type": "string"
+                },
+                "elegido": {
+                  "type": "boolean"
+                },
+                "disponibilidad": {
+                  "enum": [
+                    "disponible",
+                    "no_disponible",
+                    "no_verificable"
+                  ]
+                },
+                "disponibilidad_detalle": {
+                  "type": "string"
+                },
+                "fechas_aplicadas": {
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                }
+              }
+            }
+          },
+          "decision": {
+            "type": "object",
+            "additionalProperties": true,
+            "properties": {
+              "patron": {
+                "type": "string"
+              },
+              "proveedor": {
+                "type": "string"
+              },
+              "motivo": {
+                "type": "string"
+              },
+              "fallback": {
+                "type": "string"
+              },
+              "cambios": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "archivo",
+                    "cambio"
+                  ],
+                  "properties": {
+                    "archivo": {
+                      "type": "string"
+                    },
+                    "funcion": {
+                      "type": "string"
+                    },
+                    "linea": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    },
+                    "cambio": {
+                      "type": "string"
+                    },
+                    "test": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "capturas": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "modo_sistema": {
+          "type": "string"
+        },
+        "nota": {
+          "type": "string"
+        },
+        "proveedores": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "proveedor",
+              "permitido",
+              "resultado"
+            ],
+            "properties": {
+              "proveedor": {
+                "type": "string"
+              },
+              "permitido": {
+                "type": "boolean"
+              },
+              "resultado": {
+                "type": "string"
+              },
+              "motivo": {
+                "type": "string"
+              },
+              "recomendacion": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "decisiones": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "vuelo": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "proveedor": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "patron": {
+              "type": "string"
+            },
+            "motivo": {
+              "type": "string"
+            },
+            "fallback": {
+              "type": "string"
+            },
+            "cambios": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "archivo",
+                  "cambio"
+                ],
+                "properties": {
+                  "archivo": {
+                    "type": "string"
+                  },
+                  "funcion": {
+                    "type": "string"
+                  },
+                  "linea": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  },
+                  "cambio": {
+                    "type": "string"
+                  },
+                  "test": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "hotel": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "proveedor": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "patron": {
+              "type": "string"
+            },
+            "motivo": {
+              "type": "string"
+            },
+            "fallback": {
+              "type": "string"
+            },
+            "cambios": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "archivo",
+                  "cambio"
+                ],
+                "properties": {
+                  "archivo": {
+                    "type": "string"
+                  },
+                  "funcion": {
+                    "type": "string"
+                  },
+                  "linea": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  },
+                  "cambio": {
+                    "type": "string"
+                  },
+                  "test": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "autobus": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "proveedor": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "patron": {
+              "type": "string"
+            },
+            "motivo": {
+              "type": "string"
+            },
+            "fallback": {
+              "type": "string"
+            },
+            "cambios": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "archivo",
+                  "cambio"
+                ],
+                "properties": {
+                  "archivo": {
+                    "type": "string"
+                  },
+                  "funcion": {
+                    "type": "string"
+                  },
+                  "linea": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  },
+                  "cambio": {
+                    "type": "string"
+                  },
+                  "test": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "capturas": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "proveedor": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "patron": {
+              "type": "string"
+            },
+            "motivo": {
+              "type": "string"
+            },
+            "fallback": {
+              "type": "string"
+            },
+            "cambios": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "archivo",
+                  "cambio"
+                ],
+                "properties": {
+                  "archivo": {
+                    "type": "string"
+                  },
+                  "funcion": {
+                    "type": "string"
+                  },
+                  "linea": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  },
+                  "cambio": {
+                    "type": "string"
+                  },
+                  "test": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,433 @@
+{
+  "version": "1.0.0",
+  "actualizado": "2026-11-11",
+  "notas": "Catálogo para el cotizador CLI. clickbus es el slug del catálogo de ClickBus; primera_plus_* son los slugs del buscador de Primera Plus cuando se conocen. hotel_query es el texto que se manda a Google Hotels.",
+  "ciudades": [
+    {
+      "nombre": "Ciudad de México",
+      "alias": ["cdmx", "df", "mexico", "ciudad de mexico"],
+      "iata": "MEX",
+      "estado": "Ciudad de México",
+      "hotel_query": "Ciudad de México",
+      "clickbus": "ciudad-de-mexico-df-(todas-las-terminales)",
+      "primera_plus_origen": "ciudad-de-mexico",
+      "primera_plus_destino": "t-ciudad-de-mexico-central-norte"
+    },
+    {
+      "nombre": "Guadalajara",
+      "alias": ["gdl", "guadalajara"],
+      "iata": "GDL",
+      "estado": "Jalisco",
+      "hotel_query": "Guadalajara",
+      "clickbus": "guadalajara-jal-(todas-las-terminales)",
+      "primera_plus_origen": "guadalajara",
+      "primera_plus_destino": "t-guadalajara-central-nueva"
+    },
+    {
+      "nombre": "Monterrey",
+      "alias": ["mty", "monterrey"],
+      "iata": "MTY",
+      "estado": "Nuevo León",
+      "hotel_query": "Monterrey",
+      "clickbus": "monterrey-nl-(todas-las-terminales)"
+    },
+    {
+      "nombre": "Querétaro",
+      "alias": ["qro", "queretaro"],
+      "iata": "QRO",
+      "estado": "Querétaro",
+      "hotel_query": "Querétaro",
+      "clickbus": "queretaro-qro-(todas-las-terminales)"
+    },
+    {
+      "nombre": "Puebla",
+      "alias": ["pue", "puebla"],
+      "iata": "PBC",
+      "estado": "Puebla",
+      "hotel_query": "Puebla",
+      "clickbus": "puebla-pue-todas-las-terminales"
+    },
+    {
+      "nombre": "Cancún",
+      "alias": ["cun", "cancun"],
+      "iata": "CUN",
+      "estado": "Quintana Roo",
+      "hotel_query": "Cancún",
+      "clickbus": "cancun-qr-todas-las-terminales"
+    },
+    {
+      "nombre": "Tijuana",
+      "alias": ["tij", "tijuana"],
+      "iata": "TIJ",
+      "estado": "Baja California",
+      "hotel_query": "Tijuana",
+      "clickbus": "tijuana-bc-(todas-las-terminales)"
+    },
+    {
+      "nombre": "Xalapa",
+      "alias": ["xal", "xalapa", "jalapa"],
+      "iata": "JAL",
+      "estado": "Veracruz",
+      "hotel_query": "Xalapa",
+      "clickbus": "caxa-xalapa-ver"
+    },
+    {
+      "nombre": "León",
+      "alias": ["leon", "bjx"],
+      "iata": "BJX",
+      "estado": "Guanajuato",
+      "hotel_query": "León",
+      "clickbus": "león-gto-todas-las-terminales"
+    },
+    {
+      "nombre": "San Luis Potosí",
+      "alias": ["slp", "san luis potosi"],
+      "iata": "SLP",
+      "estado": "San Luis Potosí",
+      "hotel_query": "San Luis Potosí",
+      "clickbus": "san-luis-potosi-slp-todas-las-terminales",
+      "primera_plus_origen": "san-luis-potosi",
+      "primera_plus_destino": "t-san-luis-potosi-central"
+    },
+    {
+      "nombre": "Torreón",
+      "alias": ["trc", "torreon"],
+      "iata": "TRC",
+      "estado": "Coahuila",
+      "hotel_query": "Torreón",
+      "clickbus": "torreon-coah-todas-las-terminales"
+    },
+    {
+      "nombre": "Mérida",
+      "alias": ["mid", "merida"],
+      "iata": "MID",
+      "estado": "Yucatán",
+      "hotel_query": "Mérida",
+      "clickbus": "merida-yuc-todas-las-terminales"
+    },
+    {
+      "nombre": "Veracruz",
+      "alias": ["ver", "veracruz"],
+      "iata": "VER",
+      "estado": "Veracruz",
+      "hotel_query": "Veracruz",
+      "clickbus": "veracruz-ver-todas-las-terminales"
+    },
+    {
+      "nombre": "Ciudad Obregón",
+      "alias": ["cen", "obregon", "ciudad obregon"],
+      "iata": "CEN",
+      "estado": "Sonora",
+      "hotel_query": "Ciudad Obregón",
+      "clickbus": "ciudad-obregon-todas-las-terminales"
+    },
+    {
+      "nombre": "Ciudad Victoria",
+      "alias": ["cvm", "ciudad victoria"],
+      "iata": "CVM",
+      "estado": "Tamaulipas",
+      "hotel_query": "Ciudad Victoria",
+      "clickbus": "ciudad-victoria-tamps-todas-las-terminales"
+    },
+    {
+      "nombre": "Los Cabos",
+      "alias": ["sjd", "los cabos", "cabo"],
+      "iata": "SJD",
+      "estado": "Baja California Sur",
+      "hotel_query": "Los Cabos",
+      "clickbus": null
+    },
+    {
+      "nombre": "Aguascalientes",
+      "alias": ["agu", "aguascalientes"],
+      "iata": "AGU",
+      "estado": "Aguascalientes",
+      "hotel_query": "Aguascalientes",
+      "clickbus": "aguascalientes-ags-(todas-las-terminales)",
+      "primera_plus_origen": "aguascalientes",
+      "primera_plus_destino": "t-aguascalientes-central"
+    },
+    {
+      "nombre": "Morelia",
+      "alias": ["mlm", "morelia"],
+      "iata": "MLM",
+      "estado": "Michoacán",
+      "hotel_query": "Morelia",
+      "clickbus": "morelia-mich-todas-las-terminales",
+      "primera_plus_origen": "morelia",
+      "primera_plus_destino": "t-morelia-tam"
+    },
+    {
+      "nombre": "Oaxaca",
+      "alias": ["oax", "oaxaca"],
+      "iata": "OAX",
+      "estado": "Oaxaca",
+      "hotel_query": "Oaxaca",
+      "clickbus": "oaxaca-oax-todas-las-terminales"
+    },
+    {
+      "nombre": "Tuxtla Gutiérrez",
+      "alias": ["tgz", "tuxtla", "tuxtla gutierrez"],
+      "iata": "TGZ",
+      "estado": "Chiapas",
+      "hotel_query": "Tuxtla Gutiérrez",
+      "clickbus": "tuxtla-gutierrez-chis-todas-las-terminales"
+    },
+    {
+      "nombre": "Villahermosa",
+      "alias": ["vsa", "villahermosa"],
+      "iata": "VSA",
+      "estado": "Tabasco",
+      "hotel_query": "Villahermosa",
+      "clickbus": "villahermosa-tab-todas-las-terminales"
+    },
+    {
+      "nombre": "Tampico",
+      "alias": ["tam", "tampico"],
+      "iata": "TAM",
+      "estado": "Tamaulipas",
+      "hotel_query": "Tampico",
+      "clickbus": "tampico-tamps-todas-las-terminales)"
+    },
+    {
+      "nombre": "Saltillo",
+      "alias": ["slw", "saltillo"],
+      "iata": "SLW",
+      "estado": "Coahuila",
+      "hotel_query": "Saltillo",
+      "clickbus": "saltillo-coah-todas-las-terminales"
+    },
+    {
+      "nombre": "Cuernavaca",
+      "alias": ["cvj", "cuernavaca"],
+      "iata": "CVJ",
+      "estado": "Morelos",
+      "hotel_query": "Cuernavaca",
+      "clickbus": "cuernavaca-mor-(todas-las-terminales)"
+    },
+    {
+      "nombre": "San Quintín",
+      "alias": ["san quintin"],
+      "iata": null,
+      "estado": "Baja California",
+      "hotel_query": "San Quintín Baja California",
+      "clickbus": "terminal-acn-san-quintin-bc"
+    },
+    {
+      "nombre": "Mexicali",
+      "alias": ["mxl", "mexicali"],
+      "iata": "MXL",
+      "estado": "Baja California",
+      "hotel_query": "Mexicali",
+      "clickbus": "mexicali-bc-todas-las-terminales"
+    },
+    {
+      "nombre": "Culiacán",
+      "alias": ["cul", "culiacan"],
+      "iata": "CUL",
+      "estado": "Sinaloa",
+      "hotel_query": "Culiacán",
+      "clickbus": "culiacan-sin-todas-las-terminales"
+    },
+    {
+      "nombre": "Los Mochis",
+      "alias": ["lmm", "los mochis"],
+      "iata": "LMM",
+      "estado": "Sinaloa",
+      "hotel_query": "Los Mochis",
+      "clickbus": "los-mochis-sin-todas-las-terminales"
+    },
+    {
+      "nombre": "Mazatlán",
+      "alias": ["mzt", "mazatlan"],
+      "iata": "MZT",
+      "estado": "Sinaloa",
+      "hotel_query": "Mazatlán",
+      "clickbus": "mazatlan-sin-todas-las-terminales"
+    },
+    {
+      "nombre": "Puerto Vallarta",
+      "alias": ["pvr", "puerto vallarta", "vallarta"],
+      "iata": "PVR",
+      "estado": "Jalisco",
+      "hotel_query": "Puerto Vallarta",
+      "clickbus": "puerto-vallarta-jal-(todas-las-terminales)"
+    },
+    {
+      "nombre": "Acapulco",
+      "alias": ["aca", "acapulco"],
+      "iata": "ACA",
+      "estado": "Guerrero",
+      "hotel_query": "Acapulco",
+      "clickbus": "acapulco-gro(todas-las-terminales)"
+    },
+    {
+      "nombre": "Zacatecas",
+      "alias": ["zcl", "zacatecas"],
+      "iata": "ZCL",
+      "estado": "Zacatecas",
+      "hotel_query": "Zacatecas",
+      "clickbus": "zacatecas-zac-(todas-las-terminales)"
+    },
+    {
+      "nombre": "Durango",
+      "alias": ["dgo", "durango"],
+      "iata": "DGO",
+      "estado": "Durango",
+      "hotel_query": "Durango",
+      "clickbus": "durango-dgo-(todas-las-terminales)"
+    },
+    {
+      "nombre": "Chihuahua",
+      "alias": ["cuu", "chihuahua"],
+      "iata": "CUU",
+      "estado": "Chihuahua",
+      "hotel_query": "Chihuahua",
+      "clickbus": "chihuahua-chih-(todas-las-terminales)"
+    },
+    {
+      "nombre": "Hermosillo",
+      "alias": ["hmo", "hermosillo"],
+      "iata": "HMO",
+      "estado": "Sonora",
+      "hotel_query": "Hermosillo",
+      "clickbus": "hermosillo-son(todas-las-terminales)"
+    },
+    {
+      "nombre": "La Paz",
+      "alias": ["lap", "la paz"],
+      "iata": "LAP",
+      "estado": "Baja California Sur",
+      "hotel_query": "La Paz",
+      "clickbus": "la-paz-nl-(todas-las-terminales)"
+    },
+    {
+      "nombre": "Campeche",
+      "alias": ["cpe", "campeche"],
+      "iata": "CPE",
+      "estado": "Campeche",
+      "hotel_query": "Campeche",
+      "clickbus": "campeche-camp-(todas-las-terminales)"
+    },
+    {
+      "nombre": "Chetumal",
+      "alias": ["ctm", "chetumal"],
+      "iata": "CTM",
+      "estado": "Quintana Roo",
+      "hotel_query": "Chetumal",
+      "clickbus": "chetumal-qr-todas-las-terminales"
+    },
+    {
+      "nombre": "Cozumel",
+      "alias": ["czm", "cozumel"],
+      "iata": "CZM",
+      "estado": "Quintana Roo",
+      "hotel_query": "Cozumel",
+      "clickbus": null
+    },
+    {
+      "nombre": "Toluca",
+      "alias": ["tlc", "toluca"],
+      "iata": "TLC",
+      "estado": "Estado de México",
+      "hotel_query": "Toluca",
+      "clickbus": "toluca-edo-mex-todas-las-terminales"
+    },
+    {
+      "nombre": "Ciudad Juárez",
+      "alias": ["cjs", "ciudad juarez", "juarez"],
+      "iata": "CJS",
+      "estado": "Chihuahua",
+      "hotel_query": "Ciudad Juárez",
+      "clickbus": null
+    },
+    {
+      "nombre": "Matamoros",
+      "alias": ["mam", "matamoros"],
+      "iata": "MAM",
+      "estado": "Tamaulipas",
+      "hotel_query": "Matamoros",
+      "clickbus": null
+    },
+    {
+      "nombre": "Nuevo Laredo",
+      "alias": ["nld", "nuevo laredo"],
+      "iata": "NLD",
+      "estado": "Tamaulipas",
+      "hotel_query": "Nuevo Laredo",
+      "clickbus": null
+    },
+    {
+      "nombre": "Reynosa",
+      "alias": ["rex", "reynosa"],
+      "iata": "REX",
+      "estado": "Tamaulipas",
+      "hotel_query": "Reynosa",
+      "clickbus": null
+    },
+    {
+      "nombre": "Tepic",
+      "alias": ["tpq", "tepic"],
+      "iata": "TPQ",
+      "estado": "Nayarit",
+      "hotel_query": "Tepic",
+      "clickbus": null
+    },
+    {
+      "nombre": "Manzanillo",
+      "alias": ["zlo", "manzanillo"],
+      "iata": "ZLO",
+      "estado": "Colima",
+      "hotel_query": "Manzanillo",
+      "clickbus": null
+    },
+    {
+      "nombre": "Colima",
+      "alias": ["clq", "colima"],
+      "iata": "CLQ",
+      "estado": "Colima",
+      "hotel_query": "Colima",
+      "clickbus": null
+    },
+    {
+      "nombre": "Ixtapa Zihuatanejo",
+      "alias": ["zih", "ixtapa", "zihuatanejo"],
+      "iata": "ZIH",
+      "estado": "Guerrero",
+      "hotel_query": "Ixtapa Zihuatanejo",
+      "clickbus": null
+    },
+    {
+      "nombre": "Puerto Escondido",
+      "alias": ["pxm", "puerto escondido"],
+      "iata": "PXM",
+      "estado": "Oaxaca",
+      "hotel_query": "Puerto Escondido",
+      "clickbus": null
+    },
+    {
+      "nombre": "Huatulco",
+      "alias": ["hux", "huatulco", "bahias de huatulco"],
+      "iata": "HUX",
+      "estado": "Oaxaca",
+      "hotel_query": "Huatulco",
+      "clickbus": null
+    },
+    {
+      "nombre": "Tapachula",
+      "alias": ["tap", "tapachula"],
+      "iata": "TAP",
+      "estado": "Chiapas",
+      "hotel_query": "Tapachula",
+      "clickbus": null
+    },
+    {
+      "nombre": "Tulum",
+      "alias": ["tqo", "tulum"],
+      "iata": "TQO",
+      "estado": "Quintana Roo",
+      "hotel_query": "Tulum",
+      "clickbus": null
+    }
+  ]
+}

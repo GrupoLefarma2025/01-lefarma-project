@@ -43,6 +43,7 @@ import { costosRutaApi } from '../services/costosRuta.api';
 import { casetasDeRuta } from '../services/casetasRuta';
 import { hidratarSolicitud } from '../services/solicitudDraft';
 import { solicitudesApi } from '../services/solicitudes.api';
+import { generarCapturasEnSegundoPlano } from '../services/evidencias.api';
 import type { CostosRutaResponse } from '../types/costosRuta.types';
 import type { CalculoViaje, PropuestaRuta, Solicitud } from '../types/solicitud.types';
 
@@ -534,6 +535,9 @@ export function CalculosViajeModal({
         return;
       }
       toast.success('Solicitud enviada a concentrado.');
+      // Best-effort: captura las opciones elegidas sin retrasar el cierre del
+      // modal. Si falla, el detalle conserva "Generar capturas" para reintentar.
+      generarCapturasEnSegundoPlano(solicitud.id_solicitud);
       onEnviado(solicitud.id_solicitud);
       onOpenChange(false);
     } catch (falla: unknown) {
@@ -840,14 +844,33 @@ export function CalculosViajeModal({
                                       : 'En el punto · '
                                     : ''}
                                   {hotel.precioNoche
-                                    ? `${mxn(hotel.precioNoche)}/noche (tabulador) · total ${mxn(hotel.precioTotal ?? hotel.precioNoche * hotel.noches)}`
+                                    ? `${mxn(hotel.precioNoche)}/noche (${hotel.tipoPrecio === 'referencia_tabulador' ? 'referencia tabulador' : 'cotizado'}) · total ${mxn(hotel.precioTotal ?? hotel.precioNoche * hotel.noches)}`
                                     : hotel.motivo}
                                   {hotel.rating != null
                                     ? ` · ★${hotel.rating.toFixed(1)}${hotel.ratingCount ? ` (${hotel.ratingCount})` : ''}`
                                     : ''}
+                                  {hotel.disponibilidad ? ` · ${hotel.disponibilidad}` : ''}
                                 </span>
                               </span>
-                              {hotel.link ? <a href={hotel.link} target="_blank" rel="noreferrer" className="underline">Ver</a> : null}
+                              <span className="flex gap-2">
+                                {hotel.link ? (
+                                  <a href={hotel.link} target="_blank" rel="noreferrer" className="underline" title={hotel.disponibilidadDetalle ?? undefined}>
+                                    {hotel.tipoPrecio === 'referencia_tabulador' ? 'Ver precios' : 'Ver'}
+                                  </a>
+                                ) : null}
+                                {hotel.linkMapa ? <a href={hotel.linkMapa} target="_blank" rel="noreferrer" className="underline">Mapa</a> : null}
+                                {hotel.linkReserva ? (
+                                  <a
+                                    href={hotel.linkReserva}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="underline"
+                                    title="Respaldo de reserva; no se captura en esta fase"
+                                  >
+                                    Booking
+                                  </a>
+                                ) : null}
+                              </span>
                             </label>
                           ))}
                           {hotelDelPaso.propuestas[0] ? (

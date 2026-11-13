@@ -1,0 +1,107 @@
+{
+  "version": "1.0.0",
+  "id": "cotizacion-20261112-090248-ciudad-de-mexico-guadalajara",
+  "creada_en": "2026-11-12T15:03:40.821Z",
+  "consulta": {
+    "origen": {
+      "nombre": "Ciudad de México",
+      "iata": "MEX",
+      "estado": "Ciudad de México"
+    },
+    "destino": {
+      "nombre": "Guadalajara",
+      "iata": "GDL",
+      "estado": "Jalisco"
+    },
+    "fecha_ida": "2026-11-19",
+    "fecha_vuelta": "2026-11-21",
+    "personas": 1,
+    "modo": "Vuelo",
+    "proveedor": "Kayak"
+  },
+  "tramos": [
+    {
+      "tipo": "vuelo",
+      "proveedor": "Kayak",
+      "sentido": "ida",
+      "linea": "Volaris",
+      "servicio": "",
+      "salida": "17:18",
+      "llegada": "18:35",
+      "duracion": "1h 17m",
+      "escalas": "Directo",
+      "precio": 820,
+      "texto_busqueda": "17:18 – 18:35",
+      "notas": "",
+      "link": "https://www.kayak.com.mx/flights/MEX-GDL/2026-11-19?sort=bestflight_a&fs=cabin=e",
+      "disponibilidad": "disponible",
+      "disponibilidad_detalle": "53 de 251 vuelos",
+      "capturas": [
+        "capturas/ida-opciones.png",
+        "capturas/ida-elegido.png"
+      ],
+      "precio_total": 820
+    },
+    {
+      "tipo": "vuelo",
+      "proveedor": "Kayak",
+      "sentido": "vuelta",
+      "linea": "Volaris",
+      "servicio": "",
+      "salida": "19:15",
+      "llegada": "20:28",
+      "duracion": "1h 13m",
+      "escalas": "Directo",
+      "precio": 1080,
+      "texto_busqueda": "19:15 – 20:28",
+      "notas": "",
+      "link": "https://www.kayak.com.mx/flights/GDL-MEX/2026-11-21?sort=bestflight_a&fs=cabin=e",
+      "disponibilidad": "disponible",
+      "disponibilidad_detalle": "51 de 255 vuelos",
+      "capturas": [
+        "capturas/vuelta-opciones.png",
+        "capturas/vuelta-elegido.png"
+      ],
+      "precio_total": 1080
+    }
+  ],
+  "hotel": {
+    "proveedor": "Booking.com",
+    "nombre": "Hotel Hi! Zapopan",
+    "precio_noche": 649.5,
+    "precio_estadia": 1299,
+    "rating": "7.9",
+    "rating_count": 733,
+    "distancia_km": 11.3,
+    "distancia_texto": "11.3 km del centro",
+    "zona": "Zapopan, Guadalajara",
+    "disponibles": null,
+    "texto_busqueda": "Hotel Hi! Zapopan",
+    "notas": "Precio de Booking para toda la estancia; se dividió entre las noches. No incluye impuestos ni cargos.",
+    "checkin": "2026-11-19",
+    "checkout": "2026-11-21",
+    "noches": 2,
+    "link": "https://www.booking.com/searchresults.es.html?ss=Guadalajara&checkin=2026-11-19&checkout=2026-11-21&group_adults=1&no_rooms=1",
+    "disponibilidad": "disponible",
+    "disponibilidad_detalle": "867 alojamientos",
+    "capturas": [
+      "capturas/hotel-opciones.png",
+      "capturas/hotel-elegido.png"
+    ],
+    "habitaciones": 1,
+    "precio_total": 1299
+  },
+  "totales": {
+    "transporte": 1900,
+    "hotel": 1299,
+    "total": 3199,
+    "moneda": "MXN"
+  },
+  "notas": [
+    "Precios y disponibilidad obtenidos del buscador en el momento de la consulta; no son una reserva.",
+    "Los conteos de disponibilidad son indicativos y pueden incluir resultados de la zona.",
+    "Las capturas de cada búsqueda y de la opción elegida quedaron en la carpeta capturas/.",
+    "El hotel se cotizó para 1 habitación; ajusta si viajan más personas.",
+    "La captura de hotel puede incluir el modal \"Inicia sesión y ahorra\" de Booking; el CLI intenta cerrarlo antes de capturar."
+  ]
+}

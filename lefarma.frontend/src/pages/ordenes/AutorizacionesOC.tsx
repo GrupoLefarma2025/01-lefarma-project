@@ -1353,8 +1353,11 @@ export default function AutorizacionesOC() {
         datosAdicionales['archivoContentType'] = archivosList[0].tipoMime;
       }
 
-      if ((esRechazo || esRetorno) && !comentarioFirma.trim()) {
-        toast.error('Para rechazo o devolución el comentario es obligatorio');
+      const requiereComentario = esRechazo || esRetorno || accionSeleccionada?.requiereComentario;
+      if (requiereComentario && !comentarioFirma.trim()) {
+        toast.error((esRechazo || esRetorno)
+          ? 'Para rechazo o devolución el comentario es obligatorio'
+          : 'El comentario es obligatorio para esta acción');
         setIsSubmittingFirma(false);
         return;
       }

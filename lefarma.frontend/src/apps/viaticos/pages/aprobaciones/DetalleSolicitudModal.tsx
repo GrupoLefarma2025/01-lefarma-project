@@ -126,6 +126,10 @@ const SIN_URL_COMPRA =
 
 function TarjetaOpcion({ opcion }: { opcion: SolicitudOpcion }) {
   const etiqueta = `${opcion.linea} (${opcion.tipo})`;
+  const accionCompra =
+    opcion.datos?.tipo_precio && opcion.datos.tipo_precio !== 'cotizado'
+      ? 'Consultar precios'
+      : 'Comprar';
   return (
     <li
       data-testid={`opcion-${opcion.id_opcion}`}
@@ -142,6 +146,13 @@ function TarjetaOpcion({ opcion }: { opcion: SolicitudOpcion }) {
           )}
         </div>
         <div className="text-sm tabular-nums">{precio(opcion)}</div>
+        {opcion.datos?.tipo_precio ? (
+          <div className="text-xs text-muted-foreground">
+            {String(opcion.datos.tipo_precio)}
+            {opcion.datos?.proveedor ? ` · ${String(opcion.datos.proveedor)}` : ''}
+            {opcion.datos?.disponibilidad ? ` · ${String(opcion.datos.disponibilidad)}` : ''}
+          </div>
+        ) : null}
       </div>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <div>
@@ -153,16 +164,16 @@ function TarjetaOpcion({ opcion }: { opcion: SolicitudOpcion }) {
           <CeldaCaptura ruta={opcion.ruta_captura ?? undefined} etiqueta={etiqueta} />
         </div>
         <div>
-          <div className="text-xs font-medium text-muted-foreground">Comprar</div>
+          <div className="text-xs font-medium text-muted-foreground">Enlace</div>
           {opcion.url_compra ? (
             <Button asChild variant="outline" size="sm">
-              <a href={opcion.url_compra} target="_blank" rel="noreferrer" aria-label={`Comprar ${etiqueta}`}>
-                Comprar ↗
+              <a href={opcion.url_compra} target="_blank" rel="noreferrer" aria-label={`${accionCompra} ${etiqueta}`}>
+                {accionCompra} ↗
               </a>
             </Button>
           ) : (
             <Button variant="outline" size="sm" disabled>
-              Comprar sin URL
+              Sin URL
               <span className="sr-only">{SIN_URL_COMPRA}</span>
             </Button>
           )}

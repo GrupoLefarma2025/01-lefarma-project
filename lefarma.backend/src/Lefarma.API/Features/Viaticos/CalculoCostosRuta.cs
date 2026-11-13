@@ -20,6 +20,13 @@ public record ViajeBus(string Linea, DateTime Salida, DateTime Llegada, double P
     CostosRutaTerminal? TerminalOrigen = null, CostosRutaTerminal? TerminalDestino = null);
 public record ViajeVuelo(string Linea, DateTime Salida, DateTime Llegada, double PrecioDesde, double PrecioHasta, string Fuente, string Url, string Nota);
 
+/// <summary>
+/// Municipio del catalogo propio (viaticos.municipios_cat) con su centroide.
+/// Se carga una vez por request desde la BD y evita llamar a Nominatim para
+/// resolver la ciudad de un punto.
+/// </summary>
+public sealed record MunicipioCercano(string Nombre, double Latitud, double Longitud);
+
 public static class CalculoCostosRuta
 {
     // RENDIMIENTO FIJO 12 km/L (fase 1: se ignora rendimiento_km_l de la entrada).
@@ -35,25 +42,8 @@ public static class CalculoCostosRuta
         ["PUE"] = ("Puebla", 19.0414, -98.2063, "PBC"),
         ["CUN"] = ("Cancún", 21.1619, -86.8515, "CUN"),
         ["TIJ"] = ("Tijuana", 32.5149, -117.0382, "TIJ"),
-        ["XAL"] = ("Xalapa", 19.5438, -96.9102, null),
+        ["XAL"] = ("Xalapa", 19.5438, -96.9102, "JAL"),
         ["BJX"] = ("León", 21.1214, -101.6830, "BJX"),
-    };
-
-    /// <summary>
-    /// Aeropuertos de las ciudades sembradas, con su coordenada real. Es la
-    /// terminal a la que el viajero se traslada en taxi antes de volar y desde
-    /// la que sale al llegar; el mapa del resumen dibuja ese traslado.
-    /// </summary>
-    private static readonly Dictionary<string, (string Nombre, double Lat, double Lon)> Aeropuertos = new()
-    {
-        ["MEX"] = ("Aeropuerto Internacional Benito Juárez (MEX)", 19.4361, -99.0719),
-        ["GDL"] = ("Aeropuerto Internacional de Guadalajara (GDL)", 20.5218, -103.3111),
-        ["MTY"] = ("Aeropuerto Internacional de Monterrey (MTY)", 25.7785, -100.1064),
-        ["QRO"] = ("Aeropuerto Intercontinental de Querétaro (QRO)", 20.6173, -100.1857),
-        ["PBC"] = ("Aeropuerto Internacional de Puebla (PBC)", 19.1581, -98.3716),
-        ["CUN"] = ("Aeropuerto Internacional de Cancún (CUN)", 21.0365, -86.8771),
-        ["TIJ"] = ("Aeropuerto Internacional de Tijuana (TIJ)", 32.5411, -116.9700),
-        ["BJX"] = ("Aeropuerto Internacional del Bajío (BJX)", 20.9935, -101.4808),
     };
 
     /// <summary>
@@ -93,6 +83,28 @@ public static class CalculoCostosRuta
         ["XAL"] = (546, 1500), ["BJX"] = (596, 1700),
     };
 
+    // Tabulador por zonas: las 9 ciudades conservan su tarifa puntual; los
+    // demas municipios usan la zona asignada o la zona E por defecto. Los
+    // montos se pueden sobreescribir en config_parametros con
+    // `costos.hospedaje_noche.zona.<A-E>`.
+    private static readonly Dictionary<string, string> ZonaHospedaje = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["CDMX"] = "A",
+        ["MTY"] = "B", ["CUN"] = "B",
+        ["GDL"] = "C", ["TIJ"] = "C", ["BJX"] = "C",
+        ["QRO"] = "D", ["XAL"] = "D",
+        ["PUE"] = "E",
+    };
+    private const string ZonaHospedajeDefault = "E";
+    private static readonly Dictionary<string, double> TarifaHospedajeZona = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["A"] = 3533,
+        ["B"] = 2353,
+        ["C"] = 2100,
+        ["D"] = 1700,
+        ["E"] = 1500,
+    };
+
     // Fuente de la unica entrada valuada de un pernocte (tarifa tabulador).
     // Las alternativas de Overpass no traen precio propio: son un menu.
     private const string FuenteTabuladorHotel = "seed tabulador SHCP";
@@ -124,11 +136,22 @@ public static class CalculoCostosRuta
     }
     private const int BufferMin = 30;
     private const double SnapKm = 25.0;
+    /// <summary>Radio para usar la terminal de autobuses mas cercana cuando
+    /// el destino no existe como ciudad en el catalogo del proveedor.</summary>
+    private const double TerminalCercanaKm = 60.0;
+    /// <summary>Radio para aceptar el municipio mas cercano del catalogo BD.</summary>
+    private const double MunicipioCercanoKm = 50.0;
+    /// <summary>Radio para usar el aeropuerto mas cercano cuando el punto no
+    /// tiene IATA propio (ej. Tekax -> Merida MID).</summary>
+    private const double AeropuertoCercanoKm = 160.0;
+    /// <summary>Radio para buscar una central de autobuses alterna cuando la
+    /// ruta directa al destino no existe (ej. Tekax -> Merida).</summary>
+    private const double HubBusKm = 160.0;
 
     /// <summary>
     /// IATA de las ciudades que no estan en <see cref="Ciudades"/> ni en
-    /// <see cref="Aeropuertos"/>. Solo se usa para el enlace de busqueda de
-    /// vuelos (Google Flights exige el codigo, no el nombre de la ciudad).
+    /// <see cref="AeropuertosCatalogo"/>. Solo se usa para el enlace de busqueda
+    /// de vuelos (Kayak exige el codigo, no el nombre de la ciudad).
     /// </summary>
     private static readonly Dictionary<string, string> Iatas = new(StringComparer.Ordinal)
     {
@@ -148,6 +171,9 @@ public static class CalculoCostosRuta
         ["acapulco"] = "ACA", ["ixtapa"] = "ZIH", ["zihuatanejo"] = "ZIH",
         ["huatulco"] = "HUX", ["puerto escondido"] = "PXM", ["tapachula"] = "TAP",
         ["campeche"] = "CPE", ["chetumal"] = "CTM", ["cozumel"] = "CZM",
+        ["xalapa"] = "JAL", ["xalapa-enriquez"] = "JAL",
+        ["ciudad obregon"] = "CEN", ["cd obregon"] = "CEN",
+        ["ciudad victoria"] = "CVM", ["saltillo"] = "SLW",
     };
 
     /// <summary>IATA de una ciudad por nombre (ignora acentos) o null.</summary>
@@ -182,7 +208,13 @@ public static class CalculoCostosRuta
 
     private sealed record LugarNorm(int Orden, string Tipo, string Nombre, double Lat, double Lon,
         DateTime? Salida, DateTime? Llegada, DateTime? Deadline, DateTime? Fin, DateTime? FinActividad, bool Propuesto,
-        string Municipio, string Estado);
+        string Municipio, string Estado)
+    {
+        /// <summary>True si la salida vino del usuario; false si el motor la
+        /// propuso para llegar manejando. En el primer tramo, una salida
+        /// propuesta no debe bloquear modos mas rapidos (avion/bus).</summary>
+        public bool SalidaExplicita { get; init; }
+    }
 
     private sealed record PersonaNorm(string Nombre, bool CarroPropio, string Gasolina, bool Draft,
         TimeOnly HIn, TimeOnly HOut, int DIn, int DOut, List<LugarNorm> Lugares);
@@ -193,7 +225,8 @@ public static class CalculoCostosRuta
         bool Late, bool SaleAntes, int LateMin, string Fuente, bool Estimado, string Nota,
         string Url, string Sitio, string Accion, string Objetivo, string Badge,
         // Terminal real que informa el proveedor (ClickBus). Null = usar la sembrada.
-        CostosRutaTerminal? TerminalOrigenDato = null, CostosRutaTerminal? TerminalDestinoDato = null);
+        CostosRutaTerminal? TerminalOrigenDato = null, CostosRutaTerminal? TerminalDestinoDato = null,
+        int? Asientos = null);
 
     private sealed record TramoCalc(string From, string To, double Km, double Hrs, List<OpCalc> Opciones,
         List<(double Lat, double Lon)>? Grafica = null);
@@ -239,16 +272,19 @@ public static class CalculoCostosRuta
         // La unica busqueda real que conocemos para cualquier ruta es ClickBus;
         // sin slugs no hay enlace (y el frontend lo muestra deshabilitado).
         var urlBusqueda = slugOrigen is not null && slugDestino is not null
-            ? $"https://www.clickbus.com.mx/trips?departure_place={slugOrigen}"
-              + $"&arrival_place={slugDestino}&departure_date={fecha:yyyy-MM-dd}&minPrice=0&maxPrice=5000"
+            ? $"https://www.clickbus.com.mx/trips?departure_place={Uri.EscapeDataString(slugOrigen)}"
+              + $"&arrival_place={Uri.EscapeDataString(slugDestino)}&departure_date={fecha:yyyy-MM-dd}"
             : "";
         var salida = fecha.ToDateTime(new TimeOnly(8, 0));
         var llegada = salida.AddHours(km / 72.0 + 0.5);
         var precio = Math.Round(base_ * 1.15, 2);
+        var nota = fuente.Contains("terminal más cercana", StringComparison.OrdinalIgnoreCase)
+            ? "sin proveedor exacto: horario y precio estimados; enlace a la terminal más cercana"
+            : "sin proveedor: horario y precio estimados de referencia";
         return
         [
             new ViajeBus("Autobús (estimado)", salida, llegada, precio, precio, null, fuente,
-                urlBusqueda, "sin proveedor: horario y precio estimados de referencia"),
+                urlBusqueda, nota),
         ];
     }
 
@@ -466,7 +502,8 @@ public static class CalculoCostosRuta
     /// </summary>
     public static async Task<List<ViajeBus>> BuscarBusesClickBusAsync(HttpClient http,
         string origen, string destino, DateOnly fecha, IMemoryCache cache, CancellationToken ct,
-        string? estadoOrigen = null, string? estadoDestino = null)
+        string? estadoOrigen = null, string? estadoDestino = null,
+        double latOrigen = 0, double lonOrigen = 0, double latDestino = 0, double lonDestino = 0)
     {
         try
         {
@@ -475,19 +512,22 @@ public static class CalculoCostosRuta
             var t = cts.Token;
 
             var lugares = await ObtenerLugaresClickBusAsync(http, cache, t);
-            var slugOrigen = ResolverSlugClickBus(lugares, origen, estadoOrigen);
-            var slugDestino = ResolverSlugClickBus(lugares, destino, estadoDestino);
+            var slugOrigen = ResolverSlugClickBus(lugares, origen, estadoOrigen,
+                latOrigen, lonOrigen, out var origenCercano);
+            var slugDestino = ResolverSlugClickBus(lugares, destino, estadoDestino,
+                latDestino, lonDestino, out var destinoCercano);
             if (slugOrigen is null || slugDestino is null)
                 throw new InvalidOperationException($"ClickBus no tiene {origen} → {destino} en su catalogo");
 
-            var url = $"{ClickBusAdapterBase}/trips/search?from={slugOrigen}&to={slugDestino}"
+            var url = $"{ClickBusAdapterBase}/trips/search?from={Uri.EscapeDataString(slugOrigen)}&to={Uri.EscapeDataString(slugDestino)}"
                 + $"&departure={fecha:yyyy-MM-dd}&currency=MXN&return=";
             // Enlace publico de resultados con la misma ruta y fecha. Es el que
             // se usa para "ver costo del boleto" y para la captura de pantalla:
             // los parametros reales del sitio son departure_place/arrival_place
-            // (no origin/destination).
-            var urlCompra = $"https://www.clickbus.com.mx/trips?departure_place={slugOrigen}"
-                + $"&arrival_place={slugDestino}&departure_date={fecha:yyyy-MM-dd}&minPrice=0&maxPrice=5000";
+            // (no origin/destination). Sin filtros de precio para no ocultar
+            // corridas caras.
+            var urlCompra = $"https://www.clickbus.com.mx/trips?departure_place={Uri.EscapeDataString(slugOrigen)}"
+                + $"&arrival_place={Uri.EscapeDataString(slugDestino)}&departure_date={fecha:yyyy-MM-dd}";
             using var res = await http.GetAsync(url, t);
             res.EnsureSuccessStatusCode();
             using var doc = await JsonDocument.ParseAsync(await res.Content.ReadAsStreamAsync(t), cancellationToken: t);
@@ -501,6 +541,9 @@ public static class CalculoCostosRuta
             }
 
             var viajes = new List<ViajeBus>();
+            var nota = origenCercano || destinoCercano
+                ? "precio y horario del adapter de ClickBus; terminal más cercana"
+                : "precio y horario del adapter de ClickBus";
             foreach (var trip in going.EnumerateArray())
             {
                 if (!trip.TryGetProperty("parts", out var parts)
@@ -549,7 +592,7 @@ public static class CalculoCostosRuta
                 var total = Math.Round(precio, 2);
                 viajes.Add(new ViajeBus(linea, salida.Value, llegada.Value, total, total, asientos,
                     "ClickBus (en vivo)", urlCompra,
-                    "precio y horario del adapter de ClickBus",
+                    nota,
                     terminalOrigen, terminalDestino));
             }
 
@@ -559,6 +602,73 @@ public static class CalculoCostosRuta
         {
             return new List<ViajeBus>();
         }
+    }
+
+    /// <summary>
+    /// Cuando el destino no tiene ruta directa, prueba centrales cercanas
+    /// (caso real: Tekax no tiene CDMX->Tekax, pero si CDMX->Merida). El
+    /// traslado de la terminal hub al punto final lo cobra MillaExtra como
+    /// taxi. Devuelve la primera central que tenga viajes.
+    /// </summary>
+    private static async Task<List<ViajeBus>> BuscarBusesClickBusCercanosAsync(
+        HttpClient http, IMemoryCache cache, string origen, string? estadoOrigen,
+        double latOrigen, double lonOrigen, string destino, string? estadoDestino,
+        double latDestino, double lonDestino, DateOnly fecha, CancellationToken ct)
+    {
+        try
+        {
+            var lugares = await ObtenerLugaresClickBusAsync(http, cache, ct);
+            if (lugares.Count == 0) return [];
+
+            var vistos = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { destino };
+            // Las ciudades con grupo "Todas las Terminales" son los hubs que
+            // venden rutas largas (Merida para Tekax); las localidades mas
+            // cercanas suelen no tener la ruta desde CDMX y se probarian en
+            // vano. Se prioriza el grupo y luego la distancia.
+            var conGrupo = lugares
+                .Where(l => l.Tipo.Contains("Todas las Terminales", StringComparison.OrdinalIgnoreCase))
+                .Select(l => NormalizarTexto(l.Ciudad))
+                .Where(c => c.Length > 0)
+                .ToHashSet(StringComparer.Ordinal);
+            var candidatos = new List<(string Ciudad, string? Estado, double Dist, bool EsGrupo)>();
+            foreach (var lugar in lugares)
+            {
+                if (string.IsNullOrWhiteSpace(lugar.Ciudad)) continue;
+                // Coordenada() devuelve NaN cuando el catalogo no trae lat/lon.
+                // NaN no es igual a 0 y ademas se ordena antes que cualquier
+                // numero, asi que hay que descartarlo explicitamente.
+                if (!double.IsFinite(lugar.Lat) || !double.IsFinite(lugar.Lon)) continue;
+                if (lugar.Lat == 0 && lugar.Lon == 0) continue;
+                if (!vistos.Add(lugar.Ciudad)) continue;
+                var dist = HaversineKm(latDestino, lonDestino, lugar.Lat, lugar.Lon);
+                if (!double.IsFinite(dist) || dist > HubBusKm) continue;
+                candidatos.Add((lugar.Ciudad, lugar.Estado, dist,
+                    conGrupo.Contains(NormalizarTexto(lugar.Ciudad))));
+            }
+
+            // Se prueban las centrales mas cercanas con grupo primero; si no
+            // hay grupo, la distancia decide.
+            foreach (var candidato in candidatos
+                .OrderByDescending(c => c.EsGrupo)
+                .ThenBy(c => c.Dist)
+                .Take(5))
+            {
+                var viajes = await BuscarBusesClickBusAsync(http, origen, candidato.Ciudad,
+                    fecha, cache, ct, estadoOrigen, candidato.Estado,
+                    latOrigen, lonOrigen, latDestino, lonDestino);
+                if (viajes.Count == 0) continue;
+
+                return viajes.Select(v => v with
+                {
+                    Nota = $"{v.Nota} · hub {candidato.Ciudad} ({candidato.Dist:F0} km del destino) + taxi al punto",
+                }).ToList();
+            }
+        }
+        catch
+        {
+            // Sin hub: el llamador cae al estimado de siempre.
+        }
+        return [];
     }
 
     // ---------- Primera Plus (buscador en vivo) ----------
@@ -802,7 +912,12 @@ public static class CalculoCostosRuta
     /// Xicotlan no esta entre los 1,642 destinos de ClickBus).
     /// </summary>
     private static string? ResolverSlugClickBus(List<LugarClickBus> lugares, string nombre, string? estado = null)
+        => ResolverSlugClickBus(lugares, nombre, estado, 0, 0, out _);
+
+    private static string? ResolverSlugClickBus(List<LugarClickBus> lugares, string nombre, string? estado,
+        double lat, double lon, out bool cercana)
     {
+        cercana = false;
         if (lugares.Count == 0) return null;
         var buscado = NormalizarTexto(nombre);
         if (buscado.Length == 0) return null;
@@ -846,7 +961,37 @@ public static class CalculoCostosRuta
                 .ToList();
         if (coincidencias.Count == 0)
             coincidencias = candidatos.Where(x => x.Nombre.Contains(buscado, StringComparison.Ordinal)).ToList();
-        if (coincidencias.Count == 0) return null;
+
+        if (coincidencias.Count == 0)
+        {
+            // El punto puede ser una localidad que el catalogo no lista (caso
+            // real: "Manzana Cuarta De Santa Cruz Tepexpan", a ~32 km de
+            // Toluca). Se usa la terminal de la ciudad mas cercana del mismo
+            // estado y se marca la nota para que el viajero sepa que el enlace
+            // no es de su localidad exacta.
+            if ((lat == 0 && lon == 0) || estadoBuscado.Length == 0) return null;
+            var cercanos = lugares
+                .Where(l => l.Lat != 0 || l.Lon != 0)
+                .Where(l =>
+                {
+                    var estadoLugar = NormalizarTexto(l.Estado);
+                    return estadoLugar.Length > 0
+                        && (estadoLugar == estadoBuscado
+                            || estadoLugar.Contains(estadoBuscado, StringComparison.Ordinal)
+                            || estadoBuscado.Contains(estadoLugar, StringComparison.Ordinal));
+                })
+                .Select(l => new { Lugar = l, Dist = HaversineKm(lat, lon, l.Lat, l.Lon) })
+                .Where(x => x.Dist <= TerminalCercanaKm)
+                .OrderBy(x => x.Dist)
+                .ToList();
+            if (cercanos.Count == 0) return null;
+
+            var ciudadCercana = NormalizarTexto(cercanos[0].Lugar.Ciudad);
+            var grupo = cercanos.FirstOrDefault(x =>
+                NormalizarTexto(x.Lugar.Ciudad) == ciudadCercana && EsGrupo(x.Lugar));
+            cercana = true;
+            return (grupo?.Lugar ?? cercanos[0].Lugar).Slug;
+        }
 
         return coincidencias
             .OrderByDescending(x => EsGrupo(x.Lugar))
@@ -1020,6 +1165,67 @@ public static class CalculoCostosRuta
         {
             return null;
         }
+    }
+
+    private static async Task<string> CiudadDeBusquedaAsync(LugarNorm lugar, HttpClient http,
+        IMemoryCache cache, CancellationToken ct, IReadOnlyList<MunicipioCercano>? municipios = null)
+    {
+        var (clave, _) = SnapCiudad(lugar.Lat, lugar.Lon);
+        if (clave is not null) return Ciudades[clave].Nombre;
+
+        // Fuente primaria: municipios_cat (2,478 municipios con centroide).
+        // Es local, cacheado y evita una llamada a Nominatim por punto.
+        var municipal = MunicipioMasCercano(municipios, lugar.Lat, lugar.Lon);
+        if (municipal is not null) return municipal.Nombre;
+
+        // El municipio que manda el mapa puede ser una localidad ("Manzana
+        // Cuarta..."), no una ciudad que el transportista reconozca. Nominatim
+        // devuelve city/municipality/county y empata mejor con sus catalogos.
+        var ciudad = await CiudadNominatimAsync(http, cache, lugar.Lat, lugar.Lon, ct);
+        if (!string.IsNullOrWhiteSpace(ciudad)) return ciudad;
+        if (!string.IsNullOrWhiteSpace(lugar.Municipio)) return lugar.Municipio;
+        if (lugar.Nombre.StartsWith("Hotel cerca de ", StringComparison.OrdinalIgnoreCase))
+            return lugar.Nombre["Hotel cerca de ".Length..];
+        return lugar.Nombre;
+    }
+
+    private static MunicipioCercano? MunicipioMasCercano(IReadOnlyList<MunicipioCercano>? municipios,
+        double lat, double lon)
+    {
+        if (municipios is null || municipios.Count == 0) return null;
+        if (!double.IsFinite(lat) || !double.IsFinite(lon) || (lat == 0 && lon == 0)) return null;
+
+        MunicipioCercano? mejor = null;
+        var mejorDistancia = double.MaxValue;
+        foreach (var municipio in municipios)
+        {
+            var distancia = HaversineKm(lat, lon, municipio.Latitud, municipio.Longitud);
+            if (distancia >= mejorDistancia) continue;
+            mejorDistancia = distancia;
+            mejor = municipio;
+        }
+
+        return mejorDistancia <= MunicipioCercanoKm ? mejor : null;
+    }
+
+    /// <summary>
+    /// True cuando el nombre parece un hotel y no una direccion. Los hoteles de
+    /// Overpass pueden venir como "Carretera ... 50785" o "T.C. (...)", y
+    /// meterlos en Google Hotels junto con la ciudad solo ensucia la busqueda.
+    /// </summary>
+    private static bool NombrePareceHotel(string nombre)
+    {
+        var limpio = nombre.Trim();
+        if (limpio.Length < 3) return false;
+        if (limpio.Any(char.IsDigit)) return false;
+        var normal = NormalizarTexto(limpio);
+        string[] direccion =
+        [
+            "calle", "avenida", "av.", "carretera", "boulevard", "blvd",
+            "camino", "km", "t.c.", "privada", "prolongacion", "andador",
+            "manzana", "colonia", "ejido", "rancho", "lote",
+        ];
+        return !direccion.Any(p => normal.Contains(p, StringComparison.Ordinal));
     }
 
     private static string? TextoJson(JsonElement objeto, string propiedad)
@@ -1199,26 +1405,32 @@ public static class CalculoCostosRuta
     {
         var ft = 0.5 + kmAerea / 760.0;
         var base_ = 690 + kmAerea * 1.45;
-        // Un solo estimado generico: no se inventa que aerolinea vuela la ruta
-        // (Viva, por ejemplo, no vuela MEX-DGO). La busqueda real va a Google
-        // Flights, que si trae quien la opera y a que precio.
-        var consulta = $"Flights from {origen} to {destino} on {fecha:yyyy-MM-dd}";
-        var url = $"https://www.google.com/travel/flights?q={Uri.EscapeDataString(consulta)}"
-                + "&curr=MXN&hl=es-MX";
-        var salida = fecha.ToDateTime(new TimeOnly(8, 0));
-        var llegada = salida.AddHours(ft);
+        // El precio sigue siendo un estimado de fase 1. La consulta real va a
+        // Kayak: Google Flights con q= alternó resultados, portada y errores en
+        // las pruebas. Kayak exige código IATA y muestra la ruta/fecha.
+        var url = $"https://www.kayak.com.mx/flights/{origen}-{destino}/{fecha:yyyy-MM-dd}"
+                + "?sort=bestflight_a&fs=cabin=e";
         var precio = Math.Round(base_, 2);
-        return Task.FromResult(new List<ViajeVuelo>
-        {
-            new("Vuelo (estimado)", salida, llegada, precio, precio,
-                "estimado fase 1 (sin proveedor; interfaz IVuelosClient lista)",
-                url, "vuelo estimado: consulta aerolineas y precios reales"),
-        });
+        // Dos salidas estimadas (mañana y tarde): si el punto está lejos del
+        // aeropuerto, el taxi de llegada puede hacer que el vuelo de las 08:00
+        // ya no llegue a tiempo; el de las 06:00 absorbe ese traslado.
+        return Task.FromResult(new[] { new TimeOnly(6, 0), new TimeOnly(14, 0) }
+            .Select(hora =>
+            {
+                var salida = fecha.ToDateTime(hora);
+                var llegada = salida.AddHours(ft);
+                return new ViajeVuelo("Vuelo (estimado)", salida, llegada, precio, precio,
+                    "estimado fase 1 (sin proveedor; interfaz IVuelosClient lista)",
+                    url, "vuelo estimado: consulta precios reales en Kayak");
+            })
+            .ToList());
     }
 
     // ---------- Cálculo ----------
 
-    public static async Task<CostosRutaResponse> CalcularAsync(CostosRutaRequest request, HttpClient http, IMemoryCache cache, CancellationToken ct = default)
+    public static async Task<CostosRutaResponse> CalcularAsync(CostosRutaRequest request, HttpClient http,
+        IMemoryCache cache, CancellationToken ct = default,
+        IReadOnlyList<MunicipioCercano>? municipios = null)
     {
         if (request.Personas is null || request.Personas.Count == 0)
             throw new ArgumentException("Manda 'personas' con al menos 1 persona.");
@@ -1250,7 +1462,7 @@ public static class CalculoCostosRuta
                     gd.TryGetValue(t, out ci);
                 var intermedio = t > 0 && t < prop.Count - 2;
                 tramos.Add(await CalcularTramoAsync(norm, i, t, prop[t], prop[t + 1],
-                    ci, !opciones.CalcularViajesIntermedios && intermedio, precios, http, cache, ct));
+                    ci, !opciones.CalcularViajesIntermedios && intermedio, precios, http, cache, ct, municipios));
             }
 
             var casetas = norm.CarroPropio
@@ -1263,7 +1475,7 @@ public static class CalculoCostosRuta
             if (tramos.Any(t => t.Opciones.Count > 0 && t.Opciones.All(o => o.Late || o.SaleAntes)))
                 incumplimientos.Add("Con tu horario, algún tramo no tiene alternativa viable (todas llegan tarde o salen antes de que puedas tomarlas).");
 
-            var hoteles = await HotelesAsync(norm, i, prop, tramos, opciones.CalcularHoteles, http, cache, ct, incumplimientos);
+            var hoteles = await HotelesAsync(norm, i, prop, tramos, opciones.CalcularHoteles, http, cache, ct, incumplimientos, municipios);
             var resultado = new CostosRutaResultado
             {
                 Nombre = norm.Nombre,
@@ -1294,9 +1506,15 @@ public static class CalculoCostosRuta
                 {
                     Id = $"p{i}-h-{h.Lugar}", Modo = "hotel", Linea = h.Lugar, Servicio = h.Motivo,
                     Persona = norm.Nombre, A = h.Lugar, LlegadaTxt = h.CheckIn, SalidaTxt = h.CheckOut,
-                    Duracion = $"{h.Noches} noche(s)", PrecioTxt = h.Motivo, Nota = h.Motivo,
-                    Fuente = h.Fuente, Estimado = true,
-                    Comprar = new CostosRutaCompra { Url = h.Link, Sitio = "Booking.com", Accion = "reservar hotel", Objetivo = h.Lugar, Fecha = h.CheckIn },
+                    Duracion = $"{h.Noches} noche(s)",
+                    PrecioTxt = h.PrecioNoche is null ? "Sin tarifa configurada" : $"${h.PrecioNoche:F0} MXN/noche",
+                    Nota = h.Motivo,
+                    Fuente = h.Fuente, Estimado = h.TipoPrecio != "cotizado",
+                    TipoPrecio = h.TipoPrecio,
+                    Proveedor = h.Proveedor,
+                    Disponibilidad = h.Disponibilidad,
+                    DisponibilidadDetalle = h.DisponibilidadDetalle,
+                    Comprar = new CostosRutaCompra { Url = h.Link, Sitio = "Google Hotels", Accion = "ver precios", Objetivo = h.Lugar, Fecha = h.CheckIn },
                 });
 
             var propuestas = ArmarPropuestas(norm, prop, tramos, hoteles, incumplimientos);
@@ -1367,7 +1585,10 @@ public static class CalculoCostosRuta
                     sal = Dt(l.FechaSalida, l.HoraSalida, q + " salida");
                 }
                 lugares.Add(new LugarNorm(l.Orden, l.Tipo, nombreL, l.Latitud, l.Longitud, sal, null, null, null, null, false,
-                    l.Municipio?.Trim() ?? "", l.Estado?.Trim() ?? ""));
+                    l.Municipio?.Trim() ?? "", l.Estado?.Trim() ?? "")
+                {
+                    SalidaExplicita = sal is not null,
+                });
             }
             else if (l.Tipo == "hotel")
             {
@@ -1522,10 +1743,14 @@ public static class CalculoCostosRuta
 
     private static async Task<TramoCalc> CalcularTramoAsync(PersonaNorm norm, int ixP, int ti,
         LugarNorm a, LugarNorm b, ComparteInfo? comparte, bool intermedioSimple, PreciosGasolina precios,
-        HttpClient http, IMemoryCache cache, CancellationToken ct)
+        HttpClient http, IMemoryCache cache, CancellationToken ct,
+        IReadOnlyList<MunicipioCercano>? municipios = null)
     {
         var deadline = b.Deadline ?? b.Llegada ?? b.Salida ?? throw new ArgumentException($"Tramo {ti + 1}: sin hora de referencia.");
-        var salidaPrevia = a.Salida;
+        // Si el usuario no fijo la salida del origen, el motor la propuso para
+        // llegar manejando; esa hora no debe impedir tomar un vuelo o autobus
+        // que salga antes. En tramos posteriores la salida si es una cita real.
+        var salidaPrevia = ti == 0 && !a.SalidaExplicita ? null : a.Salida;
         var ruta = await ObtenerRutaOsrmAsync(http, a.Lat, a.Lon, b.Lat, b.Lon, ct);
         double km, hrs;
         string srcRuta;
@@ -1579,19 +1804,38 @@ public static class CalculoCostosRuta
 
         if (!intermedioSimple)
         {
-            var fechas = new[] { deadline.Date, deadline.Date.AddDays(-1) };
+            // Un autobus de 1,350 km puede salir 2 dias antes y aun llegar a
+            // tiempo. Se buscan hasta 4 fechas hacia atras; el vuelo solo
+            // necesita 2.
+            var diasBus = Math.Clamp((int)Math.Ceiling(km / 700.0) + 1, 2, 4);
+            var fechasBus = Enumerable.Range(0, diasBus)
+                .Select(d => deadline.Date.AddDays(-d))
+                .ToArray();
+            var fechasVuelo = new[] { deadline.Date, deadline.Date.AddDays(-1) };
             var candidatos = new List<ViajeBus>();
-            // ClickBus busca por ciudad, no por direccion: el municipio es el dato
-            // que empata con su catalogo (el nombre del lugar suele ser una calle).
-            var ciudadOrigen = string.IsNullOrWhiteSpace(a.Municipio) ? a.Nombre : a.Municipio;
-            var ciudadDestino = string.IsNullOrWhiteSpace(b.Municipio) ? b.Nombre : b.Municipio;
-            foreach (var f in fechas)
+            // ClickBus busca por ciudad, no por direccion. El municipio del
+            // mapa puede ser una localidad ("Manzana Cuarta..."), asi que se
+            // resuelve la ciudad real (Nominatim) antes de consultar catalogos.
+            var ciudadOrigen = await CiudadDeBusquedaAsync(a, http, cache, ct, municipios);
+            var ciudadDestino = await CiudadDeBusquedaAsync(b, http, cache, ct, municipios);
+            foreach (var f in fechasBus)
             {
                 var fechaBusqueda = DateOnly.FromDateTime(f);
-                candidatos.AddRange(await BuscarBusesClickBusAsync(http, ciudadOrigen, ciudadDestino, fechaBusqueda, cache, ct, a.Estado, b.Estado));
+                var antes = candidatos.Count;
+                candidatos.AddRange(await BuscarBusesClickBusAsync(http, ciudadOrigen, ciudadDestino, fechaBusqueda, cache, ct,
+                    a.Estado, b.Estado, a.Lat, a.Lon, b.Lat, b.Lon));
                 candidatos.AddRange(await BuscarBusesPrimeraPlusAsync(http, cache,
                     ciudadOrigen, a.Estado, a.Lat, a.Lon, ciudadDestino, b.Estado, b.Lat, b.Lon, fechaBusqueda, ct));
-                candidatos.AddRange(await BuscarBusesDistribusionAsync(http, a.Nombre, b.Nombre, fechaBusqueda, ct));
+                if (candidatos.Count == antes)
+                {
+                    // Sin ruta directa: se prueba una central cercana que si
+                    // tenga viajes (Tekax -> Merida) y taxi al punto final.
+                    candidatos.AddRange(await BuscarBusesClickBusCercanosAsync(http, cache,
+                        ciudadOrigen, a.Estado, a.Lat, a.Lon, ciudadDestino, b.Estado, b.Lat, b.Lon,
+                        fechaBusqueda, ct));
+                }
+                if (ConfiguracionViaticos.Booleano("integraciones.distribusion.habilitado", false))
+                    candidatos.AddRange(await BuscarBusesDistribusionAsync(http, a.Nombre, b.Nombre, fechaBusqueda, ct));
             }
             // El estimado es el ultimo recurso: solo aparece cuando ningun
             // proveedor cotizo. Con precio real, la tabla no mezcla estimados.
@@ -1603,63 +1847,117 @@ public static class CalculoCostosRuta
                 // URL en vez de mandar a la portada de un transportista que
                 // quiza ni vende la ruta.
                 string? slugOrigen = null, slugDestino = null;
+                var origenCercano = false;
+                var destinoCercano = false;
                 try
                 {
                     using var ctsCatalogo = CancellationTokenSource.CreateLinkedTokenSource(ct);
                     ctsCatalogo.CancelAfter(TimeSpan.FromSeconds(3));
                     var catalogo = await ObtenerLugaresClickBusAsync(http, cache, ctsCatalogo.Token);
-                    slugOrigen = ResolverSlugClickBus(catalogo, ciudadOrigen, a.Estado);
-                    slugDestino = ResolverSlugClickBus(catalogo, ciudadDestino, b.Estado);
+                    slugOrigen = ResolverSlugClickBus(catalogo, ciudadOrigen, a.Estado,
+                        a.Lat, a.Lon, out origenCercano);
+                    slugDestino = ResolverSlugClickBus(catalogo, ciudadDestino, b.Estado,
+                        b.Lat, b.Lon, out destinoCercano);
                 }
                 catch
                 {
                     // sin catalogo de ClickBus: la fila estimada va sin URL
                 }
 
+                var fuenteSeed = origenCercano || destinoCercano
+                    ? "estimado: sin proveedor de autobuses; terminal más cercana"
+                    : "estimado: sin proveedor de autobuses";
                 candidatos = ViajesBusSeed(DateOnly.FromDateTime(deadline), km,
-                    "estimado: sin proveedor de autobuses", slugOrigen, slugDestino);
+                    fuenteSeed, slugOrigen, slugDestino);
             }
             foreach (var g in candidatos.GroupBy(v => v.Linea))
             {
+                // El taxi terminal → punto tambien cuenta para saber si la
+                // corrida llega a tiempo: una que llega 20:00 a la central y
+                // necesita 1 h de taxi no sirve para una cita a las 20:30.
+                int TaxiMin(ViajeBus v) => v.TerminalDestino is { } t
+                    ? MinutosTaxiPuntoTerminal(b, (t.Nombre, t.Latitud, t.Longitud))
+                    : 0;
                 var mejor = MejorHorario(g.ToList(), salidaPrevia, 30, deadline,
-                    v => v.Salida, v => v.Llegada, out var saleAntes);
+                    v => v.Salida, v => v.Llegada.AddMinutes(TaxiMin(v)), out var saleAntes);
                 var durB = (mejor.Llegada - mejor.Salida).TotalHours;
+                var taxiDestinoMinB = TaxiMin(mejor);
+                var llegadaFinalB = mejor.Llegada.AddMinutes(taxiDestinoMinB);
+                var lateB = llegadaFinalB > deadline;
                 opts.Add(new OpCalc("bus", mejor.Linea, busEstimado ? "Estimado" : "Directo", mejor.Salida, mejor.Llegada, durB + 0.5, 30,
                     mejor.PrecioDesde, mejor.PrecioHasta, (mejor.PrecioDesde + mejor.PrecioHasta) / 2, true,
-                    null, null, null, null, mejor.Llegada > deadline, saleAntes,
-                    mejor.Llegada > deadline ? (int)(mejor.Llegada - deadline).TotalMinutes : 0,
+                    null, null, null, null, lateB, saleAntes,
+                    lateB ? (int)(llegadaFinalB - deadline).TotalMinutes : 0,
                     mejor.Fuente, busEstimado, $"{mejor.Nota} · cotiza en el sitio/app oficial",
                     mejor.Url,
                     mejor.Url.Length == 0 ? ""
                         : mejor.Url.Contains("primeraplus", StringComparison.OrdinalIgnoreCase) ? "Primera Plus" : "ClickBus",
-                    "ver costo del boleto", $"boleto {mejor.Linea} {a.Nombre} → {b.Nombre}", "",
-                    mejor.TerminalOrigen, mejor.TerminalDestino));
+                    busEstimado ? "ver precios reales" : "ver costo del boleto",
+                    $"boleto {mejor.Linea} {a.Nombre} → {b.Nombre}", "",
+                    mejor.TerminalOrigen, mejor.TerminalDestino, mejor.Asientos));
             }
 
             var (iataO, iataD) = (keyO is not null ? Ciudades[keyO].Iata : null,
                 keyD is not null ? Ciudades[keyD].Iata : null);
-            if (air >= 300 || (iataO is not null && iataD is not null))
+            iataO ??= IataDeCiudad(a.Municipio) ?? IataDeCiudad(a.Nombre);
+            iataD ??= IataDeCiudad(b.Municipio) ?? IataDeCiudad(b.Nombre);
+
+            // Si el punto no tiene IATA (Tekax, por ejemplo), se usa el
+            // aeropuerto mas cercano como hub y el tramo punto-hub se cubre
+            // con taxi. No se inventa una ciudad: se declara el hub.
+            var aeropuertoO = AeropuertosCatalogo.Obtener(iataO);
+            var aeropuertoD = AeropuertosCatalogo.Obtener(iataD);
+            var hubO = false;
+            var hubD = false;
+            if (iataO is null)
+            {
+                var hub = AeropuertosCatalogo.MasCercano(a.Lat, a.Lon, AeropuertoCercanoKm);
+                if (hub is not null) { iataO = hub.Iata; aeropuertoO = hub; hubO = true; }
+            }
+            if (iataD is null)
+            {
+                var hub = AeropuertosCatalogo.MasCercano(b.Lat, b.Lon, AeropuertoCercanoKm);
+                if (hub is not null) { iataD = hub.Iata; aeropuertoD = hub; hubD = true; }
+            }
+
+            if (iataO is not null && iataD is not null && air >= 300)
             {
                 var cands = new List<ViajeVuelo>();
-                // Google Flights exige el codigo IATA: con el nombre de la
-                // ciudad devuelve la portada generica y no busca nada.
-                var vueloDesde = iataO ?? IataDeCiudad(a.Municipio) ?? IataDeCiudad(a.Nombre)
-                    ?? (string.IsNullOrWhiteSpace(a.Municipio) ? a.Nombre : a.Municipio);
-                var vueloHasta = iataD ?? IataDeCiudad(b.Municipio) ?? IataDeCiudad(b.Nombre)
-                    ?? (string.IsNullOrWhiteSpace(b.Municipio) ? b.Nombre : b.Municipio);
-                foreach (var f in fechas)
+                // Kayak exige código IATA; no se usa el municipio ni el nombre
+                // como sustituto porque produce rutas equivocadas.
+                var vueloDesde = iataO;
+                var vueloHasta = iataD;
+                foreach (var f in fechasVuelo)
                     cands.AddRange(await BuscarVuelosEstimadosAsync(air, vueloDesde, vueloHasta, DateOnly.FromDateTime(f), ct));
+                var terminalO = TerminalDeAeropuerto(aeropuertoO);
+                var terminalD = TerminalDeAeropuerto(aeropuertoD);
+                var taxiDestinoMin = terminalD is null
+                    ? 0
+                    : MinutosTaxiPuntoTerminal(b, (terminalD.Nombre, terminalD.Latitud, terminalD.Longitud));
+                var hubs = new List<string>();
+                if (hubO && aeropuertoO is not null)
+                    hubs.Add($"origen {aeropuertoO.Iata} ({aeropuertoO.Ciudad})");
+                if (hubD && aeropuertoD is not null)
+                    hubs.Add($"destino {aeropuertoD.Iata} ({aeropuertoD.Ciudad})");
+                var notaHub = hubs.Count > 0
+                    ? $" · aeropuerto más cercano: {string.Join(" / ", hubs)} + taxi al punto"
+                    : "";
                 foreach (var g in cands.GroupBy(v => v.Linea))
                 {
+                    // La llegada que decide si el vuelo sirve es la del punto,
+                    // no la del aeropuerto: se suma el taxi terminal → punto.
                     var mejor = MejorHorario(g.ToList(), salidaPrevia, 120, deadline,
-                        v => v.Salida, v => v.Llegada, out var saleAntes);
+                        v => v.Salida, v => v.Llegada.AddMinutes(taxiDestinoMin), out var saleAntes);
                     var puerta = (mejor.Llegada - mejor.Salida).TotalHours + 2.5;
+                    var llegadaFinal = mejor.Llegada.AddMinutes(taxiDestinoMin);
+                    var late = llegadaFinal > deadline;
                     opts.Add(new OpCalc("avion", mejor.Linea, "estimado", mejor.Salida, mejor.Llegada, puerta, 120,
                         mejor.PrecioDesde, mejor.PrecioHasta, (mejor.PrecioDesde + mejor.PrecioHasta) / 2, true,
-                        null, null, null, null, mejor.Llegada > deadline, saleAntes,
-                        mejor.Llegada > deadline ? (int)(mejor.Llegada - deadline).TotalMinutes : 0,
-                        mejor.Fuente, true, $"{mejor.Nota} · llegar al aeropuerto + 120 min antes · precio real en Google Flights",
-                        mejor.Url, "Google Flights", "ver costo del vuelo", $"vuelo {mejor.Linea} {vueloDesde} → {vueloHasta}", ""));
+                        null, null, null, null, late, saleAntes,
+                        late ? (int)(llegadaFinal - deadline).TotalMinutes : 0,
+                        mejor.Fuente, true, $"{mejor.Nota} · llegar al aeropuerto + 120 min antes{notaHub} · precio real en Kayak",
+                        mejor.Url, "Kayak", "ver precios reales", $"vuelo {mejor.Linea} {vueloDesde} → {vueloHasta}", "",
+                        terminalO, terminalD));
                 }
             }
 
@@ -1785,7 +2083,7 @@ public static class CalculoCostosRuta
 
     private static async Task<List<CostosRutaHotel>> HotelesAsync(PersonaNorm norm, int ixP, List<LugarNorm> prop,
         List<TramoCalc> tramos, bool calcular, HttpClient http, IMemoryCache cache, CancellationToken ct,
-        List<string> incumplimientos)
+        List<string> incumplimientos, IReadOnlyList<MunicipioCercano>? municipios = null)
     {
         var propuestos = new List<CostosRutaHotel>();
         for (var idx = 0; idx < prop.Count; idx++)
@@ -1811,23 +2109,36 @@ public static class CalculoCostosRuta
                 incumplimientos.Add($"{nl.Nombre}: requiere hospedaje no calculado (pernocte de {noches} noche(s)).");
                 continue;
             }
-            var (key, _) = SnapCiudad(nl.Lat, nl.Lon);
-            var ciudad = key is not null
-                ? Ciudades[key].Nombre
-                : nl.Nombre.StartsWith("Hotel cerca de ", StringComparison.OrdinalIgnoreCase)
-                    ? nl.Nombre["Hotel cerca de ".Length..]
-                    : nl.Nombre;
-            var tarifa = Viaticos.GetValueOrDefault(key ?? "CDMX", (600, 2000)).HospedajeNoche;
+            var ciudad = await CiudadDeBusquedaAsync(nl, http, cache, ct, municipios);
+            var ciudadBusqueda = string.IsNullOrWhiteSpace(nl.Estado)
+                ? ciudad
+                : $"{ciudad}, {nl.Estado}";
+            var (tarifa, zona) = TarifaHotelZona(ciudad);
+            var etiquetaZona = string.IsNullOrWhiteSpace(zona) ? "" : $" · zona {zona}";
+            var proveedor = string.IsNullOrWhiteSpace(zona)
+                ? "Tabulador SHCP"
+                : $"Tabulador SHCP (zona {zona})";
             var ci = llegada.Date.ToString("yyyy-MM-dd");
             var co = nl.Salida.Value.Date.ToString("yyyy-MM-dd");
-            var link = (string n) => $"https://www.booking.com/searchresults.es.html?ss={Uri.EscapeDataString(n)}&checkin={ci}&checkout={co}&group_adults=1&no_rooms=1";
+            var link = (string consulta) => $"https://www.google.com/travel/search?q={Uri.EscapeDataString(consulta)}&checkin={ci}&checkout={co}&hl=es-MX&gl=MX&curr=MXN";
+            var reserva = $"https://www.booking.com/searchresults.es.html?ss={Uri.EscapeDataString(ciudadBusqueda)}"
+                + $"&checkin={ci}&checkout={co}&group_adults=1&no_rooms=1";
+            var motivoReferencia = tarifa is null
+                ? "Sin tarifa configurada para esta ciudad"
+                : $"Referencia tabulador{etiquetaZona} · {noches} noche(s) × 1 hab";
             propuestos.Add(new CostosRutaHotel
             {
                 Lugar = nl.Nombre, Nombre = $"Hotel en {ciudad} (referencia)",
                 Ciudad = ciudad, CheckIn = ci, CheckOut = co, Noches = noches, Habitaciones = 1,
                 DistanciaKm = 0, PrecioNoche = tarifa, PrecioTotal = tarifa * noches,
-                Motivo = $"Tarifa tabulador · {noches} noche(s) × 1 hab",
-                Fuente = FuenteTabuladorHotel, Link = link(ciudad),
+                Motivo = motivoReferencia,
+                Fuente = FuenteTabuladorHotel,
+                Proveedor = proveedor,
+                TipoPrecio = "referencia_tabulador",
+                Disponibilidad = "consultar",
+                DisponibilidadDetalle = "Ver disponibilidad en Google Hotels",
+                Link = link($"hoteles en {ciudadBusqueda}"),
+                LinkReserva = reserva,
             });
             var reales = await BuscarHotelesCercanosAsync(http, cache, nl.Lat, nl.Lon, ct);
             foreach (var h in reales.Take(5))
@@ -1838,11 +2149,21 @@ public static class CalculoCostosRuta
                     DistanciaKm = h.DistKm, PrecioNoche = tarifa, PrecioTotal = tarifa * noches,
                     Rating = h.Rating, RatingCount = h.RatingCount, Direccion = h.Direccion,
                     Latitud = h.Latitud, Longitud = h.Longitud,
-                    Motivo = h.Rating is null
-                        ? "Precio estimado con tarifa tabulador"
-                        : $"Precio estimado con tarifa tabulador · ★{h.Rating:0.0} ({h.RatingCount ?? 0} reseñas)",
+                    Motivo = tarifa is null
+                        ? "Sin tarifa configurada para esta ciudad"
+                        : h.Rating is null
+                            ? $"Referencia tabulador{etiquetaZona}"
+                            : $"Referencia tabulador{etiquetaZona} · ★{h.Rating:0.0} ({h.RatingCount ?? 0} reseñas)",
                     Fuente = h.Fuente,
-                    Link = h.Link ?? link(h.Nombre),
+                    Proveedor = proveedor,
+                    TipoPrecio = "referencia_tabulador",
+                    Disponibilidad = "consultar",
+                    DisponibilidadDetalle = "Ver disponibilidad en Google Hotels",
+                    Link = link(NombrePareceHotel(h.Nombre)
+                        ? $"{h.Nombre}, {ciudadBusqueda}"
+                        : $"hoteles en {ciudadBusqueda}"),
+                    LinkMapa = h.Link,
+                    LinkReserva = reserva,
                 });
         }
         return propuestos;
@@ -1960,7 +2281,7 @@ public static class CalculoCostosRuta
             var validas = elegidas.Where(o => o is not null).Cast<OpCalc>().ToList();
             var transporte = validas.Sum(o => o.CostoGrupo);
             var taxiExtra = validas
-                .Select((o, ti) => o.Modo is "bus" or "avion" ? MillaExtra(prop[ti], prop[ti + 1]) : 0)
+                .Select((o, ti) => o.Modo is "bus" or "avion" ? MillaExtra(prop[ti], prop[ti + 1], o) : 0)
                 .Sum();
             // Cada pernocte se cuenta UNA vez: la entrada valuada con tarifa
             // tabulador es la representante; los hoteles de Overpass son
@@ -1972,7 +2293,9 @@ public static class CalculoCostosRuta
                 .Sum(g =>
                 {
                     var rep = g.FirstOrDefault(h => h.Fuente == FuenteTabuladorHotel) ?? g.First();
-                    return rep.Noches * 1 * TarifaHotel(rep.Ciudad);
+                    var tarifa = TarifaHotel(rep.Ciudad);
+                    if (tarifa is null) inc.Add($"Hotel en {rep.Ciudad}: sin tarifa configurada.");
+                    return rep.Noches * (tarifa ?? 0);
                 });
             var total = transporte + taxiExtra + hosp + comidas;
             var margenes = new List<int>();
@@ -1983,7 +2306,8 @@ public static class CalculoCostosRuta
             }
             var cumple = validas.Count == tramos.Count
                 && validas.All(o => !o.Late && !o.SaleAntes)
-                && !inc.Any(m => m.Contains("hospedaje no calculado"));
+                && !inc.Any(m => m.Contains("hospedaje no calculado"))
+                && !inc.Any(m => m.Contains("sin tarifa configurada"));
             out_.Add(new CostosRutaPropuesta
             {
                 Persona = norm.Nombre, Clave = clave, Titulo = $"{titulo} — {razon}",
@@ -2043,8 +2367,13 @@ public static class CalculoCostosRuta
             ? HaversineKm(punto.Lat, punto.Lon, t.Lat, t.Lon)
             : DistanciaAlCentroKm(punto);
         if (km <= 0) return 0;
-        var velocidad = ConfiguracionViaticos.Double("costos.taxi_km_h", 25);
-        if (velocidad <= 0) velocidad = 25;
+        // Un traslado urbano promedio va a 25 km/h; un hub lejano (Tekax →
+        // aeropuerto de Merida, ~90 km) es carretera y a 25 km/h daria 3.6 h.
+        var interurbano = km >= 40;
+        var velocidad = interurbano
+            ? ConfiguracionViaticos.Double("costos.taxi_carretera_km_h", 70)
+            : ConfiguracionViaticos.Double("costos.taxi_km_h", 25);
+        if (velocidad <= 0) velocidad = interurbano ? 70 : 25;
         return (int)Math.Round(km / velocidad * 60);
     }
 
@@ -2061,7 +2390,10 @@ public static class CalculoCostosRuta
         if (modo == "avion")
         {
             var iata = Ciudades[key].Iata;
-            return iata is not null && Aeropuertos.TryGetValue(iata, out var aeropuerto) ? aeropuerto : null;
+            var aeropuerto = AeropuertosCatalogo.Obtener(iata);
+            return aeropuerto is null
+                ? null
+                : ($"{aeropuerto.Nombre} ({aeropuerto.Iata})", aeropuerto.Lat, aeropuerto.Lon);
         }
         return Centrales.TryGetValue(key, out var central) ? central : null;
     }
@@ -2070,6 +2402,16 @@ public static class CalculoCostosRuta
         => terminal is { } t
             ? new CostosRutaTerminal { Nombre = t.Nombre, Latitud = t.Lat, Longitud = t.Lon }
             : null;
+
+    private static CostosRutaTerminal? TerminalDeAeropuerto(AeropuertosCatalogo.Aeropuerto? aeropuerto)
+        => aeropuerto is null
+            ? null
+            : new CostosRutaTerminal
+            {
+                Nombre = $"{aeropuerto.Nombre} ({aeropuerto.Iata})",
+                Latitud = aeropuerto.Lat,
+                Longitud = aeropuerto.Lon,
+            };
 
     /// <summary>
     /// Terminal de respaldo cuando el proveedor no la informa y la ciudad no
@@ -2106,28 +2448,93 @@ public static class CalculoCostosRuta
         return d <= 3 ? 0 : d;
     }
 
-    private static double MillaExtra(LugarNorm a, LugarNorm b)
+    private static double MillaExtra(LugarNorm a, LugarNorm b, OpCalc? opcion = null)
     {
-        double extra = 0;
-        foreach (var s in new[] { a, b })
-        {
-            var (key, _) = SnapCiudad(s.Lat, s.Lon);
-            if (key is null) continue;
-            var c = Ciudades[key];
-            var d = HaversineKm(s.Lat, s.Lon, c.Lat, c.Lon);
-            if (d <= 3) continue;
-            var (tb, tk) = Taxi.GetValueOrDefault(key, (30, 11));
-            extra += tb + tk * d;
-        }
-        return extra;
+        return TaxiPuntoTerminal(a, opcion?.TerminalOrigenDato)
+            + TaxiPuntoTerminal(b, opcion?.TerminalDestinoDato);
     }
 
-    private static double TarifaHotel(string ciudad)
+    /// <summary>
+    /// Taxi punto ↔ terminal. Si la opción conoce la terminal (hub de avión o
+    /// central de autobuses), se cobra la distancia real; si no, se conserva
+    /// el cálculo anterior contra el centro de la ciudad sembrada.
+    /// </summary>
+    private static double TaxiPuntoTerminal(LugarNorm punto, CostosRutaTerminal? terminal)
+    {
+        var (key, _) = SnapCiudad(punto.Lat, punto.Lon);
+        var (baseTaxi, kmTaxi) = key is not null ? Taxi.GetValueOrDefault(key, (30, 11)) : (30, 11);
+
+        if (terminal is { Latitud: not 0, Longitud: not 0 })
+        {
+            var distancia = HaversineKm(punto.Lat, punto.Lon, terminal.Latitud, terminal.Longitud);
+            return distancia <= 1 ? 0 : baseTaxi + kmTaxi * distancia;
+        }
+
+        if (key is null) return 0;
+        var centro = Ciudades[key];
+        var d = HaversineKm(punto.Lat, punto.Lon, centro.Lat, centro.Lon);
+        return d <= 3 ? 0 : baseTaxi + kmTaxi * d;
+    }
+
+    private static double? TarifaHotel(string ciudad) => TarifaHotelZona(ciudad).Tarifa;
+
+    /// <summary>
+    /// Tarifa de hospedaje y zona aplicada. Prioridad:
+    /// 1) tarifa puntual de la ciudad (las 9 actuales o un override),
+    /// 2) zona configurada para el municipio,
+    /// 3) zona estatica de las 9 ciudades,
+    /// 4) zona E por defecto.
+    /// </summary>
+    private static (double? Tarifa, string Zona) TarifaHotelZona(string ciudad)
     {
         var kv = Ciudades.FirstOrDefault(kv => kv.Value.Nombre == ciudad);
-        var clave = kv.Key ?? "CDMX";
-        var porDefecto = Viaticos.GetValueOrDefault(clave, (600, 2000)).HospedajeNoche;
-        return ConfiguracionViaticos.Double($"costos.hospedaje_noche.{clave}", porDefecto);
+        var clave = kv.Key ?? ClaveHospedaje(ciudad);
+        if (string.IsNullOrWhiteSpace(clave)) return (null, ZonaHospedajeDefault);
+
+        var zona = ConfiguracionViaticos.Texto($"costos.hospedaje_zona.{clave}", "");
+        if (string.IsNullOrWhiteSpace(zona))
+            zona = ZonaHospedaje.GetValueOrDefault(clave, ZonaHospedajeDefault);
+
+        // Las 9 ciudades sembradas conservan su tarifa puntual, configurable
+        // con costos.hospedaje_noche.<clave>.
+        if (kv.Key is not null && Viaticos.TryGetValue(kv.Key, out var seed))
+        {
+            var tarifaSeed = ConfiguracionViaticos.Double(
+                $"costos.hospedaje_noche.{kv.Key}", seed.HospedajeNoche);
+            return (tarifaSeed, zona);
+        }
+
+        // Cualquier otro municipio: override puntual si existe.
+        if (ConfiguracionViaticos.TryDouble($"costos.hospedaje_noche.{clave}", out var tarifaPropia))
+            return (tarifaPropia, zona);
+
+        var porDefecto = TarifaHospedajeZona.GetValueOrDefault(zona,
+            TarifaHospedajeZona[ZonaHospedajeDefault]);
+        var tarifa = ConfiguracionViaticos.Double($"costos.hospedaje_noche.zona.{zona}", porDefecto);
+        return (tarifa, zona);
+    }
+
+    /// <summary>
+    /// Clave estable para configurar hospedaje de cualquier municipio:
+    /// mayusculas, sin acentos y separada por guiones bajos
+    /// ("San Quintín" -> "SAN_QUINTIN").
+    /// </summary>
+    private static string ClaveHospedaje(string ciudad)
+    {
+        var normal = NormalizarTexto(ciudad);
+        var clave = new StringBuilder(normal.Length);
+        foreach (var caracter in normal)
+        {
+            if (char.IsLetterOrDigit(caracter))
+            {
+                clave.Append(char.ToUpperInvariant(caracter));
+            }
+            else if (clave.Length > 0 && clave[^1] != '_')
+            {
+                clave.Append('_');
+            }
+        }
+        return clave.ToString().Trim('_');
     }
 
     // ---------- Ruta armada / ofertas ----------
@@ -2235,6 +2642,12 @@ public static class CalculoCostosRuta
             CostoGrupo = Math.Round(o.CostoGrupo, 2), CostoPorPersona = Math.Round(mid, 2),
             ATiempo = !o.Late && !o.SaleAntes, LlegaTarde = o.Late, MinutosTarde = o.LateMin, NoTomable = o.SaleAntes,
             Badge = o.Badge, Nota = o.Nota, Fuente = o.Fuente, Estimado = o.Estimado,
+            TipoPrecio = o.Modo is "bus" or "avion" && !o.Estimado ? "cotizado" : "estimado",
+            Proveedor = o.Nota.Contains("terminal más cercana", StringComparison.OrdinalIgnoreCase)
+                ? $"{o.Sitio} (terminal más cercana)"
+                : o.Sitio,
+            Disponibilidad = o.Asientos is int asientos ? $"{asientos} asientos disponibles" : "",
+            DisponibilidadDetalle = o.Asientos is int detalleAsientos ? $"{detalleAsientos} asientos disponibles" : "",
             Comprar = new CostosRutaCompra { Url = o.Url, Sitio = o.Sitio, Accion = o.Accion, Objetivo = o.Objetivo, Fecha = o.Salida.ToString("yyyy-MM-dd") },
         };
     }

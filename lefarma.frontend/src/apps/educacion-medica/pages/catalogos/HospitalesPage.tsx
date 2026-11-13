@@ -732,17 +732,23 @@ export default function HospitalesPage() {
         accessorKey: 'nombreContacto',
         header: 'Hospital',
         cell: ({ row }) => (
-          <div className="min-w-[220px]">
+          <div className="min-w-[300px]">
             <p className="text-sm font-semibold leading-snug text-foreground">
               {row.original.nombreContacto}
             </p>
             <p className="text-[11px] text-muted-foreground">
               {row.original.institucion ?? 'Sin institución'}
             </p>
-            {row.original.clues && (
-              <p className="text-[10px] text-muted-foreground/80">CLUES: {row.original.clues}</p>
-            )}
           </div>
+        ),
+      },
+      {
+        id: 'clues',
+        header: 'CLUES',
+        cell: ({ row }) => (
+          <span className="text-xs tabular-nums text-muted-foreground">
+            {row.original.clues ?? 'Sin CLUES'}
+          </span>
         ),
       },
       {
@@ -799,31 +805,53 @@ export default function HospitalesPage() {
       {
         id: 'capacidad',
         header: 'Capacidad',
-        cell: ({ row }) => (
-          <div>
-            <p className="text-sm font-medium text-foreground">
-              {row.original.extension?.numeroQuirofanos ?? '-'} quirófanos
-            </p>
-            <p className="text-[11px] text-muted-foreground">
-              SIA: {row.original.extension?.conSia ? 'Sí' : 'No'}
-            </p>
-          </div>
-        ),
+        cell: ({ row }) => {
+          const ext = row.original.extension;
+          const quirofanos = ext?.numeroQuirofanos;
+          return (
+            <div>
+              <p
+                className={
+                  quirofanos == null
+                    ? 'text-sm text-muted-foreground'
+                    : 'text-sm font-medium text-foreground'
+                }
+              >
+                {quirofanos == null ? 'Sin quirófanos registrados' : `${quirofanos} quirófanos`}
+              </p>
+              <p className="text-[11px] text-muted-foreground">
+                SIA: {ext?.conSia == null ? 'Sin dato' : ext.conSia ? 'Sí' : 'No'}
+              </p>
+            </div>
+          );
+        },
       },
       {
         id: 'anestesias',
         header: 'Anestesias',
-        cell: ({ row }) => (
-          <div>
-            <p className="text-sm font-semibold tabular-nums text-foreground">
-              {row.original.extension?.anestesiasTotales ?? '-'}
-            </p>
-            <p className="text-[11px] text-muted-foreground">
-              Gral {row.original.extension?.anestesiasGenerales ?? '-'} · Reg{' '}
-              {row.original.extension?.anestesiasRegionales ?? '-'}
-            </p>
-          </div>
-        ),
+        cell: ({ row }) => {
+          const ext = row.original.extension;
+          const total = ext?.anestesiasTotales;
+          return (
+            <div>
+              <p
+                className={
+                  total == null
+                    ? 'text-sm text-muted-foreground'
+                    : 'text-sm font-semibold tabular-nums text-foreground'
+                }
+              >
+                {total == null ? 'Sin anestesias registradas' : total}
+              </p>
+              {total != null && (
+                <p className="text-[11px] text-muted-foreground">
+                  Gral {ext?.anestesiasGenerales ?? 'sin dato'} · Reg{' '}
+                  {ext?.anestesiasRegionales ?? 'sin dato'}
+                </p>
+              )}
+            </div>
+          );
+        },
       },
       {
         id: 'acciones',

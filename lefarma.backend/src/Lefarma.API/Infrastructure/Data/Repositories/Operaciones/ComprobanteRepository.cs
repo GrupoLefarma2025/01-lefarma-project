@@ -18,9 +18,15 @@ public class ComprobanteRepository : BaseRepository<Comprobante>, IComprobanteRe
             .Include(c => c.Asignaciones)
             .FirstOrDefaultAsync(c => c.IdComprobante == idComprobante && (c.Activo ?? true), ct);
 
-    public async Task<bool> UuidExisteAsync(string uuid, CancellationToken ct = default)
-        => await _context.Comprobantes.AnyAsync(c =>
-            (c.Activo ?? true) && c.DatosAdicionales != null && EF.Functions.Like(c.DatosAdicionales, $"%\"uuid\":\"{uuid}\"%"), ct);
+    public async Task<Comprobante?> GetActivoPorUuidAsync(string uuid, CancellationToken ct = default)
+        => await _context.Comprobantes
+            .Include(c => c.Asignaciones)
+            .Where(c =>
+                (c.Activo ?? true) && c.DatosAdicionales != null
+                && EF.Functions.Like(c.DatosAdicionales, $"%\"uuid\":\"{uuid}\"%"))
+            // Prioriza los que tienen asignaciones para no reemplazar un CFDI ya registrado.
+            .OrderByDescending(c => c.Asignaciones.Any(a => a.Activo))
+            .FirstOrDefaultAsync(ct);
 
     public async Task<IEnumerable<ComprobantePartida>> GetAsignacionesByPartidaAsync(int idPartida, CancellationToken ct = default)
         => await _context.ComprobantesPartidas

@@ -29,6 +29,14 @@ public static class ConfiguracionViaticos
         => _valores.TryGetValue(clave, out var v)
             && double.TryParse(v, NumberStyles.Any, CultureInfo.InvariantCulture, out var d) ? d : porDefecto;
 
+    /// <summary>True solo cuando la clave existe y su valor es un numero valido.</summary>
+    public static bool TryDouble(string clave, out double valor)
+    {
+        valor = 0;
+        return _valores.TryGetValue(clave, out var v)
+            && double.TryParse(v, NumberStyles.Any, CultureInfo.InvariantCulture, out valor);
+    }
+
     public static bool Booleano(string clave, bool porDefecto)
         => _valores.TryGetValue(clave, out var v)
             ? v.Trim() is "1" or "true" or "True" or "si" or "sí" or "SI"

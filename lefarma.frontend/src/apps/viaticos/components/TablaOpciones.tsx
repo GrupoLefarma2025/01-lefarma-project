@@ -186,7 +186,20 @@ const capturasPorUrl = new Map<string, string>();
  * resultados); en modo script el worker de Playwright tambien lo intenta.
  */
 function esCapturable(url: string | undefined): boolean {
-  return typeof url === 'string' && /^https?:\/\//i.test(url);
+  if (typeof url !== 'string' || !/^https?:\/\//i.test(url)) return false;
+  try {
+    const host = new URL(url).hostname.toLowerCase();
+    const prohibidos = ['booking.com', 'expedia.com'];
+    return !prohibidos.some((dominio) => host === dominio || host.endsWith(`.${dominio}`));
+  } catch {
+    return false;
+  }
+}
+
+function etiquetaTipoPrecio(oferta: CostosRutaOferta): string {
+  if (oferta.tipoPrecio === 'cotizado') return 'Cotizado';
+  if (oferta.tipoPrecio === 'referencia_tabulador') return 'Referencia tabulador';
+  return 'Estimado';
 }
 
 export function TablaOpciones({ titulo, ofertas, opcionElegidaId, onElegir }: TablaOpcionesProps) {
@@ -362,6 +375,11 @@ export function TablaOpciones({ titulo, ofertas, opcionElegidaId, onElegir }: Ta
                 </TableCell>
                 <TableCell>
                   <Badge variant="outline" className="whitespace-nowrap tabular-nums">{o.precioTxt}</Badge>
+                  <div className="mt-1 text-xs text-muted-foreground">
+                    {etiquetaTipoPrecio(o)}
+                    {o.proveedor ? ` · ${o.proveedor}` : ''}
+                    {o.disponibilidad ? ` · ${o.disponibilidad}` : ''}
+                  </div>
                 </TableCell>
                 <TableCell>
                   <CeldaCaptura
@@ -369,6 +387,7 @@ export function TablaOpciones({ titulo, ofertas, opcionElegidaId, onElegir }: Ta
                     etiqueta={etiqueta}
                     onRebuscar={esCapturable(urlCompra) ? () => rebuscarDe(o) : undefined}
                     rebuscando={Boolean(rebuscando[o.id])}
+                    sinCapturaTexto={urlCompra && !esCapturable(urlCompra) ? 'Link no capturable' : undefined}
                   />
                 </TableCell>
                 <TableCell>

@@ -335,6 +335,40 @@ export function DataTable<TData>({
   const [collapsed, setCollapsed] = useState(defaultCollapsed);
   const [showColMenu, setShowColMenu] = useState(false);
   const [showDensityMenu, setShowDensityMenu] = useState(false);
+  const densityMenuRef = useRef<HTMLDivElement>(null);
+  const colMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!showDensityMenu && !showColMenu) return;
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target as Node;
+      if (
+        showDensityMenu &&
+        densityMenuRef.current &&
+        !densityMenuRef.current.contains(target)
+      ) {
+        setShowDensityMenu(false);
+      }
+      if (showColMenu && colMenuRef.current && !colMenuRef.current.contains(target)) {
+        setShowColMenu(false);
+      }
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setShowDensityMenu(false);
+        setShowColMenu(false);
+      }
+    };
+
+    document.addEventListener('pointerdown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [showDensityMenu, showColMenu]);
 
   // Lógica de filtrado
   const filterEnabled = !!filterConfig;
@@ -529,19 +563,22 @@ export function DataTable<TData>({
 
         <div className="flex flex-wrap items-center gap-2">
           {showDensityToggle && !collapsed && (
-            <div className="relative">
+            <div className="relative" ref={densityMenuRef}>
               <Button
                 size="icon"
                 variant="outline"
                 className="h-8 w-8"
-                onClick={() => setShowDensityMenu((p) => !p)}
+                onClick={() => {
+                  setShowColMenu(false);
+                  setShowDensityMenu((p) => !p);
+                }}
                 title="Densidad de la tabla"
                 aria-label="Densidad de la tabla"
               >
                 <Rows3Icon className="h-3.5 w-3.5" />
               </Button>
               {showDensityMenu && (
-                <div className="absolute right-0 top-9 z-10 w-40 rounded-lg border bg-card p-1 shadow-lg">
+                <div className="absolute right-0 top-9 z-50 w-40 rounded-lg border bg-card p-1 shadow-lg">
                   {[
                     { value: 'compact' as const, label: 'Compacta' },
                     { value: 'standard' as const, label: 'Estándar' },
@@ -572,19 +609,22 @@ export function DataTable<TData>({
 
           {/* Column visibility toggle */}
           {showColumnToggle && !collapsed && (
-            <div className="relative">
+            <div className="relative" ref={colMenuRef}>
               <Button
                 size="icon"
                 variant="outline"
                 className="h-8 w-8"
-                onClick={() => setShowColMenu((p) => !p)}
+                onClick={() => {
+                  setShowDensityMenu(false);
+                  setShowColMenu((p) => !p);
+                }}
                 title="Configurar columnas"
                 aria-label="Configurar columnas"
               >
                 <Settings2Icon className="h-3.5 w-3.5" />
               </Button>
               {showColMenu && (
-                <div className="absolute right-0 top-9 z-10 min-w-[160px] rounded-lg border bg-card p-2 shadow-lg">
+                <div className="absolute right-0 top-9 z-50 min-w-[160px] rounded-lg border bg-card p-2 shadow-lg">
                   {visibleColumns.map((col) => (
                     <label
                       key={col.id}
@@ -596,7 +636,10 @@ export function DataTable<TData>({
                         onChange={col.getToggleVisibilityHandler()}
                         className="h-3.5 w-3.5 accent-blue-600"
                       />
-                      {typeof col.columnDef.header === 'string' ? col.columnDef.header : col.id}
+                      {typeof col.columnDef.header === 'string' &&
+                      col.columnDef.header.trim().length > 0
+                        ? col.columnDef.header
+                        : col.id.charAt(0).toUpperCase() + col.id.slice(1)}
                     </label>
                   ))}
                 </div>

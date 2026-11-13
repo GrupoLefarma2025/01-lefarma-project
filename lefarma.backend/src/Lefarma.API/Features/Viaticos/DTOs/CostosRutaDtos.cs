@@ -223,6 +223,12 @@ public class CostosRutaOferta
     public string Nota { get; set; } = string.Empty;
     public string Fuente { get; set; } = string.Empty;
     public bool Estimado { get; set; }
+    /// <summary>cotizado | estimado | referencia_tabulador.</summary>
+    public string TipoPrecio { get; set; } = string.Empty;
+    /// <summary>Proveedor del link/precio: Kayak, ClickBus, Primera Plus, etc.</summary>
+    public string Proveedor { get; set; } = string.Empty;
+    public string Disponibilidad { get; set; } = string.Empty;
+    public string DisponibilidadDetalle { get; set; } = string.Empty;
     public CostosRutaCompra Comprar { get; set; } = new();
 }
 
@@ -283,8 +289,8 @@ public class CostosRutaHotel
     public double Latitud { get; set; }
     /// <summary>Longitud del hotel.</summary>
     public double Longitud { get; set; }
-    public double PrecioNoche { get; set; }
-    public double PrecioTotal { get; set; }
+    public double? PrecioNoche { get; set; }
+    public double? PrecioTotal { get; set; }
     /// <summary>Calificación del hotel (Google Places).</summary>
     public double? Rating { get; set; }
     /// <summary>Número de reseñas (Google Places).</summary>
@@ -293,7 +299,17 @@ public class CostosRutaHotel
     public string? Direccion { get; set; }
     public string Motivo { get; set; } = string.Empty;
     public string Fuente { get; set; } = string.Empty;
+    /// <summary>cotizado | estimado | referencia_tabulador.</summary>
+    public string TipoPrecio { get; set; } = string.Empty;
+    /// <summary>Proveedor del precio: Tabulador SHCP, Google Hotels, Booking, etc.</summary>
+    public string Proveedor { get; set; } = string.Empty;
+    public string Disponibilidad { get; set; } = string.Empty;
+    public string DisponibilidadDetalle { get; set; } = string.Empty;
     public string Link { get; set; } = string.Empty;
+    /// <summary>Link de mapa (Google Maps) cuando el hotel lo trae.</summary>
+    public string? LinkMapa { get; set; }
+    /// <summary>Respaldo de reserva en Booking por ciudad (no se captura).</summary>
+    public string? LinkReserva { get; set; }
 }
 
 public class CostosRutaRecomendacion

@@ -63,6 +63,26 @@ public class CapturasServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task ForzarScript_ConModoAgente_UsaElScriptLocalSinLlamarAlAgente()
+    {
+        // "Generar capturas" de una solicitud debe ser rapido: aunque el modo
+        // configurado sea agente, el lote usa el script local de Playwright.
+        var runner = new RecordingRunner();
+        var settings = new CapturasSettings
+        {
+            Modo = "agente",
+            ServicioAgenteUrl = "https://agente.test",
+        };
+        var service = CrearServicio(settings, runner);
+
+        var items = new[] { new CapturaItem { Url = "https://example.com/a", Nombre = "a" } };
+        var resultado = await service.CapturarAsync(items, CancellationToken.None, forzarScript: true);
+
+        resultado.Outcome.Should().Be(CapturaOutcome.Ok);
+        runner.Llamadas.Should().Be(1, "forzarScript debe ignorar el modo agente");
+    }
+
+    [Fact]
     public async Task OnceUrls_RetornaTooMany_SinInvocarScript()
     {
         var runner = new RecordingRunner();
