@@ -107,6 +107,10 @@ export interface CostosRutaOferta {
   costoPorPersona: number;
   /** Taxi punto↔terminal incluido en la oferta; 0 en auto/renta/taxi urbano. */
   costoTaxi?: number;
+  /** Primera mitad del taxi: punto de salida → su terminal. */
+  costoTaxiOrigen?: number;
+  /** Segunda mitad del taxi: terminal de llegada → punto final. */
+  costoTaxiDestino?: number;
   aTiempo: boolean;
   llegaTarde: boolean;
   minutosTarde: number;

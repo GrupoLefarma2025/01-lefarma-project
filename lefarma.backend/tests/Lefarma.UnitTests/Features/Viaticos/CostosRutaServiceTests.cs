@@ -623,10 +623,12 @@ public class CostosRutaServiceTests
         resp.Resultados[0].Tramos[1].Opciones.Should().Contain(o => o.Modo == "avion" && o.Estimado);
         // El taxi punto↔terminal viaja en la oferta para que el frontend lo
         // pueda persistir; no se queda solo en la propuesta del backend.
-        resp.Resultados[0].Tramos[0].Opciones.First(o => o.Modo == "bus").CostoTaxi
-            .Should().BeGreaterThan(0);
-        resp.Resultados[0].Tramos[1].Opciones.First(o => o.Modo == "avion").CostoTaxi
-            .Should().BeGreaterThan(0);
+        var bus = resp.Resultados[0].Tramos[0].Opciones.First(o => o.Modo == "bus");
+        bus.CostoTaxi.Should().BeGreaterThan(0);
+        bus.CostoTaxi.Should().BeApproximately(bus.CostoTaxiOrigen + bus.CostoTaxiDestino, 0.01);
+        var avion = resp.Resultados[0].Tramos[1].Opciones.First(o => o.Modo == "avion");
+        avion.CostoTaxi.Should().BeGreaterThan(0);
+        avion.CostoTaxi.Should().BeApproximately(avion.CostoTaxiOrigen + avion.CostoTaxiDestino, 0.01);
         resp.Propuestas.Should().HaveCount(6);
         var tipo3 = resp.Propuestas.First(p => p.Clave == "tipo3-avion");
         tipo3.Tramos.Should().Contain(t => t.Modo == "avion");

@@ -220,6 +220,10 @@ public class CostosRutaOferta
     /// 0 en modos que no usan terminal (auto, renta, taxi urbano).
     /// </summary>
     public double CostoTaxi { get; set; }
+    /// <summary>Primera mitad del taxi: punto de salida → su terminal.</summary>
+    public double CostoTaxiOrigen { get; set; }
+    /// <summary>Segunda mitad del taxi: terminal de llegada → punto final.</summary>
+    public double CostoTaxiDestino { get; set; }
     public bool ATiempo { get; set; }
     public bool LlegaTarde { get; set; }
     public int MinutosTarde { get; set; }

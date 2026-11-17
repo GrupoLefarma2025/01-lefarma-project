@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  aplicarHotelesAlCalculo,
   claveHotel,
   construirCalculo,
   construirOpcionesPropuesta,
@@ -98,6 +99,39 @@ function respuesta(opciones: CostosRutaOferta[]): CostosRutaResponse {
           totales: { km: 120, litros: 10, casetas: 250.25, subtotalMagna: 900, subtotalPremium: 1000 },
         },
         hotelesPropuestos: [],
+        incumplimientos: [],
+        casetas: [],
+      },
+    ],
+    propuestas: [],
+    categorias: {},
+    recomendaciones: [],
+    compartidos: [],
+  };
+}
+
+function respuestaHotel(
+  tramos: { from: string; to: string; km: number; opciones: CostosRutaOferta[] }[],
+  hoteles: CostosRutaHotel[] = [],
+): CostosRutaResponse {
+  return {
+    resultados: [
+      {
+        nombre: 'Viajero',
+        gasolina: 'magna',
+        propuesta: { razones: [], lugares: [] },
+        tramos,
+        rutaArmada: {
+          tramos: [],
+          totales: {
+            km: tramos.reduce((suma, t) => suma + t.km, 0),
+            litros: 10,
+            casetas: 0,
+            subtotalMagna: 900,
+            subtotalPremium: 1000,
+          },
+        },
+        hotelesPropuestos: hoteles,
         incumplimientos: [],
         casetas: [],
       },
@@ -249,6 +283,205 @@ describe('construirOpcionesPropuesta', () => {
     );
     expect(resumen.taxi).toBe(420);
     expect(resumen.total).toBe(1420);
+  });
+
+  it('cadena noche antes: separa taxi punto↔terminal, terminal↔hotel y hotel↔destino', () => {
+    const hotelReal = hotel({
+      lugar: 'Hotel Centro',
+      nombre: 'Hotel Centro',
+      ciudad: 'Zapopan',
+      checkIn: '2026-11-09',
+      checkOut: '2026-11-10',
+      precioNoche: 1500,
+      precioTotal: 1500,
+      distanciaKm: 2.8,
+      latitud: 20.72,
+      longitud: -103.39,
+    });
+    const hotelRef = hotel({
+      lugar: 'Hotel Centro',
+      nombre: 'Hotel en Zapopan (referencia)',
+      checkIn: '2026-11-09',
+      checkOut: '2026-11-10',
+      precioNoche: 1500,
+      precioTotal: 1500,
+      distanciaKm: 0,
+      fuente: 'seed tabulador SHCP',
+    });
+    const busHotel = oferta({
+      id: 'bus-hotel',
+      linea: 'ADO Hotel',
+      costoGrupo: 226,
+      costoTaxiOrigen: 111.74,
+      costoTaxiDestino: 121.24,
+      salida: '2026-11-09T18:00',
+      llegada: '2026-11-09T22:00',
+      terminalOrigen: { nombre: 'TAPO', latitud: 19.43, longitud: -99.13 },
+      terminalDestino: { nombre: 'CAPU', latitud: 19.05, longitud: -98.20 },
+    });
+    const uberLocal = oferta({
+      id: 'uber-local',
+      modo: 'uber',
+      linea: 'UberX',
+      costoGrupo: 55.19,
+      fuente: 'seed apps',
+      estimado: true,
+    });
+    const publico = oferta({ id: 'publico', modo: 'publico', linea: 'Camión', costoGrupo: 14 });
+    const ruta = respuestaHotel(
+      [
+        { from: 'Guadalajara', to: 'Hotel Centro', km: 120, opciones: [busHotel] },
+        { from: 'Hotel Centro', to: 'Zapopan', km: 3, opciones: [uberLocal, publico] },
+      ],
+      [hotelRef, hotelReal],
+    );
+    const directa = respuesta([oferta({ id: 'directo', linea: 'Directo', costoGrupo: 211, costoTaxi: 111.74 })]);
+    const tramos = [tramo('Guadalajara', 'Zapopan')];
+
+    const opciones = construirOpcionesPropuesta(
+      tramos,
+      { 0: directa },
+      { 0: 'bus-hotel' },
+      { 0: ruta },
+      { 0: true },
+      { 0: claveHotel(hotelReal) },
+      { 0: { posicion: 'antes', respuesta: ruta, seleccionLarga: 'bus-hotel', seleccionLocal: 'uber-local' } },
+      { 0: 'uber-local' },
+    );
+
+    const bus = opciones.find((opcion) => opcion.tipo === 'autobus' && opcion.datos?.subtramo === 0);
+    expect(bus).toMatchObject({ linea: 'ADO Hotel', precio: 226, fue_elegida: true });
+    expect(opciones.some((opcion) => opcion.linea === 'Directo')).toBe(false);
+
+    const taxis = opciones.filter((opcion) => opcion.tipo === 'taxi');
+    expect(taxis).toHaveLength(3);
+    expect(taxis.filter((opcion) => opcion.datos?.subtramo === 0).map((opcion) => opcion.datos?.sentido))
+      .toEqual(expect.arrayContaining(['punto_terminal', 'terminal_hotel']));
+    const local = taxis.find((opcion) => opcion.datos?.subtramo === 1);
+    expect(local).toMatchObject({ precio: 55.19, fue_elegida: true });
+    expect(local?.datos).toMatchObject({ sentido: 'hotel_punto', taxi: true });
+
+    const hospedaje = opciones.find((opcion) => opcion.tipo === 'hotel' && opcion.fue_elegida);
+    expect(hospedaje?.precio).toBe(1500);
+
+    const resumen = resumenCostosRuta(
+      construirCalculo(tramos, { 0: directa }, 'solicitado', { 0: 'directo' }),
+      opciones,
+      'solicitado',
+    );
+    expect(resumen).toMatchObject({
+      autobus: 226,
+      taxi: 288.17,
+      hospedaje: 1500,
+      total: 2014.17,
+    });
+  });
+
+  it('cadena noche después: hospital→hotel→terminal→destino', () => {
+    const hotelReal = hotel({
+      lugar: 'Hotel Centro',
+      nombre: 'Hotel Centro',
+      ciudad: 'Zapopan',
+      checkIn: '2026-11-10',
+      checkOut: '2026-11-11',
+      precioNoche: 1500,
+      precioTotal: 1500,
+      distanciaKm: 3,
+      latitud: 20.72,
+      longitud: -103.39,
+    });
+    const uberLocal = oferta({
+      id: 'uber-vuelta',
+      modo: 'uber',
+      linea: 'UberX',
+      costoGrupo: 57.02,
+      fuente: 'seed apps',
+      estimado: true,
+    });
+    const busVuelta = oferta({
+      id: 'bus-vuelta',
+      linea: 'ADO vuelta',
+      costoGrupo: 189,
+      costoTaxiOrigen: 209.16,
+      costoTaxiDestino: 315.85,
+      terminalOrigen: { nombre: 'CAPU', latitud: 19.05, longitud: -98.20 },
+      terminalDestino: { nombre: 'Central del Norte', latitud: 19.45, longitud: -99.14 },
+    });
+    const ruta = respuestaHotel(
+      [
+        { from: 'Zapopan', to: 'Hotel Centro', km: 3, opciones: [uberLocal] },
+        { from: 'Hotel Centro', to: 'Guadalajara', km: 120, opciones: [busVuelta] },
+      ],
+      [hotelReal],
+    );
+    const directa = respuesta([oferta({ id: 'directo', linea: 'Directo', costoGrupo: 211 })]);
+    const tramos = [tramo('Guadalajara', 'Zapopan')];
+
+    const opciones = construirOpcionesPropuesta(
+      tramos,
+      { 0: directa },
+      { 0: 'bus-vuelta' },
+      { 0: ruta },
+      { 0: true },
+      { 0: claveHotel(hotelReal) },
+      { 0: { posicion: 'despues', respuesta: ruta, seleccionLarga: 'bus-vuelta', seleccionLocal: 'uber-vuelta' } },
+      { 0: 'uber-vuelta' },
+    );
+
+    const taxis = opciones.filter((opcion) => opcion.tipo === 'taxi');
+    expect(taxis).toHaveLength(3);
+    expect(taxis.find((opcion) => opcion.datos?.sentido === 'punto_hotel')?.precio).toBe(57.02);
+    expect(taxis.find((opcion) => opcion.datos?.sentido === 'hotel_terminal')?.precio).toBe(209.16);
+    expect(taxis.find((opcion) => opcion.datos?.sentido === 'terminal_punto')?.precio).toBe(315.85);
+    expect(opciones.find((opcion) => opcion.tipo === 'autobus')?.linea).toBe('ADO vuelta');
+
+    const resumen = resumenCostosRuta(
+      construirCalculo(tramos, { 0: directa }, 'solicitado'),
+      opciones,
+      'solicitado',
+    );
+    expect(resumen).toMatchObject({
+      autobus: 189,
+      taxi: 582.03,
+      hospedaje: 1500,
+      total: 2271.03,
+    });
+  });
+
+  it('aplicarHotelesAlCalculo usa el tramo largo y suma los km de la cadena', () => {
+    const busHotel = oferta({
+      id: 'bus-hotel',
+      linea: 'ADO Hotel',
+      costoGrupo: 226,
+      salida: '2026-11-09T18:00',
+      llegada: '2026-11-09T22:00',
+    });
+    const ruta = respuestaHotel(
+      [
+        { from: 'Guadalajara', to: 'Hotel Centro', km: 120, opciones: [busHotel] },
+        { from: 'Hotel Centro', to: 'Zapopan', km: 3, opciones: [] },
+      ],
+    );
+    const directa = respuesta([oferta({ id: 'directo', linea: 'Directo', costoGrupo: 211 })]);
+    const tramos = [tramo('Guadalajara', 'Zapopan')];
+
+    const base = construirCalculo(tramos, { 0: directa }, 'solicitado', { 0: 'directo' });
+    const ajustado = aplicarHotelesAlCalculo(
+      base,
+      { 0: { posicion: 'antes', respuesta: ruta, seleccionLarga: 'bus-hotel', seleccionLocal: null } },
+      { 0: 'bus-hotel' },
+    );
+
+    expect(ajustado.tramos[0]).toMatchObject({
+      costo: 226,
+      km: 123,
+      linea: 'ADO Hotel',
+      salida_fecha: '2026-11-09',
+      salida_hora: '18:00',
+      llegada_fecha: '2026-11-09',
+      llegada_hora: '22:00',
+    });
+    expect(ajustado.km_total).toBe(123);
   });
 
   it('incluye las opciones descartadas y marca solo la elegida', () => {
