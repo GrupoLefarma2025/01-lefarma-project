@@ -44,8 +44,9 @@ import EditorAjustes from './EditorAjustes';
  * `capturas[]` viaja solo en el body de PUT y no vuelve en el GET.
  */
 
-/** Misma regla que analizadorCotizacion.ts: sin precio no hay cotización. */
-const esEstimado = (opcion: SolicitudOpcion): boolean => opcion.precio === null;
+/** Misma regla que analizadorCotizacion.ts: sin precio o marcado estimado. */
+const esEstimado = (opcion: SolicitudOpcion): boolean =>
+  opcion.precio === null || opcion.datos?.tipo_precio === 'estimado';
 
 export interface TotalElegidas {
   /** Suma de las elegidas con precio; null cuando no se puede sumar. */

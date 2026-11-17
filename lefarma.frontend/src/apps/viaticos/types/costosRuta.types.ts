@@ -105,6 +105,8 @@ export interface CostosRutaOferta {
   porPersona: boolean;
   costoGrupo: number;
   costoPorPersona: number;
+  /** Taxi punto↔terminal incluido en la oferta; 0 en auto/renta/taxi urbano. */
+  costoTaxi?: number;
   aTiempo: boolean;
   llegaTarde: boolean;
   minutosTarde: number;

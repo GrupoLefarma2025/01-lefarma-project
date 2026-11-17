@@ -223,6 +223,34 @@ describe('leerCalculoDesdeDatos', () => {
 });
 
 describe('construirOpcionesPropuesta', () => {
+  it('agrega el taxi punto↔terminal de la opción de bus elegida como una opción propia', () => {
+    const bus = oferta({
+      id: 'bus-taxi',
+      linea: 'ETN',
+      costoGrupo: 1000,
+      costoTaxi: 420,
+    });
+    const tramos = [tramo('Guadalajara', 'Zapopan')];
+    const resultados = { 0: respuesta([bus]) };
+
+    const opciones = construirOpcionesPropuesta(tramos, resultados, { 0: 'bus-taxi' });
+    const taxi = opciones.find((opcion) => opcion.tipo === 'taxi');
+
+    expect(taxi).toMatchObject({
+      precio: 420,
+      fue_elegida: true,
+    });
+    expect(taxi?.datos).toMatchObject({ taxi: true });
+
+    const resumen = resumenCostosRuta(
+      construirCalculo(tramos, resultados, 'solicitado', { 0: 'bus-taxi' }),
+      opciones,
+      'solicitado',
+    );
+    expect(resumen.taxi).toBe(420);
+    expect(resumen.total).toBe(1420);
+  });
+
   it('incluye las opciones descartadas y marca solo la elegida', () => {
     const sinUrl = oferta({
       id: 'c',

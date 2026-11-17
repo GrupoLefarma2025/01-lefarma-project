@@ -621,6 +621,12 @@ public class CostosRutaServiceTests
         resp.Resultados[0].Tramos[0].Opciones.Should().Contain(o => o.Modo == "bus");
         // PUE→BJX supera 300 km aéreos: hay avión estimado.
         resp.Resultados[0].Tramos[1].Opciones.Should().Contain(o => o.Modo == "avion" && o.Estimado);
+        // El taxi punto↔terminal viaja en la oferta para que el frontend lo
+        // pueda persistir; no se queda solo en la propuesta del backend.
+        resp.Resultados[0].Tramos[0].Opciones.First(o => o.Modo == "bus").CostoTaxi
+            .Should().BeGreaterThan(0);
+        resp.Resultados[0].Tramos[1].Opciones.First(o => o.Modo == "avion").CostoTaxi
+            .Should().BeGreaterThan(0);
         resp.Propuestas.Should().HaveCount(6);
         var tipo3 = resp.Propuestas.First(p => p.Clave == "tipo3-avion");
         tipo3.Tramos.Should().Contain(t => t.Modo == "avion");

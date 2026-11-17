@@ -215,6 +215,11 @@ public class CostosRutaOferta
     public double PrecioHasta { get; set; }
     public double CostoGrupo { get; set; }
     public double CostoPorPersona { get; set; }
+    /// <summary>
+    /// Taxi punto ↔ terminal incluido en esta oferta (ida y vuelta del tramo).
+    /// 0 en modos que no usan terminal (auto, renta, taxi urbano).
+    /// </summary>
+    public double CostoTaxi { get; set; }
     public bool ATiempo { get; set; }
     public bool LlegaTarde { get; set; }
     public int MinutosTarde { get; set; }

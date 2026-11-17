@@ -339,6 +339,41 @@ function opcionDesdeHotel(
   };
 }
 
+/**
+ * Taxi punto ↔ terminal que la oferta de bus/avión ya incluye. Se guarda
+ * como una opción propia para que el total cotizado, la aprobación y el
+ * concentrado lo sumen (antes solo vivía en la propuesta del backend).
+ */
+function opcionDesdeTaxi(
+  oferta: CostosRutaOferta,
+  datos: DatosOpcionPropuesta,
+): OpcionCotizacion {
+  const terminales = [oferta.terminalOrigen?.nombre, oferta.terminalDestino?.nombre]
+    .filter((nombre): nombre is string => Boolean(nombre))
+    .join(' · ');
+  return {
+    tipo: 'taxi',
+    linea: terminales ? `Taxi punto ↔ terminal (${terminales})` : 'Taxi punto ↔ terminal',
+    precio: dosDecimales(oferta.costoTaxi ?? 0),
+    moneda: 'MXN',
+    url_compra: null,
+    fuente: 'Tarifa taxi punto↔terminal (estimado)',
+    fue_elegida: true,
+    ruta_captura: null,
+    capturas: [],
+    datos: {
+      ...datos,
+      tipo_precio: 'estimado',
+      proveedor: 'Tarifa taxi',
+      taxi: true,
+      terminal_origen: oferta.terminalOrigen?.nombre ?? null,
+      terminal_destino: oferta.terminalDestino?.nombre ?? null,
+      minutos_taxi_origen: oferta.minutosTaxiOrigen ?? null,
+      minutos_taxi_destino: oferta.minutosTaxiDestino ?? null,
+    },
+  };
+}
+
 /** Tope de opciones que se guardan por tramo para no inflar el payload. */
 export const MAX_OPCIONES_POR_TRAMO = 20;
 
@@ -369,6 +404,18 @@ export function construirOpcionesPropuesta(
       if (vistas.has(oferta.id)) continue;
       vistas.add(oferta.id);
       candidatas.push(opcionDesdeOferta(oferta, datos, idElegido !== null && oferta.id === idElegido));
+    }
+
+    // El taxi punto↔terminal de la opción elegida viaja como una opción
+    // propia: antes solo existía en la propuesta del backend y el total
+    // persistido lo perdía.
+    const elegida = ofertas.find((oferta) => oferta.id === idElegido);
+    if (
+      elegida &&
+      (elegida.modo === 'bus' || elegida.modo === 'avion') &&
+      (elegida.costoTaxi ?? 0) > 0
+    ) {
+      candidatas.push(opcionDesdeTaxi(elegida, datos));
     }
 
     if (usarHotel[indice] === true) {

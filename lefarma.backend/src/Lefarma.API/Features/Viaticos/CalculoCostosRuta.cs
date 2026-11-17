@@ -2450,8 +2450,15 @@ public static class CalculoCostosRuta
 
     private static double MillaExtra(LugarNorm a, LugarNorm b, OpCalc? opcion = null)
     {
-        return TaxiPuntoTerminal(a, opcion?.TerminalOrigenDato)
-            + TaxiPuntoTerminal(b, opcion?.TerminalDestinoDato);
+        // Si el proveedor no informó la terminal, se usa la del catálogo
+        // (central de autobuses o aeropuerto) antes de caer al centro de la
+        // ciudad. Así la propuesta y el CostoTaxi de la oferta coinciden.
+        var terminalOrigen = opcion?.TerminalOrigenDato
+            ?? (opcion is not null ? TerminalDto(TerminalDe(opcion.Modo, a)) : null);
+        var terminalDestino = opcion?.TerminalDestinoDato
+            ?? (opcion is not null ? TerminalDto(TerminalDe(opcion.Modo, b)) : null);
+        return TaxiPuntoTerminal(a, terminalOrigen)
+            + TaxiPuntoTerminal(b, terminalDestino);
     }
 
     /// <summary>
@@ -2610,6 +2617,15 @@ public static class CalculoCostosRuta
         int? minutosTaxiDestino = usaTerminal && conoceTerminalDestino
             ? MinutosTaxiPuntoTerminal(lugarDestino, terminalTaxiDestino)
             : null;
+        // Mismo cálculo que usa la propuesta (MillaExtra): las dos puntas del
+        // taxi punto↔terminal. Si el proveedor no informa la terminal, se usa
+        // la del catálogo (central o aeropuerto) antes de caer al centro.
+        var terminalCostoOrigen = o.TerminalOrigenDato ?? TerminalDto(terminalOrigen);
+        var terminalCostoDestino = o.TerminalDestinoDato ?? TerminalDto(terminalDestino);
+        var costoTaxi = usaTerminal && lugarOrigen is not null && lugarDestino is not null
+            ? TaxiPuntoTerminal(lugarOrigen, terminalCostoOrigen)
+              + TaxiPuntoTerminal(lugarDestino, terminalCostoDestino)
+            : 0;
         return new CostosRutaOferta
         {
             // ixOferta es la posición del modo dentro del tramo: modo solo no
@@ -2640,6 +2656,7 @@ public static class CalculoCostosRuta
                 : (o.PorPersona ? $"${o.Lo:F0}–${o.Hi:F0} MXN /persona" : $"${o.Lo:F0}–${o.Hi:F0} MXN total"),
             PorPersona = o.PorPersona, PrecioDesde = Math.Round(o.Lo, 2), PrecioHasta = Math.Round(o.Hi, 2),
             CostoGrupo = Math.Round(o.CostoGrupo, 2), CostoPorPersona = Math.Round(mid, 2),
+            CostoTaxi = Math.Round(costoTaxi, 2),
             ATiempo = !o.Late && !o.SaleAntes, LlegaTarde = o.Late, MinutosTarde = o.LateMin, NoTomable = o.SaleAntes,
             Badge = o.Badge, Nota = o.Nota, Fuente = o.Fuente, Estimado = o.Estimado,
             TipoPrecio = o.Modo is "bus" or "avion" && !o.Estimado ? "cotizado" : "estimado",
