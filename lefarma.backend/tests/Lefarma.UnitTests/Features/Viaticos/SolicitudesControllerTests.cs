@@ -194,6 +194,57 @@ public class SolicitudesControllerTests
     }
 
     [Fact]
+    public async Task PostDesdeEducacionMedica_SinGerencia_UsaLaGerenciaDeLaSeleccion()
+    {
+        using var ctx = new TestContext();
+        ctx.SembrarRutaConVisitas(14, new[] { 901 });
+        var ahora = DateTime.UtcNow;
+        using (var scope = ctx.Servidor.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            db.TiposGerencia.Add(new TipoGerencia
+            {
+                IdTipoGerencia = 7,
+                Descripcion = "IMSS",
+                Activo = true,
+                FechaCreacion = ahora,
+                FechaModificacion = ahora,
+            });
+            db.SeleccionesMensuales.Add(new SeleccionMensual
+            {
+                IdSeleccionMensual = 3,
+                FechaSeleccion = new DateOnly(2026, 10, 1),
+                IdTipoGerencia = 7,
+                Estado = SeleccionMensual.EstadoCreada,
+                Activo = true,
+                FechaCreacion = ahora,
+                FechaModificacion = ahora,
+            });
+            db.SaveChanges();
+        }
+
+        using var cliente = ctx.Servidor.CreateClient();
+        cliente.DefaultRequestHeaders.Add("X-Test-UserId", "7010");
+        cliente.DefaultRequestHeaders.Add("X-Test-Permissions", Permissions.Viaticos.Solicitar);
+
+        var resp = await cliente.PostAsJsonAsync("/api/viaticos/solicitudes/desde-educacion-medica", new
+        {
+            id_ruta = 14,
+            id_ruta_visitas = new[] { 901 },
+            datos = new { destinos = new[] { 901 } }
+        });
+        resp.StatusCode.Should().Be(HttpStatusCode.Created);
+        var creada = await resp.Content.ReadFromJsonAsync<ApiEnvelope<SolicitudDesdeEmDtoJson>>();
+
+        using var verificacion = ctx.Servidor.Services.CreateScope();
+        var contexto = verificacion.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var guardada = await contexto.Solicitudes
+            .AsNoTracking()
+            .SingleAsync(s => s.IdSolicitud == creada!.Data!.IdSolicitud);
+        guardada.Gerencia.Should().Be("IMSS");
+    }
+
+    [Fact]
     public async Task PostDesdeEducacionMedica_RutaConEspecialistasDistintos_Retorna409()
     {
         using var ctx = new TestContext();

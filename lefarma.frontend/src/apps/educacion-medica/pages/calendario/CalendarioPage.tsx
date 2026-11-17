@@ -436,6 +436,10 @@ export default function CalendarioPage() {
           idRuta: ruta.idRuta,
           nombre: ruta.nombre ?? `Ruta ${ruta.idRuta}`,
           idSeleccionMensual: ruta.idSeleccionMensual,
+          gerencia:
+            seleccionesMes.find(
+              (seleccion) => seleccion.idSeleccionMensual === ruta.idSeleccionMensual
+            )?.tipoGerencia ?? null,
           viajero: ruta.idEspecialista
             ? {
                 idUsuario: ruta.idEspecialista,
@@ -455,10 +459,20 @@ export default function CalendarioPage() {
             ciudadMunicipio: visita.ciudadMunicipio ?? null,
             latitud: visita.latitud ?? null,
             longitud: visita.longitud ?? null,
+            horaSalida: visita.horaSalida ?? null,
+            horaLlegada: visita.horaLlegada ?? null,
           })),
         })),
-    [rutasVersionActual]
+    [rutasVersionActual, seleccionesMes]
   );
+
+  /** Ruta de la visita seleccionada: el modal abre en ella, no en la primera. */
+  const rutaInicialCotizar = useMemo(() => {
+    if (seleccionadoId == null) return undefined;
+    return rutasParaCotizar.find((ruta) =>
+      ruta.visitas.some((visita) => visita.idRutaVisita === seleccionadoId)
+    )?.idRuta;
+  }, [seleccionadoId, rutasParaCotizar]);
 
   const estadoVersionSeleccionada =
     versionRuta == null
@@ -861,11 +875,16 @@ export default function CalendarioPage() {
       return;
     }
     try {
-      const resultado = await crearBorradorDesdeRuta(ruta, visitas, usuarioActual?.nombre ?? '');
+      const resultado = await crearBorradorDesdeRuta(
+        ruta,
+        visitas,
+        usuarioActual?.nombre ?? '',
+        usuarioActual?.id,
+      );
       toast.success(
         resultado.reutilizado
-          ? `Se abrió la cotización ${resultado.folio ?? ''} existente.`.trim()
-          : `Cotización creada${resultado.folio ? `: ${resultado.folio}` : ''}.`
+          ? `Se abrió el borrador ${resultado.folio ?? ''} existente.`.trim()
+          : `Borrador de viáticos creado${resultado.folio ? `: ${resultado.folio}` : ''}.`
       );
       setRutaCotizarAbierta(false);
       setRefrescoRutas((valor) => valor + 1);
@@ -1703,12 +1722,12 @@ export default function CalendarioPage() {
               disabled={cotizacionBloqueada}
               title={
                 cotizacionBloqueada
-                  ? `No se puede cotizar una versión ${estadoVersionSeleccionada}. Selecciona una versión vigente.`
+                  ? `No se puede preparar la cotización de una versión ${estadoVersionSeleccionada}. Selecciona una versión vigente.`
                   : undefined
               }
             >
               <Plane className="h-3.5 w-3.5" />
-              Cotizar viáticos
+              Preparar cotización
             </Button>
           )}
           <Button
@@ -2644,6 +2663,7 @@ export default function CalendarioPage() {
       {rutaCotizarAbierta && (
         <CotizarRutaModal
           rutas={rutasParaCotizar}
+          rutaInicialId={rutaInicialCotizar}
           onAbrirCotizacion={abrirCotizacion}
           onConfirm={confirmarCotizacionRuta}
           onClose={() => setRutaCotizarAbierta(false)}

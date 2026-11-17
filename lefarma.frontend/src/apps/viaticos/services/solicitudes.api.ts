@@ -13,20 +13,27 @@ import type {
 const BASE = '/viaticos/solicitudes';
 
 /**
- * Total cotizado = suma de las opciones elegidas con precio. Se persiste en
- * `datos.total` (ADR-00014) para que Educación Médica muestre el costo sin
- * recalcular el motor. Si todas las opciones son estimadas (precio null), se
- * omite y la cotización queda "Sin cotización".
+ * Total cotizado = suma de las opciones ELEGIDAS con precio, en una sola
+ * moneda. Se persiste en `datos.total` (ADR-00014) para que Educación Médica
+ * muestre el costo sin recalcular el motor. Si no hay elegidas con precio o
+ * mezclan monedas, se omite y la cotización queda "Sin cotización".
  */
 const totalDeOpciones = (opciones: OpcionCotizacion[]): number | undefined => {
-  const precios = opciones
-    .map((opcion) => opcion.precio)
-    .filter(
-      (precio): precio is number =>
-        typeof precio === 'number' && Number.isFinite(precio)
-    );
+  const conPrecio = opciones.filter(
+    (opcion): opcion is OpcionCotizacion & { precio: number } =>
+      opcion.fue_elegida &&
+      typeof opcion.precio === 'number' &&
+      Number.isFinite(opcion.precio)
+  );
+  if (conPrecio.length === 0) return undefined;
 
-  return precios.length > 0 ? precios.reduce((suma, precio) => suma + precio, 0) : undefined;
+  const monedas = new Set(
+    conPrecio.map((opcion) => (opcion.moneda ?? 'MXN').trim().toUpperCase())
+  );
+  if (monedas.size > 1) return undefined;
+
+  const total = conPrecio.reduce((suma, opcion) => suma + opcion.precio, 0);
+  return Math.round(total * 100) / 100;
 };
 
 export const solicitudesApi = {

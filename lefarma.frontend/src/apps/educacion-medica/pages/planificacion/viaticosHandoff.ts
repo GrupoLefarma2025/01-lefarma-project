@@ -12,6 +12,10 @@ export interface VisitaCotizable {
   ciudadMunicipio?: string | null;
   latitud?: number | null;
   longitud?: number | null;
+  /** TimeOnly del backend: 'HH:mm:ss'. */
+  horaSalida?: string | null;
+  /** TimeOnly del backend: 'HH:mm:ss'. */
+  horaLlegada?: string | null;
 }
 
 export interface ViajeroCotizacion {
@@ -24,6 +28,8 @@ export interface RutaParaCotizar {
   idRuta: number;
   nombre: string;
   idSeleccionMensual?: number | null;
+  /** Gerencia de la selección (Descentralizado / IMSS / IMSS Bienestar). */
+  gerencia?: string | null;
   visitas: VisitaCotizable[];
   viajero?: ViajeroCotizacion;
 }
@@ -41,6 +47,9 @@ export const tieneCoordenadas = (visita: VisitaCotizable): boolean =>
   typeof visita.longitud === 'number' &&
   Number.isFinite(visita.longitud);
 
+/** TimeOnly del backend ('HH:mm:ss') al formato del wizard ('HH:mm'). */
+const horaCorta = (hora: string | null | undefined): string => (hora ?? '').slice(0, 5);
+
 /**
  * Construye el snapshot `solicitud-v2` que hidrata el asistente de Viáticos.
  * Solo incluye destinos con coordenadas; la hora no se envía (el usuario la
@@ -51,14 +60,17 @@ export function construirSnapshotSolicitud(
   ruta: RutaParaCotizar,
   visitas: VisitaCotizable[],
   nombreUsuario: string,
-  viajero?: ViajeroCotizacion
+  viajero?: ViajeroCotizacion,
+  idUsuario?: number
 ): Record<string, unknown> {
   const seleccionadas = visitas.filter(tieneCoordenadas);
+  const esMismoUsuario =
+    viajero != null && idUsuario != null && viajero.idUsuario === idUsuario;
   const persona =
     viajero && viajero.idUsuario > 0
       ? {
-          modo: 'otra',
-          empleadoId: viajero.idUsuario,
+          modo: esMismoUsuario ? 'mia' : 'otra',
+          empleadoId: esMismoUsuario ? null : viajero.idUsuario,
           nombre: viajero.nombre.trim(),
           motivo: 'Talleres médicos en hospitales',
         }
@@ -69,28 +81,39 @@ export function construirSnapshotSolicitud(
           motivo: 'Talleres médicos en hospitales',
         };
 
-  const destinos = seleccionadas.map((visita, indice) => ({
-    id: `em-${visita.idRutaVisita}`,
-    punto: {
-      nombre: visita.nombreHospital ?? `Hospital ${indice + 1}`,
-      latitud: Number(visita.latitud),
-      longitud: Number(visita.longitud),
-      estado: visita.entidadFederativa ?? undefined,
-      municipio: visita.ciudadMunicipio ?? undefined,
-    },
-    etiqueta: visita.nombreHospital ?? `Destino ${indice + 1}`,
-    debeEstarFecha: visita.fechaVisita,
-    debeEstarHora: '',
-    saleFecha: '',
-    saleHora: '',
-    hospedaje: {
-      necesario: false,
-      zona: 'actual',
-      fechaEntrada: '',
-      fechaSalida: '',
-      hotel: null,
-    },
-  }));
+  // Si la ruta ocupa más de un día, se propone hotel al cerrar el día que
+  // todavía tiene visitas al día siguiente. El usuario puede desmarcarlo en
+  // el asistente; esto solo evita que un viaje de varios días nazca sin hotel.
+  const fechas = new Set(seleccionadas.map((visita) => visita.fechaVisita));
+  const multiDia = fechas.size > 1;
+
+  const destinos = seleccionadas.map((visita, indice) => {
+    const siguiente = seleccionadas[indice + 1];
+    const necesitaHotel =
+      multiDia && siguiente !== undefined && siguiente.fechaVisita > visita.fechaVisita;
+    return {
+      id: `em-${visita.idRutaVisita}`,
+      punto: {
+        nombre: visita.nombreHospital ?? `Hospital ${indice + 1}`,
+        latitud: Number(visita.latitud),
+        longitud: Number(visita.longitud),
+        estado: visita.entidadFederativa ?? undefined,
+        municipio: visita.ciudadMunicipio ?? undefined,
+      },
+      etiqueta: visita.nombreHospital ?? `Destino ${indice + 1}`,
+      debeEstarFecha: visita.fechaVisita,
+      debeEstarHora: horaCorta(visita.horaLlegada),
+      saleFecha: '',
+      saleHora: '',
+      hospedaje: {
+        necesario: necesitaHotel,
+        zona: 'actual',
+        fechaEntrada: '',
+        fechaSalida: '',
+        hotel: null,
+      },
+    };
+  });
 
   return {
     version: 'solicitud-v2',
@@ -132,18 +155,26 @@ export function construirSnapshotSolicitud(
 export async function crearBorradorDesdeRuta(
   ruta: RutaParaCotizar,
   visitas: VisitaCotizable[],
-  nombreUsuario: string
+  nombreUsuario: string,
+  idUsuario?: number
 ): Promise<{ idSolicitud: number; folio: string | null; reutilizado: boolean }> {
   const seleccionadas = visitas.filter(tieneCoordenadas);
   if (seleccionadas.length === 0) {
     throw new Error('Selecciona al menos un hospital con coordenadas para cotizar.');
   }
 
-  const datos = construirSnapshotSolicitud(ruta, seleccionadas, nombreUsuario, ruta.viajero);
+  const datos = construirSnapshotSolicitud(
+    ruta,
+    seleccionadas,
+    nombreUsuario,
+    ruta.viajero,
+    idUsuario,
+  );
   const respuesta = await solicitudesApi.crearDesdeEducacionMedica({
     id_ruta: ruta.idRuta,
     id_seleccion_mensual: ruta.idSeleccionMensual ?? seleccionadas[0]?.idSeleccionMensual ?? null,
     id_ruta_visitas: seleccionadas.map((visita) => visita.idRutaVisita),
+    ...(ruta.gerencia ? { gerencia: ruta.gerencia } : {}),
     datos,
   });
 

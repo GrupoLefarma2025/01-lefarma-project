@@ -95,6 +95,7 @@ export function CalculosViajeModal({
   const [resumenAbierto, setResumenAbierto] = useState(false);
   const [progreso, setProgreso] = useState(0);
   const buscadosRef = useRef<Set<number>>(new Set());
+  const hotelesBuscadosRef = useRef<Set<number>>(new Set());
   const sesionRef = useRef(0);
 
   const hidratado = useMemo(() => (solicitud ? hidratarSolicitud(solicitud.datos) : null), [solicitud]);
@@ -115,7 +116,23 @@ export function CalculosViajeModal({
     setBuscando(null);
     setProgreso(0);
     buscadosRef.current.clear();
+    hotelesBuscadosRef.current.clear();
     sesionRef.current += 1;
+  }, [open, solicitud?.id_solicitud]);
+
+  // La ruta de Educación Médica puede traer hospedaje marcado por defecto
+  // (varios días). Se refleja en los toggles del modal al abrirlo.
+  useEffect(() => {
+    if (!open || !hidratado) return;
+    const inicial: Record<number, boolean> = {};
+    hidratado.destinos.forEach((destino, indice) => {
+      if (destino.hospedaje.necesario) inicial[indice] = true;
+    });
+    setUsarHotel(inicial);
+    setHotelResultados({});
+    setHotelElegido({});
+    hotelesBuscadosRef.current.clear();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, solicitud?.id_solicitud]);
 
   const tramo: TramoViaje | undefined = tramos[paso];
@@ -203,13 +220,20 @@ export function CalculosViajeModal({
   }, [persona, seleccion, paso]);
 
   const incumple = ofertaElegida ? !ofertaElegida.aTiempo : false;
-  const sugerirHotel = esCarro
-    ? paso === 0
-      ? salidaTemprana
-      : tramo?.esRegreso
-        ? llegaRegreso === false
-        : llegaCarro === false
-    : incumple;
+  const destinoHidratado =
+    hidratado && hidratado.destinos.length > 0
+      ? hidratado.destinos[Math.min(paso, hidratado.destinos.length - 1)]
+      : null;
+  const hospedajeSugerido = destinoHidratado?.hospedaje.necesario === true;
+  const sugerirHotel =
+    hospedajeSugerido ||
+    (esCarro
+      ? paso === 0
+        ? salidaTemprana
+        : tramo?.esRegreso
+          ? llegaRegreso === false
+          : llegaCarro === false
+      : incumple);
   const hotelDelPaso = hotelResultados[paso];
   const hotelElegidoDelPaso = hotelElegido[paso];
   const usarHotelDelPaso = usarHotel[paso] === true;
@@ -474,6 +498,15 @@ export function CalculosViajeModal({
       if (sesion === sesionRef.current) setBuscando(null);
     }
   }
+
+  useEffect(() => {
+    if (!open || !solicitud || !tramo || !resultadoActual) return;
+    if (!usarHotelDelPaso || hotelDelPaso || buscando !== null) return;
+    if (hotelesBuscadosRef.current.has(paso)) return;
+    hotelesBuscadosRef.current.add(paso);
+    void buscarHotel(paso);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, solicitud, tramo, paso, resultadoActual, usarHotelDelPaso, hotelDelPaso, buscando]);
 
   async function enviar() {
     if (!solicitud || !resultadoActual) return;
