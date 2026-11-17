@@ -375,6 +375,16 @@ export function TablaOpciones({ titulo, ofertas, opcionElegidaId, onElegir }: Ta
                 </TableCell>
                 <TableCell>
                   <Badge variant="outline" className="whitespace-nowrap tabular-nums">{o.precioTxt}</Badge>
+                  {o.costoTaxi && o.costoTaxi > 0 ? (
+                    <div className="mt-1 text-xs text-muted-foreground">
+                      + taxi punto ↔ terminal{' '}
+                      {o.costoTaxi.toLocaleString('es-MX', {
+                        style: 'currency',
+                        currency: 'MXN',
+                        maximumFractionDigits: 0,
+                      })}
+                    </div>
+                  ) : null}
                   <div className="mt-1 text-xs text-muted-foreground">
                     {etiquetaTipoPrecio(o)}
                     {o.proveedor ? ` · ${o.proveedor}` : ''}

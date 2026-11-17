@@ -22,21 +22,28 @@ import { ModoTransporteBadge } from './ModoTransporteBadge';
 import { DireccionTramo } from './DireccionTramo';
 import {
   MARGEN_CARRO,
+  aplicarHotelesAlCalculo,
   claveHotel,
   construirCalculo,
   construirOpcionesPropuesta,
   construirRequestHotel,
-  construirRequestHotelRegreso,
+  construirRequestHotelDespues,
   construirRequestTramo,
   construirTramos,
+  distanciaKm,
   duracionTexto,
   fechaCorta,
   horaAmPm,
+  hotelTieneCoordenadas,
   minutosConMargen,
   ofertaCalculada,
+  ofertaLargaHotel,
+  ofertaLocalHotel,
+  posicionHotel,
   resumenCostosRuta,
   salidaAproximada,
   sumarMinutos,
+  type HotelRutaCalculo,
   type TramoViaje,
 } from '../services/calculoViaje';
 import { costosRutaApi } from '../services/costosRuta.api';
@@ -44,7 +51,7 @@ import { casetasDeRuta } from '../services/casetasRuta';
 import { hidratarSolicitud } from '../services/solicitudDraft';
 import { solicitudesApi } from '../services/solicitudes.api';
 import { generarCapturasEnSegundoPlano } from '../services/evidencias.api';
-import type { CostosRutaResponse } from '../types/costosRuta.types';
+import type { CostosRutaHotel, CostosRutaResponse } from '../types/costosRuta.types';
 import type { CalculoViaje, PropuestaRuta, Solicitud } from '../types/solicitud.types';
 
 function mxn(n: number): string {
@@ -91,10 +98,15 @@ export function CalculosViajeModal({
   const [usarHotel, setUsarHotel] = useState<Record<number, boolean>>({});
   const [hotelResultados, setHotelResultados] = useState<Record<number, CostosRutaResponse>>({});
   const [hotelElegido, setHotelElegido] = useState<Record<number, string>>({});
+  const [hotelRutas, setHotelRutas] = useState<Record<number, HotelRutaCalculo>>({});
+  const [seleccionLocal, setSeleccionLocal] = useState<Record<number, string>>({});
+  const [buscandoRutaHotel, setBuscandoRutaHotel] = useState<number | null>(null);
   const [enviando, setEnviando] = useState(false);
   const [resumenAbierto, setResumenAbierto] = useState(false);
   const [progreso, setProgreso] = useState(0);
   const buscadosRef = useRef<Set<number>>(new Set());
+  const hotelesBuscadosRef = useRef<Set<number>>(new Set());
+  const hotelRutaSeqRef = useRef<Record<number, number>>({});
   const sesionRef = useRef(0);
 
   const hidratado = useMemo(() => (solicitud ? hidratarSolicitud(solicitud.datos) : null), [solicitud]);
@@ -112,10 +124,37 @@ export function CalculosViajeModal({
     setUsarHotel({});
     setHotelResultados({});
     setHotelElegido({});
+    setHotelRutas({});
+    setSeleccionLocal({});
+    setBuscandoRutaHotel(null);
     setBuscando(null);
     setProgreso(0);
     buscadosRef.current.clear();
+    hotelesBuscadosRef.current.clear();
+    hotelRutaSeqRef.current = {};
     sesionRef.current += 1;
+  }, [open, solicitud?.id_solicitud]);
+
+  // La ruta de Educación Médica puede traer hospedaje marcado por defecto
+  // (varios días). El flag vive en el destino que se acaba de visitar, así que
+  // enciende la noche DESPUÉS de ese destino (el tramo siguiente), no la noche
+  // antes del mismo. El primer destino no se enciende por este flag.
+  useEffect(() => {
+    if (!open || !hidratado) return;
+    const inicial: Record<number, boolean> = {};
+    hidratado.destinos.forEach((destino, indice) => {
+      if (destino.hospedaje.necesario && indice + 1 <= hidratado.destinos.length) {
+        inicial[indice + 1] = true;
+      }
+    });
+    setUsarHotel(inicial);
+    setHotelResultados({});
+    setHotelElegido({});
+    setHotelRutas({});
+    setSeleccionLocal({});
+    hotelesBuscadosRef.current.clear();
+    hotelRutaSeqRef.current = {};
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, solicitud?.id_solicitud]);
 
   const tramo: TramoViaje | undefined = tramos[paso];
@@ -123,6 +162,22 @@ export function CalculosViajeModal({
   const persona = resultadoActual?.resultados[0];
   const propuesta = resultadoActual?.propuestas[0];
   const esCarro = hidratado?.transporte.modo === 'propio';
+  const posicionDelPaso = posicionHotel(paso);
+  const hotelRutaDelPaso = hotelRutas[paso];
+  const propuestaActiva = hotelRutaDelPaso?.respuesta.propuestas[0] ?? propuesta;
+  const personaHotel = hotelRutaDelPaso?.respuesta.resultados[0];
+  const tramoLargoHotel = personaHotel?.tramos[posicionDelPaso === 'antes' ? 0 : 1];
+  const tramoLocalHotel = personaHotel?.tramos[posicionDelPaso === 'antes' ? 1 : 0];
+  const ofertaLargaActual = ofertaLargaHotel(
+    hotelRutaDelPaso?.respuesta,
+    posicionDelPaso,
+    seleccion[paso] ?? hotelRutaDelPaso?.seleccionLarga ?? null,
+  );
+  const ofertaLocalActual = ofertaLocalHotel(
+    hotelRutaDelPaso?.respuesta,
+    posicionDelPaso,
+    seleccionLocal[paso] ?? hotelRutaDelPaso?.seleccionLocal ?? null,
+  );
   const esUltimo = paso === tramos.length - 1;
   const fechaSalida = tramo ? fechaCorta(tramo.desde.fecha) : null;
   const fechaLlegada = tramo ? fechaCorta(tramo.hasta.fecha) : null;
@@ -197,22 +252,93 @@ export function CalculosViajeModal({
    * la propuesta del motor (que solo es una recomendación inicial).
    */
   const ofertaElegida = useMemo(() => {
+    if (hotelRutaDelPaso) {
+      return ofertaLargaHotel(
+        hotelRutaDelPaso.respuesta,
+        posicionDelPaso,
+        seleccion[paso] ?? hotelRutaDelPaso.seleccionLarga,
+      );
+    }
     const id = seleccion[paso];
     if (!id || !persona) return null;
     return persona.tramos.flatMap((t) => t.opciones).find((o) => o.id === id) ?? null;
-  }, [persona, seleccion, paso]);
+  }, [hotelRutaDelPaso, posicionDelPaso, persona, seleccion, paso]);
 
   const incumple = ofertaElegida ? !ofertaElegida.aTiempo : false;
-  const sugerirHotel = esCarro
-    ? paso === 0
-      ? salidaTemprana
-      : tramo?.esRegreso
-        ? llegaRegreso === false
-        : llegaCarro === false
-    : incumple;
+  const destinoHidratado =
+    hidratado && hidratado.destinos.length > 0
+      ? hidratado.destinos[Math.min(paso, hidratado.destinos.length - 1)]
+      : null;
+  // EM marca el destino que se acaba de visitar: la noche va DESPUÉS de ese
+  // destino, es decir, en el tramo siguiente. En carro se conserva el
+  // comportamiento anterior (la noche se busca cerca del destino del tramo).
+  const destinoAnterior = hidratado && paso > 0 ? hidratado.destinos[paso - 1] : null;
+  const hospedajeSugerido = esCarro
+    ? destinoHidratado?.hospedaje.necesario === true
+    : destinoAnterior?.hospedaje.necesario === true;
+  const sugerirHotel =
+    hospedajeSugerido ||
+    (esCarro
+      ? paso === 0
+        ? salidaTemprana
+        : tramo?.esRegreso
+          ? llegaRegreso === false
+          : llegaCarro === false
+      : paso === 0 || tramo?.esRegreso
+        ? incumple
+        : false);
+  // En transporte solicitado el hotel se puede activar en cualquier tramo: la
+  // etiqueta ya dice si es noche antes o después. En carro se mantiene la
+  // sugerencia anterior para no alterar ese flujo.
+  const mostrarHotel = !esCarro || sugerirHotel;
   const hotelDelPaso = hotelResultados[paso];
   const hotelElegidoDelPaso = hotelElegido[paso];
   const usarHotelDelPaso = usarHotel[paso] === true;
+  // En carro se conserva la semántica anterior: noche antes del destino del
+  // tramo (o después del último punto en el regreso). En transporte solicitado
+  // manda la regla nueva: antes del primer destino, después de los demás.
+  const posicionNoche = esCarro
+    ? (tramo?.esRegreso ? 'despues' : 'antes')
+    : posicionDelPaso;
+  const puntoBusquedaHotel = posicionNoche === 'antes' ? tramo?.hasta : tramo?.desde;
+  const buscarCercaDe = puntoBusquedaHotel?.nombre ?? 'el punto';
+  const respuestaTerminal = hotelRutaDelPaso?.respuesta ?? hotelDelPaso;
+  const ofertaTerminal = ofertaLargaHotel(
+    respuestaTerminal,
+    posicionNoche,
+    seleccion[paso] ?? hotelRutaDelPaso?.seleccionLarga ?? null,
+  );
+  const terminalHotel = esCarro
+    ? null
+    : posicionNoche === 'antes'
+      ? ofertaTerminal?.terminalDestino ?? null
+      : ofertaTerminal?.terminalOrigen ?? null;
+  const distanciaHotelTerminal = (hotel: CostosRutaHotel): number | null => {
+    if (!terminalHotel || !hotelTieneCoordenadas(hotel)) return null;
+    if (terminalHotel.latitud === 0 && terminalHotel.longitud === 0) return null;
+    return distanciaKm(
+      { latitud: hotel.latitud, longitud: hotel.longitud },
+      { latitud: terminalHotel.latitud, longitud: terminalHotel.longitud },
+    );
+  };
+  // La cabecera muestra las horas reales de la cadena con hotel (salida el día
+  // anterior o llegada al día siguiente), no las del tramo directo.
+  const ofertaSalidaCadena = hotelRutaDelPaso
+    ? posicionNoche === 'antes'
+      ? ofertaLargaActual
+      : ofertaLocalActual ?? ofertaLargaActual
+    : null;
+  const ofertaLlegadaCadena = hotelRutaDelPaso
+    ? posicionNoche === 'antes'
+      ? ofertaLocalActual ?? ofertaLargaActual
+      : ofertaLargaActual
+    : null;
+  const [fechaSalidaCadena, horaSalidaCadena] = (ofertaSalidaCadena?.salida ?? '').split('T');
+  const [fechaLlegadaCadena, horaLlegadaCadena] = (ofertaLlegadaCadena?.llegada ?? '').split('T');
+  const fechaSalidaMostrar = fechaSalidaCadena ? fechaCorta(fechaSalidaCadena) : fechaSalida;
+  const horaSalidaMostrar = horaSalidaCadena ? horaAmPm(horaSalidaCadena.slice(0, 5)) : horaSalidaAmPm;
+  const fechaLlegadaMostrar = fechaLlegadaCadena ? fechaCorta(fechaLlegadaCadena) : fechaLlegada;
+  const horaLlegadaMostrar = horaLlegadaCadena ? horaAmPm(horaLlegadaCadena.slice(0, 5)) : horaLlegadaAmPm;
   const buscandoEste = buscando === paso || (!resultadoActual && !errores[paso]);
 
   const hotelesDelPaso = useMemo(() => {
@@ -298,15 +424,205 @@ export function CalculosViajeModal({
       if (Math.abs(de[0] - a[0]) < 1e-6 && Math.abs(de[1] - a[1]) < 1e-6) return;
       segmentos.push({ tipo, puntos: [de, a], etiqueta });
     };
+    // Un proveedor puede mandar la terminal con lat/lon en 0. Esa coordenada
+    // no sirve para el mapa: se omite el nodo y el tramo se dibuja directo.
+    const coordsTerminal = (
+      terminal: { latitud: number; longitud: number } | null | undefined,
+    ): [number, number] | null => (
+      terminal && (terminal.latitud !== 0 || terminal.longitud !== 0)
+        ? [terminal.latitud, terminal.longitud]
+        : null
+    );
 
     const ofertaDe = (indice: number) =>
       ofertaCalculada(resultados[indice], seleccion[indice] ?? null) ?? null;
 
     tramos.forEach((tramo, indice) => {
-      const oferta = ofertaDe(indice);
-      const origen: [number, number] = [tramo.desde.punto.latitud, tramo.desde.punto.longitud];
+      const hotelRuta = !esCarro ? hotelRutas[indice] : undefined;
       const hotel = hotelElegidoDeTramo(indice);
-      const conHotel = hotel?.latitud != null && hotel.longitud != null;
+      const origen: [number, number] = [tramo.desde.punto.latitud, tramo.desde.punto.longitud];
+
+      // Cadena con hotel en transporte solicitado: el hotel es una parada, no
+      // el destino. Noche antes = origen → terminal → hotel → hospital; noche
+      // después = hospital → hotel → terminal → siguiente punto/regreso.
+      if (hotelRuta && hotel) {
+        const posicion = hotelRuta.posicion;
+        const destino: [number, number] = [tramo.hasta.punto.latitud, tramo.hasta.punto.longitud];
+        const personaHotel = hotelRuta.respuesta.resultados[0];
+        const tramoLargo = personaHotel?.tramos[posicion === 'antes' ? 0 : 1];
+        const larga = ofertaLargaHotel(
+          hotelRuta.respuesta,
+          posicion,
+          seleccion[indice] ?? hotelRuta.seleccionLarga,
+        );
+        const local = ofertaLocalHotel(
+          hotelRuta.respuesta,
+          posicion,
+          seleccionLocal[indice] ?? hotelRuta.seleccionLocal,
+        );
+        const transporteLargo = larga?.modo === 'bus' || larga?.modo === 'avion';
+        const puntoHotel: [number, number] = hotelTieneCoordenadas(hotel)
+          ? [hotel.latitud, hotel.longitud]
+          : posicion === 'antes'
+            ? destino
+            : origen;
+        const nombreHotel = hotel.nombre ?? hotel.lugar;
+        const kmHotel = personaHotel?.tramos.reduce((suma, t) => suma + (t.km ?? 0), 0) ?? null;
+        const chipsHotel = [
+          kmHotel != null ? `${kmHotel.toLocaleString('es-MX', { maximumFractionDigits: 1 })} km` : '',
+          `${hotel.noches} noche(s)`,
+          hotel.checkIn && hotel.checkOut ? `${hotel.checkIn} → ${hotel.checkOut}` : '',
+        ].filter((chip) => chip !== '');
+        const importeHotel = {
+          costo: hotel.precioTotal ?? hotel.precioNoche ?? null,
+          urlCompra: hotel.link || null,
+        };
+        const importeLargo = larga
+          ? { costo: larga.costoGrupo ?? null, urlCompra: larga.comprar?.url || null }
+          : undefined;
+        const importeLocal = local
+          ? { costo: local.costoGrupo ?? null, urlCompra: local.comprar?.url || null }
+          : undefined;
+        const detalleHotel = `Noche ${posicion === 'antes' ? 'antes' : 'después'} de ${
+          posicion === 'antes' ? tramo.hasta.nombre : tramo.desde.nombre
+        }`;
+        const tipoDestino = tramo.esRegreso ? 'regreso' : 'punto';
+
+        agregarPunto(origen[0], origen[1], tramo.desde.nombre, indice === 0 ? 'origen' : 'punto');
+
+        if (transporteLargo) {
+          const tOrigen = coordsTerminal(larga?.terminalOrigen);
+          const tDestino = coordsTerminal(larga?.terminalDestino);
+          const detalleLargo = larga
+            ? `${larga.modo === 'avion' ? 'Vuelo' : 'Autobús'} ${larga.linea} · ${larga.salidaTxt} a ${larga.llegadaTxt}`
+            : 'Transporte con hotel';
+
+          if (posicion === 'antes') {
+            if (tOrigen) {
+              agregarPunto(
+                tOrigen[0],
+                tOrigen[1],
+                larga!.terminalOrigen!.nombre,
+                'terminal',
+                `En taxi desde ${tramo.desde.nombre}`,
+              );
+              agregarSegmento('taxi', origen, tOrigen, `Taxi a ${larga!.terminalOrigen!.nombre}`);
+            }
+            agregarSegmento(
+              'transporte',
+              tOrigen ?? origen,
+              tDestino ?? puntoHotel,
+              `${larga?.linea ?? 'Transporte'} · ${larga?.modo === 'avion' ? 'vuelo' : 'autobús'}`,
+            );
+            if (tDestino) {
+              agregarPunto(
+                tDestino[0],
+                tDestino[1],
+                larga!.terminalDestino!.nombre,
+                'terminal',
+                detalleLargo,
+                undefined,
+                importeLargo,
+              );
+              agregarSegmento('taxi', tDestino, puntoHotel, `Taxi a ${nombreHotel}`);
+            }
+            agregarPunto(
+              puntoHotel[0],
+              puntoHotel[1],
+              nombreHotel,
+              'hotel',
+              detalleHotel,
+              chipsHotel,
+              importeHotel,
+            );
+            if (local) {
+              agregarSegmento('taxi', puntoHotel, destino, `Taxi a ${tramo.hasta.nombre}`);
+            }
+            agregarPunto(
+              destino[0],
+              destino[1],
+              tramo.hasta.nombre,
+              tipoDestino,
+              local
+                ? `En taxi desde ${nombreHotel}`
+                : `En ${larga?.modo === 'avion' ? 'vuelo' : 'autobús'} hasta ${nombreHotel}`,
+              undefined,
+              importeLocal ?? (tDestino ? undefined : importeLargo),
+            );
+          } else {
+            agregarSegmento('taxi', origen, puntoHotel, `Taxi a ${nombreHotel}`);
+            agregarPunto(
+              puntoHotel[0],
+              puntoHotel[1],
+              nombreHotel,
+              'hotel',
+              detalleHotel,
+              chipsHotel,
+              importeHotel,
+            );
+            if (tOrigen) {
+              agregarPunto(
+                tOrigen[0],
+                tOrigen[1],
+                larga!.terminalOrigen!.nombre,
+                'terminal',
+                `En taxi desde ${nombreHotel}`,
+              );
+              agregarSegmento('taxi', puntoHotel, tOrigen, `Taxi a ${larga!.terminalOrigen!.nombre}`);
+            }
+            agregarSegmento(
+              'transporte',
+              tOrigen ?? puntoHotel,
+              tDestino ?? destino,
+              `${larga?.linea ?? 'Transporte'} · ${larga?.modo === 'avion' ? 'vuelo' : 'autobús'}`,
+            );
+            if (tDestino) {
+              agregarPunto(
+                tDestino[0],
+                tDestino[1],
+                larga!.terminalDestino!.nombre,
+                'terminal',
+                detalleLargo,
+              );
+              agregarSegmento('taxi', tDestino, destino, `Taxi a ${tramo.esRegreso ? 'casa' : tramo.hasta.nombre}`);
+            }
+            agregarPunto(
+              destino[0],
+              destino[1],
+              tramo.hasta.nombre,
+              tipoDestino,
+              `En ${larga?.modo === 'avion' ? 'vuelo' : 'autobús'} desde ${nombreHotel}`,
+              undefined,
+              tDestino ? importeLargo : importeLargo ?? importeLocal,
+            );
+          }
+        } else {
+          // Auto o renta: el hotel es una parada en carretera y el vehículo
+          // cubre el traslado local; no se agrega un taxi que no se paga.
+          if (posicion === 'antes') {
+            agregarSegmento('carretera', origen, puntoHotel, `Carretera a ${nombreHotel}`);
+            agregarPunto(puntoHotel[0], puntoHotel[1], nombreHotel, 'hotel', detalleHotel, chipsHotel, importeHotel);
+            agregarSegmento('carretera', puntoHotel, destino, `Carretera a ${tramo.hasta.nombre}`);
+          } else {
+            agregarSegmento('carretera', origen, puntoHotel, `Carretera a ${nombreHotel}`);
+            agregarPunto(puntoHotel[0], puntoHotel[1], nombreHotel, 'hotel', detalleHotel, chipsHotel, importeHotel);
+            agregarSegmento('carretera', puntoHotel, destino, `Carretera a ${tramo.esRegreso ? 'casa' : tramo.hasta.nombre}`);
+          }
+          agregarPunto(
+            destino[0],
+            destino[1],
+            tramo.hasta.nombre,
+            tipoDestino,
+            `En carretera desde ${nombreHotel}`,
+            undefined,
+            importeLargo,
+          );
+        }
+        return;
+      }
+
+      const oferta = ofertaDe(indice);
+      const conHotel = hotelTieneCoordenadas(hotel) && (esCarro || hotelRuta !== undefined);
       const destino: [number, number] = conHotel
         ? [hotel!.latitud as number, hotel!.longitud as number]
         : [tramo.hasta.punto.latitud, tramo.hasta.punto.longitud];
@@ -342,8 +658,8 @@ export function CalculosViajeModal({
         // Cadena del viaje largo: taxi a la terminal, vuelo/autobús y taxi al
         // punto. Si alguna terminal no está en el catálogo se usa el punto
         // capturado como extremo, para no dejar el tramo sin dibujar.
-        const tOrigen: [number, number] | null = terminalOrigen ? [terminalOrigen.latitud, terminalOrigen.longitud] : null;
-        const tDestino: [number, number] | null = terminalDestino ? [terminalDestino.latitud, terminalDestino.longitud] : null;
+        const tOrigen = coordsTerminal(terminalOrigen);
+        const tDestino = coordsTerminal(terminalDestino);
         if (tOrigen) {
           agregarPunto(
             tOrigen[0],
@@ -394,7 +710,7 @@ export function CalculosViajeModal({
     });
 
     return { puntos, segmentos, nodos };
-  }, [tramos, resultados, hotelResultados, hotelElegidoDeTramo, seleccion]);
+  }, [tramos, resultados, hotelResultados, hotelElegidoDeTramo, hotelRutas, seleccion, seleccionLocal, esCarro]);
 
 
   useEffect(() => {
@@ -409,7 +725,7 @@ export function CalculosViajeModal({
     return () => window.clearInterval(id);
   }, [buscandoEste, buscando]);
 
-  const llegadaRegreso = tramo?.esRegreso ? propuesta?.llegadaFinal ?? '' : '';
+  const llegadaRegreso = tramo?.esRegreso ? propuestaActiva?.llegadaFinal ?? '' : '';
   const diaMes = llegadaRegreso.split(' ')[0] ?? '';
   const [diaRegreso, mesRegreso] = diaMes.split('/').map(Number);
   const anioRegreso = Number(tramo?.hasta.fecha.slice(0, 4)) || new Date().getFullYear();
@@ -450,15 +766,35 @@ export function CalculosViajeModal({
   async function buscarHotel(indice: number) {
     const tramoHotel = tramos[indice];
     if (!solicitud || !tramoHotel) return;
-    const request = tramoHotel.esRegreso
-      ? construirRequestHotelRegreso(solicitud, tramoHotel)
-      : construirRequestHotel(solicitud, tramoHotel);
+    const posicion = esCarro
+      ? (tramoHotel.esRegreso ? 'despues' : 'antes')
+      : posicionHotel(indice);
+    const request = posicion === 'antes'
+      ? construirRequestHotel(solicitud, tramoHotel)
+      : construirRequestHotelDespues(solicitud, tramoHotel);
     if (!request) {
-      toast.error('No se pudo preparar la búsqueda de hotel.');
+      toast.error(
+        posicion === 'despues'
+          ? 'La noche después requiere que el siguiente destino sea otro día.'
+          : 'No se pudo preparar la búsqueda de hotel.',
+      );
       return;
     }
     const sesion = sesionRef.current;
     setBuscando(-1);
+    // Invalida cualquier recálculo de ruta anterior de este tramo.
+    hotelRutaSeqRef.current[indice] = (hotelRutaSeqRef.current[indice] ?? 0) + 1;
+    setBuscandoRutaHotel((actual) => (actual === indice ? null : actual));
+    setHotelRutas((r) => {
+      const copia = { ...r };
+      delete copia[indice];
+      return copia;
+    });
+    setSeleccionLocal((s) => {
+      const copia = { ...s };
+      delete copia[indice];
+      return copia;
+    });
     try {
       const res = await costosRutaApi.calcular(request);
       if (sesion !== sesionRef.current) return;
@@ -475,8 +811,150 @@ export function CalculosViajeModal({
     }
   }
 
+  /**
+   * Elige el hotel y, en transporte solicitado, recalcula la cadena con sus
+   * coordenadas reales. El resultado trae el tramo largo (hotel ↔ terminal) y
+   * el local (hotel ↔ hospital), que antes se descartaban.
+   */
+  async function elegirHotel(indice: number, hotel: CostosRutaHotel) {
+    const tramoHotel = tramos[indice];
+    if (!solicitud || !tramoHotel) return;
+    setHotelElegido((h) => ({ ...h, [indice]: claveHotel(hotel) }));
+    if (esCarro) return;
+
+    const posicion = posicionHotel(indice);
+    const request = posicion === 'antes'
+      ? construirRequestHotel(solicitud, tramoHotel, hotel)
+      : construirRequestHotelDespues(solicitud, tramoHotel, hotel);
+    if (!request) {
+      toast.error('No se pudo recalcular la ruta con el hotel elegido.');
+      return;
+    }
+    const sesion = sesionRef.current;
+    const seq = (hotelRutaSeqRef.current[indice] ?? 0) + 1;
+    hotelRutaSeqRef.current[indice] = seq;
+    setBuscandoRutaHotel(indice);
+    // Mientras llega la ruta nueva, no se muestra la cadena anterior con otro
+    // hotel: mejor el aviso de cálculo que un mapa que no corresponde.
+    setHotelRutas((r) => {
+      const copia = { ...r };
+      delete copia[indice];
+      return copia;
+    });
+    try {
+      const res = await costosRutaApi.calcular(request);
+      if (sesion !== sesionRef.current || hotelRutaSeqRef.current[indice] !== seq) return;
+      if (!res.data.success || !res.data.data) {
+        toast.error(res.data.message ?? 'No se pudo recalcular la ruta con el hotel.');
+        return;
+      }
+      const respuesta = res.data.data;
+      const persona = respuesta.resultados[0];
+      const opcionesLargas = persona?.tramos[posicion === 'antes' ? 0 : 1]?.opciones ?? [];
+      // Se conserva el modo/linea que el viajero ya había elegido en el tramo
+      // directo; si no existe, se toma la primera oferta viable.
+      const anterior = resultados[indice]?.resultados[0]?.tramos
+        .flatMap((t) => t.opciones)
+        .find((oferta) => oferta.id === seleccion[indice]);
+      const larga = (anterior
+        ? opcionesLargas.find((oferta) => oferta.modo === anterior.modo && oferta.linea === anterior.linea)
+        : null)
+        ?? opcionesLargas.find((oferta) => oferta.aTiempo && !oferta.noTomable)
+        ?? opcionesLargas[0]
+        ?? null;
+      const local = ofertaLocalHotel(respuesta, posicion, null);
+      setHotelRutas((r) => ({
+        ...r,
+        [indice]: {
+          posicion,
+          respuesta,
+          seleccionLarga: larga?.id ?? null,
+          seleccionLocal: local?.id ?? null,
+        },
+      }));
+      setSeleccion((s) => ({ ...s, [indice]: larga?.id ?? '' }));
+      setSeleccionLocal((l) => ({ ...l, [indice]: local?.id ?? '' }));
+      if (!larga) {
+        toast.warning('El hotel quedó elegido, pero el motor no devolvió transporte para la ruta.');
+      }
+      if (!local) {
+        toast.warning('El hotel quedó elegido, pero el motor no devolvió un taxi local; revisa el traslado.');
+      }
+    } catch (falla: unknown) {
+      if (sesion !== sesionRef.current || hotelRutaSeqRef.current[indice] !== seq) return;
+      toast.error(toApiError(falla).message || 'No se pudo recalcular la ruta con el hotel.');
+    } finally {
+      if (sesion === sesionRef.current && hotelRutaSeqRef.current[indice] === seq) {
+        setBuscandoRutaHotel((actual) => (actual === indice ? null : actual));
+      }
+    }
+  }
+
+  useEffect(() => {
+    if (!open || !solicitud || !tramo || !resultadoActual) return;
+    if (!usarHotelDelPaso || hotelDelPaso || buscando !== null) return;
+    if (hotelesBuscadosRef.current.has(paso)) return;
+    hotelesBuscadosRef.current.add(paso);
+    void buscarHotel(paso);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, solicitud, tramo, paso, resultadoActual, usarHotelDelPaso, hotelDelPaso, buscando]);
+
+  // Hotel activo por defecto: en cuanto llega el catálogo se elige el primer
+  // hotel real con coordenadas (el orden ya deja la referencia al final), para
+  // que la solicitud no salga con hospedaje activo pero sin costo.
+  useEffect(() => {
+    if (!open || esCarro || !usarHotelDelPaso || hotelElegidoDelPaso) return;
+    if (!hotelDelPaso || buscando !== null || buscandoRutaHotel !== null) return;
+    const primero = hotelesDelPaso.find((hotel) => hotelTieneCoordenadas(hotel)) ?? hotelesDelPaso[0];
+    if (primero) void elegirHotel(paso, primero);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, esCarro, usarHotelDelPaso, hotelElegidoDelPaso, hotelDelPaso, hotelesDelPaso, buscando, buscandoRutaHotel, paso]);
+
   async function enviar() {
     if (!solicitud || !resultadoActual) return;
+    if (!esCarro) {
+      for (let indice = 0; indice < tramos.length; indice += 1) {
+        if (usarHotel[indice] !== true) continue;
+        if (!hotelElegido[indice]) {
+          toast.error('Elige un hotel para el tramo que tiene hospedaje activo.');
+          return;
+        }
+        const hotelesDisponibles = hotelResultados[indice]?.resultados[0]?.hotelesPropuestos ?? [];
+        if (!hotelesDisponibles.some((hotel) => claveHotel(hotel) === hotelElegido[indice])) {
+          toast.error('El hotel elegido ya no está disponible; vuelve a elegirlo.');
+          return;
+        }
+        if (!hotelRutas[indice]) {
+          toast.error('Termina de calcular la ruta con el hotel elegido.');
+          return;
+        }
+        if (!seleccion[indice]) {
+          toast.error('Elige el transporte del tramo con hotel.');
+          return;
+        }
+        const rutaHotel = hotelRutas[indice];
+        const tramoLargo = rutaHotel.respuesta.resultados[0]?.tramos[
+          rutaHotel.posicion === 'antes' ? 0 : 1
+        ];
+        const larga = tramoLargo?.opciones.find((oferta) => oferta.id === seleccion[indice]) ?? null;
+        if (!larga) {
+          toast.error('La oferta elegida del tramo con hotel ya no está disponible; elige otra.');
+          return;
+        }
+        if (larga.modo === 'bus' || larga.modo === 'avion') {
+          const local = ofertaLocalHotel(
+            rutaHotel.respuesta,
+            rutaHotel.posicion,
+            seleccionLocal[indice] ?? rutaHotel.seleccionLocal,
+          );
+          if (!local) {
+            toast.error('El motor no devolvió taxi local para el hotel; cambia de hotel o desactiva el hospedaje.');
+            return;
+          }
+        }
+      }
+    }
+
     const modoCalculo = esCarro ? 'propio' : 'solicitado';
     const opciones = construirOpcionesPropuesta(
       tramos,
@@ -485,11 +963,15 @@ export function CalculosViajeModal({
       hotelResultados,
       usarHotel,
       hotelElegido,
+      hotelRutas,
+      seleccionLocal,
     );
+    const calculoBase = construirCalculo(tramos, resultados, modoCalculo, seleccion);
     // Una sola versión coherente: el cálculo usa las mismas selecciones que
-    // las opciones y el resumen, y conserva costo/enlace en la ruta.
+    // las opciones y el resumen, y conserva costo/enlace en la ruta. En carro
+    // se conserva el cálculo anterior; la cadena con hotel es para bus/avión.
     const calculo: CalculoViaje = {
-      ...construirCalculo(tramos, resultados, modoCalculo, seleccion),
+      ...(esCarro ? calculoBase : aplicarHotelesAlCalculo(calculoBase, hotelRutas, seleccion, seleccionLocal)),
       ruta: {
         puntos: cadenaResumen.puntos.map((p) => ({
           lat: p.lat,
@@ -595,19 +1077,19 @@ export function CalculosViajeModal({
             </h3>
 
             <div className="space-y-2 text-sm">
-              {tramo.desde.explicita && fechaSalida ? (
+              {(tramo.desde.explicita || hotelRutaDelPaso) && fechaSalidaMostrar ? (
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-muted-foreground">
                     {paso === 0 ? 'Salida del origen' : `Salida de ${tramo.desde.nombre}`}
                   </span>
                   <Badge variant="outline" className="gap-1 font-normal">
                     <CalendarDays className="h-3 w-3" aria-hidden />
-                    {fechaSalida}
+                    {fechaSalidaMostrar}
                   </Badge>
-                  {horaSalidaAmPm ? (
+                  {horaSalidaMostrar ? (
                     <Badge variant="secondary" className="gap-1 font-normal">
                       <Clock className="h-3 w-3" aria-hidden />
-                      {horaSalidaAmPm}
+                      {horaSalidaMostrar}
                     </Badge>
                   ) : null}
                 </div>
@@ -616,16 +1098,16 @@ export function CalculosViajeModal({
                 <span className="text-muted-foreground">
                   {tramo.esRegreso ? 'Regreso estimado' : `Llegada a ${tramo.hasta.nombre}`}
                 </span>
-                {fechaLlegada ? (
+                {fechaLlegadaMostrar ? (
                   <Badge variant="outline" className="gap-1 font-normal">
                     <CalendarDays className="h-3 w-3" aria-hidden />
-                    {fechaLlegada}
+                    {fechaLlegadaMostrar}
                   </Badge>
                 ) : null}
-                {horaLlegadaAmPm ? (
+                {horaLlegadaMostrar ? (
                   <Badge variant="secondary" className="gap-1 font-normal">
                     <Clock className="h-3 w-3" aria-hidden />
-                    {horaLlegadaAmPm}
+                    {horaLlegadaMostrar}
                   </Badge>
                 ) : null}
               </div>
@@ -760,6 +1242,79 @@ export function CalculosViajeModal({
                       ) : null}
                     </div>
                   </div>
+                ) : buscandoRutaHotel === paso && usarHotelDelPaso ? (
+                  <div role="status" aria-live="polite" className="rounded-md border bg-muted/20 p-3 text-xs">
+                    <p className="font-medium">Ajustando la ruta con el hotel elegido…</p>
+                    <p className="text-muted-foreground">
+                      Se recalculan el tramo largo y el taxi local con las coordenadas del hotel.
+                    </p>
+                  </div>
+                ) : hotelRutaDelPaso && tramoLargoHotel ? (
+                  <>
+                    {tramoLargoHotel.opciones.length > 0 ? (
+                      <TablaOpciones
+                        titulo={`Opciones ${tramoLargoHotel.from} → ${tramoLargoHotel.to}`}
+                        ofertas={tramoLargoHotel.opciones.slice(0, 8)}
+                        opcionElegidaId={seleccion[paso] ?? null}
+                        onElegir={(oferta) => setSeleccion((s) => ({ ...s, [paso]: oferta.id }))}
+                      />
+                    ) : <p className="text-sm text-muted-foreground">Sin opciones para la ruta con hotel.</p>}
+
+                    {(() => {
+                      const esTransporte = ofertaLargaActual?.modo === 'bus' || ofertaLargaActual?.modo === 'avion';
+                      if (!esTransporte) {
+                        return (
+                          <p className="text-xs text-muted-foreground">
+                            El auto o la renta cubren el traslado local; no se agrega un taxi.
+                          </p>
+                        );
+                      }
+                      const taxis = tramoLocalHotel.opciones.filter(
+                        (oferta) => oferta.modo === 'uber' || oferta.modo === 'taxi',
+                      );
+                      const localElegido = ofertaLocalActual;
+                      return (
+                        <div className="space-y-2 rounded-md border bg-muted/20 p-2 text-xs">
+                          <p className="font-medium">
+                            Traslado local {posicionNoche === 'antes' ? `hotel ↔ ${tramo.hasta.nombre}` : `${tramo.desde.nombre} ↔ hotel`}
+                          </p>
+                          <p className="text-muted-foreground">
+                            El diagrama pide taxi. Se usa el más barato por defecto; puedes cambiarlo.
+                          </p>
+                          {taxis.length > 0 ? (
+                            <div className="flex flex-wrap items-center gap-2">
+                              <select
+                                className="h-8 rounded-md border bg-background px-2 text-xs"
+                                aria-label="Taxi local del hotel"
+                                value={seleccionLocal[paso] ?? hotelRutaDelPaso.seleccionLocal ?? ''}
+                                onChange={(e) => setSeleccionLocal((s) => ({ ...s, [paso]: e.target.value }))}
+                              >
+                                {taxis.map((oferta) => (
+                                  <option key={oferta.id} value={oferta.id}>
+                                    {oferta.linea} · {mxn(oferta.costoGrupo)} · {oferta.duracion}
+                                  </option>
+                                ))}
+                              </select>
+                              {localElegido ? (
+                                <span className="text-muted-foreground">
+                                  {localElegido.precioTxt} · {localElegido.duracion}
+                                </span>
+                              ) : null}
+                            </div>
+                          ) : (
+                            <p className="text-amber-700">
+                              El motor no devolvió una opción de taxi/Uber para el traslado local.
+                            </p>
+                          )}
+                          {localElegido && !localElegido.aTiempo ? (
+                            <p className="text-amber-700">
+                              El taxi local no alcanza la hora del hospital; revisa el hotel o el horario.
+                            </p>
+                          ) : null}
+                        </div>
+                      );
+                    })()}
+                  </>
                 ) : (
                   persona.tramos.map((subtramo, i) => (
                     <div key={`${subtramo.from}-${subtramo.to}-${i}`} className="space-y-1">
@@ -776,10 +1331,10 @@ export function CalculosViajeModal({
                   ))
                 )}
 
-                {!esCarro && propuesta && propuesta.incumplimientos.length > 0 ? (
+                {!esCarro && propuestaActiva && propuestaActiva.incumplimientos.length > 0 ? (
                   <div className="rounded-md bg-muted/30 p-2 text-xs">
                     <ul className="list-disc pl-4 text-amber-700">
-                      {propuesta.incumplimientos.map((item) => <li key={item}>{item}</li>)}
+                      {propuestaActiva.incumplimientos.map((item) => <li key={item}>{item}</li>)}
                     </ul>
                   </div>
                 ) : null}
@@ -790,7 +1345,7 @@ export function CalculosViajeModal({
                   </div>
                 ) : null}
 
-                {sugerirHotel ? (
+                {mostrarHotel ? (
                   <div className="space-y-2 rounded-md border border-amber-300 bg-amber-50 p-2">
                     <label className="flex items-center gap-2 text-sm text-amber-900">
                       <input
@@ -799,12 +1354,43 @@ export function CalculosViajeModal({
                         onChange={(e) => {
                           const marcado = e.target.checked;
                           setUsarHotel((u) => ({ ...u, [paso]: marcado }));
-                          if (marcado && !hotelDelPaso) void buscarHotel(paso);
+                          if (!marcado) {
+                            hotelRutaSeqRef.current[paso] = (hotelRutaSeqRef.current[paso] ?? 0) + 1;
+                            setBuscandoRutaHotel((actual) => (actual === paso ? null : actual));
+                            setHotelElegido((h) => {
+                              const copia = { ...h };
+                              delete copia[paso];
+                              return copia;
+                            });
+                            setHotelRutas((r) => {
+                              const copia = { ...r };
+                              delete copia[paso];
+                              return copia;
+                            });
+                            setSeleccionLocal((l) => {
+                              const copia = { ...l };
+                              delete copia[paso];
+                              return copia;
+                            });
+                            setSeleccion((s) => {
+                              const copia = { ...s };
+                              delete copia[paso];
+                              return copia;
+                            });
+                          } else if (!hotelDelPaso) {
+                            void buscarHotel(paso);
+                          }
                         }}
                       />
-                      {tramo.esRegreso
-                        ? `Dormir cerca de ${tramo.desde.nombre} y regresar al día siguiente`
-                        : `Dormir cerca de ${tramo.hasta.nombre} y continuar al día siguiente`}
+                      {esCarro
+                        ? tramo.esRegreso
+                          ? `Dormir cerca de ${tramo.desde.nombre} y regresar al día siguiente`
+                          : `Dormir cerca de ${tramo.hasta.nombre} y continuar al día siguiente`
+                        : posicionNoche === 'antes'
+                          ? `Noche antes: dormir cerca de ${tramo.hasta.nombre} y llegar al día siguiente`
+                          : tramo.esRegreso
+                            ? `Noche después: dormir cerca de ${tramo.desde.nombre} y regresar al día siguiente`
+                            : `Noche después: dormir cerca de ${tramo.desde.nombre} y continuar a ${tramo.hasta.nombre} al día siguiente`}
                     </label>
                     {usarHotelDelPaso ? (
                       buscando === -1 ? (
@@ -818,8 +1404,7 @@ export function CalculosViajeModal({
                             <p className="text-sm font-medium">Buscando hoteles…</p>
                             <Progress value={progreso} className="h-1.5" />
                             <p className="text-xs text-muted-foreground">
-                              Buscando hospedaje cerca de{' '}
-                              {tramo.esRegreso ? tramo.desde.nombre : tramo.hasta.nombre}.
+                              Buscando hospedaje cerca de {buscarCercaDe}.
                             </p>
                           </div>
                         </div>
@@ -832,17 +1417,25 @@ export function CalculosViajeModal({
                                 name={`hotel-${paso}`}
                                 className="mt-0.5"
                                 checked={hotelElegidoDelPaso === claveHotel(hotel)}
-                                onChange={() => setHotelElegido((h) => ({ ...h, [paso]: claveHotel(hotel) }))}
+                                onChange={() => { void elegirHotel(paso, hotel); }}
                               />
                               <span className="flex-1">
                                 <span className="font-medium">{hotel.nombre ?? hotel.lugar}</span>
                                 <span className="text-muted-foreground"> · {hotel.ciudad} · {fechaCorta(hotel.checkIn) ?? hotel.checkIn} a {fechaCorta(hotel.checkOut) ?? hotel.checkOut} · {hotel.noches} noche(s)</span>
                                 <span className="block text-muted-foreground">
-                                  {hotel.distanciaKm !== undefined
-                                    ? hotel.distanciaKm > 0
-                                      ? `${hotel.distanciaKm.toFixed(1)} km del punto · `
-                                      : 'En el punto · '
-                                    : ''}
+                                  {!hotelTieneCoordenadas(hotel)
+                                    ? 'Referencia de precio sin ubicación exacta · '
+                                    : hotel.distanciaKm !== undefined
+                                      ? hotel.distanciaKm > 0
+                                        ? `${hotel.distanciaKm.toFixed(1)} km de ${buscarCercaDe} · `
+                                        : `En ${buscarCercaDe} · `
+                                      : ''}
+                                  {(() => {
+                                    const distanciaTerminal = distanciaHotelTerminal(hotel);
+                                    return distanciaTerminal !== null && terminalHotel
+                                      ? `${distanciaTerminal.toFixed(1)} km de ${terminalHotel.nombre} · `
+                                      : '';
+                                  })()}
                                   {hotel.precioNoche
                                     ? `${mxn(hotel.precioNoche)}/noche (${hotel.tipoPrecio === 'referencia_tabulador' ? 'referencia tabulador' : 'cotizado'}) · total ${mxn(hotel.precioTotal ?? hotel.precioNoche * hotel.noches)}`
                                     : hotel.motivo}
@@ -873,9 +1466,24 @@ export function CalculosViajeModal({
                               </span>
                             </label>
                           ))}
-                          {hotelDelPaso.propuestas[0] ? (
-                            <p className="text-xs text-muted-foreground">
-                              Ruta con hotel: {fechaHoraAmPm(hotelDelPaso.propuestas[0].salidaOrigen)} → {fechaHoraAmPm(hotelDelPaso.propuestas[0].llegadaFinal)}.
+                          {(() => {
+                            const esTransporte = ofertaLargaActual?.modo === 'bus' || ofertaLargaActual?.modo === 'avion';
+                            if (!esTransporte) return null;
+                            const inicioRuta = posicionNoche === 'antes'
+                              ? ofertaLargaActual?.salidaTxt
+                              : ofertaLocalActual?.salidaTxt;
+                            const finRuta = posicionNoche === 'antes'
+                              ? ofertaLocalActual?.llegadaTxt
+                              : ofertaLargaActual?.llegadaTxt;
+                            return inicioRuta && finRuta ? (
+                              <p className="text-xs text-muted-foreground">
+                                Ruta con hotel: {fechaHoraAmPm(inicioRuta)} → {fechaHoraAmPm(finRuta)}.
+                              </p>
+                            ) : null;
+                          })()}
+                          {buscandoRutaHotel === paso ? (
+                            <p role="status" className="text-xs text-muted-foreground">
+                              Calculando la ruta con el hotel elegido…
                             </p>
                           ) : null}
                         </div>
@@ -889,19 +1497,28 @@ export function CalculosViajeModal({
         ) : null}
 
         <DialogFooter className="gap-2">
-          <Button type="button" variant="outline" onClick={() => { void buscarTramo(paso); }} disabled={buscando !== null}>
+          <Button type="button" variant="outline" onClick={() => { void buscarTramo(paso); }} disabled={buscando !== null || buscandoRutaHotel !== null}>
             <Search className="h-4 w-4" aria-hidden />
             {errores[paso] ? 'Reintentar' : resultadoActual ? 'Volver a buscar' : 'Buscar opciones'}
           </Button>
-          <Button type="button" variant="outline" onClick={() => setPaso((p) => Math.max(0, p - 1))} disabled={paso === 0}>
+          <Button type="button" variant="outline" onClick={() => setPaso((p) => Math.max(0, p - 1))} disabled={paso === 0 || buscandoRutaHotel !== null}>
             <ChevronLeft className="h-4 w-4" aria-hidden /> Atrás
           </Button>
           {esUltimo ? (
-            <Button type="button" className="gap-1.5" disabled={!resultadoActual || enviando} onClick={() => setResumenAbierto(true)}>
+            <Button
+              type="button"
+              className="gap-1.5"
+              disabled={!resultadoActual || enviando || buscandoRutaHotel !== null || (usarHotelDelPaso && !esCarro && !hotelRutaDelPaso)}
+              onClick={() => setResumenAbierto(true)}
+            >
               Terminar
             </Button>
           ) : (
-            <Button type="button" disabled={!resultadoActual} onClick={() => setPaso((p) => Math.min(tramos.length - 1, p + 1))}>
+            <Button
+              type="button"
+              disabled={!resultadoActual || buscandoRutaHotel !== null || (usarHotelDelPaso && !esCarro && !hotelRutaDelPaso)}
+              onClick={() => setPaso((p) => Math.min(tramos.length - 1, p + 1))}
+            >
               Siguiente <ChevronRight className="h-4 w-4" aria-hidden />
             </Button>
           )}

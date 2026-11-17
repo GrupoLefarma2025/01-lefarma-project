@@ -2403,6 +2403,19 @@ public static class CalculoCostosRuta
             ? new CostosRutaTerminal { Nombre = t.Nombre, Latitud = t.Lat, Longitud = t.Lon }
             : null;
 
+    /// <summary>
+    /// Terminal del proveedor solo si trae coordenadas utilizables. Algunos
+    /// proveedores mandan el nombre de la terminal con lat/lon en 0; en ese
+    /// caso el costo debe caer a la terminal del catálogo, no al centro de la
+    /// ciudad (que daría un taxi de $0 falso).
+    /// </summary>
+    private static CostosRutaTerminal? TerminalConCoords(CostosRutaTerminal? terminal)
+    {
+        if (terminal is null) return null;
+        if (!double.IsFinite(terminal.Latitud) || !double.IsFinite(terminal.Longitud)) return null;
+        return terminal.Latitud != 0 || terminal.Longitud != 0 ? terminal : null;
+    }
+
     private static CostosRutaTerminal? TerminalDeAeropuerto(AeropuertosCatalogo.Aeropuerto? aeropuerto)
         => aeropuerto is null
             ? null
@@ -2450,8 +2463,16 @@ public static class CalculoCostosRuta
 
     private static double MillaExtra(LugarNorm a, LugarNorm b, OpCalc? opcion = null)
     {
-        return TaxiPuntoTerminal(a, opcion?.TerminalOrigenDato)
-            + TaxiPuntoTerminal(b, opcion?.TerminalDestinoDato);
+        // Si el proveedor no informó la terminal (o la mandó sin coordenadas),
+        // se usa la del catálogo (central de autobuses o aeropuerto) antes de
+        // caer al centro de la ciudad. Así la propuesta y el CostoTaxi de la
+        // oferta coinciden, incluso con terminales de proveedor incompletas.
+        var terminalOrigen = TerminalConCoords(opcion?.TerminalOrigenDato)
+            ?? (opcion is not null ? TerminalDto(TerminalDe(opcion.Modo, a)) : null);
+        var terminalDestino = TerminalConCoords(opcion?.TerminalDestinoDato)
+            ?? (opcion is not null ? TerminalDto(TerminalDe(opcion.Modo, b)) : null);
+        return TaxiPuntoTerminal(a, terminalOrigen)
+            + TaxiPuntoTerminal(b, terminalDestino);
     }
 
     /// <summary>
@@ -2593,23 +2614,38 @@ public static class CalculoCostosRuta
         // renta y taxi urbano no pagan traslado a terminal.
         var usaTerminal = o.Modo is "bus" or "avion";
         // Un traslado solo se estima cuando SABEMOS dónde está la terminal: la
-        // que informa el proveedor o la del catálogo sembrado. El respaldo
-        // "por confirmar" usa las coordenadas del propio punto y daría 0 min
-        // falsos, así que ahí se declara desconocido (null), nunca 0.
-        var conoceTerminalOrigen = o.TerminalOrigenDato is not null || terminalOrigen is not null;
-        var conoceTerminalDestino = o.TerminalDestinoDato is not null || terminalDestino is not null;
-        var terminalTaxiOrigen = o.TerminalOrigenDato is { } datoOrigen
-            ? (datoOrigen.Nombre, datoOrigen.Latitud, datoOrigen.Longitud)
-            : terminalOrigen;
-        var terminalTaxiDestino = o.TerminalDestinoDato is { } datoDestino
-            ? (datoDestino.Nombre, datoDestino.Latitud, datoDestino.Longitud)
-            : terminalDestino;
+        // que informa el proveedor con coordenadas o la del catálogo sembrado.
+        // Si el proveedor manda la terminal con lat/lon en 0, se usa la del
+        // catálogo; el respaldo "por confirmar" no inventa un taxi de $0.
+        var terminalCostoOrigen = TerminalConCoords(o.TerminalOrigenDato) ?? TerminalDto(terminalOrigen);
+        var terminalCostoDestino = TerminalConCoords(o.TerminalDestinoDato) ?? TerminalDto(terminalDestino);
+        var conoceTerminalOrigen = terminalCostoOrigen is not null;
+        var conoceTerminalDestino = terminalCostoDestino is not null;
+        (string Nombre, double Lat, double Lon)? terminalTaxiOrigen = terminalCostoOrigen is { } tOrigen
+            ? (tOrigen.Nombre, tOrigen.Latitud, tOrigen.Longitud)
+            : null;
+        (string Nombre, double Lat, double Lon)? terminalTaxiDestino = terminalCostoDestino is { } tDestino
+            ? (tDestino.Nombre, tDestino.Latitud, tDestino.Longitud)
+            : null;
         int? minutosTaxiOrigen = usaTerminal && conoceTerminalOrigen
             ? MinutosTaxiPuntoTerminal(lugarOrigen, terminalTaxiOrigen)
             : null;
         int? minutosTaxiDestino = usaTerminal && conoceTerminalDestino
             ? MinutosTaxiPuntoTerminal(lugarDestino, terminalTaxiDestino)
             : null;
+        // Mismo cálculo que usa la propuesta (MillaExtra): las dos puntas del
+        // taxi punto↔terminal.
+        var costoTaxiOrigen = usaTerminal && lugarOrigen is not null
+            ? TaxiPuntoTerminal(lugarOrigen, terminalCostoOrigen)
+            : 0;
+        var costoTaxiDestino = usaTerminal && lugarDestino is not null
+            ? TaxiPuntoTerminal(lugarDestino, terminalCostoDestino)
+            : 0;
+        var costoTotalTaxi = Math.Round(costoTaxiOrigen + costoTaxiDestino, 2);
+        // Se redondea una mitad y la otra se deriva del total: las dos filas
+        // que persiste el frontend suman exactamente el taxi de la oferta.
+        var costoTaxiOrigenRedondeado = Math.Round(costoTaxiOrigen, 2);
+        var costoTaxiDestinoRedondeado = Math.Round(costoTotalTaxi - costoTaxiOrigenRedondeado, 2);
         return new CostosRutaOferta
         {
             // ixOferta es la posición del modo dentro del tramo: modo solo no
@@ -2640,6 +2676,9 @@ public static class CalculoCostosRuta
                 : (o.PorPersona ? $"${o.Lo:F0}–${o.Hi:F0} MXN /persona" : $"${o.Lo:F0}–${o.Hi:F0} MXN total"),
             PorPersona = o.PorPersona, PrecioDesde = Math.Round(o.Lo, 2), PrecioHasta = Math.Round(o.Hi, 2),
             CostoGrupo = Math.Round(o.CostoGrupo, 2), CostoPorPersona = Math.Round(mid, 2),
+            CostoTaxi = costoTotalTaxi,
+            CostoTaxiOrigen = costoTaxiOrigenRedondeado,
+            CostoTaxiDestino = costoTaxiDestinoRedondeado,
             ATiempo = !o.Late && !o.SaleAntes, LlegaTarde = o.Late, MinutosTarde = o.LateMin, NoTomable = o.SaleAntes,
             Badge = o.Badge, Nota = o.Nota, Fuente = o.Fuente, Estimado = o.Estimado,
             TipoPrecio = o.Modo is "bus" or "avion" && !o.Estimado ? "cotizado" : "estimado",
