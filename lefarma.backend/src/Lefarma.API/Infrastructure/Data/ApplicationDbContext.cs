@@ -171,6 +171,7 @@ public class ApplicationDbContext : DbContext
 
         // DbSets - Archivos
         public DbSet<Archivo> Archivos { get; set; }
+        public DbSet<ArchivoEliminado> ArchivosEliminados { get; set; }
 
         // DbSets - Comprobantes
         public DbSet<Comprobante> Comprobantes { get; set; }

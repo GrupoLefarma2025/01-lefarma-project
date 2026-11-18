@@ -9,5 +9,8 @@ public record ArchivoListItemResponse(
     DateTime FechaCreacion,
     int? UsuarioId,
     string? UsuarioSubioNombre,
-    bool Activo
+    bool Activo,
+    DateTime? FechaEliminacion = null,
+    string? UsuarioEliminoNombre = null,
+    string? MotivoBaja = null
 );

@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using ErrorOr;
 using Lefarma.API.Domain.Entities.Archivos;
 using Lefarma.API.Domain.Interfaces;
@@ -13,6 +14,9 @@ using Microsoft.Extensions.Options;
 namespace Lefarma.API.Features.Archivos.Services;
 public class ArchivoService : IArchivoService
 {
+    private const string MotivoEliminacion = "Eliminacion";
+    private const string MotivoReemplazo = "Reemplazo";
+
     private readonly IArchivoRepository _repository;
     private readonly ArchivosSettings _settings;
     private readonly AsokamDbContext _asokamDb;
@@ -74,7 +78,7 @@ public class ArchivoService : IArchivoService
             EntidadTipo = request.EntidadTipo,
             EntidadId = request.EntidadId,
             Carpeta = request.Carpeta,
-            NombreOriginal = fileName,
+            NombreOriginal = nombreOriginal,
             NombreFisico = nombreFisico,
             Extension = extension,
             TipoMime = contentType,
@@ -106,21 +110,11 @@ public class ArchivoService : IArchivoService
         if (archivoAnterior == null)
             return CommonErrors.NotFound("Archivo");
 
-        // Inactivar archivo anterior
-        archivoAnterior.Activo = false;
-        archivoAnterior.NombreFisico = $"{Path.GetFileNameWithoutExtension(archivoAnterior.NombreFisico)}_inactivo{archivoAnterior.Extension}";
+        // Inactivar el archivo anterior y conservarlo en la carpeta privada de históricos.
+        // La entidad está en seguimiento, así que el repositorio persiste FechaEdicion en el mismo guardado.
         archivoAnterior.FechaEdicion = DateTime.UtcNow;
-        await _repository.UpdateAsync(archivoAnterior, cancellationToken);
-
-        // Renombrar archivo físico anterior
-        var rutaAnterior = Path.Combine(_settings.BasePath, archivoAnterior.Carpeta, archivoAnterior.NombreFisico);
-        var rutaAnteriorOriginal = Path.Combine(_settings.BasePath, archivoAnterior.Carpeta, 
-            $"{Path.GetFileNameWithoutExtension(archivoAnterior.NombreFisico).Replace("_inactivo", "")}{archivoAnterior.Extension}");
-        
-        if (File.Exists(rutaAnteriorOriginal))
-        {
-            File.Move(rutaAnteriorOriginal, rutaAnterior, true);
-        }
+        var eliminacion = MoverAHistorico(archivoAnterior, MotivoReemplazo, usuarioId);
+        await _repository.DeleteAsync(archivoAnterior.Id, eliminacion, cancellationToken);
 
         // Subir nuevo archivo
         var nuevoRequest = new SubirArchivoRequest
@@ -155,10 +149,21 @@ public class ArchivoService : IArchivoService
 
         var archivosList = archivos.ToList();
 
-        // Batch-fetch user names
+        // Bitácora de los inactivos (el historial muestra quién y cuándo los eliminó).
+        var idsInactivos = archivosList.Where(a => !a.Activo).Select(a => a.Id).ToList();
+        var eliminaciones = idsInactivos.Count > 0
+            ? (await _repository.GetEliminacionesAsync(idsInactivos, cancellationToken))
+                .GroupBy(e => e.IdArchivo)
+                .ToDictionary(g => g.Key, g => g.First())
+            : new Dictionary<int, ArchivoEliminado>();
+
+        // Batch-fetch user names (subida y eliminación)
         var userIds = archivosList
             .Where(a => a.UsuarioId.HasValue)
             .Select(a => a.UsuarioId!.Value)
+            .Concat(eliminaciones.Values
+                .Where(e => e.IdUsuarioElimina.HasValue)
+                .Select(e => e.IdUsuarioElimina!.Value))
             .Distinct()
             .ToList();
         var usuarios = userIds.Count > 0
@@ -169,10 +174,16 @@ public class ArchivoService : IArchivoService
 
         return archivosList.Select(a =>
         {
-            string? nombre = null;
+            string? nombreSubio = null;
             if (a.UsuarioId.HasValue)
-                usuarios.TryGetValue(a.UsuarioId.Value, out nombre);
-            return MapToListItemResponse(a, nombre);
+                usuarios.TryGetValue(a.UsuarioId.Value, out nombreSubio);
+
+            eliminaciones.TryGetValue(a.Id, out var eliminacion);
+            string? nombreElimino = null;
+            if (eliminacion?.IdUsuarioElimina is int idElimino)
+                usuarios.TryGetValue(idElimino, out nombreElimino);
+
+            return MapToListItemResponse(a, nombreSubio, eliminacion, nombreElimino);
         }).ToList();
     }
 
@@ -184,7 +195,7 @@ public class ArchivoService : IArchivoService
         if (archivo == null)
             return CommonErrors.NotFound("Archivo");
 
-        var ruta = Path.Combine(_settings.BasePath, archivo.Carpeta, archivo.NombreFisico);
+        var ruta = await ResolverRutaAsync(archivo, cancellationToken);
         if (!File.Exists(ruta))
             return CommonErrors.NotFound("Archivo");
 
@@ -200,7 +211,7 @@ public class ArchivoService : IArchivoService
         if (archivo == null)
             return CommonErrors.NotFound("Archivo");
 
-        var rutaOriginal = Path.Combine(_settings.BasePath, archivo.Carpeta, archivo.NombreFisico);
+        var rutaOriginal = await ResolverRutaAsync(archivo, cancellationToken);
         if (!File.Exists(rutaOriginal))
             return CommonErrors.NotFound("Archivo");
 
@@ -234,19 +245,14 @@ public class ArchivoService : IArchivoService
             usuarioId,
             DateTime.Now);
 
-        // Renombrar archivo físico
-        var rutaActual = Path.Combine(_settings.BasePath, archivo.Carpeta, archivo.NombreFisico);
-        var nuevoNombre = $"{Path.GetFileNameWithoutExtension(archivo.NombreFisico)}_inactivo{archivo.Extension}";
-        var rutaNueva = Path.Combine(_settings.BasePath, archivo.Carpeta, nuevoNombre);
+        // Conservar el binario en la carpeta privada y registrar la bitácora.
+        var eliminacion = MoverAHistorico(archivo, MotivoEliminacion, usuarioId);
 
-        if (File.Exists(rutaActual))
-        {
-            File.Move(rutaActual, rutaNueva, true);
-        }
+        await _repository.DeleteAsync(id, eliminacion, cancellationToken);
 
-        await _repository.DeleteAsync(id, cancellationToken);
-
-        _logger.LogInformation("Archivo eliminado (soft delete): {Id} por usuario {UsuarioId}", id, usuarioId);
+        _logger.LogInformation(
+            "Archivo eliminado (soft delete): {Id} por usuario {UsuarioId}; histórico: {Ruta}",
+            id, usuarioId, eliminacion.RutaHistorica ?? "sin binario");
 
         // Aviso por correo fuera del request: no debe retrasar ni tumbar el borrado.
         ArchivoEliminacionDispatch.Enviar(_scopeFactory, evento);
@@ -258,6 +264,93 @@ public class ArchivoService : IArchivoService
         string entidadTipo, int entidadId, string carpeta,
         bool soloActivos = true, CancellationToken ct = default)
         => await _repository.GetCountAsync(entidadTipo, entidadId, carpeta, soloActivos, ct);
+
+    /// <summary>
+    /// Mueve el binario a la carpeta privada de históricos (fuera de wwwroot)
+    /// y arma el registro de bitácora. Si el archivo físico ya no existe,
+    /// deja el registro con hash y ruta nulos.
+    /// </summary>
+    private ArchivoEliminado MoverAHistorico(Archivo archivo, string motivo, int? usuarioId)
+    {
+        var fechaBaja = DateTime.UtcNow;
+        var rutaActual = Path.Combine(_settings.BasePath, archivo.Carpeta, archivo.NombreFisico);
+        string? rutaRelativa = null;
+        string? hash = null;
+
+        if (File.Exists(rutaActual))
+        {
+            hash = CalcularHashSha256(rutaActual);
+
+            var carpetaHistorica = Path.Combine("eliminados", fechaBaja.ToString("yyyy"), fechaBaja.ToString("MM"));
+            var carpetaDestino = Path.Combine(_settings.PrivatePath, carpetaHistorica);
+            Directory.CreateDirectory(carpetaDestino);
+
+            var nombreDestino = $"{archivo.Id}-{Guid.NewGuid():N}{archivo.Extension}";
+            File.Move(rutaActual, Path.Combine(carpetaDestino, nombreDestino));
+
+            rutaRelativa = $"{carpetaHistorica.Replace('\\', '/')}/{nombreDestino}";
+        }
+        else
+        {
+            _logger.LogWarning(
+                "El binario del archivo {Id} no existe en {Ruta}; se registra la baja sin histórico",
+                archivo.Id, rutaActual);
+        }
+
+        return new ArchivoEliminado
+        {
+            IdArchivo = archivo.Id,
+            EntidadTipo = archivo.EntidadTipo,
+            EntidadId = archivo.EntidadId,
+            Carpeta = archivo.Carpeta,
+            NombreOriginal = archivo.NombreOriginal,
+            NombreFisico = archivo.NombreFisico,
+            Extension = archivo.Extension,
+            TipoMime = archivo.TipoMime,
+            TamanoBytes = archivo.TamanoBytes,
+            Metadata = archivo.Metadata,
+            HashSha256 = hash,
+            RutaHistorica = rutaRelativa,
+            IdUsuarioSubio = archivo.UsuarioId,
+            FechaSubida = archivo.FechaCreacion,
+            IdUsuarioElimina = usuarioId,
+            FechaEliminacion = fechaBaja,
+            Motivo = motivo
+        };
+    }
+
+    private static string? CalcularHashSha256(string ruta)
+    {
+        try
+        {
+            using var stream = File.OpenRead(ruta);
+            return Convert.ToHexString(SHA256.HashData(stream));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Ruta física del binario: los archivos activos viven en BasePath; los
+    /// eliminados, en la carpeta privada que registra la bitácora. Los borrados
+    /// anteriores a la bitácora siguen resueltos por el nombre `_inactivo`.
+    /// </summary>
+    private async Task<string> ResolverRutaAsync(Archivo archivo, CancellationToken cancellationToken)
+    {
+        if (!archivo.Activo)
+        {
+            var eliminacion = await _repository.GetEliminacionAsync(archivo.Id, cancellationToken);
+            if (!string.IsNullOrWhiteSpace(eliminacion?.RutaHistorica))
+            {
+                var rutaHistorica = eliminacion.RutaHistorica.Replace('/', Path.DirectorySeparatorChar);
+                return Path.Combine(_settings.PrivatePath, rutaHistorica);
+            }
+        }
+
+        return Path.Combine(_settings.BasePath, archivo.Carpeta, archivo.NombreFisico);
+    }
 
     private static ArchivoResponse MapToResponse(Archivo archivo)
     {
@@ -279,7 +372,11 @@ public class ArchivoService : IArchivoService
         );
     }
 
-    private static ArchivoListItemResponse MapToListItemResponse(Archivo archivo, string? usuarioSubioNombre = null)
+    private static ArchivoListItemResponse MapToListItemResponse(
+        Archivo archivo,
+        string? usuarioSubioNombre = null,
+        ArchivoEliminado? eliminacion = null,
+        string? usuarioEliminoNombre = null)
     {
         return new ArchivoListItemResponse(
             archivo.Id,
@@ -291,7 +388,10 @@ public class ArchivoService : IArchivoService
             archivo.FechaCreacion,
             archivo.UsuarioId,
             usuarioSubioNombre,
-            archivo.Activo
+            archivo.Activo,
+            eliminacion?.FechaEliminacion,
+            usuarioEliminoNombre,
+            eliminacion?.Motivo
         );
     }
 }

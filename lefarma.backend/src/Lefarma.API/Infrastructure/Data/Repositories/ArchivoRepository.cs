@@ -59,15 +59,47 @@ public class ArchivoRepository : IArchivoRepository
         await _context.SaveChangesAsync(cancellationToken);
     }
 
-    public async Task DeleteAsync(int id, CancellationToken cancellationToken = default)
+    public async Task DeleteAsync(int id, ArchivoEliminado? eliminacion, CancellationToken cancellationToken = default)
     {
         var archivo = await GetByIdAsync(id, cancellationToken);
         if (archivo != null)
         {
             archivo.Activo = false;
             archivo.NombreFisico = $"{Path.GetFileNameWithoutExtension(archivo.NombreFisico)}_inactivo{archivo.Extension}";
-            await UpdateAsync(archivo, cancellationToken);
+
+            if (eliminacion != null)
+            {
+                eliminacion.IdArchivo = archivo.Id;
+                _context.ArchivosEliminados.Add(eliminacion);
+            }
+
+            // Un solo SaveChanges: la baja lógica y su bitácora quedan en la misma transacción.
+            await _context.SaveChangesAsync(cancellationToken);
         }
+    }
+
+    public async Task<IEnumerable<ArchivoEliminado>> GetEliminacionesAsync(
+        IEnumerable<int> idsArchivo, CancellationToken cancellationToken = default)
+    {
+        var ids = idsArchivo.Distinct().ToList();
+        if (ids.Count == 0)
+            return Array.Empty<ArchivoEliminado>();
+
+        return await _context.ArchivosEliminados
+            .AsNoTracking()
+            .Where(e => ids.Contains(e.IdArchivo))
+            .OrderByDescending(e => e.FechaEliminacion)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<ArchivoEliminado?> GetEliminacionAsync(
+        int idArchivo, CancellationToken cancellationToken = default)
+    {
+        return await _context.ArchivosEliminados
+            .AsNoTracking()
+            .Where(e => e.IdArchivo == idArchivo)
+            .OrderByDescending(e => e.FechaEliminacion)
+            .FirstOrDefaultAsync(cancellationToken);
     }
 
     public async Task<int> GetCountAsync(
