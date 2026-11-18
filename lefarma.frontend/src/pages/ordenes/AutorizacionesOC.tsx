@@ -400,6 +400,30 @@ const fmtFechaHora = (dateStr: string | null | undefined) => {
 };
 
 /**
+ * Las fechas de archivos las guarda el backend en UTC y el API las entrega sin
+ * sufijo de zona; si se interpretan tal cual como locales la hora sale corrida
+ * seis horas. Aquí se marcan como UTC antes de convertirlas a la hora local.
+ */
+const parseFechaArchivo = (dateStr: string) => {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return new Date(`${dateStr}T00:00:00`);
+  return new Date(/([zZ]|[+-]\d{2}:\d{2})$/.test(dateStr) ? dateStr : `${dateStr}Z`);
+};
+
+const fmtFechaHoraArchivo = (dateStr: string | null | undefined) => {
+  if (!dateStr) return '-';
+  const fecha = parseFechaArchivo(dateStr);
+  if (Number.isNaN(fecha.getTime())) return dateStr;
+  return fecha.toLocaleString('es-MX', {
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+  });
+};
+
+/**
  * Firma capturada en un evento de la bitácora. Se descarga como blob
  * autenticado y no se pinta si el evento no tiene firma (404).
  */
@@ -1180,14 +1204,16 @@ export default function AutorizacionesOC() {
     }
 };
 
-  const handleBorrarComprobanteGasto = async (comprobante: HistorialComprobante) => {
+  const handleBorrarComprobante = async (comprobante: HistorialComprobante) => {
     if (!selectedOrden || eliminandoComprobanteId !== null) return;
-    if (!window.confirm('¿Deseas eliminar este comprobante de gasto? Solo se revertirán sus asignaciones; los demás comprobantes se conservarán. Esta acción no se puede deshacer.')) return;
+    const categoria = historialCategoria;
+    const label = categoria === 'gasto' ? 'gasto' : 'pago';
+    if (!window.confirm(`¿Deseas eliminar este comprobante de ${label}? Solo se revertirán sus asignaciones; los demás comprobantes se conservarán. Esta acción no se puede deshacer.`)) return;
 
     setEliminandoComprobanteId(comprobante.idComprobante);
     try {
       await comprobanteService.eliminar(comprobante.idComprobante);
-      toast.success('Comprobante de gasto eliminado correctamente');
+      toast.success(`Comprobante de ${label} eliminado correctamente`);
 
       const quedanComprobantes = historialComprobantes.some(
         (c) => c.activo && c.idComprobante !== comprobante.idComprobante
@@ -1197,11 +1223,16 @@ export default function AutorizacionesOC() {
       ));
       setComprobantesWorkflow((prev) => {
         const next = { ...prev };
-        if (!quedanComprobantes) {
-          delete next.comprobante_gasto;
-        } else {
-          next.comprobante_gasto = (next.comprobante_gasto ?? [])
-            .filter((c) => c.idComprobante !== comprobante.idComprobante);
+        // Keys del modal de pago (pago/gasto) y del modal de firma (comprobante_pago/comprobante_gasto)
+        const claves = [categoria, `comprobante_${categoria}`];
+        for (const clave of claves) {
+          const lista = next[clave];
+          if (!lista?.length) continue;
+          if (!quedanComprobantes) {
+            delete next[clave];
+          } else {
+            next[clave] = lista.filter((c) => c.idComprobante !== comprobante.idComprobante);
+          }
         }
         return next;
       });
@@ -1209,7 +1240,7 @@ export default function AutorizacionesOC() {
       await fetchDetalle(selectedOrden.idOrden);
     } catch (error: unknown) {
       const err = toApiError(error);
-      toast.error(err.errors?.[0]?.description ?? err.message ?? 'Error al eliminar el comprobante de gasto');
+      toast.error(err.errors?.[0]?.description ?? err.message ?? `Error al eliminar el comprobante de ${label}`);
     } finally {
       setEliminandoComprobanteId(null);
     }
@@ -3304,7 +3335,7 @@ export default function AutorizacionesOC() {
                                             </span>
                                           )}
                                           <span className="text-[10px] text-muted-foreground/40">
-                                            {fmtFecha(archivo.fechaCreacion)}
+                                            {fmtFechaHoraArchivo(archivo.fechaCreacion)}
                                           </span>
                                         </div>
                                       </div>
@@ -3899,14 +3930,14 @@ export default function AutorizacionesOC() {
                         </div>
                       </div>
 
-                      {historialCategoria === 'gasto' && comp.activo && selectedOrden?.idEstado !== 10 && (
+                      {comp.activo && selectedOrden?.idEstado !== 10 && (
                         <div className="flex justify-end border-t px-3 py-2">
                           <Button
                             size="sm"
                             variant="ghost"
                             className="text-destructive hover:bg-destructive/10 hover:text-destructive"
                             disabled={eliminandoComprobanteId !== null}
-                            onClick={() => handleBorrarComprobanteGasto(comp)}
+                            onClick={() => handleBorrarComprobante(comp)}
                           >
                             {eliminandoComprobanteId === comp.idComprobante
                               ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -3976,8 +4007,10 @@ export default function AutorizacionesOC() {
                         <p className="truncate font-medium leading-tight" title={archivo.nombreOriginal}>
                           {archivo.nombreOriginal}
                         </p>
-                        <span className="shrink-0 rounded-full bg-red-100 px-1.5 py-0.5 text-[9px] font-semibold text-red-600 dark:bg-red-900/30 dark:text-red-400">
-                          Eliminado
+                        <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${archivo.motivoBaja === 'Reemplazo'
+                          ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+                          : 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400'}`}>
+                          {archivo.motivoBaja === 'Reemplazo' ? 'Reemplazado' : 'Eliminado'}
                         </span>
                       </div>
                       {meta.observaciones && (
@@ -3991,14 +4024,18 @@ export default function AutorizacionesOC() {
                             {tipoLabel}
                           </span>
                         )}
-                        {archivo.usuarioSubioNombre && (
-                          <span className="text-[10px] text-muted-foreground/60">
-                            {archivo.usuarioSubioNombre}
+                        {archivo.fechaEliminacion ? (
+                          <span className="text-[10px] font-medium text-red-700 dark:text-red-400">
+                            {archivo.usuarioEliminoNombre ?? 'Usuario del sistema'} · {fmtFechaHoraArchivo(archivo.fechaEliminacion)}
+                          </span>
+                        ) : (
+                          <span className="text-[10px] italic text-muted-foreground/50">
+                            Sin registro de quién lo eliminó
                           </span>
                         )}
-                        <span className="text-[10px] text-muted-foreground/40">
-                          {fmtFecha(archivo.fechaCreacion)}
-                        </span>
+                      </div>
+                      <div className="text-[10px] text-muted-foreground/50">
+                        Subido por {archivo.usuarioSubioNombre ?? 'usuario del sistema'} el {fmtFechaHoraArchivo(archivo.fechaCreacion)}
                       </div>
                     </div>
 
@@ -4029,9 +4066,11 @@ export default function AutorizacionesOC() {
             </div>
           )}
 
-          <p className="text-[11px] text-muted-foreground">
-            El sistema no registra quién eliminó el archivo ni la fecha del borrado; se muestra la fecha en que se subió.
-          </p>
+          {archivosHistorial.some((a) => !a.fechaEliminacion) && (
+            <p className="text-[11px] text-muted-foreground">
+              Los archivos eliminados antes de este cambio no tienen registro de quién los eliminó ni de la fecha del borrado.
+            </p>
+          )}
         </div>
       </Modal>
 

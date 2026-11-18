@@ -1,4 +1,4 @@
-﻿
+
 export interface Archivo {
   id: number;
   entidadTipo: string;
@@ -27,6 +27,9 @@ export interface ArchivoListItem {
   activo: boolean;
   usuarioId?: number | null;
   usuarioSubioNombre?: string | null;
+  fechaEliminacion?: string | null;
+  usuarioEliminoNombre?: string | null;
+  motivoBaja?: string | null;
 }
 
 export interface ListarArchivosParams {
