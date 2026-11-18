@@ -1,0 +1,49 @@
+==============================================================================
+COTIZACIÓN cotizacion-20261112-090132-ciudad-de-mexico-guadalajara
+==============================================================================
+Origen:  Ciudad de México (MEX)
+Destino: Guadalajara (GDL)
+Ida:     2026-11-19
+Vuelta:  2026-11-21
+Personas: 1
+Medio:   Vuelo
+
+TRANSPORTE
+------------------------------------------------------------------------------
+IDA · Kayak · Volaris
+  17:18 → 18:35 · 1h 17m · Directo
+  $820.00 por persona · $820.00 total · disponible (53 de 251 vuelos)
+  Link: https://www.kayak.com.mx/flights/MEX-GDL/2026-11-19?sort=bestflight_a&fs=cabin=e
+  Captura: capturas/ida-opciones.png
+  Captura: capturas/ida-elegido.png
+
+VUELTA · Kayak · Volaris
+  19:15 → 20:28 · 1h 13m · Directo
+  $1,080.00 por persona · $1,080.00 total · disponible (51 de 255 vuelos)
+  Link: https://www.kayak.com.mx/flights/GDL-MEX/2026-11-21?sort=bestflight_a&fs=cabin=e
+  Captura: capturas/vuelta-opciones.png
+  Captura: capturas/vuelta-elegido.png
+
+HOTEL
+------------------------------------------------------------------------------
+Ibis Guadalajara Expo
+  2026-11-19 a 2026-11-21 · 2 noche(s)
+  Rating: 7.5 (1105 comentarios)
+  Distancia: 5.3 km del centro
+  Zona: Nos pagará una comisión más alta si realizas una reserva. Zona Expo, Guadalajara (Zona Expo)
+  Habitaciones disponibles: 7
+  $1,400.00 por noche · $2,800.00 total
+  Disponibilidad: disponible (864 alojamientos)
+  Link: https://www.booking.com/searchresults.es.html?ss=Guadalajara&checkin=2026-11-19&checkout=2026-11-21&group_adults=1&no_rooms=1
+  Captura: capturas/hotel-opciones.png
+  Captura: capturas/hotel-elegido.png
+  Nota: Precio de Booking para toda la estancia; se dividió entre las noches. No incluye impuestos ni cargos.
+
+TOTALES
+------------------------------------------------------------------------------
+Transporte: $1,900.00
+Hotel:      $2,800.00
+TOTAL:      $4,700.00 MXN
+
+Precios y disponibilidad obtenidos del buscador al momento de la consulta; no son una reserva.
+==============================================================================

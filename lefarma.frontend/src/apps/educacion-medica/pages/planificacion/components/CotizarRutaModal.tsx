@@ -41,6 +41,14 @@ const ESTADO_COTIZACION: Record<string, string> = {
   cancelada: 'Cancelada',
 };
 
+/** Solo estos estados bloquean una visita; rechazada/cancelada la liberan. */
+const ESTADOS_COTIZACION_ACTIVA = new Set([
+  'borrador',
+  'enviada',
+  'autorizada',
+  'autorizada_con_ajustes',
+]);
+
 const estadoCotizacion = (estado: string) => ESTADO_COTIZACION[estado] ?? estado;
 
 /**
@@ -88,6 +96,7 @@ export function CotizarRutaModal({
   const visitasCotizadas = useMemo(() => {
     const mapa = new Map<number, VisitaCotizada>();
     for (const cotizacion of cotizaciones) {
+      if (!ESTADOS_COTIZACION_ACTIVA.has(cotizacion.estado.toLowerCase())) continue;
       for (const idRutaVisita of cotizacion.id_ruta_visitas) {
         if (!mapa.has(idRutaVisita)) {
           mapa.set(idRutaVisita, {
@@ -115,6 +124,16 @@ export function CotizarRutaModal({
   const sinCoordenadas = useMemo(
     () => ruta.visitas.filter((visita) => !tieneCoordenadas(visita)),
     [ruta.visitas]
+  );
+  const sinHora = useMemo(
+    () =>
+      ruta.visitas.filter(
+        (visita) =>
+          tieneCoordenadas(visita) &&
+          !visitasCotizadas.has(visita.idRutaVisita) &&
+          !visita.horaLlegada
+      ),
+    [ruta.visitas, visitasCotizadas]
   );
   const grupos = useMemo(() => {
     const mapa = new Map<string, VisitaCotizable[]>();
@@ -217,7 +236,7 @@ export function CotizarRutaModal({
       setOpen={(abierto) => {
         if (!abierto) onClose();
       }}
-      title="Cotizar viáticos"
+      title="Preparar cotización de viáticos"
       size="lg"
       canClose={!enviando}
       beforeClose={() => !enviando}
@@ -232,12 +251,12 @@ export function CotizarRutaModal({
           >
             <Plane className="mr-1.5 h-4 w-4" />
             {enviando
-              ? 'Creando borrador.'
+              ? 'Preparando borrador.'
               : !ruta.idRuta
                 ? 'Sin rutas disponibles'
                 : !ruta.viajero
                   ? 'Ruta sin especialista'
-                  : `Cotizar ${cantidadSeleccionada} destino${cantidadSeleccionada === 1 ? '' : 's'}`}
+                  : `Preparar ${cantidadSeleccionada} destino${cantidadSeleccionada === 1 ? '' : 's'}`}
           </Button>
         </div>
       }
@@ -271,8 +290,10 @@ export function CotizarRutaModal({
         </div>
 
         <p className="text-xs text-muted-foreground">
-          Elige todos o algunos destinos disponibles. Los hospitales sin coordenadas no se envían a
-          cotización y los que ya tienen folio no se pueden volver a cotizar.
+          Elige todos o algunos destinos disponibles. Se creará un borrador; la
+          cotización con precios se calcula en Mis viajes. Los hospitales sin
+          coordenadas no se envían y los que ya tienen una cotización activa no se
+          pueden volver a cotizar.
         </p>
 
         {ruta.viajero ? (
@@ -343,6 +364,29 @@ export function CotizarRutaModal({
                   <Copy className="mr-1.5 h-3.5 w-3.5" />
                   Copiar lista
                 </Button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {sinHora.length > 0 && (
+          <div className="rounded-md border border-amber-200 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-950">
+            <div className="flex items-start gap-2">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-300" />
+              <div className="min-w-0 flex-1 space-y-1">
+                <p className="text-sm font-medium text-amber-800 dark:text-amber-200">
+                  {sinHora.length} hospital(es) sin hora de llegada
+                </p>
+                <p className="text-xs text-amber-700 dark:text-amber-300">
+                  El asistente te pedirá la hora de llegada y la salida de esos destinos.
+                </p>
+                <ul className="list-disc pl-4 text-xs text-amber-700 dark:text-amber-300">
+                  {sinHora.map((visita) => (
+                    <li key={visita.idRutaVisita}>
+                      {visita.nombreHospital ?? `Hospital ${visita.idRutaVisita}`}
+                    </li>
+                  ))}
+                </ul>
               </div>
             </div>
           </div>
@@ -424,6 +468,13 @@ export function CotizarRutaModal({
                           <span className="block text-xs text-muted-foreground">
                             {visita.nombreRegion ?? '-'}
                           </span>
+                          {(visita.horaLlegada || visita.horaSalida) && (
+                            <span className="block text-[11px] text-muted-foreground">
+                              {visita.horaLlegada ? `Llega ${visita.horaLlegada.slice(0, 5)}` : ''}
+                              {visita.horaLlegada && visita.horaSalida ? ' · ' : ''}
+                              {visita.horaSalida ? `Sale ${visita.horaSalida.slice(0, 5)}` : ''}
+                            </span>
+                          )}
                         </span>
                         {cotizada && (
                           <Badge

@@ -1,0 +1,107 @@
+{
+  "version": "1.0.0",
+  "id": "cotizacion-20261112-092354-ciudad-de-mexico-campeche",
+  "creada_en": "2026-11-12T15:26:54.276Z",
+  "consulta": {
+    "origen": {
+      "nombre": "Ciudad de México",
+      "iata": "MEX",
+      "estado": "Ciudad de México"
+    },
+    "destino": {
+      "nombre": "Campeche",
+      "iata": "CPE",
+      "estado": "Campeche"
+    },
+    "fecha_ida": "2026-11-24",
+    "fecha_vuelta": "2026-11-25",
+    "personas": 1,
+    "modo": "Vuelo",
+    "proveedor": "Kayak"
+  },
+  "tramos": [
+    {
+      "tipo": "vuelo",
+      "proveedor": "Kayak",
+      "sentido": "ida",
+      "linea": "Aeromexico",
+      "servicio": "",
+      "salida": "12:15",
+      "llegada": "14:07",
+      "duracion": "1h 52m",
+      "escalas": "Directo",
+      "precio": 4169,
+      "texto_busqueda": "12:15 – 14:07",
+      "notas": "",
+      "link": "https://www.kayak.com.mx/flights/MEX-CPE/2026-11-24?sort=bestflight_a&fs=cabin=e",
+      "disponibilidad": "disponible",
+      "disponibilidad_detalle": "2 de 2 vuelos",
+      "capturas": [
+        "capturas/ida-opciones.png",
+        "capturas/ida-elegido.png"
+      ],
+      "precio_total": 4169
+    },
+    {
+      "tipo": "vuelo",
+      "proveedor": "Kayak",
+      "sentido": "vuelta",
+      "linea": "Aeromexico",
+      "servicio": "",
+      "salida": "15:33",
+      "llegada": "17:35",
+      "duracion": "2h 02m",
+      "escalas": "Directo",
+      "precio": 2945,
+      "texto_busqueda": "15:33 – 17:35",
+      "notas": "",
+      "link": "https://www.kayak.com.mx/flights/CPE-MEX/2026-11-25?sort=bestflight_a&fs=cabin=e",
+      "disponibilidad": "disponible",
+      "disponibilidad_detalle": "4 de 4 vuelos",
+      "capturas": [
+        "capturas/vuelta-opciones.png",
+        "capturas/vuelta-elegido.png"
+      ],
+      "precio_total": 2945
+    }
+  ],
+  "hotel": {
+    "proveedor": "Booking.com",
+    "nombre": "Hotel Residencial Edzná Calle 10",
+    "precio_noche": 640,
+    "precio_estadia": 640,
+    "rating": "8.0",
+    "rating_count": 361,
+    "distancia_km": null,
+    "distancia_texto": "",
+    "zona": "Campeche",
+    "disponibles": null,
+    "texto_busqueda": "Hotel Residencial Edzná Calle 10",
+    "notas": "Precio de Booking para toda la estancia; se dividió entre las noches. No incluye impuestos ni cargos.",
+    "checkin": "2026-11-24",
+    "checkout": "2026-11-25",
+    "noches": 1,
+    "link": "https://www.booking.com/searchresults.es.html?ss=Campeche&checkin=2026-11-24&checkout=2026-11-25&group_adults=1&no_rooms=1",
+    "disponibilidad": "disponible",
+    "disponibilidad_detalle": "99 alojamientos",
+    "capturas": [
+      "capturas/hotel-opciones.png",
+      "capturas/hotel-elegido.png"
+    ],
+    "habitaciones": 1,
+    "precio_total": 640
+  },
+  "totales": {
+    "transporte": 7114,
+    "hotel": 640,
+    "total": 7754,
+    "moneda": "MXN"
+  },
+  "notas": [
+    "Precios y disponibilidad obtenidos del buscador en el momento de la consulta; no son una reserva.",
+    "Los conteos de disponibilidad son indicativos y pueden incluir resultados de la zona.",
+    "Las capturas de cada búsqueda y de la opción elegida quedaron en la carpeta capturas/.",
+    "El hotel se cotizó para 1 habitación; ajusta si viajan más personas.",
+    "La captura de hotel puede incluir el modal \"Inicia sesión y ahorra\" de Booking; el CLI intenta cerrarlo antes de capturar."
+  ]
+}

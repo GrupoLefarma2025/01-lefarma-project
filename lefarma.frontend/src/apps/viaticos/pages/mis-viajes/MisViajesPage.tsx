@@ -1250,6 +1250,8 @@ function DetalleOpciones({
   const elegidas = opciones.filter((o) => o.fue_elegida);
   const descartadas = opciones.filter((o) => !o.fue_elegida);
   const [boleto, setBoleto] = useState<SolicitudOpcion | null>(null);
+  const [subiendoCaptura, setSubiendoCaptura] = useState<number | null>(null);
+  const [capturasRevision, setCapturasRevision] = useState<Record<number, number>>({});
 
   // Capturas y datos por opción: arrancan con lo que ya trae el detalle y se
   // refrescan con GET /evidencias al abrir y con POST /buscar.
@@ -1307,12 +1309,47 @@ function DetalleOpciones({
         resultado.reutilizadas > 0 ? `${resultado.reutilizadas} ya estaban` : null,
         resultado.fallidas > 0 ? `${resultado.fallidas} fallaron` : null,
       ].filter(Boolean);
-      toast.success(partes.length > 0 ? `Capturas: ${partes.join(', ')}.` : 'Sin capturas nuevas.');
+      const resumen = partes.length > 0 ? `Capturas: ${partes.join(', ')}.` : 'Sin capturas nuevas.';
+      const primerError = resultado.opciones.find(
+        (o) => o.fue_elegida && o.error && o.error !== 'Sin captura.',
+      )?.error;
+      if (resultado.fallidas > 0) {
+        toast.error(primerError ? `${resumen} ${primerError}` : resumen);
+      } else {
+        toast.success(resumen);
+      }
       if (resultado.aviso) setAvisoCapturas(resultado.aviso);
     } catch (error) {
       toast.error(toApiError(error).message);
     } finally {
       setGenerando(false);
+    }
+  }
+
+  /** Sube un PNG tomado fuera del backend y lo asocia a la opción. */
+  async function subirCaptura(opcion: SolicitudOpcion, archivo: File) {
+    if (archivo.type !== 'image/png' && !archivo.name.toLowerCase().endsWith('.png')) {
+      toast.error('La captura debe ser un archivo PNG.');
+      return;
+    }
+
+    setSubiendoCaptura(opcion.id_opcion);
+    try {
+      const { data } = await evidenciasApi.subirCaptura(
+        solicitud.id_solicitud,
+        opcion.id_opcion,
+        archivo,
+      );
+      aplicarEvidencias(data.data);
+      setCapturasRevision((previo) => ({
+        ...previo,
+        [opcion.id_opcion]: (previo[opcion.id_opcion] ?? 0) + 1,
+      }));
+      toast.success('Captura subida.');
+    } catch (error) {
+      toast.error(toApiError(error).message);
+    } finally {
+      setSubiendoCaptura(null);
     }
   }
 
@@ -1394,6 +1431,10 @@ function DetalleOpciones({
   /** Link de compra del renglón (sitio de la aerolínea / autobús). */
   const botonComprar = (opcion: SolicitudOpcion) => {
     if (!opcion.url_compra) return null;
+    const esBusqueda =
+      opcion.datos?.tipo_precio === 'estimado' ||
+      opcion.datos?.tipo_precio === 'referencia_tabulador';
+    const accion = esBusqueda ? 'Consultar precios' : 'Comprar boleto';
     return (
       <TooltipProvider delayDuration={150}>
         <Tooltip>
@@ -1403,13 +1444,13 @@ function DetalleOpciones({
                 href={opcion.url_compra}
                 target="_blank"
                 rel="noreferrer"
-                aria-label={`Comprar boleto de ${opcion.linea}`}
+                aria-label={`${accion} de ${opcion.linea}`}
               >
                 <ExternalLink className="h-3.5 w-3.5" aria-hidden />
               </a>
             </Button>
           </TooltipTrigger>
-          <TooltipContent>Abrir sitio de compra</TooltipContent>
+          <TooltipContent>{esBusqueda ? 'Abrir búsqueda de precios' : 'Abrir sitio de compra'}</TooltipContent>
         </Tooltip>
       </TooltipProvider>
     );
@@ -1425,6 +1466,9 @@ function DetalleOpciones({
         <CeldaCaptura
           ruta={capturas[opcion.id_opcion] ?? opcion.ruta_captura ?? undefined}
           etiqueta={opcion.linea}
+          onSubirCaptura={(archivo) => subirCaptura(opcion, archivo)}
+          subiendo={subiendoCaptura === opcion.id_opcion}
+          revision={capturasRevision[opcion.id_opcion] ?? 0}
         />
       </td>
       <td className="whitespace-nowrap py-1 text-right align-top tabular-nums">
@@ -1448,7 +1492,8 @@ function DetalleOpciones({
               className="h-7 gap-1.5 px-2 text-xs"
               onClick={generarCapturas}
               disabled={generando || buscando}
-              aria-label="Generar capturas de pantalla de las opciones"
+              aria-label="Generar capturas de pantalla de las opciones elegidas"
+              title="Captura con Playwright las opciones elegidas; si alguna falla, el botón queda disponible para reintentar"
             >
               <Camera className="h-3.5 w-3.5" aria-hidden />
               {generando ? 'Generando capturas…' : 'Generar capturas'}

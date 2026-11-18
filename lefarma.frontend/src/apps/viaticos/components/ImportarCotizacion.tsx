@@ -8,6 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { toApiError } from '@/utils/errors';
 import { solicitudesApi } from '../services/solicitudes.api';
+import { generarCapturasEnSegundoPlano } from '../services/evidencias.api';
 import type { ConceptosMotor, Cotizacion, FilaCotizacion } from '../types/cotizacion.types';
 import type { Solicitud } from '../types/solicitud.types';
 import { analizarCotizacion, desgloseConceptos, opcionesParaEnvio, textoPrecio } from './analizadorCotizacion';
@@ -100,6 +101,9 @@ export function ImportarCotizacion({ solicitudId = null, conceptosMotor = null, 
       const respuesta = await solicitudesApi.guardarOpciones(id, opcionesParaEnvio(filas));
       const solicitud = respuesta.data.data;
       setSolicitudEnviada(solicitud);
+      // Best-effort: no bloquea el guardado; el botón "Generar capturas"
+      // sigue disponible si el sitio no permite capturar en este momento.
+      generarCapturasEnSegundoPlano(solicitud.id_solicitud);
       onEnviada?.(solicitud);
     } catch (error) {
       setErrorEnvio(toApiError(error).message);

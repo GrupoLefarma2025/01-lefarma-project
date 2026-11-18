@@ -271,7 +271,8 @@ public class CapturasService
         return new CapturaServiceResult { Outcome = CapturaOutcome.Ok };
     }
 
-    public async Task<CapturaServiceResult> CapturarAsync(IReadOnlyList<CapturaItem> items, CancellationToken ct)
+    public async Task<CapturaServiceResult> CapturarAsync(IReadOnlyList<CapturaItem> items, CancellationToken ct,
+        bool forzarScript = false)
     {
         var validation = Validate(items);
         if (validation.Outcome != CapturaOutcome.Ok) return validation;
@@ -285,7 +286,10 @@ public class CapturasService
         // Modo agente: el servicio externo (viaticos-capturas) corre OpenCode +
         // Playwright MCP dentro de su contenedor y devuelve el PNG ya renderizado.
         // Si una URL falla con el agente, se reintenta con el script local.
-        if (string.Equals(_settings.Modo, "agente", StringComparison.OrdinalIgnoreCase))
+        // `forzarScript` se usa en la captura masiva de una solicitud: el script
+        // local tarda segundos por URL y no depende de un agente externo lento.
+        if (!forzarScript
+            && string.Equals(_settings.Modo, "agente", StringComparison.OrdinalIgnoreCase))
         {
             return await CapturarConAgenteConFallbackAsync(items, ct);
         }

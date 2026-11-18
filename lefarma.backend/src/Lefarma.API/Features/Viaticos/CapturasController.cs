@@ -217,8 +217,9 @@ public class CapturasController : ControllerBase
     [HttpPost("solicitudes/{id:int}/capturas")]
     [SwaggerOperation(
         Summary = "Capturar pantallas de las opciones de un viaje",
-        Description = "Toma (con Playwright) la captura de cada url_compra que aun no tiene " +
-                      "evidencia y la persiste en solicitud_opciones.ruta_captura. " +
+        Description = "Toma con el script local de Playwright la captura de cada url_compra " +
+                      "de las opciones ELEGIDAS que aun no tiene evidencia y la persiste en " +
+                      "solicitud_opciones.ruta_captura. Si no hay ninguna elegida, usa todas. " +
                       "Body opcional { forzar: true } para re-capturar las que ya existen. " +
                       "Maximo 10 opciones por llamada.")]
     [SwaggerResponse(200, "Evidencias con las capturas nuevas", typeof(ApiResponse<EvidenciasSolicitudDto>))]
@@ -237,10 +238,17 @@ public class CapturasController : ControllerBase
         var forzar = request?.Forzar ?? false;
         var opciones = solicitud!.Opciones.OrderBy(o => o.IdOpcion).ToList();
 
+        // La captura masiva es para la evidencia de la solicitud, no para el
+        // menu completo de alternativas: si el viajero ya marco opciones, solo
+        // se capturan esas. Si no hay ninguna marcada, se conserva el comportamiento
+        // anterior (todas) para no dejar la solicitud sin evidencia.
+        var elegidas = opciones.Where(o => o.FueElegida).ToList();
+        var objetivo = elegidas.Count > 0 ? elegidas : opciones;
+
         // Solo se intenta capturar lo que tiene link y (aun) no tiene PNG en
         // disco; `forzar` re-captura aunque ya exista. Si el PNG registrado en
         // la BD se perdio (otra maquina, carpeta limpiada), tambien se repite.
-        var pendientes = opciones
+        var pendientes = objetivo
             .Where(o => !string.IsNullOrWhiteSpace(o.UrlCompra))
             .Where(o => forzar || string.IsNullOrWhiteSpace(o.RutaCaptura) || !CapturaEnDisco(o.RutaCaptura))
             .ToList();
@@ -255,6 +263,10 @@ public class CapturasController : ControllerBase
 
         var generadas = 0;
         var fallidas = 0;
+        // Errores por opcion para que el POST los devuelva en el DTO y el
+        // usuario vea el motivo real (captcha, timeout, navegador ausente)
+        // en vez de solo "2 fallaron".
+        var errores = new Dictionary<int, string>();
         if (pendientes.Count > 0)
         {
             var items = pendientes
@@ -267,7 +279,7 @@ public class CapturasController : ControllerBase
                 })
                 .ToList();
 
-            var resultado = await _service.CapturarAsync(items, ct);
+            var resultado = await _service.CapturarAsync(items, ct, forzarScript: true);
             var porUrl = resultado.Results
                 .Where(r => !string.IsNullOrWhiteSpace(r.Url))
                 .GroupBy(r => r.Url!, StringComparer.OrdinalIgnoreCase)
@@ -280,6 +292,10 @@ public class CapturasController : ControllerBase
                     string.IsNullOrWhiteSpace(captura.Archivo))
                 {
                     fallidas++;
+                    errores[opcion.IdOpcion] = captura?.Error ?? "sin resultado de captura";
+                    _logger.LogWarning(
+                        "Captura viaje {IdSolicitud} opcion {IdOpcion} fallo: {Error}",
+                        solicitud.IdSolicitud, opcion.IdOpcion, errores[opcion.IdOpcion]);
                     continue;
                 }
 
@@ -294,12 +310,12 @@ public class CapturasController : ControllerBase
             }
         }
 
-        var reutilizadas = opciones.Count(o =>
+        var reutilizadas = objetivo.Count(o =>
             !string.IsNullOrWhiteSpace(o.RutaCaptura) && !pendientes.Contains(o));
 
         _logger.LogInformation(
-            "Evidencias viaje {IdSolicitud}: generadas={Generadas}, reutilizadas={Reutilizadas}, fallidas={Fallidas}",
-            solicitud.IdSolicitud, generadas, reutilizadas, fallidas);
+            "Evidencias viaje {IdSolicitud}: generadas={Generadas}, reutilizadas={Reutilizadas}, fallidas={Fallidas}, solo_elegidas={SoloElegidas}",
+            solicitud.IdSolicitud, generadas, reutilizadas, fallidas, elegidas.Count > 0);
 
         return Ok(new ApiResponse<EvidenciasSolicitudDto>
         {
@@ -307,7 +323,7 @@ public class CapturasController : ControllerBase
             Message = generadas > 0
                 ? $"Se capturaron {generadas} pantalla(s)."
                 : "No hubo capturas nuevas.",
-            Data = MapearEvidencias(solicitud, generadas, reutilizadas, fallidas, aviso),
+            Data = MapearEvidencias(solicitud, generadas, reutilizadas, fallidas, aviso, errores),
         });
     }
 
@@ -589,7 +605,8 @@ public class CapturasController : ControllerBase
         int generadas,
         int reutilizadas,
         int fallidas,
-        string? aviso)
+        string? aviso,
+        IReadOnlyDictionary<int, string>? errores = null)
     {
         return new EvidenciasSolicitudDto
         {
@@ -614,11 +631,13 @@ public class CapturasController : ControllerBase
                     RutaCaptura = o.RutaCaptura,
                     UrlCaptura = UrlPublicaCaptura(o.RutaCaptura),
                     CapturadaEn = o.CapturadaEn,
-                    Error = string.IsNullOrWhiteSpace(o.UrlCompra)
-                        ? "Sin enlace de compra registrado."
-                        : string.IsNullOrWhiteSpace(o.RutaCaptura)
-                            ? "Sin captura."
-                            : null,
+                    Error = errores is not null && errores.TryGetValue(o.IdOpcion, out var errorCaptura)
+                        ? errorCaptura
+                        : string.IsNullOrWhiteSpace(o.UrlCompra)
+                            ? "Sin enlace de compra registrado."
+                            : string.IsNullOrWhiteSpace(o.RutaCaptura)
+                                ? "Sin captura."
+                                : null,
                     Datos = LeerInformacionBuscada(o.DatosJson),
                     BuscadoEn = LeerBuscadoEn(o.DatosJson),
                 })
@@ -651,6 +670,66 @@ public class CapturasController : ControllerBase
         new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A };
 
     /// <summary>
+    /// Valida y lee un PNG subido por multipart. Devuelve el error exacto que
+    /// se muestra al usuario cuando el archivo falta, excede el límite, no es
+    /// PNG o no se puede leer completo.
+    /// </summary>
+    private async Task<(byte[]? Bytes, string? Error)> LeerPngAsync(
+        IFormFile? archivo,
+        CancellationToken ct)
+    {
+        if (archivo is null || archivo.Length == 0)
+            return (null, "falta el archivo 'archivo' (PNG)");
+
+        if (archivo.Length > MaxCapturaBytes)
+            return (null, $"la captura excede {MaxCapturaBytes / (1024 * 1024)} MiB");
+
+        if (!string.Equals(archivo.ContentType, "image/png", StringComparison.OrdinalIgnoreCase))
+            return (null, "solo se aceptan imagenes PNG");
+
+        var bytes = new byte[archivo.Length];
+        await using (var stream = archivo.OpenReadStream())
+        {
+            var leidos = 0;
+            while (leidos < bytes.Length)
+            {
+                var n = await stream.ReadAsync(bytes.AsMemory(leidos), ct);
+                if (n == 0) break;
+                leidos += n;
+            }
+
+            if (leidos != bytes.Length)
+                return (null, "no se pudo leer el archivo completo");
+        }
+
+        if (bytes.Length < PngSignature.Length ||
+            !bytes.AsSpan(0, PngSignature.Length).SequenceEqual(PngSignature))
+            return (null, "el archivo no es un PNG valido");
+
+        return (bytes, null);
+    }
+
+    /// <summary>Publica los bytes en la carpeta de capturas y devuelve la ruta relativa.</summary>
+    private async Task<(string? Archivo, string? Error)> GuardarPngAsync(
+        byte[] bytes,
+        string baseName,
+        CancellationToken ct)
+    {
+        var destino = Path.Combine(_capturasDir, baseName + ".png");
+        Directory.CreateDirectory(_capturasDir);
+
+        try
+        {
+            await System.IO.File.WriteAllBytesAsync(destino, bytes, ct);
+            return ($"{CapturasService.CarpetaPublica}/{baseName}.png", null);
+        }
+        catch (Exception ex)
+        {
+            return (null, $"no se pudo guardar la captura: {ex.Message}");
+        }
+    }
+
+    /// <summary>
     /// Adjunta un PNG tomado FUERA del backend (navegador real, harness del
     /// agente o captura manual) y lo publica en la misma carpeta y ruta publica
     /// que usa la captura automatica. No sustituye a POST /capturas: es la via
@@ -671,80 +750,24 @@ public class CapturasController : ControllerBase
         [FromForm] AdjuntarCapturaRequest request,
         CancellationToken ct)
     {
-        var archivo = request.Archivo;
-
-        if (archivo is null || archivo.Length == 0)
+        var (bytes, error) = await LeerPngAsync(request.Archivo, ct);
+        if (bytes is null)
         {
             return BadRequest(new ApiResponse<object>
             {
                 Success = false,
-                Message = "falta el archivo 'archivo' (PNG)",
-            });
-        }
-
-        if (archivo.Length > MaxCapturaBytes)
-        {
-            return BadRequest(new ApiResponse<object>
-            {
-                Success = false,
-                Message = $"la captura excede {MaxCapturaBytes / (1024 * 1024)} MiB",
-            });
-        }
-
-        if (!string.Equals(archivo.ContentType, "image/png", StringComparison.OrdinalIgnoreCase))
-        {
-            return BadRequest(new ApiResponse<object>
-            {
-                Success = false,
-                Message = "solo se aceptan imagenes PNG",
-            });
-        }
-
-        var bytes = new byte[archivo.Length];
-        await using (var stream = archivo.OpenReadStream())
-        {
-            var leidos = 0;
-            while (leidos < bytes.Length)
-            {
-                var n = await stream.ReadAsync(bytes.AsMemory(leidos), ct);
-                if (n == 0) break;
-                leidos += n;
-            }
-
-            if (leidos != bytes.Length)
-            {
-                return BadRequest(new ApiResponse<object>
-                {
-                    Success = false,
-                    Message = "no se pudo leer el archivo completo",
-                });
-            }
-        }
-
-        if (bytes.Length < PngSignature.Length ||
-            !bytes.AsSpan(0, PngSignature.Length).SequenceEqual(PngSignature))
-        {
-            return BadRequest(new ApiResponse<object>
-            {
-                Success = false,
-                Message = "el archivo no es un PNG valido",
+                Message = error,
             });
         }
 
         var baseName = NombreSeguro(request.Nombre) ?? $"captura-{Guid.NewGuid():N}";
-        var destino = Path.Combine(_capturasDir, baseName + ".png");
-        Directory.CreateDirectory(_capturasDir);
-
-        try
-        {
-            await System.IO.File.WriteAllBytesAsync(destino, bytes, ct);
-        }
-        catch (Exception ex)
+        var (archivoPublicado, errorGuardado) = await GuardarPngAsync(bytes, baseName, ct);
+        if (archivoPublicado is null)
         {
             return BadRequest(new ApiResponse<object>
             {
                 Success = false,
-                Message = $"no se pudo guardar la captura: {ex.Message}",
+                Message = errorGuardado,
             });
         }
 
@@ -756,8 +779,83 @@ public class CapturasController : ControllerBase
             {
                 Url = null,
                 Ok = true,
-                Archivo = $"{CapturasService.CarpetaPublica}/{baseName}.png",
+                Archivo = archivoPublicado,
             },
+        });
+    }
+
+    /// <summary>
+    /// Adjunta manualmente un PNG a una opción concreta del viaje. A diferencia
+    /// de <see cref="Adjuntar"/>, guarda con nombre determinista
+    /// <c>viaje{id}-op{idOpcion}.png</c> y actualiza
+    /// <c>solicitud_opciones.ruta_captura</c> en la misma operación.
+    /// </summary>
+    [HttpPost("solicitudes/{id:int}/opciones/{idOpcion:int}/captura")]
+    [RequestSizeLimit(MaxCapturaBytes)]
+    [Consumes("multipart/form-data")]
+    [SwaggerOperation(
+        Summary = "Adjuntar una captura PNG a una opción del viaje",
+        Description = "multipart/form-data con `Archivo` (PNG, max 8 MiB). " +
+                      "Publica el PNG y actualiza ruta_captura/capturada_en de la opción.")]
+    [SwaggerResponse(200, "Captura adjuntada a la opción", typeof(ApiResponse<EvidenciasSolicitudDto>))]
+    [SwaggerResponse(400, "Archivo ausente, demasiado grande o que no es PNG")]
+    [SwaggerResponse(403, "No es el dueño y no tiene viaticos.ver_todos")]
+    [SwaggerResponse(404, "La solicitud o la opción no existe")]
+    public async Task<IActionResult> AdjuntarCapturaOpcion(
+        [FromRoute] int id,
+        [FromRoute] int idOpcion,
+        [FromForm] AdjuntarCapturaRequest request,
+        CancellationToken ct)
+    {
+        var (solicitud, error) = await CargarSolicitudPropiaAsync(id, ct);
+        if (error is not null) return error;
+
+        var opcion = solicitud!.Opciones.FirstOrDefault(o => o.IdOpcion == idOpcion);
+        if (opcion is null)
+        {
+            return NotFound(new ApiResponse<object>
+            {
+                Success = false,
+                Message = $"La opcion {idOpcion} no pertenece al viaje.",
+            });
+        }
+
+        var (bytes, validacion) = await LeerPngAsync(request.Archivo, ct);
+        if (bytes is null)
+        {
+            return BadRequest(new ApiResponse<object>
+            {
+                Success = false,
+                Message = validacion,
+            });
+        }
+
+        // Nombre determinista: reemplaza la captura anterior de ESA opcion y
+        // evita que un nombre arbitrario pise el PNG de otra opción.
+        var baseName = $"viaje{id}-op{idOpcion}";
+        var (archivoPublicado, errorGuardado) = await GuardarPngAsync(bytes, baseName, ct);
+        if (archivoPublicado is null)
+        {
+            return BadRequest(new ApiResponse<object>
+            {
+                Success = false,
+                Message = errorGuardado,
+            });
+        }
+
+        opcion.RutaCaptura = archivoPublicado;
+        opcion.CapturadaEn = DateTime.UtcNow;
+        await _context.SaveChangesAsync(ct);
+
+        _logger.LogInformation(
+            "Captura manual viaje {IdSolicitud} opcion {IdOpcion}: {Archivo}",
+            id, idOpcion, archivoPublicado);
+
+        return Ok(new ApiResponse<EvidenciasSolicitudDto>
+        {
+            Success = true,
+            Message = "Captura adjuntada.",
+            Data = MapearEvidencias(solicitud, generadas: 1, reutilizadas: 0, fallidas: 0, aviso: null),
         });
     }
 

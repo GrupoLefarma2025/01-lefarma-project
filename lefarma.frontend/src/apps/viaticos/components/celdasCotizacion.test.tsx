@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { CeldaCaptura, MiniaturaCaptura, rutaApiCaptura } from './celdasCotizacion';
 
 const api = vi.hoisted(() => ({ get: vi.fn() }));
@@ -42,8 +42,8 @@ describe('CeldaCaptura', () => {
     const miniatura = await screen.findByRole('img');
     expect(api.get).toHaveBeenCalledWith('/viaticos/capturas/uno.png', { responseType: 'blob' });
     expect(miniatura.getAttribute('src')).toBe('blob:captura-1');
-    // El ancla (imagen completa) tambien sale del object URL, no del estatico.
-    expect(miniatura.closest('a')?.getAttribute('href')).toBe('blob:captura-1');
+    // La miniatura abre el visor modal, no una pestaña nueva.
+    expect(miniatura.closest('button')).not.toBeNull();
 
     unmount();
     expect(urlMock.revocar).toHaveBeenCalledWith('blob:captura-1');
@@ -83,5 +83,53 @@ describe('CeldaCaptura', () => {
     await waitFor(() =>
       expect(api.get).toHaveBeenCalledWith('/viaticos/capturas/dos.png', { responseType: 'blob' }),
     );
+  });
+
+  it('al hacer clic en la miniatura abre el visor modal con la captura', async () => {
+    api.get.mockResolvedValue({ data: new Blob(['png'], { type: 'image/png' }) });
+
+    render(<CeldaCaptura ruta="/api/media/capturas-viaticos/uno.png" etiqueta="Volaris" />);
+
+    const miniatura = await screen.findByRole('img');
+    fireEvent.click(miniatura.closest('button')!);
+
+    expect((await screen.findAllByText('Captura · Volaris')).length).toBeGreaterThan(0);
+    expect(await screen.findByAltText('captura-Volaris.png')).toBeInTheDocument();
+  });
+
+  it('una revisión nueva vuelve a pedir la captura aunque la ruta no cambie', async () => {
+    api.get.mockResolvedValue({ data: new Blob(['png'], { type: 'image/png' }) });
+
+    const { rerender } = render(
+      <CeldaCaptura ruta="/api/media/capturas-viaticos/uno.png" etiqueta="Volaris" revision={0} />,
+    );
+    await screen.findByRole('img');
+
+    rerender(
+      <CeldaCaptura ruta="/api/media/capturas-viaticos/uno.png" etiqueta="Volaris" revision={1} />,
+    );
+
+    await waitFor(() =>
+      expect(api.get).toHaveBeenLastCalledWith('/viaticos/capturas/uno.png?v=1', {
+        responseType: 'blob',
+      }),
+    );
+  });
+
+  it('permite subir una captura manual y entrega el PNG elegido', () => {
+    const onSubirCaptura = vi.fn();
+    const { container } = render(
+      <CeldaCaptura ruta={undefined} etiqueta="Volaris" onSubirCaptura={onSubirCaptura} />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Subir captura de Volaris' }));
+    const input = container.querySelector('input[type="file"]') as HTMLInputElement;
+    const archivo = new File([new Uint8Array([0x89, 0x50, 0x4e, 0x47])], 'captura.png', {
+      type: 'image/png',
+    });
+
+    fireEvent.change(input, { target: { files: [archivo] } });
+
+    expect(onSubirCaptura).toHaveBeenCalledWith(archivo);
   });
 });

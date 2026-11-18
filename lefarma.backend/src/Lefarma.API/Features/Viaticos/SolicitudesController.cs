@@ -274,7 +274,7 @@ public class SolicitudesController : ControllerBase
         var ruta = await _context.Rutas
             .AsNoTracking()
             .Where(r => r.IdRuta == request.IdRuta)
-            .Select(r => new { r.IdRuta, r.IdEspecialista, r.IdSeleccionMensual, r.Estado })
+            .Select(r => new { r.IdRuta, r.IdEspecialista, r.IdSeleccionMensual, r.IdRutaVersion, r.Estado })
             .FirstOrDefaultAsync(ct);
         if (ruta is null)
         {
@@ -329,7 +329,33 @@ public class SolicitudesController : ControllerBase
             : null;
 
         var ahora = DateTime.UtcNow;
-        var gerencia = string.IsNullOrWhiteSpace(request.Gerencia) ? GerenciaPorDefecto : request.Gerencia.Trim();
+        // La gerencia es una clasificación del concentrado. Si el cliente no
+        // la manda, se resuelve desde la versión/ruta de Educación Médica;
+        // nunca se deja caer en "Sin asignar" si la ruta ya la tiene.
+        int? idTipoGerencia = null;
+        if (ruta.IdRutaVersion is int idRutaVersion)
+        {
+            idTipoGerencia = await _context.RutasVersiones
+                .Where(v => v.IdRutaVersion == idRutaVersion)
+                .Select(v => v.IdTipoGerencia)
+                .FirstOrDefaultAsync(ct);
+        }
+        if (idTipoGerencia is null)
+        {
+            idTipoGerencia = await _context.SeleccionesMensuales
+                .Where(s => s.IdSeleccionMensual == ruta.IdSeleccionMensual)
+                .Select(s => s.IdTipoGerencia)
+                .FirstOrDefaultAsync(ct);
+        }
+        var gerenciaRuta = idTipoGerencia is int idTipo
+            ? await _context.TiposGerencia
+                .Where(t => t.IdTipoGerencia == idTipo && t.Activo)
+                .Select(t => t.Descripcion)
+                .FirstOrDefaultAsync(ct)
+            : null;
+        var gerencia = !string.IsNullOrWhiteSpace(gerenciaRuta)
+            ? gerenciaRuta
+            : (!string.IsNullOrWhiteSpace(request.Gerencia) ? request.Gerencia.Trim() : GerenciaPorDefecto);
 
         // 1) Reutilizar un borrador propio con la misma ruta y el conjunto exacto
         // de visitas. El borrador legado (sin filas en la tabla liga) no entra.

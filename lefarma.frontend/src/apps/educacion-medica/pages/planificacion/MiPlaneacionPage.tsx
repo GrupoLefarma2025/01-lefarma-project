@@ -529,15 +529,16 @@ export default function MiPlaneacionPage() {
       const resultado = await crearBorradorDesdeRuta(
         ruta,
         visitasSeleccionadas,
-        user?.nombre ?? ''
+        user?.nombre ?? '',
+        user?.id,
       );
       setRutaCotizar(null);
       if (resultado.reutilizado) {
         toast.info(
-          `Se abrió la cotización ${resultado.folio ?? ''} existente para esta ruta.`.trim()
+          `Se abrió el borrador ${resultado.folio ?? ''} existente para esta ruta.`.trim()
         );
       } else {
-        toast.success(`Cotización creada${resultado.folio ? `: ${resultado.folio}` : ''}.`);
+        toast.success(`Borrador de viáticos creado${resultado.folio ? `: ${resultado.folio}` : ''}.`);
       }
       navigate(`/viaticos/solicitud/${resultado.idSolicitud}`);
     } catch (error: unknown) {
@@ -745,7 +746,7 @@ export default function MiPlaneacionPage() {
                         disabled={cargandoCotizacionesVisibles}
                       >
                         <Plane className="mr-1.5 h-4 w-4" />
-                        Cotizar viáticos
+                        Preparar cotización
                       </Button>
                     )}
                   </div>
@@ -799,6 +800,9 @@ export default function MiPlaneacionPage() {
                           {cotizacionesVisibles.length} en total
                         </span>
                       </div>
+                      <p className="mb-2 text-[11px] text-muted-foreground">
+                        El costo incluye transporte y hospedaje cotizados; no comidas ni extras.
+                      </p>
                       <ul className="space-y-1.5">
                         {cotizacionesVisibles.map((cotizacion) => (
                           <li
@@ -821,7 +825,10 @@ export default function MiPlaneacionPage() {
                               {cotizacion.id_ruta_visitas.length} destino
                               {cotizacion.id_ruta_visitas.length === 1 ? '' : 's'}
                             </span>
-                            <span className="ml-auto font-medium">
+                            <span
+                              className="ml-auto font-medium"
+                              title="Incluye transporte y hospedaje cotizados; no comidas ni extras."
+                            >
                               {formatearTotal(cotizacion.total)}
                             </span>
                             <Button

@@ -1,0 +1,109 @@
+{
+  "version": "1.0.0",
+  "id": "cotizacion-20261112-093546-ciudad-de-mexico-guadalajara",
+  "creada_en": "2026-11-12T15:36:47.337Z",
+  "consulta": {
+    "origen": {
+      "nombre": "Ciudad de México",
+      "iata": "MEX",
+      "estado": "Ciudad de México"
+    },
+    "destino": {
+      "nombre": "Guadalajara",
+      "iata": "GDL",
+      "estado": "Jalisco"
+    },
+    "fecha_ida": "2026-11-19",
+    "fecha_vuelta": "2026-11-21",
+    "personas": 1,
+    "modo": "Autobús",
+    "proveedor": "ClickBus"
+  },
+  "tramos": [
+    {
+      "tipo": "autobus",
+      "proveedor": "ClickBus",
+      "sentido": "ida",
+      "linea": "Futura Select",
+      "servicio": "Paso",
+      "salida": "00:30",
+      "llegada": "07:30",
+      "duracion": "7h 0m",
+      "escalas": "",
+      "precio": 1212,
+      "asientos": 36,
+      "texto_busqueda": "Futura Select 00:30 hrs.",
+      "notas": "",
+      "link": "https://www.clickbus.com.mx/trips?departure_place=ciudad-de-mexico-df-(todas-las-terminales)&arrival_place=guadalajara-jal-(todas-las-terminales)&departure_date=2026-11-19",
+      "disponibilidad": "disponible",
+      "disponibilidad_detalle": "36 asientos disponibles",
+      "capturas": [
+        "capturas/ida-opciones.png",
+        "capturas/ida-elegido.png"
+      ],
+      "precio_total": 1212
+    },
+    {
+      "tipo": "autobus",
+      "proveedor": "ClickBus",
+      "sentido": "vuelta",
+      "linea": "Elite Select",
+      "servicio": "Paso",
+      "salida": "01:01",
+      "llegada": "09:00",
+      "duracion": "7h 59m",
+      "escalas": "",
+      "precio": 899.5,
+      "asientos": 36,
+      "texto_busqueda": "Elite Select 01:01 hrs.",
+      "notas": "",
+      "link": "https://www.clickbus.com.mx/trips?departure_place=guadalajara-jal-(todas-las-terminales)&arrival_place=ciudad-de-mexico-df-(todas-las-terminales)&departure_date=2026-11-21",
+      "disponibilidad": "disponible",
+      "disponibilidad_detalle": "36 asientos disponibles",
+      "capturas": [
+        "capturas/vuelta-opciones.png",
+        "capturas/vuelta-elegido.png"
+      ],
+      "precio_total": 899.5
+    }
+  ],
+  "hotel": {
+    "proveedor": "Booking.com",
+    "nombre": "Hotel Olá Chapultepec",
+    "precio_noche": 909,
+    "precio_estadia": 1818,
+    "rating": "8.7",
+    "rating_count": 2945,
+    "distancia_km": 2.2,
+    "distancia_texto": "2.2 km del centro",
+    "zona": "Centro, Guadalajara",
+    "disponibles": 5,
+    "texto_busqueda": "Hotel Olá Chapultepec",
+    "notas": "Precio de Booking para toda la estancia; se dividió entre las noches. No incluye impuestos ni cargos.",
+    "checkin": "2026-11-19",
+    "checkout": "2026-11-21",
+    "noches": 2,
+    "link": "https://www.booking.com/searchresults.es.html?ss=Guadalajara&checkin=2026-11-19&checkout=2026-11-21&group_adults=1&no_rooms=1",
+    "disponibilidad": "disponible",
+    "disponibilidad_detalle": "867 alojamientos",
+    "capturas": [
+      "capturas/hotel-opciones.png",
+      "capturas/hotel-elegido.png"
+    ],
+    "habitaciones": 1,
+    "precio_total": 1818
+  },
+  "totales": {
+    "transporte": 2111.5,
+    "hotel": 1818,
+    "total": 3929.5,
+    "moneda": "MXN"
+  },
+  "notas": [
+    "Precios y disponibilidad obtenidos del buscador en el momento de la consulta; no son una reserva.",
+    "Los conteos de disponibilidad son indicativos y pueden incluir resultados de la zona.",
+    "Las capturas de cada búsqueda y de la opción elegida quedaron en la carpeta capturas/.",
+    "El hotel se cotizó para 1 habitación; ajusta si viajan más personas.",
+    "La captura de hotel puede incluir el modal \"Inicia sesión y ahorra\" de Booking; el CLI intenta cerrarlo antes de capturar."
+  ]
+}

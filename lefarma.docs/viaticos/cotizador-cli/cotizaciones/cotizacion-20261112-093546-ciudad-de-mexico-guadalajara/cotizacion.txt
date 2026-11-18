@@ -1,0 +1,49 @@
+==============================================================================
+COTIZACIÓN cotizacion-20261112-093546-ciudad-de-mexico-guadalajara
+==============================================================================
+Origen:  Ciudad de México (MEX)
+Destino: Guadalajara (GDL)
+Ida:     2026-11-19
+Vuelta:  2026-11-21
+Personas: 1
+Medio:   Autobús
+
+TRANSPORTE
+------------------------------------------------------------------------------
+IDA · ClickBus · Futura Select (Paso)
+  00:30 → 07:30 · 7h 0m
+  $1,212.00 por persona · $1,212.00 total · disponible (36 asientos disponibles)
+  Link: https://www.clickbus.com.mx/trips?departure_place=ciudad-de-mexico-df-(todas-las-terminales)&arrival_place=guadalajara-jal-(todas-las-terminales)&departure_date=2026-11-19
+  Captura: capturas/ida-opciones.png
+  Captura: capturas/ida-elegido.png
+
+VUELTA · ClickBus · Elite Select (Paso)
+  01:01 → 09:00 · 7h 59m
+  $899.50 por persona · $899.50 total · disponible (36 asientos disponibles)
+  Link: https://www.clickbus.com.mx/trips?departure_place=guadalajara-jal-(todas-las-terminales)&arrival_place=ciudad-de-mexico-df-(todas-las-terminales)&departure_date=2026-11-21
+  Captura: capturas/vuelta-opciones.png
+  Captura: capturas/vuelta-elegido.png
+
+HOTEL
+------------------------------------------------------------------------------
+Hotel Olá Chapultepec
+  2026-11-19 a 2026-11-21 · 2 noche(s)
+  Rating: 8.7 (2945 comentarios)
+  Distancia: 2.2 km del centro
+  Zona: Centro, Guadalajara
+  Habitaciones disponibles: 5
+  $909.00 por noche · $1,818.00 total
+  Disponibilidad: disponible (867 alojamientos)
+  Link: https://www.booking.com/searchresults.es.html?ss=Guadalajara&checkin=2026-11-19&checkout=2026-11-21&group_adults=1&no_rooms=1
+  Captura: capturas/hotel-opciones.png
+  Captura: capturas/hotel-elegido.png
+  Nota: Precio de Booking para toda la estancia; se dividió entre las noches. No incluye impuestos ni cargos.
+
+TOTALES
+------------------------------------------------------------------------------
+Transporte: $2,111.50
+Hotel:      $1,818.00
+TOTAL:      $3,929.50 MXN
+
+Precios y disponibilidad obtenidos del buscador al momento de la consulta; no son una reserva.
+==============================================================================

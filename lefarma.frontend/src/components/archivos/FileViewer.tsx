@@ -16,7 +16,7 @@ import { archivoService } from '@/services/archivoService';
 import { API } from '@/shared/api/apiClient';
 import type { Archivo } from '@/types/archivo.types';
 import { ExcelTable } from './ExcelTable';
-import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 
 // ─── tipos y helpers ───────────────────────────────────────────────────────────
 
@@ -84,6 +84,14 @@ interface FileViewerProps {
   archivoId?: number | null;
   /** Archivo local (antes de subir) para preview inmediato */
   localFile?: File | null;
+  /** URL ya autenticada (por ejemplo un object URL de una captura de viáticos). */
+  src?: string | null;
+  /** Nombre visible cuando se usa `src`. */
+  nombre?: string;
+  /** Tamaño en bytes cuando se usa `src`. */
+  tamanoBytes?: number;
+  /** Permite descargar el `src`; por defecto true. */
+  descargar?: boolean;
   titulo?: string;
   textoDescargar?: string;
   open: boolean;
@@ -93,6 +101,10 @@ interface FileViewerProps {
 export function FileViewer({
   archivoId,
   localFile,
+  src,
+  nombre,
+  tamanoBytes,
+  descargar = true,
   titulo,
   textoDescargar = 'Descargar',
   open,
@@ -213,7 +225,29 @@ export function FileViewer({
     if (!open) return;
     resetPreview();
 
-    if (localFile) {
+    if (src) {
+      // Captura ya autenticada: el object URL lo administra quien abre el
+      // visor (useCapturaAutenticada), por eso NO se guarda en prevBlobRef.
+      const pseudoArchivo: Archivo = {
+        id: 0,
+        entidadTipo: '',
+        entidadId: 0,
+        carpeta: '',
+        nombreOriginal: nombre ?? 'captura.png',
+        nombreFisico: nombre ?? 'captura.png',
+        extension: '.png',
+        tipoMime: 'image/png',
+        tamanoBytes: tamanoBytes ?? 0,
+        metadata: null,
+        fechaCreacion: new Date().toISOString(),
+        fechaEdicion: null,
+        usuarioId: null,
+        activo: true,
+      };
+      setArchivo(pseudoArchivo);
+      setBlobUrl(src);
+      setPreviewLoading(false);
+    } else if (localFile) {
       // preview local
       const ext = '.' + (localFile.name.split('.').pop() ?? '').toLowerCase();
       const kind = resolveKind(ext, localFile.type);
@@ -240,7 +274,7 @@ export function FileViewer({
       loadRemoteMetadata(archivoId);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, archivoId, localFile]);
+  }, [open, archivoId, localFile, src, nombre, tamanoBytes]);
 
   useEffect(() => {
     if (archivo && !loading && archivoId && archivo.id > 0) {
@@ -251,6 +285,13 @@ export function FileViewer({
   // ── Escape handled by Radix Dialog ───────────────────────────────────
 
   const handleDownload= () => {
+    if (src && descargar) {
+      const a = document.createElement('a');
+      a.href = src;
+      a.download = nombre ?? 'captura.png';
+      a.click();
+      return;
+    }
     if (archivo && archivo.id > 0) {
       window.open(archivoService.getDownloadUrl(archivo.id), '_blank');
     } else if (localFile) {
@@ -266,7 +307,8 @@ export function FileViewer({
   const ext = archivo?.extension ?? '';
   const kind = resolveKind(ext, archivo?.tipoMime);
   const isLocal = !!localFile;
-  const canDownload = !isLocal && archivo && archivo.id > 0;
+  const esCaptura = !!src;
+  const puedeDescargar = (esCaptura && descargar) || (!isLocal && archivo && archivo.id > 0);
 
   // ── Área de preview ────────────────────────────────────────────────────
   const renderPreview = () => {
@@ -347,7 +389,7 @@ export function FileViewer({
           {extIcon(kind)}
         </div>
         <p className="text-sm">Vista previa no disponible para este formato</p>
-        {canDownload && (
+        {puedeDescargar && (
           <p className="text-xs">Descarga el archivo para abrirlo con la aplicación correspondiente</p>
         )}
       </div>
@@ -358,7 +400,7 @@ export function FileViewer({
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
       <DialogContent
-        className="flex flex-col overflow-hidden p-0 gap-0 border-border bg-background"
+        className="flex flex-col overflow-hidden p-0 gap-0 border-border bg-background z-[60]"
         style={{
           maxWidth: kind === 'unsupported' ? '36rem' : '90vw',
           width: '90vw',
@@ -369,6 +411,9 @@ export function FileViewer({
         <DialogTitle className="sr-only">
           {titulo || archivo?.nombreOriginal || 'Vista previa'}
         </DialogTitle>
+        <DialogDescription className="sr-only">
+          Vista previa del archivo o captura seleccionada.
+        </DialogDescription>
 
         {/* ── Header ── */}
         <div className="flex items-center gap-3 px-4 py-3 border-b border-border shrink-0">
@@ -406,11 +451,13 @@ export function FileViewer({
               <p className="font-semibold text-foreground text-sm truncate" title={archivo.nombreOriginal}>
                 {archivo.nombreOriginal}
               </p>
-              <div className="flex items-center gap-2">
-                <HardDrive className="w-3.5 h-3.5 shrink-0" />
-                <span>{formatSize(archivo.tamanoBytes)}</span>
-              </div>
-              {!isLocal && (
+              {archivo.tamanoBytes > 0 && (
+                <div className="flex items-center gap-2">
+                  <HardDrive className="w-3.5 h-3.5 shrink-0" />
+                  <span>{formatSize(archivo.tamanoBytes)}</span>
+                </div>
+              )}
+              {!isLocal && !esCaptura && (
                 <div className="flex items-center gap-2">
                   <Calendar className="w-3.5 h-3.5 shrink-0" />
                   <span>{formatDate(archivo.fechaCreacion)}</span>
@@ -441,7 +488,7 @@ export function FileViewer({
                 }
                 return null;
               })()}
-              {canDownload && (
+              {puedeDescargar && (
                 <button
                   onClick={handleDownload}
                   className="flex items-center justify-center gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground rounded-md text-xs font-medium hover:bg-primary/90 transition-colors w-full mt-2"

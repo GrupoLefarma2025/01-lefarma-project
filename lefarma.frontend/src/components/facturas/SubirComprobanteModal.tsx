@@ -60,6 +60,7 @@ export function SubirComprobanteModal({ open, onClose, idEmpresa, idOrden, idPas
     asignaciones.length > 0 && asignacionesSeleccionadas === asignaciones.length;
 
   const xmlInputRef = useRef<HTMLInputElement>(null);
+  const comprobanteConfirmadoRef = useRef(false);
   const esCfdi = tipoComprobante === 'cfdi';
 
   const satStatus = useMemo(() => {
@@ -116,9 +117,30 @@ export function SubirComprobanteModal({ open, onClose, idEmpresa, idOrden, idPas
     setCfdiPreview(null);
     setComprobanteSubido(null);
     setAsignaciones([]);
+    comprobanteConfirmadoRef.current = false;
   };
 
-  const handleClose = () => { reset(); onClose(); };
+  const handleClose = async () => {
+    const borrador = comprobanteConfirmadoRef.current ? null : comprobanteSubido;
+
+    if (borrador && !window.confirm('El comprobante aún no está asignado. ¿Deseas descartarlo?'))
+      return;
+
+    if (borrador) {
+      setLoading(true);
+      try {
+        await comprobanteService.eliminar(borrador.idComprobante);
+      } catch (error: unknown) {
+        console.error('[CFDI] Error al descartar comprobante:', error);
+        toast.error('No se pudo descartar el comprobante. Se limpiará al volver a subirlo.');
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    reset();
+    onClose();
+  };
 
   // ── XML parsing ──────────────────────────────────────────────────────────
 
@@ -145,6 +167,7 @@ export function SubirComprobanteModal({ open, onClose, idEmpresa, idOrden, idPas
     if (esCfdi && !xmlFile) { toast.error('Debes cargar el XML del CFDI'); return; }
     if (!esCfdi && (!totalManual || Number(totalManual) <= 0)) { toast.error('Ingresa el total del comprobante'); return; }
 
+    setSubmitError(null);
     setLoading(true);
     try {
       const comp = await comprobanteService.subir({
@@ -159,8 +182,10 @@ export function SubirComprobanteModal({ open, onClose, idEmpresa, idOrden, idPas
     } catch (error: unknown) {
         console.error('[CFDI] Error al subir comprobante:', error);
         const apiErr = toApiError(error);
-        toast.error('No se pudo registrar el comprobante. Intenta de nuevo.');
-        setSubmitError(apiErr.errors?.[0]?.description ?? apiErr.message);
+        const mensaje = apiErr.errors?.[0]?.description || apiErr.message
+          || 'No se pudo registrar el comprobante. Intenta de nuevo.';
+        toast.error(mensaje);
+        setSubmitError(mensaje);
     } finally { setLoading(false); }
   };
 
@@ -171,8 +196,9 @@ export function SubirComprobanteModal({ open, onClose, idEmpresa, idOrden, idPas
     void archivos;
 
     if (partidasPendientes.length === 0) {
+      comprobanteConfirmadoRef.current = true;
       onComprobanteSubido(comprobanteSubido);
-      handleClose();
+      void handleClose();
       return;
     }
 
@@ -211,9 +237,10 @@ export function SubirComprobanteModal({ open, onClose, idEmpresa, idOrden, idPas
     setLoading(true);
     try {
       const updated = await comprobanteService.asignarPartidas(comprobanteSubido.idComprobante, { asignaciones: items }, idPasoWorkflow);
+      comprobanteConfirmadoRef.current = true;
       onComprobanteSubido(updated);
       toast.success('Asignacion guardada.');
-      handleClose();
+      void handleClose();
     } catch (error: unknown) {
       console.error('[CFDI] Error al asignar partidas:', error);
       const apiErr = toApiError(error);
@@ -233,7 +260,7 @@ export function SubirComprobanteModal({ open, onClose, idEmpresa, idOrden, idPas
 
   return (
     <Modal id="subir-comprobante" open={open} setOpen={(v) => { if (!v) handleClose(); }} title={stepTitle}
-      size="xl" canClose={!loading}
+      size="xl" canClose={!loading} beforeClose={() => !loading}
       footer={
         <div className="flex w-full items-center justify-between gap-2">
           <div>
@@ -296,6 +323,13 @@ export function SubirComprobanteModal({ open, onClose, idEmpresa, idOrden, idPas
       {step === 'datos' && (
         <div className="space-y-4">
           <p className="text-xs text-muted-foreground">Ingresa los datos del comprobante a registrar.</p>
+
+          {submitError && (
+            <div className="flex items-start gap-1.5 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-900/40 dark:bg-red-950/20 dark:text-red-400">
+              <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              <span>{submitError}</span>
+            </div>
+          )}
 
           <div className="space-y-1.5">
             <Label>Tipo de comprobante <span className="text-red-500">*</span></Label>

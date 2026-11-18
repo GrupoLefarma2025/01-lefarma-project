@@ -2,10 +2,11 @@
    expone helpers (`rutaApiCaptura`, `useCapturaAutenticada`) que comparten las
    tablas de cotización y el diálogo de boleto. */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { API } from '@/shared/api/apiClient';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { FileViewer } from '@/components/archivos/FileViewer';
 
 // Celdas compartidas por la tabla de transporte y la de hoteles. La regla de
 // negocio vive aqui y en ningun otro lado: un estimado por formula NUNCA se
@@ -53,41 +54,46 @@ const MENSAJE_ERROR_CAPTURA = 'No se pudo cargar la captura.';
  * `URL.revokeObjectURL` al desmontar o al cambiar de captura: sin eso, una
  * tabla con muchas filas filtra memoria.
  */
-export function useCapturaAutenticada(ruta: string | undefined): EstadoCaptura {
+export function useCapturaAutenticada(ruta: string | undefined, revision = 0): EstadoCaptura {
   const apiPath = ruta ? rutaApiCaptura(ruta) : null;
-  // Se guarda con qué ruta se cargó cada resultado: así, al cambiar de captura,
-  // la miniatura vieja no se queda pegada mientras llega la nueva.
+  const apiUrl = apiPath
+    ? (revision > 0 ? `${apiPath}?v=${revision}` : apiPath)
+    : null;
+  // Se guarda con qué ruta/revisión se cargó cada resultado: así, al cambiar de
+  // captura o al reemplazarla con el mismo nombre, la miniatura vieja no se
+  // queda pegada mientras llega la nueva.
   const [cargada, setCargada] = useState<{
     ruta: string;
+    revision: number;
     url: string | null;
     error: string | null;
   } | null>(null);
 
   useEffect(() => {
-    if (!ruta || !apiPath) return;
+    if (!ruta || !apiUrl) return;
 
     let cancelado = false;
     let objectUrl: string | null = null;
-    API.get(apiPath, { responseType: 'blob' })
+    API.get(apiUrl, { responseType: 'blob' })
       .then((respuesta) => {
         if (cancelado) return;
         objectUrl = URL.createObjectURL(respuesta.data as Blob);
-        setCargada({ ruta, url: objectUrl, error: null });
+        setCargada({ ruta, revision, url: objectUrl, error: null });
       })
       .catch(() => {
         if (cancelado) return;
-        setCargada({ ruta, url: null, error: MENSAJE_ERROR_CAPTURA });
+        setCargada({ ruta, revision, url: null, error: MENSAJE_ERROR_CAPTURA });
       });
 
     return () => {
       cancelado = true;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [ruta, apiPath]);
+  }, [ruta, apiUrl, revision]);
 
   if (!ruta) return { url: null, error: null };
   if (!apiPath) return { url: ruta, error: null };
-  if (cargada?.ruta !== ruta) return { url: null, error: null };
+  if (cargada?.ruta !== ruta || cargada.revision !== revision) return { url: null, error: null };
   return { url: cargada.url, error: cargada.error };
 }
 
@@ -144,14 +150,27 @@ export function CeldaCaptura({
   etiqueta,
   onRebuscar,
   rebuscando = false,
+  onSubirCaptura,
+  subiendo = false,
+  revision = 0,
+  sinCapturaTexto = 'Sin captura',
 }: {
   ruta: string | undefined;
   etiqueta: string;
   onRebuscar?: () => void;
   rebuscando?: boolean;
+  /** Sube un PNG tomado fuera del backend y lo asocia a esta opción. */
+  onSubirCaptura?: (archivo: File) => void | Promise<void>;
+  subiendo?: boolean;
+  /** Cambia cuando se reemplaza el archivo para forzar un nuevo fetch. */
+  revision?: number;
+  sinCapturaTexto?: string;
 }) {
-  const estado = useCapturaAutenticada(ruta);
-  const boton = onRebuscar ? (
+  const estado = useCapturaAutenticada(ruta, revision);
+  const [verCaptura, setVerCaptura] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const botonRebuscar = onRebuscar ? (
     <Button
       type="button"
       variant="outline"
@@ -165,11 +184,45 @@ export function CeldaCaptura({
     </Button>
   ) : null;
 
+  const botonSubir = onSubirCaptura ? (
+    <>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/png,.png"
+        className="hidden"
+        onChange={(evento) => {
+          const archivo = evento.target.files?.[0];
+          evento.target.value = '';
+          if (archivo) void onSubirCaptura(archivo);
+        }}
+      />
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        disabled={subiendo}
+        onClick={() => inputRef.current?.click()}
+        aria-label={`Subir captura de ${etiqueta}`}
+        title="Sube un PNG tomado manualmente (máx. 8 MB)"
+      >
+        {subiendo ? 'Subiendo…' : 'Subir captura'}
+      </Button>
+    </>
+  ) : null;
+
+  const acciones = botonRebuscar || botonSubir ? (
+    <div className="flex flex-wrap items-start gap-1">
+      {botonRebuscar}
+      {botonSubir}
+    </div>
+  ) : null;
+
   if (!ruta) {
     return (
       <div className="flex flex-col items-start gap-1">
-        <span className="text-xs text-muted-foreground">Sin captura</span>
-        {boton}
+        <span className="text-xs text-muted-foreground">{sinCapturaTexto}</span>
+        {acciones}
       </div>
     );
   }
@@ -181,17 +234,31 @@ export function CeldaCaptura({
     return (
       <div className="flex flex-col items-start gap-1">
         <ImagenCaptura estado={estado} alt={alt} className={claseMiniatura} />
-        {boton}
+        {acciones}
       </div>
     );
   }
 
   return (
     <div className="flex flex-col items-start gap-1">
-      <a href={estado.url} target="_blank" rel="noreferrer" title={`Ver captura completa · ${etiqueta}`}>
+      <button
+        type="button"
+        onClick={() => setVerCaptura(true)}
+        className="rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        aria-label={`Ver captura completa de ${etiqueta}`}
+        title={`Ver captura completa · ${etiqueta}`}
+      >
         <ImagenCaptura estado={estado} alt={alt} className={claseMiniatura} />
-      </a>
-      {boton}
+      </button>
+      {acciones}
+      <FileViewer
+        open={verCaptura}
+        onClose={() => setVerCaptura(false)}
+        src={estado.url}
+        nombre={`captura-${etiqueta}.png`}
+        titulo={`Captura · ${etiqueta}`}
+        descargar
+      />
     </div>
   );
 }

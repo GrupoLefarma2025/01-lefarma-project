@@ -82,6 +82,20 @@
 - [x] Suite frontend completa: 399/405; los 6 fallos son preexistentes (`PermissionGuard`, `baseapp-routes`, `dashboard.smoke`) y hay 1 suite de script con error de sintaxis ajena a este cambio.
 - [ ] Marcar ADR-00014 como `Accepted` (queda `Proposed` hasta la revisión del usuario).
 
+## Correcciones 2026-11-17 (handoff y costo)
+
+- **Total:** `guardarOpciones` ahora suma solo las opciones `fue_elegida` y omite el total si mezclan monedas. Antes sumaba todas las alternativas y el panel de EM/Concentrado mostraba un costo inflado.
+- **Visitas bloqueadas:** el modal solo considera activas (`borrador`, `enviada`, `autorizada`, `autorizada_con_ajustes`); las rechazadas/canceladas liberan la visita.
+- **Gerencia:** el backend resuelve la gerencia desde `RutaVersion`/`SeleccionMensual` cuando el request no la trae; ya no nace "Sin asignar" si la ruta la tiene.
+- **Horas:** `CalendarioPage` conserva `horaSalida`/`horaLlegada`; el snapshot usa `horaLlegada` como `debeEstarHora`. La salida y el origen siguen capturándose en el asistente (decisión: crear borrador, no cotizar automáticamente).
+- **Viajero:** si el especialista es el usuario que cotiza, el snapshot usa `modo: 'mia'`; si no, `'otra'`.
+- **Hotel:** en rutas de varios días se marca `hospedaje.necesario` al cerrar cada día con visitas al día siguiente; `CalculosViajeModal` enciende el toggle y busca hotel automáticamente.
+- **Etiquetas:** “Cotizar viáticos” pasa a “Preparar cotización”; el modal y los toasts dicen “borrador”, porque el precio se calcula en Mis viajes.
+- **Ruta inicial:** `CalendarioPage` abre el modal en la ruta de la visita seleccionada.
+- **Costo:** el panel aclara que incluye transporte y hospedaje cotizados, no comidas ni extras.
+- **Bloqueo global vs por usuario:** queda pendiente de decisión; no se cambió.
+- **Verificación:** backend 135/135 (incluye gerencia resuelta desde la selección); frontend 418/419 (único fallo preexistente de catálogo de hospitales); `npm run build` correcto.
+
 ## Limpieza del duplicado
 
 - Script `0013_20261022-1400_viaticos_eliminar-cotizacion-duplicada.lefarma.sql`:

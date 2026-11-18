@@ -99,6 +99,13 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
                 if (pasoActual is null || !pasoActual.Activo)
                     return CommonErrors.Conflict("orden", "La orden no tiene un paso activo válido.");
 
+                // Si la pantalla quedó desactualizada, la acción enviada ya no pertenece
+                // al paso actual. Mensaje explícito antes de validar al participante.
+                if (!pasoActual.AccionesOrigen.Any(a => a.IdAccion == request.IdAccion && a.Activo))
+                    return CommonErrors.Conflict("OrdenCompra",
+                        $"La acción ya no está disponible para el paso actual ({pasoActual.NombrePaso}). " +
+                        "La orden pudo haber cambiado de paso; recarga la bandeja e inténtalo de nuevo.");
+
                 // Validar participante (USANDO HELPER)
                 var validacion = await WorkflowFirmaHelper.ValidarParticipanteAsync(
                     pasoActual, orden.IdWorkflow, idUsuario, orden.IdUsuarioCreador, _asokamContext, _jefeInmediatoResolver);

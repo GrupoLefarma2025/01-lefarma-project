@@ -1,4 +1,5 @@
 import { API } from '@/shared/api/apiClient';
+import { authService } from '@/shared/auth/authService';
 import type { ApiResponse } from '@/types/api.types';
 
 /** Datos del viaje que el agente extrae de la página (POST /buscar). */
@@ -59,16 +60,30 @@ export const evidenciasApi = {
 
   /**
    * POST /viaticos/solicitudes/{id}/capturas: captura con Playwright las
-   * opciones que aún no tienen PNG y las persiste. `forzar` re-captura todas.
-   * El backend corre el script local (Chromium) a través de un helper Node, así
-   * que el timeout es amplio: 10 opciones pueden tardar ~2 min.
+   * opciones elegidas que aún no tienen PNG y las persiste. `forzar` re-captura
+   * todas. Usa el script local (Chromium), no el agente: 10 opciones pueden
+   * tardar ~2 min. El backend conserva el botón disponible si alguna falla.
    */
-  generar: (id: number, forzar = false) =>
+  generar: async (id: number, forzar = false) =>
     API.post<ApiResponse<EvidenciasSolicitud>>(
       `${BASE}/${id}/capturas`,
       { forzar },
-      { timeout: 240_000 },
+      { timeout: 300_000 },
     ),
+
+  /**
+   * POST /viaticos/solicitudes/{id}/opciones/{idOpcion}/captura: sube un PNG
+   * tomado fuera del backend y lo asocia a esa opción (ruta_captura).
+   */
+  subirCaptura: (id: number, idOpcion: number, archivo: File) => {
+    const datos = new FormData();
+    datos.append('Archivo', archivo);
+    return API.post<ApiResponse<EvidenciasSolicitud>>(
+      `${BASE}/${id}/opciones/${idOpcion}/captura`,
+      datos,
+      { timeout: 120_000 },
+    );
+  },
 
   /**
    * POST /viaticos/solicitudes/{id}/buscar: el agente (OpenCode + Playwright MCP
@@ -84,3 +99,34 @@ export const evidenciasApi = {
       { timeout: 900_000 },
     ),
 };
+
+/**
+ * Dispara la captura de las opciones elegidas al guardar, sin bloquear el
+ * guardado ni la navegación. Usa `fetch` + `keepalive` porque después de
+ * guardar la SPA navega a Concentrado y un XHR normal se cancelaría antes de
+ * llegar al backend. Si falla (red, captcha, sitio sin resultados), el detalle
+ * conserva el botón "Generar capturas" para reintentar.
+ */
+export function generarCapturasEnSegundoPlano(id: number): void {
+  try {
+    // Same-origin para evitar el preflight CORS: en desarrollo lo resuelve el
+    // proxy de Vite y en producción el backend sirve la SPA. Un preflight
+    // pendiente se cancelaría al navegar y el keepalive no serviría.
+    const configurada = import.meta.env.VITE_API_URL;
+    const base = configurada?.startsWith('/') ? configurada : '/api';
+    const token = authService.getAccessToken();
+    void fetch(`${base}/viaticos/solicitudes/${id}/capturas`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ forzar: false }),
+      keepalive: true,
+    }).catch(() => {
+      // Best-effort: el error no debe romper el guardado de la solicitud.
+    });
+  } catch {
+    // Si el cliente HTTP ni siquiera está disponible, el guardado sigue.
+  }
+}

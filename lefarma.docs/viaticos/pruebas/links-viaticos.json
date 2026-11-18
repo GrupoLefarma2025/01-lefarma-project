@@ -1,0 +1,3514 @@
+{
+  "version": "1.0.0",
+  "actualizado": "2026-11-12",
+  "snapshot_sistema": "2026-11-11",
+  "fuente_datos": {
+    "bd": "LefarmaDev2 (192.168.4.2)",
+    "tablas": [
+      "educacion_medica.selecciones_mensuales",
+      "educacion_medica.selecciones_mensuales_hospitales",
+      "educacion_medica.vw_hospitales_clasificados",
+      "educacion_medica.rutas",
+      "educacion_medica.rutas_visitas",
+      "viaticos.solicitudes",
+      "viaticos.solicitud_opciones"
+    ],
+    "notas": "Los casos de vuelo y hotel salen de la selección mensual 10 y de rutas reales de las selecciones 6 y 7. Los precios de sistema_actual salen de viaticos.solicitud_opciones cuando existe una solicitud real; si no, son el estimado de la fórmula vigente. Los slugs de ClickBus y Primera Plus se verificaron contra sus catálogos el 2026-11-11.",
+    "nota_fechas": "Las fechas de los casos se movieron a diciembre de 2026 para que los proveedores devuelvan resultados (varias solicitudes reales tenían fechas ya pasadas). Los precios de sistema_actual son el snapshot histórico de la solicitud; no son el precio del día de la prueba. El campo fecha_original conserva la fecha real de la solicitud."
+  },
+  "estados": {
+    "pendiente": "Aún no se prueba.",
+    "ok": "La página carga y muestra resultados/precios de la ruta o ciudad.",
+    "sin_resultados": "La página carga pero no muestra resultados para la ruta/fecha.",
+    "error": "La página muestra un error explícito.",
+    "timeout": "La navegación no terminó dentro del tiempo límite.",
+    "captcha": "La página pide captcha o validación anti-bot.",
+    "bloqueado": "El sitio bloquea el acceso (403/denegado).",
+    "no_aplica": "No se puede construir el link con los datos del caso.",
+    "implementado": "El patrón ya se llevó al sistema."
+  },
+  "proveedores": {
+    "google_flights_q": {
+      "nombre": "Google Flights (q=)",
+      "tipo": "vuelo",
+      "tipo_link": "consulta",
+      "patron": "https://www.google.com/travel/flights?q=Flights%20from%20{iata_origen}%20to%20{iata_destino}%20on%20{fecha}&curr=MXN&hl=es-MX",
+      "notas": "Patrón actual del sistema. En pruebas con Chrome la URL exacta mostró errores intermitentes."
+    },
+    "google_flights_q_gl": {
+      "nombre": "Google Flights (q= + gl=MX)",
+      "tipo": "vuelo",
+      "tipo_link": "consulta",
+      "patron": "https://www.google.com/travel/flights?q=Flights%20from%20{iata_origen}%20to%20{iata_destino}%20on%20{fecha}&curr=MXN&hl=es-MX&gl=MX",
+      "notas": "Variante de la anterior agregando país México."
+    },
+    "kayak_vuelos": {
+      "nombre": "Kayak",
+      "tipo": "vuelo",
+      "tipo_link": "consulta",
+      "patron": "https://www.kayak.com.mx/flights/{iata_origen}-{iata_destino}/{fecha}?sort=bestflight_a&fs=cabin=e",
+      "notas": "En la primera prueba mostró 95 de 108 vuelos con precio directo; después el sitio pidió validación anti-bot."
+    },
+    "skyscanner_vuelos": {
+      "nombre": "Skyscanner",
+      "tipo": "vuelo",
+      "tipo_link": "consulta",
+      "patron": "https://www.skyscanner.com.mx/transport/flights/{iata_origen_lower}/{iata_destino_lower}/{fecha_ddmmaa}/?adults=1&adultsv2=1&cabinclass=economy&children=0&currency=MXN&locale=es-MX",
+      "notas": "En pruebas headless redirigió a captcha."
+    },
+    "volaris": {
+      "nombre": "Volaris",
+      "tipo": "vuelo",
+      "tipo_link": "consulta",
+      "patron": "https://www.volaris.com/",
+      "notas": "Sin patrón de deep link verificado; se prueba la portada y, si se puede, el buscador."
+    },
+    "vivaaerobus": {
+      "nombre": "Viva Aerobus",
+      "tipo": "vuelo",
+      "tipo_link": "consulta",
+      "patron": "https://www.vivaaerobus.com/es-mx",
+      "notas": "Sin patrón de deep link verificado; se prueba la portada."
+    },
+    "aeromexico": {
+      "nombre": "Aeroméxico",
+      "tipo": "vuelo",
+      "tipo_link": "consulta",
+      "patron": "https://www.aeromexico.com/es-mx",
+      "notas": "Sin patrón de deep link verificado; se prueba la portada."
+    },
+    "google_hotels_ciudad": {
+      "nombre": "Google Hotels (ciudad)",
+      "tipo": "hotel",
+      "tipo_link": "consulta",
+      "patron": "https://www.google.com/travel/search?q=hoteles%20en%20{ciudad_destino}&checkin={checkin}&checkout={checkout}&hl=es-MX&gl=MX&curr=MXN",
+      "notas": "En pruebas mostró precios reales por noche."
+    },
+    "google_hotels_hotel": {
+      "nombre": "Google Hotels (hotel)",
+      "tipo": "hotel",
+      "tipo_link": "consulta",
+      "patron": "https://www.google.com/travel/search?q={hotel}%20{ciudad_destino}&checkin={checkin}&checkout={checkout}&hl=es-MX&gl=MX&curr=MXN",
+      "notas": "En pruebas resolvió el hotel correcto y mostró precio real."
+    },
+    "booking_ciudad": {
+      "nombre": "Booking.com (ciudad)",
+      "tipo": "hotel",
+      "tipo_link": "consulta",
+      "patron": "https://www.booking.com/searchresults.es.html?ss={ciudad_destino}&checkin={checkin}&checkout={checkout}&group_adults=1&no_rooms=1",
+      "notas": "Patrón actual para la fila de referencia. Funciona por ciudad."
+    },
+    "booking_hotel": {
+      "nombre": "Booking.com (hotel por nombre)",
+      "tipo": "hotel",
+      "tipo_link": "consulta",
+      "patron": "https://www.booking.com/searchresults.es.html?ss={hotel}&checkin={checkin}&checkout={checkout}&group_adults=1&no_rooms=1",
+      "notas": "Patrón actual para hoteles reales. En pruebas puede resolver otra ciudad o devolver 0 resultados."
+    },
+    "google_maps": {
+      "nombre": "Google Maps (lugar)",
+      "tipo": "hotel",
+      "tipo_link": "mapa",
+      "patron": "https://www.google.com/maps/search/{hotel}%20{ciudad_destino}",
+      "notas": "Patrón equivalente al googleMapsUri de Google Places. Muestra el lugar, no una tarifa."
+    },
+    "clickbus": {
+      "nombre": "ClickBus",
+      "tipo": "autobus",
+      "tipo_link": "consulta",
+      "patron": "https://www.clickbus.com.mx/trips?departure_place={slug_clickbus_origen}&arrival_place={slug_clickbus_destino}&departure_date={fecha}&minPrice=0&maxPrice=5000",
+      "notas": "Patrón actual. El adapter devuelve precios reales; el link público abre la búsqueda."
+    },
+    "clickbus_sin_max": {
+      "nombre": "ClickBus sin filtro de precio",
+      "tipo": "autobus",
+      "tipo_link": "consulta",
+      "patron": "https://www.clickbus.com.mx/trips?departure_place={slug_clickbus_origen}&arrival_place={slug_clickbus_destino}&departure_date={fecha}",
+      "notas": "Variante para comprobar si maxPrice=5000 oculta corridas caras."
+    },
+    "primera_plus": {
+      "nombre": "Primera Plus",
+      "tipo": "autobus",
+      "tipo_link": "consulta",
+      "patron": "https://viaje.primeraplus.com.mx/search/{slug_pp_origen}/{slug_pp_destino}/{fecha}/p/general-1/departures?lang=spanish&seatsOnResultsDiscounts=true",
+      "notas": "Funciona cuando su catálogo resuelve la ciudad. En pruebas places?q devolvió resultados de otra ciudad para Monterrey/Torreón/Saltillo."
+    },
+    "ado": {
+      "nombre": "ADO",
+      "tipo": "autobus",
+      "tipo_link": "consulta",
+      "patron": "https://www.ado.com.mx/",
+      "notas": "Sin patrón de deep link verificado."
+    },
+    "etn": {
+      "nombre": "ETN",
+      "tipo": "autobus",
+      "tipo_link": "consulta",
+      "patron": "https://www.etn.com.mx/",
+      "notas": "Sin patrón de deep link verificado."
+    },
+    "distribusion": {
+      "nombre": "Distribusion (demo)",
+      "tipo": "autobus",
+      "tipo_link": "consulta",
+      "patron": "https://book.api.distribusion.com/connections?retailerPartnerNumber=343401&origin={ciudad_origen}&destination={ciudad_destino}&date={fecha}",
+      "notas": "El retailerPartnerNumber 343401 es demo; en pruebas respondió 404."
+    },
+    "google_flights_iata": {
+      "nombre": "Google Flights (IATA corregido)",
+      "tipo": "vuelo",
+      "tipo_link": "consulta",
+      "patron": "https://www.google.com/travel/flights?q=Flights%20from%20{iata_origen}%20to%20{iata_destino}%20on%20{fecha}&curr=MXN&hl=es-MX",
+      "notas": "Misma URL actual, pero con el código IATA real en vez del municipio o del nombre de la ciudad."
+    }
+  },
+  "casos": [
+    {
+      "id": "vuelo-mex-mty-2026-11-10",
+      "tipo": "vuelo",
+      "descripcion": "CDMX → Monterrey, solicitud real VIA-6-0026",
+      "prioridad": "alta",
+      "hospital": "UMAE Especialidades 25 Nuevo León",
+      "entrada": {
+        "origen": {
+          "nombre": "Ciudad de México",
+          "municipio": "Ciudad de México",
+          "estado": "Ciudad de México",
+          "iata": "MEX",
+          "lat": 19.4326,
+          "lon": -99.1332
+        },
+        "destino": {
+          "nombre": "Monterrey",
+          "municipio": "Monterrey",
+          "estado": "Nuevo León",
+          "iata": "MTY",
+          "lat": 25.6802,
+          "lon": -100.315
+        },
+        "fecha_ida": "2026-12-09",
+        "fecha_vuelta": null,
+        "personas": 1,
+        "fecha_original": "2026-11-10"
+      },
+      "sistema_actual": {
+        "etiqueta": "Vuelo (estimado)",
+        "precio": 1717.45,
+        "moneda": "MXN",
+        "fuente": "estimado fase 1 (sin proveedor; interfaz IVuelosClient lista)",
+        "estimado": true,
+        "patron": "https://www.google.com/travel/flights?q=Flights%20from%20{iata_origen}%20to%20{iata_destino}%20on%20{fecha}&curr=MXN&hl=es-MX",
+        "link_ejemplo": "https://www.google.com/travel/flights?q=Flights%20from%20MEX%20to%20MTY%20on%202026-12-09&curr=MXN&hl=es-MX",
+        "resultado": "ok",
+        "evidencia": "Google Flights mostró la ruta en esta corrida; el comportamiento es intermitente.",
+        "captura": "evidencias/vuelo-mex-mty-2026-11-10__google_flights_q.png",
+        "disponibilidad": "disponible",
+        "disponibilidad_detalle": "Se encontraron 36 resultados"
+      },
+      "candidatos": [
+        {
+          "proveedor": "google_flights_q",
+          "link": "https://www.google.com/travel/flights?q=Flights%20from%20MEX%20to%20MTY%20on%202026-12-09&curr=MXN&hl=es-MX",
+          "estado": "ok",
+          "elegido": false,
+          "resultado": "De Ciudad de México a Monterrey | Vuelos de Google | https://www.google.com/travel/flights?q=Flights%20from%20MEX%20to%20MTY%20on%202026-12-09&curr=MXN&hl=es-MX | Ir al contenido principal Comentarios sobre la accesibilidad Explorar Vuelos Hoteles Alquileres de vacaciones Cambiar de apariencia Acceder Cargando los resultados Búsqueda de vuelos Ida y vuelta 1 Turista Ciudad de México Monterrey Filtros Todos los filtros Paradas Aerolíneas Equipaje Precio Horarios Emisiones Aeropuertos de escala Duración Result",
+          "titulo": "De Ciudad de México a Monterrey | Vuelos de Google",
+          "url_final": "https://www.google.com/travel/flights?q=Flights%20from%20MEX%20to%20MTY%20on%202026-12-09&curr=MXN&hl=es-MX",
+          "precio_visible": 1959,
+          "precios_visibles": [
+            1959,
+            2099,
+            2496,
+            2379,
+            2728,
+            2877,
+            3029,
+            3277,
+            3377,
+            3527
+          ],
+          "moneda_precio": "MXN",
+          "captura": "evidencias/vuelo-mex-mty-2026-11-10__google_flights_q.png",
+          "fecha_prueba": "2026-11-11T22:55:39.506Z",
+          "modo": "headless",
+          "status_http": 200,
+          "capturable_sistema": {
+            "permitido": true,
+            "estado": "ok",
+            "motivo": "Sin bloqueo conocido"
+          },
+          "disponibilidad": "disponible",
+          "disponibilidad_detalle": "Se encontraron 36 resultados"
+        },
+        {
+          "proveedor": "google_flights_q_gl",
+          "link": "https://www.google.com/travel/flights?q=Flights%20from%20MEX%20to%20MTY%20on%202026-12-09&curr=MXN&hl=es-MX&gl=MX",
+          "estado": "ok",
+          "elegido": false,
+          "resultado": "De Ciudad de México a Monterrey | Vuelos de Google | https://www.google.com/travel/flights?q=Flights%20from%20MEX%20to%20MTY%20on%202026-12-09&curr=MXN&hl=es-MX&gl=MX | Ir al contenido principal Comentarios sobre la accesibilidad Explorar Vuelos Hoteles Alquileres de vacaciones Cambiar de apariencia Acceder Cargando los resultados Búsqueda de vuelos Ida y vuelta 1 Turista Ciudad de México Monterrey Filtros Todos los filtros Paradas Aerolíneas Equipaje Precio Horarios Emisiones Aeropuertos de escala Duración Result",
+          "titulo": "De Ciudad de México a Monterrey | Vuelos de Google",
+          "url_final": "https://www.google.com/travel/flights?q=Flights%20from%20MEX%20to%20MTY%20on%202026-12-09&curr=MXN&hl=es-MX&gl=MX",
+          "precio_visible": 1936,
+          "precios_visibles": [
+            1936,
+            1959,
+            2245,
+            2348,
+            2099,
+            2320,
+            2337,
+            2379,
+            2496,
+            2663
+          ],
+          "moneda_precio": "MXN",
+          "captura": "evidencias/vuelo-mex-mty-2026-11-10__google_flights_q_gl.png",
+          "fecha_prueba": "2026-11-11T21:49:38.791Z",
+          "modo": "manual",
+          "status_http": 200,
+          "capturable_sistema": {
+            "permitido": true,
+            "estado": "ok",
+            "motivo": "Sin bloqueo conocido"
+          },
+          "disponibilidad": "disponible",
+          "disponibilidad_detalle": "Se encontraron 36 resultados"
+        },
+        {
+          "proveedor": "kayak_vuelos",
+          "link": "https://www.kayak.com.mx/flights/MEX-MTY/2026-12-09?sort=bestflight_a&fs=cabin=e",
+          "estado": "ok",
+          "elegido": true,
+          "resultado": "MEX a MTY, 9/12 | https://www.kayak.com.mx/flights/MEX-MTY/2026-12-09?sort=bestflight_a&fs=cabin%3De | Editar formulario Ir a filtros de vuelos Ir a sección de resultados de vuelos Usa la IA Solo ida Ciudad de México Monterrey mié. 9/12 1 adulto Económica Solo ida Ciudad de México Monterrey mié. 9/12 1 adulto Económica Buscar MXN Vuelos Alojamientos Autos Planifica con IA Paquetes Explore Blog Vuelos directos Cuándo ir Wishlist de viajes Trips Comen",
+          "titulo": "MEX a MTY, 9/12",
+          "url_final": "https://www.kayak.com.mx/flights/MEX-MTY/2026-12-09?sort=bestflight_a&fs=cabin%3De",
+          "precio_visible": 371,
+          "precios_visibles": [
+            371,
+            481,
+            427,
+            1775,
+            1688,
+            879,
+            755,
+            907,
+            790,
+            1564
+          ],
+          "moneda_precio": "MXN",
+          "captura": "evidencias/vuelo-mex-mty-2026-11-10__kayak_vuelos.png",
+          "fecha_prueba": "2026-11-11T22:51:04.353Z",
+          "modo": "headless",
+          "status_http": 200,
+          "capturable_sistema": {
+            "permitido": true,
+            "estado": "ok",
+            "motivo": "Sin bloqueo conocido"
+          },
+          "disponibilidad": "disponible",
+          "disponibilidad_detalle": "85 de 278 vuelos"
+        },
+        {
+          "proveedor": "volaris",
+          "link": "https://www.volaris.com/",
+          "estado": "no_aplica",
+          "elegido": false,
+          "resultado": "Solo se probó la portada; no hay deep link de búsqueda verificado.",
+          "titulo": "Volaris - Ultra low cost airline with the cheapest flight deals-Volaris",
+          "url_final": "https://www.volaris.com/",
+          "precio_visible": null,
+          "precios_visibles": [],
+          "moneda_precio": "",
+          "captura": "evidencias/vuelo-mex-mty-2026-11-10__volaris.png",
+          "fecha_prueba": "2026-11-11T22:07:13.075Z",
+          "modo": "manual",
+          "status_http": 200,
+          "capturable_sistema": {
+            "permitido": true,
+            "estado": "no_aplica",
+            "motivo": "Solo portada; sin deep link de búsqueda"
+          },
+          "disponibilidad": "no_verificable",
+          "disponibilidad_detalle": "No aplica o no hay deep link verificado."
+        },
+        {
+          "proveedor": "vivaaerobus",
+          "link": "https://www.vivaaerobus.com/es-mx",
+          "estado": "no_aplica",
+          "elegido": false,
+          "resultado": "Solo se probó la portada; no hay deep link de búsqueda verificado.",
+          "titulo": "Sitio Oficial Viva | Boletos avión | Vuelos baratos",
+          "url_final": "https://www.vivaaerobus.com/es-mx/",
+          "precio_visible": null,
+          "precios_visibles": [],
+          "moneda_precio": "MXN",
+          "captura": "evidencias/vuelo-mex-mty-2026-11-10__vivaaerobus.png",
+          "fecha_prueba": "2026-11-11T22:07:29.401Z",
+          "modo": "manual",
+          "status_http": 200,
+          "capturable_sistema": {
+            "permitido": true,
+            "estado": "no_aplica",
+            "motivo": "Solo portada; sin deep link de búsqueda"
+          },
+          "disponibilidad": "no_verificable",
+          "disponibilidad_detalle": "No aplica o no hay deep link verificado."
+        },
+        {
+          "proveedor": "aeromexico",
+          "link": "https://www.aeromexico.com/es-mx",
+          "estado": "bloqueado",
+          "elegido": false,
+          "resultado": "Access Denied | https://www.aeromexico.com/new/ | Access Denied You don't have permission to access \"http://www.aeromexico.com/new/\" on this server. Reference #18.89a3cf17.1794434861.2ec54072 https://errors.edgesuite.net/18.89a3cf17.1794434861.2ec54072",
+          "titulo": "Access Denied",
+          "url_final": "https://www.aeromexico.com/new/",
+          "precio_visible": null,
+          "precios_visibles": [],
+          "moneda_precio": "",
+          "captura": "evidencias/vuelo-mex-mty-2026-11-10__aeromexico.png",
+          "fecha_prueba": "2026-11-11T22:07:46.319Z",
+          "modo": "manual",
+          "status_http": 403,
+          "capturable_sistema": {
+            "permitido": true,
+            "estado": "bloqueado",
+            "motivo": "El sitio bloquea el acceso (Access Denied)"
+          },
+          "disponibilidad": "no_verificable",
+          "disponibilidad_detalle": "No se pudo verificar."
+        },
+        {
+          "proveedor": "skyscanner_vuelos",
+          "link": "https://www.skyscanner.com.mx/transport/flights/mex/mty/091226/?adults=1&adultsv2=1&cabinclass=economy&children=0&currency=MXN&locale=es-MX",
+          "estado": "captcha",
+          "elegido": false,
+          "resultado": "Skyscanner redirigió a captcha anti-bot.",
+          "titulo": "Skyscanner",
+          "url_final": "https://www.skyscanner.com.mx/sttc/px/captcha-v2/index.html?url=L3RyYW5zcG9ydC9mbGlnaHRzL21leC9tdHkvMDkxMjI2Lz9jYWJpbmNsYXNzPWVjb25vbXkmY2hpbGRyZW49MCZjdXJyZW5jeT1NWE4mbG9jYWxlPWVzLU1YJmFkdWx0cz0xJmFkdWx0c3YyPTE=&uuid=fb3f2660-de1c-11f1-a08b-92de29faa9d7&vid=",
+          "precio_visible": null,
+          "precios_visibles": [],
+          "moneda_precio": "",
+          "captura": "evidencias/vuelo-mex-mty-2026-11-10__skyscanner_vuelos.png",
+          "fecha_prueba": "2026-11-11T22:12:32.392Z",
+          "modo": "manual",
+          "status_http": 200,
+          "capturable_sistema": {
+            "permitido": true,
+            "estado": "captcha",
+            "motivo": "Captcha anti-bot"
+          },
+          "disponibilidad": "no_verificable",
+          "disponibilidad_detalle": "No se pudo verificar."
+        }
+      ],
+      "decision": {
+        "proveedor": "kayak_vuelos",
+        "tipo": "vuelo",
+        "patron": "https://www.kayak.com.mx/flights/{iata_origen}-{iata_destino}/{fecha}?sort=bestflight_a&fs=cabin=e",
+        "motivo": "Kayak abrió resultados reales para MEX-MTY, MEX-SLP, MEX-GDL, MEX-JAL, MEX-CVM, MEX-TRC, MEX-SJD y MEX-CEN. Google Flights q= falló o mostró portada en CEN/JAL/CVM/TRC.",
+        "fallback": "Si no hay IATA validado, no generar link. Google Flights solo como respaldo con IATA validado; JAL/CEN/CVM deben ir en la tabla IATA."
+      }
+    },
+    {
+      "id": "vuelo-mex-slp-2026-11-10",
+      "tipo": "vuelo",
+      "descripcion": "CDMX → San Luis Potosí, solicitud real VIA-6-0025",
+      "prioridad": "alta",
+      "hospital": "Hospital Star Médica San Luis Potosí",
+      "entrada": {
+        "origen": {
+          "nombre": "Ciudad de México",
+          "municipio": "Ciudad de México",
+          "estado": "Ciudad de México",
+          "iata": "MEX",
+          "lat": 19.4326,
+          "lon": -99.1332
+        },
+        "destino": {
+          "nombre": "San Luis Potosí",
+          "municipio": "San Luis Potosí",
+          "estado": "San Luis Potosí",
+          "iata": "SLP",
+          "lat": 22.1515,
+          "lon": -100.9835
+        },
+        "fecha_ida": "2026-12-10",
+        "fecha_vuelta": null,
+        "personas": 1,
+        "fecha_original": "2026-11-10"
+      },
+      "sistema_actual": {
+        "etiqueta": "Vuelo (estimado)",
+        "precio": 1208.51,
+        "moneda": "MXN",
+        "fuente": "estimado fase 1 (sin proveedor; interfaz IVuelosClient lista)",
+        "estimado": true,
+        "patron": "https://www.google.com/travel/flights?q=Flights%20from%20{iata_origen}%20to%20{iata_destino}%20on%20{fecha}&curr=MXN&hl=es-MX",
+        "link_ejemplo": "https://www.google.com/travel/flights?q=Flights%20from%20MEX%20to%20SLP%20on%202026-12-10&curr=MXN&hl=es-MX",
+        "resultado": "ok",
+        "evidencia": "Google Flights mostró la ruta en esta corrida; el comportamiento es intermitente.",
+        "captura": "evidencias/vuelo-mex-slp-2026-11-10__google_flights_q.png",
+        "disponibilidad": "disponible",
+        "disponibilidad_detalle": "Se encontraron 9 resultados"
+      },
+      "candidatos": [
+        {
+          "proveedor": "google_flights_q",
+          "link": "https://www.google.com/travel/flights?q=Flights%20from%20MEX%20to%20SLP%20on%202026-12-10&curr=MXN&hl=es-MX",
+          "estado": "ok",
+          "elegido": false,
+          "resultado": "De Ciudad de México a San Luis Potosí | Vuelos de Google | https://www.google.com/travel/flights?q=Flights%20from%20MEX%20to%20SLP%20on%202026-12-10&curr=MXN&hl=es-MX | Ir al contenido principal Comentarios sobre la accesibilidad Explorar Vuelos Hoteles Alquileres de vacaciones Cambiar de apariencia Acceder Cargando los resultados Búsqueda de vuelos Ida y vuelta 1 Turista Ciudad de México San Luis Potosí Filtros Todos los filtros Paradas Aerolíneas Equipaje Precio Horarios Emisiones Aeropuertos de escala Duración ",
+          "titulo": "De Ciudad de México a San Luis Potosí | Vuelos de Google",
+          "url_final": "https://www.google.com/travel/flights?q=Flights%20from%20MEX%20to%20SLP%20on%202026-12-10&curr=MXN&hl=es-MX",
+          "precio_visible": 2552,
+          "precios_visibles": [
+            2552,
+            4028,
+            4144,
+            2205,
+            34448
+          ],
+          "moneda_precio": "MXN",
+          "captura": "evidencias/vuelo-mex-slp-2026-11-10__google_flights_q.png",
+          "fecha_prueba": "2026-11-11T22:55:58.913Z",
+          "modo": "headless",
+          "status_http": 200,
+          "capturable_sistema": {
+            "permitido": true,
+            "estado": "ok",
+            "motivo": "Sin bloqueo conocido"
+          },
+          "disponibilidad": "disponible",
+          "disponibilidad_detalle": "Se encontraron 9 resultados"
+        },
+        {
+          "proveedor": "kayak_vuelos",
+          "link": "https://www.kayak.com.mx/flights/MEX-SLP/2026-12-10?sort=bestflight_a&fs=cabin=e",
+          "estado": "ok",
+          "elegido": true,
+          "resultado": "MEX a SLP, 10/12 | https://www.kayak.com.mx/flights/MEX-SLP/2026-12-10?sort=bestflight_a&fs=cabin%3De | Editar formulario Ir a filtros de vuelos Ir a sección de resultados de vuelos Usa la IA Solo ida Ciudad de México San Luis Potosí jue. 10/12 1 adulto Económica Solo ida Ciudad de México San Luis Potosí jue. 10/12 1 adulto Económica Buscar MXN Vuelos Alojamientos Autos Planifica con IA Paquetes Explore Blog Vuelos directos Cuándo ir Wishlist de viaj",
+          "titulo": "MEX a SLP, 10/12",
+          "url_final": "https://www.kayak.com.mx/flights/MEX-SLP/2026-12-10?sort=bestflight_a&fs=cabin%3De",
+          "precio_visible": 1393,
+          "precios_visibles": [
+            1393,
+            1202,
+            1492,
+            3144,
+            2180,
+            3225,
+            460,
+            3774,
+            4128,
+            1635
+          ],
+          "moneda_precio": "MXN",
+          "captura": "evidencias/vuelo-mex-slp-2026-11-10__kayak_vuelos.png",
+          "fecha_prueba": "2026-11-11T22:51:22.485Z",
+          "modo": "headless",
+          "status_http": 200,
+          "capturable_sistema": {
+            "permitido": true,
+            "estado": "ok",
+            "motivo": "Sin bloqueo conocido"
+          },
+          "disponibilidad": "disponible",
+          "disponibilidad_detalle": "12 de 144 vuelos"
+        },
+        {
+          "proveedor": "volaris",
+          "link": "https://www.volaris.com/",
+          "estado": "no_aplica",
+          "elegido": false,
+          "resultado": "Solo se probó la portada; no hay deep link de búsqueda verificado.",
+          "precio_visible": null,
+          "precios_visibles": [],
+          "capturable_sistema": {
+            "permitido": true,
+            "estado": "no_aplica",
+            "motivo": "Solo portada; sin deep link de búsqueda"
+          },
+          "disponibilidad": "no_verificable",
+          "disponibilidad_detalle": "No aplica o no hay deep link verificado."
+        },
+        {
+          "proveedor": "vivaaerobus",
+          "link": "https://www.vivaaerobus.com/es-mx",
+          "estado": "no_aplica",
+          "elegido": false,
+          "resultado": "Solo se probó la portada; no hay deep link de búsqueda verificado.",
+          "precio_visible": null,
+          "precios_visibles": [],
+          "capturable_sistema": {
+            "permitido": true,
+            "estado": "no_aplica",
+            "motivo": "Solo portada; sin deep link de búsqueda"
+          },
+          "disponibilidad": "no_verificable",
+          "disponibilidad_detalle": "No aplica o no hay deep link verificado."
+        }
+      ],
+      "decision": {
+        "proveedor": "kayak_vuelos",
+        "tipo": "vuelo",
+        "patron": "https://www.kayak.com.mx/flights/{iata_origen}-{iata_destino}/{fecha}?sort=bestflight_a&fs=cabin=e",
+        "motivo": "Kayak abrió resultados reales para MEX-MTY, MEX-SLP, MEX-GDL, MEX-JAL, MEX-CVM, MEX-TRC, MEX-SJD y MEX-CEN. Google Flights q= falló o mostró portada en CEN/JAL/CVM/TRC.",
+        "fallback": "Si no hay IATA validado, no generar link. Google Flights solo como respaldo con IATA validado; JAL/CEN/CVM deben ir en la tabla IATA."
+      }
+    },
+    {
+      "id": "vuelo-mex-gdl-2026-11-09",
+      "tipo": "vuelo",
+      "descripcion": "CDMX → Guadalajara, hospital UMAE Jalisco",
+      "prioridad": "alta",
+      "hospital": "UMAE Especialidades Jalisco",
+      "entrada": {
+        "origen": {
+          "nombre": "Ciudad de México",
+          "municipio": "Ciudad de México",
+          "estado": "Ciudad de México",
+          "iata": "MEX",
+          "lat": 19.4326,
+          "lon": -99.1332
+        },
+        "destino": {
+          "nombre": "Guadalajara",
+          "municipio": "Guadalajara",
+          "estado": "Jalisco",
+          "iata": "GDL",
+          "lat": 20.672,
+          "lon": -103.338
+        },
+        "fecha_ida": "2026-12-09",
+        "fecha_vuelta": null,
+        "personas": 1,
+        "fecha_original": "2026-11-09"
+      },
+      "sistema_actual": {
+        "etiqueta": "Vuelo (estimado)",
+        "precio": 1357.44,
+        "moneda": "MXN",
+        "fuente": "estimado fase 1 (sin proveedor; interfaz IVuelosClient lista)",
+        "estimado": true,
+        "patron": "https://www.google.com/travel/flights?q=Flights%20from%20{iata_origen}%20to%20{iata_destino}%20on%20{fecha}&curr=MXN&hl=es-MX",
+        "link_ejemplo": "https://www.google.com/travel/flights?q=Flights%20from%20MEX%20to%20GDL%20on%202026-12-09&curr=MXN&hl=es-MX",
+        "resultado": "intermitente",
+        "evidencia": "Google Flights mostró resultados en una corrida y sin_resultados en otra con la misma URL. Kayak sí mostró vuelos.",
+        "captura": "evidencias/vuelo-mex-gdl-2026-11-09__google_flights_q.png",
+        "disponibilidad": "no_disponible",
+        "disponibilidad_detalle": "La página no muestra resultados para la ruta/fecha."
+      },
+      "candidatos": [
+        {
+          "proveedor": "google_flights_q",
+          "link": "https://www.google.com/travel/flights?q=Flights%20from%20MEX%20to%20GDL%20on%202026-12-09&curr=MXN&hl=es-MX",
+          "estado": "sin_resultados",
+          "elegido": false,
+          "resultado": "De Ciudad de México a Guadalajara | Vuelos de Google | https://www.google.com/travel/flights?q=Flights%20from%20MEX%20to%20GDL%20on%202026-12-09&curr=MXN&hl=es-MX | Ir al contenido principal Comentarios sobre la accesibilidad Explorar Vuelos Hoteles Alquileres de vacaciones Cambiar de apariencia Acceder Cargando los resultados Búsqueda de vuelos Ida y vuelta 1 Turista Ciudad de México Guadalajara Filtros Todos los filtros Paradas Aerolíneas Equipaje Precio Horarios Emisiones Aeropuertos de escala Duración Resu",
+          "titulo": "De Ciudad de México a Guadalajara | Vuelos de Google",
+          "url_final": "https://www.google.com/travel/flights?q=Flights%20from%20MEX%20to%20GDL%20on%202026-12-09&curr=MXN&hl=es-MX",
+          "precio_visible": null,
+          "precios_visibles": [],
+          "moneda_precio": "",
+          "captura": "evidencias/vuelo-mex-gdl-2026-11-09__google_flights_q.png",
+          "fecha_prueba": "2026-11-11T22:56:17.429Z",
+          "modo": "headless",
+          "status_http": 200,
+          "capturable_sistema": {
+            "permitido": true,
+            "estado": "sin_resultados",
+            "motivo": "Sin bloqueo conocido"
+          },
+          "disponibilidad": "no_disponible",
+          "disponibilidad_detalle": "La página no muestra resultados para la ruta/fecha."
+        },
+        {
+          "proveedor": "kayak_vuelos",
+          "link": "https://www.kayak.com.mx/flights/MEX-GDL/2026-12-09?sort=bestflight_a&fs=cabin=e",
+          "estado": "ok",
+          "elegido": true,
+          "resultado": "MEX a GDL, 9/12 | https://www.kayak.com.mx/flights/MEX-GDL/2026-12-09?sort=bestflight_a&fs=cabin%3De | Editar formulario Ir a filtros de vuelos Ir a sección de resultados de vuelos Usa la IA Solo ida Ciudad de México Guadalajara mié. 9/12 1 adulto Económica Solo ida Ciudad de México Guadalajara mié. 9/12 1 adulto Económica Buscar MXN Vuelos Alojamientos Autos Planifica con IA Paquetes Explore Blog Vuelos directos Cuándo ir Trips Comentarios 50% comp",
+          "titulo": "MEX a GDL, 9/12",
+          "url_final": "https://www.kayak.com.mx/flights/MEX-GDL/2026-12-09?sort=bestflight_a&fs=cabin%3De",
+          "precio_visible": 186,
+          "precios_visibles": [
+            186,
+            618,
+            1636,
+            1614,
+            1686,
+            939,
+            742,
+            1452,
+            741,
+            612
+          ],
+          "moneda_precio": "MXN",
+          "captura": "evidencias/vuelo-mex-gdl-2026-11-09__kayak_vuelos.png",
+          "fecha_prueba": "2026-11-11T22:51:40.895Z",
+          "modo": "headless",
+          "status_http": 200,
+          "capturable_sistema": {
+            "permitido": true,
+            "estado": "ok",
+            "motivo": "Sin bloqueo conocido"
+          },
+          "disponibilidad": "disponible",
+          "disponibilidad_detalle": "60 de 268 vuelos"
+        },
+        {
+          "proveedor": "volaris",
+          "link": "https://www.volaris.com/",
+          "estado": "no_aplica",
+          "elegido": false,
+          "resultado": "Solo se probó la portada; no hay deep link de búsqueda verificado.",
+          "precio_visible": null,
+          "precios_visibles": [],
+          "capturable_sistema": {
+            "permitido": true,
+            "estado": "no_aplica",
+            "motivo": "Solo portada; sin deep link de búsqueda"
+          },
+          "disponibilidad": "no_verificable",
+          "disponibilidad_detalle": "No aplica o no hay deep link verificado."
+        },
+        {
+          "proveedor": "vivaaerobus",
+          "link": "https://www.vivaaerobus.com/es-mx",
+          "estado": "no_aplica",
+          "elegido": false,
+          "resultado": "Solo se probó la portada; no hay deep link de búsqueda verificado.",
+          "precio_visible": null,
+          "precios_visibles": [],
+          "capturable_sistema": {
+            "permitido": true,
+            "estado": "no_aplica",
+            "motivo": "Solo portada; sin deep link de búsqueda"
+          },
+          "disponibilidad": "no_verificable",
+          "disponibilidad_detalle": "No aplica o no hay deep link verificado."
+        }
+      ],
+      "decision": {
+        "proveedor": "kayak_vuelos",
+        "tipo": "vuelo",
+        "patron": "https://www.kayak.com.mx/flights/{iata_origen}-{iata_destino}/{fecha}?sort=bestflight_a&fs=cabin=e",
+        "motivo": "Kayak abrió resultados reales para MEX-MTY, MEX-SLP, MEX-GDL, MEX-JAL, MEX-CVM, MEX-TRC, MEX-SJD y MEX-CEN. Google Flights q= falló o mostró portada en CEN/JAL/CVM/TRC.",
+        "fallback": "Si no hay IATA validado, no generar link. Google Flights solo como respaldo con IATA validado; JAL/CEN/CVM deben ir en la tabla IATA."
+      }
+    },
+    {
+      "id": "vuelo-mex-trc-2026-12-07",
+      "tipo": "vuelo",
+      "descripcion": "CDMX → Torreón, hospital UMAE Coahuila",
+      "prioridad": "alta",
+      "hospital": "UMAE Especialidades Coahuila",
+      "entrada": {
+        "origen": {
+          "nombre": "Ciudad de México",
+          "municipio": "Ciudad de México",
+          "estado": "Ciudad de México",
+          "iata": "MEX",
+          "lat": 19.4326,
+          "lon": -99.1332
+        },
+        "destino": {
+          "nombre": "Torreón",
+          "municipio": "Torreón",
+          "estado": "Coahuila",
+          "iata": "TRC",
+          "lat": 25.4849,
+          "lon": -103.184
+        },
+        "fecha_ida": "2026-12-07",
+        "fecha_vuelta": null,
+        "personas": 1
+      },
+      "sistema_actual": {
+        "etiqueta": "Vuelo (estimado)",
+        "precio": 1837.18,
+        "moneda": "MXN",
+        "fuente": "estimado fase 1 (sin proveedor; interfaz IVuelosClient lista)",
+        "estimado": true,
+        "patron": "https://www.google.com/travel/flights?q=Flights%20from%20{iata_origen}%20to%20{iata_destino}%20on%20{fecha}&curr=MXN&hl=es-MX",
+        "link_ejemplo": "https://www.google.com/travel/flights?q=Flights%20from%20MEX%20to%20TRC%20on%202026-12-07&curr=MXN&hl=es-MX",
+        "resultado": "sin_resultados",
+        "evidencia": "Google Flights no mostró vuelos MEX-TRC; Kayak sí.",
+        "captura": "evidencias/vuelo-mex-trc-2026-12-07__google_flights_q.png",
+        "disponibilidad": "no_disponible",
+        "disponibilidad_detalle": "La página no muestra resultados para la ruta/fecha."
+      },
+      "candidatos": [
+        {
+          "proveedor": "google_flights_q",
+          "link": "https://www.google.com/travel/flights?q=Flights%20from%20MEX%20to%20TRC%20on%202026-12-07&curr=MXN&hl=es-MX",
+          "estado": "sin_resultados",
+          "elegido": false,
+          "resultado": "De Ciudad de México a Torreón | Vuelos de Google | https://www.google.com/travel/flights?q=Flights%20from%20MEX%20to%20TRC%20on%202026-12-07&curr=MXN&hl=es-MX | Ir al contenido principal Comentarios sobre la accesibilidad Explorar Vuelos Hoteles Alquileres de vacaciones Cambiar de apariencia Acceder Cargando los resultados Búsqueda de vuelos Ida y vuelta 1 Turista Ciudad de México Torreón TRC Filtros Todos los filtros Paradas Aerolíneas Equipaje Precio Horarios Emisiones Aeropuertos de escala Duración Resu",
+          "titulo": "De Ciudad de México a Torreón | Vuelos de Google",
+          "url_final": "https://www.google.com/travel/flights?q=Flights%20from%20MEX%20to%20TRC%20on%202026-12-07&curr=MXN&hl=es-MX",
+          "precio_visible": null,
+          "precios_visibles": [],
+          "moneda_precio": "",
+          "captura": "evidencias/vuelo-mex-trc-2026-12-07__google_flights_q.png",
+          "fecha_prueba": "2026-11-11T22:43:41.461Z",
+          "modo": "headless",
+          "status_http": 200,
+          "capturable_sistema": {
+            "permitido": true,
+            "estado": "sin_resultados",
+            "motivo": "Sin bloqueo conocido"
+          },
+          "disponibilidad": "no_disponible",
+          "disponibilidad_detalle": "La página no muestra resultados para la ruta/fecha."
+        },
+        {
+          "proveedor": "kayak_vuelos",
+          "link": "https://www.kayak.com.mx/flights/MEX-TRC/2026-12-07?sort=bestflight_a&fs=cabin=e",
+          "estado": "ok",
+          "elegido": true,
+          "resultado": "MEX a TRC, 7/12 | https://www.kayak.com.mx/flights/MEX-TRC/2026-12-07?sort=bestflight_a&fs=cabin%3De | Editar formulario Ir a filtros de vuelos Ir a sección de resultados de vuelos Usa la IA Solo ida Ciudad de México Torreón lun. 7/12 1 adulto Económica Solo ida Ciudad de México Torreón lun. 7/12 1 adulto Económica Buscar MXN Vuelos Alojamientos Autos Planifica con IA Paquetes Explore Blog Vuelos directos Cuándo ir Wishlist de viajes Trips Comentari",
+          "titulo": "MEX a TRC, 7/12",
+          "url_final": "https://www.kayak.com.mx/flights/MEX-TRC/2026-12-07?sort=bestflight_a&fs=cabin%3De",
+          "precio_visible": 279,
+          "precios_visibles": [
+            279,
+            1474,
+            1438,
+            4134,
+            2799,
+            2048,
+            3507,
+            2795,
+            3133,
+            1953
+          ],
+          "moneda_precio": "MXN",
+          "captura": "evidencias/vuelo-mex-trc-2026-12-07__kayak_vuelos.png",
+          "fecha_prueba": "2026-11-11T22:42:41.355Z",
+          "modo": "headless",
+          "status_http": 200,
+          "capturable_sistema": {
+            "permitido": true,
+            "estado": "ok",
+            "motivo": "Sin bloqueo conocido"
+          },
+          "disponibilidad": "disponible",
+          "disponibilidad_detalle": "27 de 61 vuelos"
+        },
+        {
+          "proveedor": "vivaaerobus",
+          "link": "https://www.vivaaerobus.com/es-mx",
+          "estado": "no_aplica",
+          "elegido": false,
+          "resultado": "Solo se probó la portada; no hay deep link de búsqueda verificado.",
+          "precio_visible": null,
+          "precios_visibles": [],
+          "capturable_sistema": {
+            "permitido": true,
+            "estado": "no_aplica",
+            "motivo": "Solo portada; sin deep link de búsqueda"
+          },
+          "disponibilidad": "no_verificable",
+          "disponibilidad_detalle": "No aplica o no hay deep link verificado."
+        }
+      ],
+      "decision": {
+        "proveedor": "kayak_vuelos",
+        "tipo": "vuelo",
+        "patron": "https://www.kayak.com.mx/flights/{iata_origen}-{iata_destino}/{fecha}?sort=bestflight_a&fs=cabin=e",
+        "motivo": "Kayak abrió resultados reales para MEX-MTY, MEX-SLP, MEX-GDL, MEX-JAL, MEX-CVM, MEX-TRC, MEX-SJD y MEX-CEN. Google Flights q= falló o mostró portada en CEN/JAL/CVM/TRC.",
+        "fallback": "Si no hay IATA validado, no generar link. Google Flights solo como respaldo con IATA validado; JAL/CEN/CVM deben ir en la tabla IATA."
+      }
+    },
+    {
+      "id": "vuelo-mex-cen-2026-12-04",
+      "tipo": "vuelo",
+      "descripcion": "CDMX → Ciudad Obregón, hospital UMAE Sonora (municipio Cajeme)",
+      "prioridad": "media",
+      "hospital": "UMAE Especialidades Sonora",
+      "entrada": {
+        "origen": {
+          "nombre": "Ciudad de México",
+          "municipio": "Ciudad de México",
+          "estado": "Ciudad de México",
+          "iata": "MEX",
+          "lat": 19.4326,
+          "lon": -99.1332
+        },
+        "destino": {
+          "nombre": "Ciudad Obregón",
+          "municipio": "Cajeme",
+          "estado": "Sonora",
+          "iata": "CEN",
+          "lat": 27.4143,
+          "lon": -109.841
+        },
+        "fecha_ida": "2026-12-04",
+        "fecha_vuelta": null,
+        "personas": 1
+      },
+      "sistema_actual": {
+        "etiqueta": "Vuelo (estimado)",
+        "precio": 2729.18,
+        "moneda": "MXN",
+        "fuente": "estimado fase 1 (sin proveedor; interfaz IVuelosClient lista)",
+        "estimado": true,
+        "patron": "https://www.google.com/travel/flights?q=Flights%20from%20{iata_origen}%20to%20{destino_link}%20on%20{fecha}&curr=MXN&hl=es-MX",
+        "link_ejemplo": "https://www.google.com/travel/flights?q=Flights%20from%20MEX%20to%20Cajeme%20on%202026-12-04&curr=MXN&hl=es-MX",
+        "resultado": "sin_resultados",
+        "evidencia": "El link usa Cajeme: cae en la portada y muestra ofertas genéricas. Con IATA CEN sí funciona.",
+        "captura": "evidencias/vuelo-mex-cen-2026-12-04__google_flights_q.png",
+        "disponibilidad": "no_verificable",
+        "disponibilidad_detalle": "El link usó Cajeme y cayó en la portada."
+      },
+      "candidatos": [
+        {
+          "proveedor": "google_flights_q",
+          "link": "https://www.google.com/travel/flights?q=Flights%20from%20MEX%20to%20Cajeme%20on%202026-12-04&curr=MXN&hl=es-MX",
+          "estado": "sin_resultados",
+          "elegido": false,
+          "resultado": "Link actual: usa Cajeme y cae en la portada; los precios mostrados son ofertas genéricas, no de la ruta.",
+          "titulo": "Encuentra vuelos económicos en el mundo y reserva tu boleto - Vuelos de Google",
+          "url_final": "https://www.google.com/travel/flights?q=Flights%20from%20MEX%20to%20Cajeme%20on%202026-12-04&curr=MXN&hl=es-MX",
+          "precio_visible": null,
+          "precios_visibles": [],
+          "moneda_precio": "MXN",
+          "captura": "evidencias/vuelo-mex-cen-2026-12-04__google_flights_q.png",
+          "fecha_prueba": "2026-11-11T21:50:49.903Z",
+          "modo": "manual",
+          "status_http": 200,
+          "capturable_sistema": {
+            "permitido": true,
+            "estado": "sin_resultados",
+            "motivo": "Sin bloqueo conocido"
+          },
+          "disponibilidad": "no_verificable",
+          "disponibilidad_detalle": "El link usó Cajeme y cayó en la portada."
+        },
+        {
+          "proveedor": "kayak_vuelos",
+          "link": "https://www.kayak.com.mx/flights/MEX-CEN/2026-12-04?sort=bestflight_a&fs=cabin=e",
+          "estado": "ok",
+          "elegido": true,
+          "resultado": "MEX a CEN, 4/12 | https://www.kayak.com.mx/flights/MEX-CEN/2026-12-04?sort=bestflight_a&fs=cabin%3De | Editar formulario Ir a filtros de vuelos Ir a sección de resultados de vuelos Usa la IA Solo ida Ciudad de México Ciudad Obregón vie. 4/12 1 adulto Económica Solo ida Ciudad de México Ciudad Obregón vie. 4/12 1 adulto Económica Buscar MXN Vuelos Alojamientos Autos Planifica con IA Paquetes Explore Blog Vuelos directos Cuándo ir Trips Comentarios 25",
+          "titulo": "MEX a CEN, 4/12",
+          "url_final": "https://www.kayak.com.mx/flights/MEX-CEN/2026-12-04?sort=bestflight_a&fs=cabin%3De",
+          "precio_visible": 557,
+          "precios_visibles": [
+            557,
+            1060,
+            2548,
+            3386,
+            2667,
+            2617,
+            4437,
+            2045,
+            3476,
+            3592
+          ],
+          "moneda_precio": "MXN",
+          "captura": "evidencias/vuelo-mex-cen-2026-12-04__kayak_vuelos.png",
+          "fecha_prueba": "2026-11-11T22:41:20.934Z",
+          "modo": "headless",
+          "status_http": 200,
+          "capturable_sistema": {
+            "permitido": true,
+            "estado": "ok",
+            "motivo": "Sin bloqueo conocido"
+          },
+          "disponibilidad": "disponible",
+          "disponibilidad_detalle": "18 de 99 vuelos"
+        },
+        {
+          "proveedor": "google_flights_iata",
+          "link": "https://www.google.com/travel/flights?q=Flights%20from%20MEX%20to%20CEN%20on%202026-12-04&curr=MXN&hl=es-MX",
+          "estado": "sin_resultados",
+          "elegido": false,
+          "resultado": "De Ciudad de México a Ciudad Obregón | Vuelos de Google | https://www.google.com/travel/flights?q=Flights%20from%20MEX%20to%20CEN%20on%202026-12-04&curr=MXN&hl=es-MX | Ir al contenido principal Comentarios sobre la accesibilidad Explorar Vuelos Hoteles Alquileres de vacaciones Cambiar de apariencia Acceder Cargando los resultados Búsqueda de vuelos Ida y vuelta 1 Turista Ciudad de México Ciudad Obregón CEN Filtros Todos los filtros Paradas Aerolíneas Equipaje Precio Horarios Emisiones Aeropuertos de escala Duraci",
+          "titulo": "De Ciudad de México a Ciudad Obregón | Vuelos de Google",
+          "url_final": "https://www.google.com/travel/flights?q=Flights%20from%20MEX%20to%20CEN%20on%202026-12-04&curr=MXN&hl=es-MX",
+          "precio_visible": null,
+          "precios_visibles": [],
+          "moneda_precio": "",
+          "captura": "evidencias/vuelo-mex-cen-2026-12-04__google_flights_iata.png",
+          "fecha_prueba": "2026-11-11T22:56:54.476Z",
+          "modo": "headless",
+          "status_http": 200,
+          "capturable_sistema": {
+            "permitido": true,
+            "estado": "sin_resultados",
+            "motivo": "Sin bloqueo conocido"
+          },
+          "disponibilidad": "no_disponible",
+          "disponibilidad_detalle": "La página no muestra resultados para la ruta/fecha."
+        }
+      ],
+      "decision": {
+        "proveedor": "kayak_vuelos",
+        "tipo": "vuelo",
+        "patron": "https://www.kayak.com.mx/flights/{iata_origen}-{iata_destino}/{fecha}?sort=bestflight_a&fs=cabin=e",
+        "motivo": "Kayak abrió resultados reales para MEX-MTY, MEX-SLP, MEX-GDL, MEX-JAL, MEX-CVM, MEX-TRC, MEX-SJD y MEX-CEN. Google Flights q= falló o mostró portada en CEN/JAL/CVM/TRC.",
+        "fallback": "Si no hay IATA validado, no generar link. Google Flights solo como respaldo con IATA validado; JAL/CEN/CVM deben ir en la tabla IATA."
+      }
+    },
+    {
+      "id": "vuelo-mex-cvm-2026-12-02",
+      "tipo": "vuelo",
+      "descripcion": "CDMX → Ciudad Victoria, hospital Bicentenario 2010",
+      "prioridad": "media",
+      "hospital": "Hospital Regional de Alta Especialidad en Cd. Victoria",
+      "entrada": {
+        "origen": {
+          "nombre": "Ciudad de México",
+          "municipio": "Ciudad de México",
+          "estado": "Ciudad de México",
+          "iata": "MEX",
+          "lat": 19.4326,
+          "lon": -99.1332
+        },
+        "destino": {
+          "nombre": "Ciudad Victoria",
+          "municipio": "Ciudad Victoria",
+          "estado": "Tamaulipas",
+          "iata": "CVM",
+          "lat": 23.7369,
+          "lon": -98.8089
+        },
+        "fecha_ida": "2026-12-02",
+        "fecha_vuelta": null,
+        "personas": 1
+      },
+      "sistema_actual": {
+        "etiqueta": "Vuelo (estimado)",
+        "precio": 1385.69,
+        "moneda": "MXN",
+        "fuente": "estimado fase 1 (sin proveedor; interfaz IVuelosClient lista)",
+        "estimado": true,
+        "patron": "https://www.google.com/travel/flights?q=Flights%20from%20{iata_origen}%20to%20{destino_link}%20on%20{fecha}&curr=MXN&hl=es-MX",
+        "link_ejemplo": "https://www.google.com/travel/flights?q=Flights%20from%20MEX%20to%20Ciudad%20Victoria%20on%202026-12-02&curr=MXN&hl=es-MX",
+        "resultado": "sin_resultados",
+        "evidencia": "Google Flights no mostró vuelos MEX-CVM; Kayak sí.",
+        "captura": "evidencias/vuelo-mex-cvm-2026-12-02__google_flights_q.png",
+        "disponibilidad": "no_disponible",
+        "disponibilidad_detalle": "Google no mostró vuelos MEX-CVM en esta corrida."
+      },
+      "candidatos": [
+        {
+          "proveedor": "google_flights_q",
+          "link": "https://www.google.com/travel/flights?q=Flights%20from%20MEX%20to%20Ciudad%20Victoria%20on%202026-12-02&curr=MXN&hl=es-MX",
+          "estado": "sin_resultados",
+          "elegido": false,
+          "resultado": "Google no muestra resultados MEX-CVM en esa fecha; Kayak sí.",
+          "titulo": "De Ciudad de México a Ciudad Victoria | Vuelos de Google",
+          "url_final": "https://www.google.com/travel/flights?q=Flights%20from%20MEX%20to%20Ciudad%20Victoria%20on%202026-12-02&curr=MXN&hl=es-MX",
+          "precio_visible": null,
+          "precios_visibles": [],
+          "moneda_precio": "",
+          "captura": "evidencias/vuelo-mex-cvm-2026-12-02__google_flights_q.png",
+          "fecha_prueba": "2026-11-11T21:51:35.420Z",
+          "modo": "manual",
+          "status_http": 200,
+          "capturable_sistema": {
+            "permitido": true,
+            "estado": "sin_resultados",
+            "motivo": "Sin bloqueo conocido"
+          },
+          "disponibilidad": "no_disponible",
+          "disponibilidad_detalle": "Google no mostró vuelos MEX-CVM en esta corrida."
+        },
+        {
+          "proveedor": "kayak_vuelos",
+          "link": "https://www.kayak.com.mx/flights/MEX-CVM/2026-12-02?sort=bestflight_a&fs=cabin=e",
+          "estado": "ok",
+          "elegido": true,
+          "resultado": "MEX a CVM, 2/12 | https://www.kayak.com.mx/flights/MEX-CVM/2026-12-02?sort=bestflight_a | Editar formulario Ir a filtros de vuelos Ir a sección de resultados de vuelos Usa la IA Solo ida Ciudad de México Ciudad Victoria mié. 2/12 1 adulto Económica Solo ida Ciudad de México Ciudad Victoria mié. 2/12 1 adulto Económica Buscar MXN Vuelos Alojamientos Autos Planifica con IA Paquetes Explore Blog Vuelos directos Cuándo ir Wishlist de viajes",
+          "titulo": "MEX a CVM, 2/12",
+          "url_final": "https://www.kayak.com.mx/flights/MEX-CVM/2026-12-02?sort=bestflight_a",
+          "precio_visible": 1114,
+          "precios_visibles": [
+            1114,
+            1881,
+            5509,
+            7389,
+            1933,
+            4635,
+            2093,
+            2631,
+            7528
+          ],
+          "moneda_precio": "MXN",
+          "captura": "evidencias/vuelo-mex-cvm-2026-12-02__kayak_vuelos.png",
+          "fecha_prueba": "2026-11-11T22:52:17.311Z",
+          "modo": "headless",
+          "status_http": 200,
+          "capturable_sistema": {
+            "permitido": true,
+            "estado": "ok",
+            "motivo": "Sin bloqueo conocido"
+          },
+          "disponibilidad": "disponible",
+          "disponibilidad_detalle": "6 de 9 vuelos"
+        },
+        {
+          "proveedor": "google_flights_iata",
+          "link": "https://www.google.com/travel/flights?q=Flights%20from%20MEX%20to%20CVM%20on%202026-12-02&curr=MXN&hl=es-MX",
+          "estado": "sin_resultados",
+          "elegido": false,
+          "resultado": "Con IATA CVM Google Flights sigue sin resultados; Kayak sí muestra MEX-CVM.",
+          "titulo": "De Ciudad de México a Ciudad Victoria | Vuelos de Google",
+          "url_final": "https://www.google.com/travel/flights?q=Flights%20from%20MEX%20to%20CVM%20on%202026-12-02&curr=MXN&hl=es-MX",
+          "precio_visible": null,
+          "precios_visibles": [],
+          "moneda_precio": "",
+          "captura": "evidencias/vuelo-mex-cvm-2026-12-02__google_flights_iata.png",
+          "fecha_prueba": "2026-11-11T22:05:50.190Z",
+          "modo": "manual",
+          "status_http": 200,
+          "capturable_sistema": {
+            "permitido": true,
+            "estado": "sin_resultados",
+            "motivo": "Sin bloqueo conocido"
+          },
+          "disponibilidad": "no_disponible",
+          "disponibilidad_detalle": "Google no mostró vuelos MEX-CVM en esta corrida."
+        }
+      ],
+      "decision": {
+        "proveedor": "kayak_vuelos",
+        "tipo": "vuelo",
+        "patron": "https://www.kayak.com.mx/flights/{iata_origen}-{iata_destino}/{fecha}?sort=bestflight_a&fs=cabin=e",
+        "motivo": "Kayak abrió resultados reales para MEX-MTY, MEX-SLP, MEX-GDL, MEX-JAL, MEX-CVM, MEX-TRC, MEX-SJD y MEX-CEN. Google Flights q= falló o mostró portada en CEN/JAL/CVM/TRC.",
+        "fallback": "Si no hay IATA validado, no generar link. Google Flights solo como respaldo con IATA validado; JAL/CEN/CVM deben ir en la tabla IATA."
+      }
+    },
+    {
+      "id": "vuelo-mex-jal-2026-12-16",
+      "tipo": "vuelo",
+      "descripcion": "CDMX → Xalapa, caso de IATA faltante (JAL)",
+      "prioridad": "alta",
+      "hospital": "Ruta Xalapa (ciudad base)",
+      "entrada": {
+        "origen": {
+          "nombre": "Ciudad de México",
+          "municipio": "Ciudad de México",
+          "estado": "Ciudad de México",
+          "iata": "MEX",
+          "lat": 19.4326,
+          "lon": -99.1332
+        },
+        "destino": {
+          "nombre": "Xalapa",
+          "municipio": "Xalapa",
+          "estado": "Veracruz",
+          "iata": "JAL",
+          "lat": 19.5438,
+          "lon": -96.9102
+        },
+        "fecha_ida": "2026-12-16",
+        "fecha_vuelta": null,
+        "personas": 1
+      },
+      "sistema_actual": {
+        "etiqueta": "Vuelo (estimado)",
+        "precio": 1028.36,
+        "moneda": "MXN",
+        "fuente": "estimado fase 1 (sin proveedor; interfaz IVuelosClient lista)",
+        "estimado": true,
+        "patron": "https://www.google.com/travel/flights?q=Flights%20from%20{iata_origen}%20to%20{destino_link}%20on%20{fecha}&curr=MXN&hl=es-MX",
+        "link_ejemplo": "https://www.google.com/travel/flights?q=Flights%20from%20MEX%20to%20Xalapa%20on%202026-12-16&curr=MXN&hl=es-MX",
+        "resultado": "sin_resultados",
+        "evidencia": "Google no mostró vuelos a Xalapa/JAL; sugirió Veracruz. Kayak sí resolvió MEX-JAL.",
+        "captura": "evidencias/vuelo-mex-jal-2026-12-16__google_flights_q.png",
+        "disponibilidad": "no_disponible",
+        "disponibilidad_detalle": "La página no muestra resultados para la ruta/fecha."
+      },
+      "candidatos": [
+        {
+          "proveedor": "google_flights_q",
+          "link": "https://www.google.com/travel/flights?q=Flights%20from%20MEX%20to%20Xalapa%20on%202026-12-16&curr=MXN&hl=es-MX",
+          "estado": "sin_resultados",
+          "elegido": false,
+          "resultado": "De Ciudad de México a Xalapa-Enríquez | Vuelos de Google | https://www.google.com/travel/flights?q=Flights%20from%20MEX%20to%20Xalapa%20on%202026-12-16&curr=MXN&hl=es-MX | Ir al contenido principal Comentarios sobre la accesibilidad Explorar Vuelos Hoteles Alquileres de vacaciones Cambiar de apariencia Acceder Cargando los resultados Búsqueda de vuelos Ida y vuelta 1 Turista Ciudad de México Xalapa-Enríquez Filtros Todos los filtros Paradas Aerolíneas Equipaje Precio Horarios Emisiones Aeropuertos de escala Duración ",
+          "titulo": "De Ciudad de México a Xalapa-Enríquez | Vuelos de Google",
+          "url_final": "https://www.google.com/travel/flights?q=Flights%20from%20MEX%20to%20Xalapa%20on%202026-12-16&curr=MXN&hl=es-MX",
+          "precio_visible": null,
+          "precios_visibles": [],
+          "moneda_precio": "",
+          "captura": "evidencias/vuelo-mex-jal-2026-12-16__google_flights_q.png",
+          "fecha_prueba": "2026-11-11T22:43:59.229Z",
+          "modo": "headless",
+          "status_http": 200,
+          "capturable_sistema": {
+            "permitido": true,
+            "estado": "sin_resultados",
+            "motivo": "Sin bloqueo conocido"
+          },
+          "disponibilidad": "no_disponible",
+          "disponibilidad_detalle": "La página no muestra resultados para la ruta/fecha."
+        },
+        {
+          "proveedor": "kayak_vuelos",
+          "link": "https://www.kayak.com.mx/flights/MEX-JAL/2026-12-16?sort=bestflight_a&fs=cabin=e",
+          "estado": "ok",
+          "elegido": true,
+          "resultado": "MEX a JAL, 16/12 | https://www.kayak.com.mx/flights/MEX-JAL/2026-12-16?sort=bestflight_a | Editar formulario Ir a filtros de vuelos Ir a sección de resultados de vuelos Usa la IA Solo ida Ciudad de México Xalapa-Enriquez mié. 16/12 1 adulto Económica Solo ida Ciudad de México Xalapa-Enriquez mié. 16/12 1 adulto Económica Buscar MXN Vuelos Alojamientos Autos Planifica con IA Paquetes Explore Blog Vuelos directos Cuándo ir Wishlist de viaj",
+          "titulo": "MEX a JAL, 16/12",
+          "url_final": "https://www.kayak.com.mx/flights/MEX-JAL/2026-12-16?sort=bestflight_a",
+          "precio_visible": 2697,
+          "precios_visibles": [
+            2697,
+            3273,
+            1566,
+            856
+          ],
+          "moneda_precio": "MXN",
+          "captura": "evidencias/vuelo-mex-jal-2026-12-16__kayak_vuelos.png",
+          "fecha_prueba": "2026-11-11T22:41:47.196Z",
+          "modo": "headless",
+          "status_http": 200,
+          "capturable_sistema": {
+            "permitido": true,
+            "estado": "ok",
+            "motivo": "Sin bloqueo conocido"
+          },
+          "disponibilidad": "disponible",
+          "disponibilidad_detalle": "1 de 38 vuelos"
+        },
+        {
+          "proveedor": "google_flights_iata",
+          "link": "https://www.google.com/travel/flights?q=Flights%20from%20MEX%20to%20JAL%20on%202026-12-16&curr=MXN&hl=es-MX",
+          "estado": "sin_resultados",
+          "elegido": false,
+          "resultado": "Encuentra vuelos económicos a Jalisco en Vuelos de Google | https://www.google.com/travel/flights?q=Flights%20from%20MEX%20to%20JAL%20on%202026-12-16&curr=MXN&hl=es-MX | Ir al contenido principal Comentarios sobre la accesibilidad Explorar Vuelos Hoteles Alquileres de vacaciones Cambiar de apariencia Acceder Vuelos Ida y vuelta 1 Turista Ciudad de México Jalisco Explorar Vuelos Hacia Jalisco Vuelos económicos a Jalisco Encuentra vuelos nacionales económicos a Jalisco Ciudad de México Cancún Guadalajara Monterrey Ci",
+          "titulo": "Encuentra vuelos económicos a Jalisco en Vuelos de Google",
+          "url_final": "https://www.google.com/travel/flights?q=Flights%20from%20MEX%20to%20JAL%20on%202026-12-16&curr=MXN&hl=es-MX",
+          "precio_visible": null,
+          "precios_visibles": [],
+          "moneda_precio": "",
+          "captura": "evidencias/vuelo-mex-jal-2026-12-16__google_flights_iata.png",
+          "fecha_prueba": "2026-11-11T22:44:17.030Z",
+          "modo": "headless",
+          "status_http": 200,
+          "capturable_sistema": {
+            "permitido": true,
+            "estado": "sin_resultados",
+            "motivo": "Sin bloqueo conocido"
+          },
+          "disponibilidad": "no_verificable",
+          "disponibilidad_detalle": "El link no ejecutó la búsqueda; quedó en la portada."
+        }
+      ],
+      "decision": {
+        "proveedor": "kayak_vuelos",
+        "tipo": "vuelo",
+        "patron": "https://www.kayak.com.mx/flights/{iata_origen}-{iata_destino}/{fecha}?sort=bestflight_a&fs=cabin=e",
+        "motivo": "Kayak abrió resultados reales para MEX-MTY, MEX-SLP, MEX-GDL, MEX-JAL, MEX-CVM, MEX-TRC, MEX-SJD y MEX-CEN. Google Flights q= falló o mostró portada en CEN/JAL/CVM/TRC.",
+        "fallback": "Si no hay IATA validado, no generar link. Google Flights solo como respaldo con IATA validado; JAL/CEN/CVM deben ir en la tabla IATA."
+      }
+    },
+    {
+      "id": "vuelo-mex-sjd-2026-12-14",
+      "tipo": "vuelo",
+      "descripcion": "CDMX → Los Cabos, entrega Marcos Payen",
+      "prioridad": "media",
+      "hospital": "Entrega Marcos Payen Padilla (Los Cabos)",
+      "entrada": {
+        "origen": {
+          "nombre": "Ciudad de México",
+          "municipio": "Ciudad de México",
+          "estado": "Ciudad de México",
+          "iata": "MEX",
+          "lat": 19.4326,
+          "lon": -99.1332
+        },
+        "destino": {
+          "nombre": "Los Cabos",
+          "municipio": "Los Cabos",
+          "estado": "Baja California Sur",
+          "iata": "SJD",
+          "lat": 23.06,
+          "lon": -109.7
+        },
+        "fecha_ida": "2026-12-14",
+        "fecha_vuelta": null,
+        "personas": 1
+      },
+      "sistema_actual": {
+        "etiqueta": "Vuelo (estimado)",
+        "precio": 2381.56,
+        "moneda": "MXN",
+        "fuente": "estimado fase 1 (sin proveedor; interfaz IVuelosClient lista)",
+        "estimado": true,
+        "patron": "https://www.google.com/travel/flights?q=Flights%20from%20{iata_origen}%20to%20{iata_destino}%20on%20{fecha}&curr=MXN&hl=es-MX",
+        "link_ejemplo": "https://www.google.com/travel/flights?q=Flights%20from%20MEX%20to%20SJD%20on%202026-12-14&curr=MXN&hl=es-MX",
+        "resultado": "intermitente",
+        "evidencia": "Google Flights mostró resultados en una corrida y sin_resultados en otra con la misma URL. Kayak sí mostró vuelos.",
+        "captura": "evidencias/vuelo-mex-sjd-2026-12-14__google_flights_q.png",
+        "disponibilidad": "no_disponible",
+        "disponibilidad_detalle": "La página no muestra resultados para la ruta/fecha."
+      },
+      "candidatos": [
+        {
+          "proveedor": "google_flights_q",
+          "link": "https://www.google.com/travel/flights?q=Flights%20from%20MEX%20to%20SJD%20on%202026-12-14&curr=MXN&hl=es-MX",
+          "estado": "sin_resultados",
+          "elegido": false,
+          "resultado": "De Ciudad de México a San José del Cabo | Vuelos de Google | https://www.google.com/travel/flights?q=Flights%20from%20MEX%20to%20SJD%20on%202026-12-14&curr=MXN&hl=es-MX | Ir al contenido principal Comentarios sobre la accesibilidad Explorar Vuelos Hoteles Alquileres de vacaciones Cambiar de apariencia Acceder Cargando los resultados Búsqueda de vuelos Ida y vuelta 1 Turista Ciudad de México San José del Cabo SJD Filtros Todos los filtros Paradas Aerolíneas Equipaje Precio Horarios Emisiones Aeropuertos de escala Dur",
+          "titulo": "De Ciudad de México a San José del Cabo | Vuelos de Google",
+          "url_final": "https://www.google.com/travel/flights?q=Flights%20from%20MEX%20to%20SJD%20on%202026-12-14&curr=MXN&hl=es-MX",
+          "precio_visible": null,
+          "precios_visibles": [],
+          "moneda_precio": "",
+          "captura": "evidencias/vuelo-mex-sjd-2026-12-14__google_flights_q.png",
+          "fecha_prueba": "2026-11-11T22:56:35.880Z",
+          "modo": "headless",
+          "status_http": 200,
+          "capturable_sistema": {
+            "permitido": true,
+            "estado": "sin_resultados",
+            "motivo": "Sin bloqueo conocido"
+          },
+          "disponibilidad": "no_disponible",
+          "disponibilidad_detalle": "La página no muestra resultados para la ruta/fecha."
+        },
+        {
+          "proveedor": "kayak_vuelos",
+          "link": "https://www.kayak.com.mx/flights/MEX-SJD/2026-12-14?sort=bestflight_a&fs=cabin=e",
+          "estado": "ok",
+          "elegido": true,
+          "resultado": "MEX a SJD, 14/12 | https://www.kayak.com.mx/flights/MEX-SJD/2026-12-14?sort=bestflight_a&fs=cabin%3De | Editar formulario Ir a filtros de vuelos Ir a sección de resultados de vuelos Usa la IA Solo ida Ciudad de México San José del Cabo lun. 14/12 1 adulto Económica Solo ida Ciudad de México San José del Cabo lun. 14/12 1 adulto Económica Buscar MXN Vuelos Alojamientos Autos Planifica con IA Paquetes Explore Blog Vuelos directos Cuándo ir Trips Coment",
+          "titulo": "MEX a SJD, 14/12",
+          "url_final": "https://www.kayak.com.mx/flights/MEX-SJD/2026-12-14?sort=bestflight_a&fs=cabin%3De",
+          "precio_visible": 279,
+          "precios_visibles": [
+            279,
+            1230,
+            1384,
+            3305,
+            1983,
+            2009,
+            1697,
+            1276,
+            1528,
+            1546
+          ],
+          "moneda_precio": "MXN",
+          "captura": "evidencias/vuelo-mex-sjd-2026-12-14__kayak_vuelos.png",
+          "fecha_prueba": "2026-11-11T22:51:59.338Z",
+          "modo": "headless",
+          "status_http": 200,
+          "capturable_sistema": {
+            "permitido": true,
+            "estado": "ok",
+            "motivo": "Sin bloqueo conocido"
+          },
+          "disponibilidad": "disponible",
+          "disponibilidad_detalle": "58 de 394 vuelos"
+        },
+        {
+          "proveedor": "volaris",
+          "link": "https://www.volaris.com/",
+          "estado": "no_aplica",
+          "elegido": false,
+          "resultado": "Solo se probó la portada; no hay deep link de búsqueda verificado.",
+          "precio_visible": null,
+          "precios_visibles": [],
+          "capturable_sistema": {
+            "permitido": true,
+            "estado": "no_aplica",
+            "motivo": "Solo portada; sin deep link de búsqueda"
+          },
+          "disponibilidad": "no_verificable",
+          "disponibilidad_detalle": "No aplica o no hay deep link verificado."
+        }
+      ],
+      "decision": {
+        "proveedor": "kayak_vuelos",
+        "tipo": "vuelo",
+        "patron": "https://www.kayak.com.mx/flights/{iata_origen}-{iata_destino}/{fecha}?sort=bestflight_a&fs=cabin=e",
+        "motivo": "Kayak abrió resultados reales para MEX-MTY, MEX-SLP, MEX-GDL, MEX-JAL, MEX-CVM, MEX-TRC, MEX-SJD y MEX-CEN. Google Flights q= falló o mostró portada en CEN/JAL/CVM/TRC.",
+        "fallback": "Si no hay IATA validado, no generar link. Google Flights solo como respaldo con IATA validado; JAL/CEN/CVM deben ir en la tabla IATA."
+      }
+    },
+    {
+      "id": "hotel-mty-2026-11-09-1n",
+      "tipo": "hotel",
+      "descripcion": "Hotel Monterrey, 1 noche, solicitud real VIA-6-0026",
+      "prioridad": "alta",
+      "entrada": {
+        "ciudad_destino": "Monterrey",
+        "estado_destino": "Nuevo León",
+        "hotel": "Hotel Torre",
+        "checkin": "2026-12-09",
+        "checkout": "2026-12-10",
+        "noches": 1,
+        "personas": 1,
+        "lat": 25.6802,
+        "lon": -100.315,
+        "fecha_original": "2026-11-09 a 2026-11-10"
+      },
+      "sistema_actual": {
+        "etiqueta": "Hotel en Monterrey (referencia) / Hotel Torre",
+        "precio": 2353,
+        "moneda": "MXN",
+        "fuente": "seed tabulador SHCP (estimado)",
+        "estimado": true,
+        "links": [
+          {
+            "descripcion": "Referencia por ciudad",
+            "url": "https://www.booking.com/searchresults.es.html?ss=Monterrey&checkin=2026-12-09&checkout=2026-12-10&group_adults=1&no_rooms=1"
+          },
+          {
+            "descripcion": "Hotel real por nombre",
+            "url": "https://www.booking.com/searchresults.es.html?ss=Hotel%20Torre&checkin=2026-12-09&checkout=2026-12-10&group_adults=1&no_rooms=1"
+          }
+        ],
+        "resultado": "parcial",
+        "evidencia": "Booking ciudad funciona; Booking por nombre de hotel no mostró resultados. Google Hotels mostró precios reales.",
+        "captura": "evidencias/hotel-mty-2026-11-09-1n__booking_ciudad.png",
+        "disponibilidad": "disponible",
+        "disponibilidad_detalle": "Referencia (Booking ciudad): disponible (Resultados visibles; precio no normalizado.); Hotel por nombre: no_verificable (Sin contador de resultados visible.)"
+      },
+      "candidatos": [
+        {
+          "proveedor": "google_hotels_ciudad",
+          "link": "https://www.google.com/travel/search?q=hoteles%20en%20Monterrey&checkin=2026-12-09&checkout=2026-12-10&hl=es-MX&gl=MX&curr=MXN",
+          "estado": "ok",
+          "elegido": true,
+          "resultado": "Busca alojamiento en hoteles de Google en Monterrey | https://www.google.com/travel/search?q=hoteles%20en%20Monterrey&checkin=2026-12-09&checkout=2026-12-10&hl=es-MX&gl=MX&curr=MXN&ved=0CAAQ5JsGahcKEwiArrKulIGYAxUAAAAAHQAAAAAQBw&ts=CAESCgoCCAMKAggDEAAaVAo2EjIyJTB4ODY2Mjk1MzFiNDM3ZjhmNToweGEzZDNkM2NhNmFjODk4OTQ6CU1vbnRlcnJleRoAEhoSFAoHCOoPEAwYCRIHCOoPEAwYChgBMgIIASoJCgU6A01YThoA&qs=CAE4DQ&ap=MAE | Ir al contenido principal Comentarios sobre la accesibilidad Explorar Vuelos Hoteles Alquileres de vacaciones Acceder 2 Todos los filtros Menos de $950 Calificación: >4 Piscina 4- o 5 estrellas Spa Precio Tipo de propiedad Ofertas Calificación de los huéspedes Categoría del hotel Comodidades Marcas Certificación ecológica Ordenar por La mejor época",
+          "titulo": "Busca alojamiento en hoteles de Google en Monterrey",
+          "url_final": "https://www.google.com/travel/search?q=hoteles%20en%20Monterrey&checkin=2026-12-09&checkout=2026-12-10&hl=es-MX&gl=MX&curr=MXN&ved=0CAAQ5JsGahcKEwiArrKulIGYAxUAAAAAHQAAAAAQBw&ts=CAESCgoCCAMKAggDEAAaVAo2EjIyJTB4ODY2Mjk1MzFiNDM3ZjhmNToweGEzZDNkM2NhNmFjODk4OTQ6CU1vbnRlcnJleRoAEhoSFAoHCOoPEAwYCRIHCOoPEAwYChgBMgIIASoJCgU6A01YThoA&qs=CAE4DQ&ap=MAE",
+          "precio_visible": 1781,
+          "precios_visibles": [
+            1781,
+            3612,
+            4312,
+            2409,
+            2082,
+            3633,
+            2769,
+            2498,
+            1108,
+            979
+          ],
+          "moneda_precio": "MXN",
+          "captura": "evidencias/hotel-mty-2026-11-09-1n__google_hotels_ciudad.png",
+          "fecha_prueba": "2026-11-12T00:19:59.616Z",
+          "modo": "headless",
+          "status_http": 200,
+          "capturable_sistema": {
+            "permitido": true,
+            "estado": "ok",
+            "motivo": "Sin bloqueo conocido"
+          },
+          "disponibilidad": "disponible",
+          "disponibilidad_detalle": "1,414 resultados",
+          "fechas_aplicadas": true
+        },
+        {
+          "proveedor": "booking_ciudad",
+          "link": "https://www.booking.com/searchresults.es.html?ss=Monterrey&checkin=2026-12-09&checkout=2026-12-10&group_adults=1&no_rooms=1",
+          "estado": "ok",
+          "elegido": false,
+          "resultado": "Booking.com: Resultados de la búsqueda: Monterrey. ¡Reserva tu hotel ahora! | https://www.booking.com/searchresults.es.html?ss=Monterrey&checkin=2026-12-09&checkout=2026-12-10&group_adults=1&no_rooms=1&chal_t=1794433986483&force_referer= | Ir al contenido principal MXN Registra tu propiedad Regístrate Iniciar sesión Hospedajes Vuelos Vuelo + Hotel Renta de autos Actividades Traslados Indica el destino Seleccionar fecha(s) mié, 9 de dic — jue, 10 de dic Seleccionar ocupación 1 adulto · 0 niños · 1 habitación Buscar Inicio México Nuevo León Monterrey Resultados de la búsqueda Ver en el",
+          "titulo": "Booking.com: Resultados de la búsqueda: Monterrey. ¡Reserva tu hotel ahora!",
+          "url_final": "https://www.booking.com/searchresults.es.html?ss=Monterrey&checkin=2026-12-09&checkout=2026-12-10&group_adults=1&no_rooms=1&chal_t=1794433986483&force_referer=",
+          "precio_visible": null,
+          "precios_visibles": [],
+          "moneda_precio": "MXN",
+          "captura": "evidencias/hotel-mty-2026-11-09-1n__booking_ciudad.png",
+          "fecha_prueba": "2026-11-11T21:53:10.848Z",
+          "modo": "manual",
+          "status_http": 202,
+          "capturable_sistema": {
+            "permitido": false,
+            "estado": "no_permitido",
+            "motivo": "CapturasService.HardBannedDomains (booking.com/expedia.com)"
+          },
+          "disponibilidad": "disponible",
+          "disponibilidad_detalle": "Resultados visibles; precio no normalizado.",
+          "notas": "Precio no normalizado; el banco de pruebas solo verifica disponibilidad en Booking."
+        },
+        {
+          "proveedor": "booking_hotel",
+          "link": "https://www.booking.com/searchresults.es.html?ss=Hotel%20Torre&checkin=2026-12-09&checkout=2026-12-10&group_adults=1&no_rooms=1",
+          "estado": "ok",
+          "elegido": false,
+          "resultado": "Booking.com: Resultados de la búsqueda: Hotel Torre. ¡Reserva tu hotel ahora! | https://www.booking.com/searchresults.es.html?ss=Hotel%20Torre&checkin=2026-12-09&checkout=2026-12-10&group_adults=1&no_rooms=1&chal_t=1794437096634&force_referer= | Ir al contenido principal MXN Registra tu propiedad Regístrate Iniciar sesión Hospedajes Vuelos Vuelo + Hotel Renta de autos Atracciones Traslados Indica el destino Seleccionar fecha(s) mié, 9 de dic — jue, 10 de dic Seleccionar ocupación 1 adulto · 0 niños · 1 habitación Buscar Inicio Resultados de la búsqueda Ver en el mapa Lista Cuadrícula Orden",
+          "titulo": "Booking.com: Resultados de la búsqueda: Hotel Torre. ¡Reserva tu hotel ahora!",
+          "url_final": "https://www.booking.com/searchresults.es.html?ss=Hotel%20Torre&checkin=2026-12-09&checkout=2026-12-10&group_adults=1&no_rooms=1&chal_t=1794437096634&force_referer=",
+          "precio_visible": null,
+          "precios_visibles": [],
+          "moneda_precio": "",
+          "captura": "evidencias/hotel-mty-2026-11-09-1n__booking_hotel.png",
+          "fecha_prueba": "2026-11-11T22:45:00.712Z",
+          "modo": "headless",
+          "status_http": 202,
+          "capturable_sistema": {
+            "permitido": false,
+            "estado": "no_permitido",
+            "motivo": "CapturasService.HardBannedDomains (booking.com/expedia.com)"
+          },
+          "disponibilidad": "no_verificable",
+          "disponibilidad_detalle": "Sin contador de resultados visible.",
+          "notas": "Precio no normalizado; el banco de pruebas solo verifica disponibilidad en Booking."
+        },
+        {
+          "proveedor": "google_hotels_hotel",
+          "link": "https://www.google.com/travel/search?q=Hotel%20Torre%20Monterrey&checkin=2026-12-09&checkout=2026-12-10&hl=es-MX&gl=MX&curr=MXN",
+          "estado": "error",
+          "elegido": false,
+          "resultado": "Hotel Torre | Hoteles de Google | https://www.google.com/travel/search?q=Hotel%20Torre%20Monterrey&checkin=2026-12-09&checkout=2026-12-10&hl=es-MX&gl=MX&curr=MXN&ved=0CAAQ5JsGahcKEwiAm5fHlIGYAxUAAAAAHQAAAAAQBw&ts=CAAaGhIYEhIKBwjqDxAMGBoSBwjqDxAMGBsyAggAKgcKBToDTVhO&qs=MidDaGtJck9mWmtmU1JoTVIyR2cwdlp5OHhNV051ZDJONWN6QjBFQUU | Ir al contenido principal Comentarios sobre la accesibilidad Explorar Vuelos Hoteles Alquileres de vacaciones Acceder Ir al contenido principal Todos los filtros Expandir Monterrey · 1,440 resultados Patrocinado· Booking.com Best Western Plus Monterrey Colón MXN 1,403 · 4.3 (2.1 K) Hotel de 3 estrellas · Cancelación gratuita Visitar Booking.com Pat",
+          "titulo": "Hotel Torre | Hoteles de Google",
+          "url_final": "https://www.google.com/travel/search?q=Hotel%20Torre%20Monterrey&checkin=2026-12-09&checkout=2026-12-10&hl=es-MX&gl=MX&curr=MXN&ved=0CAAQ5JsGahcKEwiAm5fHlIGYAxUAAAAAHQAAAAAQBw&ts=CAAaGhIYEhIKBwjqDxAMGBoSBwjqDxAMGBsyAggAKgcKBToDTVhO&qs=MidDaGtJck9mWmtmU1JoTVIyR2cwdlp5OHhNV051ZDJONWN6QjBFQUU",
+          "precio_visible": null,
+          "precios_visibles": [],
+          "moneda_precio": "",
+          "captura": "evidencias/hotel-mty-2026-11-09-1n__google_hotels_hotel.png",
+          "fecha_prueba": "2026-11-12T00:20:52.363Z",
+          "modo": "headless",
+          "status_http": 200,
+          "capturable_sistema": {
+            "permitido": true,
+            "estado": "error",
+            "motivo": "Sin bloqueo conocido"
+          },
+          "disponibilidad": "no_verificable",
+          "disponibilidad_detalle": "No se pudieron fijar las fechas seleccionadas en Google Hotels.",
+          "fechas_aplicadas": false
+        },
+        {
+          "proveedor": "google_maps",
+          "link": "https://www.google.com/maps/search/Hotel%20Torre%20Monterrey",
+          "estado": "ok",
+          "elegido": false,
+          "resultado": "Muestra el mapa del hotel (Hotel Torre); no es una página de reserva ni una cotización.",
+          "titulo": "Hotel Torre - Google Maps",
+          "url_final": "https://www.google.com/maps/place/Hotel+Torre/@25.6886193,-100.3145609,17z/data=!4m9!3m8!1s0x8662959aeb640359:0x7688108f423673ac!5m2!4m1!1i2!8m2!3d25.6886193!4d-100.3145609!16s%2Fg%2F11cnwcys0t?entry=ttu&g_ep=EgoyMDI2MTEwOS4wIKXMDSoASAFQAw%3D%3D",
+          "precio_visible": 726,
+          "precios_visibles": [
+            726,
+            861,
+            826,
+            661,
+            1000,
+            852,
+            962,
+            1437,
+            2751,
+            2831
+          ],
+          "moneda_precio": "MXN",
+          "captura": "evidencias/hotel-mty-2026-11-09-1n__google_maps.png",
+          "fecha_prueba": "2026-11-11T22:12:48.439Z",
+          "modo": "manual",
+          "status_http": 200,
+          "capturable_sistema": {
+            "permitido": true,
+            "estado": "ok",
+            "motivo": "Mapa, no cotización"
+          },
+          "disponibilidad": "disponible",
+          "disponibilidad_detalle": "Resultados visibles (prueba manual)."
+        }
+      ],
+      "decision": {
+        "proveedor": "google_hotels_ciudad",
+        "tipo": "hotel",
+        "patron": "https://www.google.com/travel/search?q=hoteles%20en%20{ciudad_destino}&checkin={checkin}&checkout={checkout}&hl=es-MX&gl=MX&curr=MXN",
+        "motivo": "Google Hotels por ciudad mostró precios reales en Monterrey, Guadalajara, Puebla, Torreón, San Quintín y Cuernavaca, incluso en ciudades fuera del tabulador. Booking por nombre resolvió Americana (Brasil).",
+        "fallback": "Booking ciudad como respaldo de reserva; googleMapsUri solo como ver mapa; no usar Booking por nombre. Quitar el fallback silencioso a CDMX."
+      }
+    },
+    {
+      "id": "hotel-gdl-2026-11-09-2n",
+      "tipo": "hotel",
+      "descripcion": "Hotel Guadalajara, 2 noches, hospital UMAE Jalisco",
+      "prioridad": "alta",
+      "entrada": {
+        "ciudad_destino": "Guadalajara",
+        "estado_destino": "Jalisco",
+        "hotel": "Hotel Fiesta Americana Guadalajara",
+        "checkin": "2026-12-09",
+        "checkout": "2026-12-11",
+        "noches": 2,
+        "personas": 1,
+        "lat": 20.672,
+        "lon": -103.338,
+        "fecha_original": "2026-11-09 a 2026-11-11"
+      },
+      "sistema_actual": {
+        "etiqueta": "Hotel en Guadalajara (referencia)",
+        "precio": 2006,
+        "moneda": "MXN",
+        "fuente": "seed tabulador SHCP (estimado)",
+        "estimado": true,
+        "links": [
+          {
+            "descripcion": "Referencia por ciudad",
+            "url": "https://www.booking.com/searchresults.es.html?ss=Guadalajara&checkin=2026-12-09&checkout=2026-12-11&group_adults=1&no_rooms=1"
+          }
+        ],
+        "resultado": "parcial",
+        "evidencia": "Booking ciudad funciona; Booking por nombre resolvió Americana (Brasil). Google Hotels mostró Fiesta Americana a $2,228.",
+        "captura": "evidencias/hotel-gdl-2026-11-09-2n__booking_ciudad.png",
+        "disponibilidad": "disponible",
+        "disponibilidad_detalle": "Referencia (Booking ciudad): disponible (Resultados visibles; precio no normalizado.); Hotel por nombre: no_disponible (Resolvió otra ciudad (Americana, Brasil).)"
+      },
+      "candidatos": [
+        {
+          "proveedor": "google_hotels_ciudad",
+          "link": "https://www.google.com/travel/search?q=hoteles%20en%20Guadalajara&checkin=2026-12-09&checkout=2026-12-11&hl=es-MX&gl=MX&curr=MXN",
+          "estado": "ok",
+          "elegido": true,
+          "resultado": "Busca alojamiento en hoteles de Google en Guadalajara | https://www.google.com/travel/search?q=hoteles%20en%20Guadalajara&checkin=2026-12-09&checkout=2026-12-11&hl=es-MX&gl=MX&curr=MXN&ved=0CAAQ5JsGahcKEwjA0ZzilIGYAxUAAAAAHQAAAAAQCA&ts=CAESCgoCCAMKAggDEAAaVgo4EjQyJTB4ODQyOGIxOGNiNTJmZDM5YjoweGQ2M2Q5MzAyYmY4NjU3NTA6C0d1YWRhbGFqYXJhGgASGhIUCgcI6g8QDBgJEgcI6g8QDBgLGAIyAggBKgkKBToDTVhOGgA&qs=CAE4DQ&ap=MAE | Ir al contenido principal Comentarios sobre la accesibilidad Explorar Vuelos Hoteles Alquileres de vacaciones Acceder 2 Todos los filtros Menos de $750 Calificación: >4 Piscina 4- o 5 estrellas Spa Precio Tipo de propiedad Ofertas Calificación de los huéspedes Categoría del hotel Comodidades Marcas Certificación ecológica Ordenar por La mejor época",
+          "titulo": "Busca alojamiento en hoteles de Google en Guadalajara",
+          "url_final": "https://www.google.com/travel/search?q=hoteles%20en%20Guadalajara&checkin=2026-12-09&checkout=2026-12-11&hl=es-MX&gl=MX&curr=MXN&ved=0CAAQ5JsGahcKEwjA0ZzilIGYAxUAAAAAHQAAAAAQCA&ts=CAESCgoCCAMKAggDEAAaVgo4EjQyJTB4ODQyOGIxOGNiNTJmZDM5YjoweGQ2M2Q5MzAyYmY4NjU3NTA6C0d1YWRhbGFqYXJhGgASGhIUCgcI6g8QDBgJEgcI6g8QDBgLGAIyAggBKgkKBToDTVhOGgA&qs=CAE4DQ&ap=MAE",
+          "precio_visible": 941,
+          "precios_visibles": [
+            941,
+            2036,
+            1433,
+            1318,
+            2252,
+            1712,
+            1368,
+            910,
+            2417,
+            876
+          ],
+          "moneda_precio": "MXN",
+          "captura": "evidencias/hotel-gdl-2026-11-09-2n__google_hotels_ciudad.png",
+          "fecha_prueba": "2026-11-12T00:21:48.759Z",
+          "modo": "headless",
+          "status_http": 200,
+          "capturable_sistema": {
+            "permitido": true,
+            "estado": "ok",
+            "motivo": "Sin bloqueo conocido"
+          },
+          "disponibilidad": "disponible",
+          "disponibilidad_detalle": "3,022 resultados",
+          "fechas_aplicadas": true
+        },
+        {
+          "proveedor": "booking_ciudad",
+          "link": "https://www.booking.com/searchresults.es.html?ss=Guadalajara&checkin=2026-12-09&checkout=2026-12-11&group_adults=1&no_rooms=1",
+          "estado": "ok",
+          "elegido": false,
+          "resultado": "Booking.com: Resultados de la búsqueda: Guadalajara. ¡Reserva tu hotel ahora! | https://www.booking.com/searchresults.es.html?ss=Guadalajara&checkin=2026-12-09&checkout=2026-12-11&group_adults=1&no_rooms=1&chal_t=1794434033533&force_referer= | Ir al contenido principal MXN Registra tu propiedad Regístrate Iniciar sesión Hospedajes Vuelos Vuelo + Hotel Renta de autos Atracciones Traslados Indica el destino Seleccionar fecha(s) mié, 9 de dic — vie, 11 de dic Seleccionar ocupación 1 adulto · 0 niños · 1 habitación Buscar Inicio México Jalisco Guadalajara Resultados de la búsqueda Ver en el ",
+          "titulo": "Booking.com: Resultados de la búsqueda: Guadalajara. ¡Reserva tu hotel ahora!",
+          "url_final": "https://www.booking.com/searchresults.es.html?ss=Guadalajara&checkin=2026-12-09&checkout=2026-12-11&group_adults=1&no_rooms=1&chal_t=1794434033533&force_referer=",
+          "precio_visible": null,
+          "precios_visibles": [],
+          "moneda_precio": "MXN",
+          "captura": "evidencias/hotel-gdl-2026-11-09-2n__booking_ciudad.png",
+          "fecha_prueba": "2026-11-11T21:53:57.898Z",
+          "modo": "manual",
+          "status_http": 202,
+          "capturable_sistema": {
+            "permitido": false,
+            "estado": "no_permitido",
+            "motivo": "CapturasService.HardBannedDomains (booking.com/expedia.com)"
+          },
+          "disponibilidad": "disponible",
+          "disponibilidad_detalle": "Resultados visibles; precio no normalizado.",
+          "notas": "Precio no normalizado; el banco de pruebas solo verifica disponibilidad en Booking."
+        },
+        {
+          "proveedor": "booking_hotel",
+          "link": "https://www.booking.com/searchresults.es.html?ss=Hotel%20Fiesta%20Americana%20Guadalajara&checkin=2026-12-09&checkout=2026-12-11&group_adults=1&no_rooms=1",
+          "estado": "sin_resultados",
+          "elegido": false,
+          "resultado": "Booking por nombre resolvió Americana (São Paulo, Brasil), no Guadalajara. Los precios visibles no aplican.",
+          "titulo": "Booking.com: Hoteles en Americana. ¡Reserva tu hotel ahora!",
+          "url_final": "https://www.booking.com/searchresults.es.html?ss=Hotel%20Fiesta%20Americana%20Guadalajara&checkin=2026-12-09&checkout=2026-12-11&group_adults=1&no_rooms=1&chal_t=1794434044689&force_referer=",
+          "precio_visible": null,
+          "precios_visibles": [],
+          "moneda_precio": "MXN",
+          "captura": "evidencias/hotel-gdl-2026-11-09-2n__booking_hotel.png",
+          "fecha_prueba": "2026-11-11T21:54:08.948Z",
+          "modo": "manual",
+          "status_http": 202,
+          "capturable_sistema": {
+            "permitido": false,
+            "estado": "no_permitido",
+            "motivo": "CapturasService.HardBannedDomains (booking.com/expedia.com)"
+          },
+          "disponibilidad": "no_disponible",
+          "disponibilidad_detalle": "Resolvió otra ciudad (Americana, Brasil).",
+          "notas": "Precio no normalizado; el banco de pruebas solo verifica disponibilidad en Booking."
+        },
+        {
+          "proveedor": "google_hotels_hotel",
+          "link": "https://www.google.com/travel/search?q=Hotel%20Fiesta%20Americana%20Guadalajara&checkin=2026-12-09&checkout=2026-12-11&hl=es-MX&gl=MX&curr=MXN",
+          "estado": "ok",
+          "elegido": false,
+          "resultado": "Busca alojamiento en hoteles de Google en Hotel Fiesta Americana | https://www.google.com/travel/search?q=Hotel%20Fiesta%20Americana%20Guadalajara&checkin=2026-12-09&checkout=2026-12-11&hl=es-MX&gl=MX&curr=MXN&ved=0CAAQ5JsGahcKEwjA28LwlIGYAxUAAAAAHQAAAAAQCA&ts=CAEaRwopEiUKCy9nLzF0ZHFuempwOhZIb3RlbCBGaWVzdGEgQW1lcmljYW5hGgASGhIUCgcI6g8QDBgJEgcI6g8QDBgLGAIyAggBKgkKBToDTVhOGgA&qs=CAE4DQ&ap=MAE | Ir al contenido principal Comentarios sobre la accesibilidad Explorar Vuelos Hoteles Alquileres de vacaciones Acceder 2 Todos los filtros Precio Tipo de propiedad Ofertas Calificación de los huéspedes Categoría del hotel Comodidades Marcas Certificación ecológica Ordenar por La mejor época para ir Esto es lo que pagarás Hotel Fiesta Americana · 985",
+          "titulo": "Busca alojamiento en hoteles de Google en Hotel Fiesta Americana",
+          "url_final": "https://www.google.com/travel/search?q=Hotel%20Fiesta%20Americana%20Guadalajara&checkin=2026-12-09&checkout=2026-12-11&hl=es-MX&gl=MX&curr=MXN&ved=0CAAQ5JsGahcKEwjA28LwlIGYAxUAAAAAHQAAAAAQCA&ts=CAEaRwopEiUKCy9nLzF0ZHFuempwOhZIb3RlbCBGaWVzdGEgQW1lcmljYW5hGgASGhIUCgcI6g8QDBgJEgcI6g8QDBgLGAIyAggBKgkKBToDTVhOGgA&qs=CAE4DQ&ap=MAE",
+          "precio_visible": 701,
+          "precios_visibles": [
+            701,
+            952,
+            3254,
+            1646,
+            855,
+            520,
+            638,
+            1100,
+            935,
+            2072
+          ],
+          "moneda_precio": "MXN",
+          "captura": "evidencias/hotel-gdl-2026-11-09-2n__google_hotels_hotel.png",
+          "fecha_prueba": "2026-11-12T00:22:18.998Z",
+          "modo": "headless",
+          "status_http": 200,
+          "capturable_sistema": {
+            "permitido": true,
+            "estado": "ok",
+            "motivo": "Sin bloqueo conocido"
+          },
+          "disponibilidad": "disponible",
+          "disponibilidad_detalle": "985 resultados",
+          "fechas_aplicadas": true
+        }
+      ],
+      "decision": {
+        "proveedor": "google_hotels_ciudad",
+        "tipo": "hotel",
+        "patron": "https://www.google.com/travel/search?q=hoteles%20en%20{ciudad_destino}&checkin={checkin}&checkout={checkout}&hl=es-MX&gl=MX&curr=MXN",
+        "motivo": "Google Hotels por ciudad mostró precios reales en Monterrey, Guadalajara, Puebla, Torreón, San Quintín y Cuernavaca, incluso en ciudades fuera del tabulador. Booking por nombre resolvió Americana (Brasil).",
+        "fallback": "Booking ciudad como respaldo de reserva; googleMapsUri solo como ver mapa; no usar Booking por nombre. Quitar el fallback silencioso a CDMX."
+      }
+    },
+    {
+      "id": "hotel-pue-2026-11-16-1n",
+      "tipo": "hotel",
+      "descripcion": "Hotel Puebla, 1 noche, UMAE Puebla",
+      "prioridad": "media",
+      "entrada": {
+        "ciudad_destino": "Puebla",
+        "estado_destino": "Puebla",
+        "checkin": "2026-12-16",
+        "checkout": "2026-12-17",
+        "noches": 1,
+        "personas": 1,
+        "lat": 18.9966,
+        "lon": -98.2649,
+        "fecha_original": "2026-11-16 a 2026-11-17"
+      },
+      "sistema_actual": {
+        "etiqueta": "Hotel en Puebla (referencia)",
+        "precio": 1500,
+        "moneda": "MXN",
+        "fuente": "seed tabulador SHCP (estimado)",
+        "estimado": true,
+        "links": [
+          {
+            "descripcion": "Referencia por ciudad",
+            "url": "https://www.booking.com/searchresults.es.html?ss=Puebla&checkin=2026-12-16&checkout=2026-12-17&group_adults=1&no_rooms=1"
+          }
+        ],
+        "resultado": "ok",
+        "evidencia": "Booking ciudad y Google Hotels mostraron resultados.",
+        "captura": "evidencias/hotel-pue-2026-11-16-1n__booking_ciudad.png",
+        "disponibilidad": "disponible",
+        "disponibilidad_detalle": "Referencia (Booking ciudad): disponible (Resultados visibles; precio no normalizado.)"
+      },
+      "candidatos": [
+        {
+          "proveedor": "google_hotels_ciudad",
+          "link": "https://www.google.com/travel/search?q=hoteles%20en%20Puebla&checkin=2026-12-16&checkout=2026-12-17&hl=es-MX&gl=MX&curr=MXN",
+          "estado": "ok",
+          "elegido": true,
+          "resultado": "Busca alojamiento en hoteles de Google en Puebla De Zaragoza | https://www.google.com/travel/search?q=hoteles%20en%20Puebla&checkin=2026-12-16&checkout=2026-12-17&hl=es-MX&gl=MX&curr=MXN&ved=0CAAQ5JsGahcKEwjAn6z-lIGYAxUAAAAAHQAAAAAQBw&ts=CAEaSQorEicKCS9tLzAxODN6XzoaSGVyb2ljYSBQdWVibGEgRGUgWmFyYWdvemEaABIaEhQKBwjqDxAMGBASBwjqDxAMGBEYATICCAEqCQoFOgNNWE4aAA&qs=CAE4DQ&ap=MAE | Ir al contenido principal Comentarios sobre la accesibilidad Explorar Vuelos Hoteles Alquileres de vacaciones Acceder 2 Todos los filtros Menos de $750 Calificación: >4 Piscina 4- o 5 estrellas Spa Precio Tipo de propiedad Ofertas Calificación de los huéspedes Categoría del hotel Comodidades Marcas Certificación ecológica Ordenar por El mejor lugar",
+          "titulo": "Busca alojamiento en hoteles de Google en Puebla De Zaragoza",
+          "url_final": "https://www.google.com/travel/search?q=hoteles%20en%20Puebla&checkin=2026-12-16&checkout=2026-12-17&hl=es-MX&gl=MX&curr=MXN&ved=0CAAQ5JsGahcKEwjAn6z-lIGYAxUAAAAAHQAAAAAQBw&ts=CAEaSQorEicKCS9tLzAxODN6XzoaSGVyb2ljYSBQdWVibGEgRGUgWmFyYWdvemEaABIaEhQKBwjqDxAMGBASBwjqDxAMGBEYATICCAEqCQoFOgNNWE4aAA&qs=CAE4DQ&ap=MAE",
+          "precio_visible": 1121,
+          "precios_visibles": [
+            1121,
+            1012,
+            1356,
+            1373,
+            1535,
+            1386,
+            1595,
+            1316,
+            1337,
+            1025
+          ],
+          "moneda_precio": "MXN",
+          "captura": "evidencias/hotel-pue-2026-11-16-1n__google_hotels_ciudad.png",
+          "fecha_prueba": "2026-11-12T00:22:48.040Z",
+          "modo": "headless",
+          "status_http": 200,
+          "capturable_sistema": {
+            "permitido": true,
+            "estado": "ok",
+            "motivo": "Sin bloqueo conocido"
+          },
+          "disponibilidad": "disponible",
+          "disponibilidad_detalle": "456 resultados",
+          "fechas_aplicadas": true
+        },
+        {
+          "proveedor": "booking_ciudad",
+          "link": "https://www.booking.com/searchresults.es.html?ss=Puebla&checkin=2026-12-16&checkout=2026-12-17&group_adults=1&no_rooms=1",
+          "estado": "ok",
+          "elegido": false,
+          "resultado": "Booking.com: Hoteles en Puebla. ¡Reserva tu hotel ahora! | https://www.booking.com/searchresults.es.html?ss=Puebla&checkin=2026-12-16&checkout=2026-12-17&group_adults=1&no_rooms=1&chal_t=1794434080018&force_referer= | Ir al contenido principal MXN Registra tu propiedad Regístrate Iniciar sesión Hospedajes Vuelos Vuelo + Hotel Renta de autos Actividades Traslados de aeropuerto Indica el destino Seleccionar fecha(s) mié, 16 de dic — jue, 17 de dic Seleccionar ocupación 1 adulto · 0 niños · 1 habitación Buscar Inicio México Puebla Puebla Resultados de la búsqueda V",
+          "titulo": "Booking.com: Hoteles en Puebla. ¡Reserva tu hotel ahora!",
+          "url_final": "https://www.booking.com/searchresults.es.html?ss=Puebla&checkin=2026-12-16&checkout=2026-12-17&group_adults=1&no_rooms=1&chal_t=1794434080018&force_referer=",
+          "precio_visible": null,
+          "precios_visibles": [],
+          "moneda_precio": "MXN",
+          "captura": "evidencias/hotel-pue-2026-11-16-1n__booking_ciudad.png",
+          "fecha_prueba": "2026-11-11T21:54:44.294Z",
+          "modo": "manual",
+          "status_http": 202,
+          "capturable_sistema": {
+            "permitido": false,
+            "estado": "no_permitido",
+            "motivo": "CapturasService.HardBannedDomains (booking.com/expedia.com)"
+          },
+          "disponibilidad": "disponible",
+          "disponibilidad_detalle": "Resultados visibles; precio no normalizado.",
+          "notas": "Precio no normalizado; el banco de pruebas solo verifica disponibilidad en Booking."
+        }
+      ],
+      "decision": {
+        "proveedor": "google_hotels_ciudad",
+        "tipo": "hotel",
+        "patron": "https://www.google.com/travel/search?q=hoteles%20en%20{ciudad_destino}&checkin={checkin}&checkout={checkout}&hl=es-MX&gl=MX&curr=MXN",
+        "motivo": "Google Hotels por ciudad mostró precios reales en Monterrey, Guadalajara, Puebla, Torreón, San Quintín y Cuernavaca, incluso en ciudades fuera del tabulador. Booking por nombre resolvió Americana (Brasil).",
+        "fallback": "Booking ciudad como respaldo de reserva; googleMapsUri solo como ver mapa; no usar Booking por nombre. Quitar el fallback silencioso a CDMX."
+      }
+    },
+    {
+      "id": "hotel-trc-2026-12-07-1n",
+      "tipo": "hotel",
+      "descripcion": "Hotel Torreón, 1 noche; ciudad NO sembrada (fallback actual a CDMX)",
+      "prioridad": "alta",
+      "entrada": {
+        "ciudad_destino": "Torreón",
+        "estado_destino": "Coahuila",
+        "checkin": "2026-12-07",
+        "checkout": "2026-12-08",
+        "noches": 1,
+        "personas": 1,
+        "lat": 25.4849,
+        "lon": -103.184
+      },
+      "sistema_actual": {
+        "etiqueta": "Hotel en Torreón (referencia)",
+        "precio": 3533,
+        "moneda": "MXN",
+        "fuente": "seed tabulador SHCP (estimado) — fallback CDMX",
+        "estimado": true,
+        "links": [
+          {
+            "descripcion": "Referencia por ciudad",
+            "url": "https://www.booking.com/searchresults.es.html?ss=Torre%C3%B3n&checkin=2026-12-07&checkout=2026-12-08&group_adults=1&no_rooms=1"
+          }
+        ],
+        "resultado": "ok",
+        "evidencia": "Booking ciudad y Google Hotels mostraron resultados. El precio del sistema ($3,533) es el fallback de CDMX y no corresponde a Torreón.",
+        "captura": "evidencias/hotel-trc-2026-12-07-1n__booking_ciudad.png",
+        "disponibilidad": "disponible",
+        "disponibilidad_detalle": "Referencia (Booking ciudad): disponible (Resultados visibles; precio no normalizado.)"
+      },
+      "candidatos": [
+        {
+          "proveedor": "google_hotels_ciudad",
+          "link": "https://www.google.com/travel/search?q=hoteles%20en%20Torre%C3%B3n&checkin=2026-12-07&checkout=2026-12-08&hl=es-MX&gl=MX&curr=MXN",
+          "estado": "ok",
+          "elegido": true,
+          "resultado": "Busca alojamiento en hoteles de Google en Torreón | https://www.google.com/travel/search?q=hoteles%20en%20Torre%C3%B3n&checkin=2026-12-07&checkout=2026-12-08&hl=es-MX&gl=MX&curr=MXN&ved=0CAAQ5JsGahcKEwjQlp-MlYGYAxUAAAAAHQAAAAAQBw&ts=CAESCgoCCAMKAggDEAAaUwo1EjEyJTB4ODY4ZmRiYTliYjQ1YjNmYjoweDhiY2M3YTk5NzBhZWEwMWQ6CFRvcnJlw7NuGgASGhIUCgcI6g8QDBgHEgcI6g8QDBgIGAEyAggBKgkKBToDTVhOGgA&qs=CAE4DQ&ap=MAE | Ir al contenido principal Comentarios sobre la accesibilidad Explorar Vuelos Hoteles Alquileres de vacaciones Acceder 2 Todos los filtros Menos de $750 Calificación: >4 Piscina 4- o 5 estrellas Precio Tipo de propiedad Ofertas Calificación de los huéspedes Categoría del hotel Comodidades Marcas Certificación ecológica Ordenar por La mejor época par",
+          "titulo": "Busca alojamiento en hoteles de Google en Torreón",
+          "url_final": "https://www.google.com/travel/search?q=hoteles%20en%20Torre%C3%B3n&checkin=2026-12-07&checkout=2026-12-08&hl=es-MX&gl=MX&curr=MXN&ved=0CAAQ5JsGahcKEwjQlp-MlYGYAxUAAAAAHQAAAAAQBw&ts=CAESCgoCCAMKAggDEAAaUwo1EjEyJTB4ODY4ZmRiYTliYjQ1YjNmYjoweDhiY2M3YTk5NzBhZWEwMWQ6CFRvcnJlw7NuGgASGhIUCgcI6g8QDBgHEgcI6g8QDBgIGAEyAggBKgkKBToDTVhOGgA&qs=CAE4DQ&ap=MAE",
+          "precio_visible": 1760,
+          "precios_visibles": [
+            1760,
+            1608,
+            2880,
+            2310,
+            2834,
+            799,
+            2816,
+            2089,
+            2868,
+            1167
+          ],
+          "moneda_precio": "MXN",
+          "captura": "evidencias/hotel-trc-2026-12-07-1n__google_hotels_ciudad.png",
+          "fecha_prueba": "2026-11-12T00:23:17.115Z",
+          "modo": "headless",
+          "status_http": 200,
+          "capturable_sistema": {
+            "permitido": true,
+            "estado": "ok",
+            "motivo": "Sin bloqueo conocido"
+          },
+          "disponibilidad": "disponible",
+          "disponibilidad_detalle": "125 resultados",
+          "fechas_aplicadas": true
+        },
+        {
+          "proveedor": "booking_ciudad",
+          "link": "https://www.booking.com/searchresults.es.html?ss=Torre%C3%B3n&checkin=2026-12-07&checkout=2026-12-08&group_adults=1&no_rooms=1",
+          "estado": "ok",
+          "elegido": false,
+          "resultado": "Booking.com: Resultados de la búsqueda: Torre%C3%B3n. ¡Reserva tu hotel ahora! | https://www.booking.com/searchresults.es.html?ss=Torre%C3%B3n&checkin=2026-12-07&checkout=2026-12-08&group_adults=1&no_rooms=1&chal_t=1794434124704&force_referer= | Ir al contenido principal MXN Registra tu propiedad Regístrate Iniciar sesión Hospedajes Vuelos Vuelo + Hotel Renta de autos Actividades Traslados de aeropuerto Busca con tus propias palabras Seleccionar fecha(s) lun, 7 de dic — mar, 8 de dic Seleccionar ocupación 1 adulto · 0 niños · 1 habitación Buscar Inicio México Coahuila Torreón Resultados de",
+          "titulo": "Booking.com: Resultados de la búsqueda: Torre%C3%B3n. ¡Reserva tu hotel ahora!",
+          "url_final": "https://www.booking.com/searchresults.es.html?ss=Torre%C3%B3n&checkin=2026-12-07&checkout=2026-12-08&group_adults=1&no_rooms=1&chal_t=1794434124704&force_referer=",
+          "precio_visible": null,
+          "precios_visibles": [],
+          "moneda_precio": "MXN",
+          "captura": "evidencias/hotel-trc-2026-12-07-1n__booking_ciudad.png",
+          "fecha_prueba": "2026-11-11T21:55:29.086Z",
+          "modo": "manual",
+          "status_http": 202,
+          "capturable_sistema": {
+            "permitido": false,
+            "estado": "no_permitido",
+            "motivo": "CapturasService.HardBannedDomains (booking.com/expedia.com)"
+          },
+          "disponibilidad": "disponible",
+          "disponibilidad_detalle": "Resultados visibles; precio no normalizado.",
+          "notas": "Precio no normalizado; el banco de pruebas solo verifica disponibilidad en Booking."
+        }
+      ],
+      "decision": {
+        "proveedor": "google_hotels_ciudad",
+        "tipo": "hotel",
+        "patron": "https://www.google.com/travel/search?q=hoteles%20en%20{ciudad_destino}&checkin={checkin}&checkout={checkout}&hl=es-MX&gl=MX&curr=MXN",
+        "motivo": "Google Hotels por ciudad mostró precios reales en Monterrey, Guadalajara, Puebla, Torreón, San Quintín y Cuernavaca, incluso en ciudades fuera del tabulador. Booking por nombre resolvió Americana (Brasil).",
+        "fallback": "Booking ciudad como respaldo de reserva; googleMapsUri solo como ver mapa; no usar Booking por nombre. Quitar el fallback silencioso a CDMX."
+      }
+    },
+    {
+      "id": "hotel-sanquintin-2026-12-08-1n",
+      "tipo": "hotel",
+      "descripcion": "Hotel San Quintín, 1 noche; ciudad remota NO sembrada",
+      "prioridad": "alta",
+      "entrada": {
+        "ciudad_destino": "San Quintín",
+        "estado_destino": "Baja California",
+        "checkin": "2026-12-08",
+        "checkout": "2026-12-09",
+        "noches": 1,
+        "personas": 1,
+        "lat": 30.4833,
+        "lon": -115.95
+      },
+      "sistema_actual": {
+        "etiqueta": "Hotel en San Quintín (referencia)",
+        "precio": 3533,
+        "moneda": "MXN",
+        "fuente": "seed tabulador SHCP (estimado) — fallback CDMX",
+        "estimado": true,
+        "links": [
+          {
+            "descripcion": "Referencia por ciudad",
+            "url": "https://www.booking.com/searchresults.es.html?ss=San%20Quint%C3%ADn&checkin=2026-12-08&checkout=2026-12-09&group_adults=1&no_rooms=1"
+          }
+        ],
+        "resultado": "ok",
+        "evidencia": "Booking ciudad y Google Hotels mostraron resultados. El precio del sistema ($3,533) es el fallback de CDMX.",
+        "captura": "evidencias/hotel-sanquintin-2026-12-08-1n__booking_ciudad.png",
+        "disponibilidad": "disponible",
+        "disponibilidad_detalle": "Referencia (Booking ciudad): disponible (Resultados visibles; precio no normalizado.)"
+      },
+      "candidatos": [
+        {
+          "proveedor": "google_hotels_ciudad",
+          "link": "https://www.google.com/travel/search?q=hoteles%20en%20San%20Quint%C3%ADn%20Baja%20California&checkin=2026-12-08&checkout=2026-12-09&hl=es-MX&gl=MX&curr=MXN",
+          "estado": "ok",
+          "elegido": true,
+          "resultado": "Busca alojamiento en hoteles de Google en San Quintín | https://www.google.com/travel/search?q=hoteles%20en%20San%20Quint%C3%ADn%20Baja%20California&checkin=2026-12-08&checkout=2026-12-09&hl=es-MX&gl=MX&curr=MXN&ved=0CAAQ5JsGahcKEwjo7f-ZlYGYAxUAAAAAHQAAAAAQBw&ts=CAESCgoCCAMKAggDEAAaVwo5EjUyJTB4ODEyNjExOGY3ZjM2ZDFlYjoweDdlMzRkNmVjOTUwMzRhN2U6DFNhbiBRdWludMOtbhoAEhoSFAoHCOoPEAwYCBIHCOoPEAwYCRgBMgIIASoJCgU6A01YThoA&qs=CAE4DQ&ap=MAE | Ir al contenido principal Comentarios sobre la accesibilidad Explorar Vuelos Hoteles Alquileres de vacaciones Acceder 2 Todos los filtros Menos de $675 Precio Tipo de propiedad Ofertas Calificación de los huéspedes Categoría del hotel Comodidades Certificación ecológica Ordenar por La mejor época para ir Esto es lo que pagarás San Quintín · 29 resu",
+          "titulo": "Busca alojamiento en hoteles de Google en San Quintín",
+          "url_final": "https://www.google.com/travel/search?q=hoteles%20en%20San%20Quint%C3%ADn%20Baja%20California&checkin=2026-12-08&checkout=2026-12-09&hl=es-MX&gl=MX&curr=MXN&ved=0CAAQ5JsGahcKEwjo7f-ZlYGYAxUAAAAAHQAAAAAQBw&ts=CAESCgoCCAMKAggDEAAaVwo5EjUyJTB4ODEyNjExOGY3ZjM2ZDFlYjoweDdlMzRkNmVjOTUwMzRhN2U6DFNhbiBRdWludMOtbhoAEhoSFAoHCOoPEAwYCBIHCOoPEAwYCRgBMgIIASoJCgU6A01YThoA&qs=CAE4DQ&ap=MAE",
+          "precio_visible": 1610,
+          "precios_visibles": [
+            1610,
+            1482,
+            1843,
+            1472,
+            1689,
+            2513,
+            1509,
+            1504,
+            2111,
+            3444
+          ],
+          "moneda_precio": "MXN",
+          "captura": "evidencias/hotel-sanquintin-2026-12-08-1n__google_hotels_ciudad.png",
+          "fecha_prueba": "2026-11-12T00:23:46.233Z",
+          "modo": "headless",
+          "status_http": 200,
+          "capturable_sistema": {
+            "permitido": true,
+            "estado": "ok",
+            "motivo": "Sin bloqueo conocido"
+          },
+          "disponibilidad": "disponible",
+          "disponibilidad_detalle": "29 resultados",
+          "fechas_aplicadas": true
+        },
+        {
+          "proveedor": "booking_ciudad",
+          "link": "https://www.booking.com/searchresults.es.html?ss=San%20Quint%C3%ADn&checkin=2026-12-08&checkout=2026-12-09&group_adults=1&no_rooms=1",
+          "estado": "ok",
+          "elegido": false,
+          "resultado": "Booking.com: Resultados de la búsqueda: San%20Quint%C3%ADn. ¡Reserva tu hotel ahora! | https://www.booking.com/searchresults.es.html?ss=San%20Quint%C3%ADn&checkin=2026-12-08&checkout=2026-12-09&group_adults=1&no_rooms=1&chal_t=1794434147955&force_referer= | Ir al contenido principal MXN Registra tu propiedad Regístrate Iniciar sesión Hospedajes Vuelos Vuelo + Hotel Renta de autos Atracciones Traslados Busca con tus propias palabras Seleccionar fecha(s) mar, 8 de dic — mié, 9 de dic Seleccionar ocupación 1 adulto · 0 niños · 1 habitación Buscar Inicio México Baja California San Quintín Resultados de la",
+          "titulo": "Booking.com: Resultados de la búsqueda: San%20Quint%C3%ADn. ¡Reserva tu hotel ahora!",
+          "url_final": "https://www.booking.com/searchresults.es.html?ss=San%20Quint%C3%ADn&checkin=2026-12-08&checkout=2026-12-09&group_adults=1&no_rooms=1&chal_t=1794434147955&force_referer=",
+          "precio_visible": null,
+          "precios_visibles": [],
+          "moneda_precio": "MXN",
+          "captura": "evidencias/hotel-sanquintin-2026-12-08-1n__booking_ciudad.png",
+          "fecha_prueba": "2026-11-11T21:55:52.320Z",
+          "modo": "manual",
+          "status_http": 202,
+          "capturable_sistema": {
+            "permitido": false,
+            "estado": "no_permitido",
+            "motivo": "CapturasService.HardBannedDomains (booking.com/expedia.com)"
+          },
+          "disponibilidad": "disponible",
+          "disponibilidad_detalle": "Resultados visibles; precio no normalizado.",
+          "notas": "Precio no normalizado; el banco de pruebas solo verifica disponibilidad en Booking."
+        }
+      ],
+      "decision": {
+        "proveedor": "google_hotels_ciudad",
+        "tipo": "hotel",
+        "patron": "https://www.google.com/travel/search?q=hoteles%20en%20{ciudad_destino}&checkin={checkin}&checkout={checkout}&hl=es-MX&gl=MX&curr=MXN",
+        "motivo": "Google Hotels por ciudad mostró precios reales en Monterrey, Guadalajara, Puebla, Torreón, San Quintín y Cuernavaca, incluso en ciudades fuera del tabulador. Booking por nombre resolvió Americana (Brasil).",
+        "fallback": "Booking ciudad como respaldo de reserva; googleMapsUri solo como ver mapa; no usar Booking por nombre. Quitar el fallback silencioso a CDMX."
+      }
+    },
+    {
+      "id": "hotel-cuernavaca-2026-12-01-1n",
+      "tipo": "hotel",
+      "descripcion": "Hotel Cuernavaca, 1 noche; ciudad NO sembrada",
+      "prioridad": "media",
+      "entrada": {
+        "ciudad_destino": "Cuernavaca",
+        "estado_destino": "Morelos",
+        "checkin": "2026-12-01",
+        "checkout": "2026-12-02",
+        "noches": 1,
+        "personas": 1,
+        "lat": 18.9242,
+        "lon": -99.2216
+      },
+      "sistema_actual": {
+        "etiqueta": "Hotel en Cuernavaca (referencia)",
+        "precio": 3533,
+        "moneda": "MXN",
+        "fuente": "seed tabulador SHCP (estimado) — fallback CDMX",
+        "estimado": true,
+        "links": [
+          {
+            "descripcion": "Referencia por ciudad",
+            "url": "https://www.booking.com/searchresults.es.html?ss=Cuernavaca&checkin=2026-12-01&checkout=2026-12-02&group_adults=1&no_rooms=1"
+          }
+        ],
+        "resultado": "ok",
+        "evidencia": "Booking ciudad y Google Hotels mostraron resultados. El precio del sistema ($3,533) es el fallback de CDMX.",
+        "captura": "evidencias/hotel-cuernavaca-2026-12-01-1n__booking_ciudad.png",
+        "disponibilidad": "disponible",
+        "disponibilidad_detalle": "Referencia (Booking ciudad): disponible (Resultados visibles; precio no normalizado.)"
+      },
+      "candidatos": [
+        {
+          "proveedor": "google_hotels_ciudad",
+          "link": "https://www.google.com/travel/search?q=hoteles%20en%20Cuernavaca&checkin=2026-12-01&checkout=2026-12-02&hl=es-MX&gl=MX&curr=MXN",
+          "estado": "error",
+          "elegido": false,
+          "resultado": "Busca alojamiento en hoteles de Google en Cuernavaca | https://www.google.com/travel/search?q=hoteles%20en%20Cuernavaca&checkin=2026-12-01&checkout=2026-12-02&hl=es-MX&gl=MX&curr=MXN&ved=0CAAQ5JsGahcKEwjA07WImIGYAxUAAAAAHQAAAAAQBA | Ir al contenido principal Comentarios sobre la accesibilidad Explorar Vuelos Hoteles Alquileres de vacaciones Acceder 2 Todos los filtros Piscina Menos de $475 Calificación: >4 Spa 4- o 5 estrellas Precio Ofertas Calificación de los huéspedes Categoría del hotel Comodidades Marcas Certificación ecológica Ordenar por La mejor época para ir Esto es l",
+          "titulo": "Busca alojamiento en hoteles de Google en Cuernavaca",
+          "url_final": "https://www.google.com/travel/search?q=hoteles%20en%20Cuernavaca&checkin=2026-12-01&checkout=2026-12-02&hl=es-MX&gl=MX&curr=MXN&ved=0CAAQ5JsGahcKEwjA07WImIGYAxUAAAAAHQAAAAAQBA",
+          "precio_visible": null,
+          "precios_visibles": [],
+          "moneda_precio": "",
+          "captura": "evidencias/hotel-cuernavaca-2026-12-01-1n__google_hotels_ciudad.png",
+          "fecha_prueba": "2026-11-12T00:36:34.614Z",
+          "modo": "headless",
+          "status_http": 200,
+          "capturable_sistema": {
+            "permitido": true,
+            "estado": "error",
+            "motivo": "Sin bloqueo conocido"
+          },
+          "disponibilidad": "no_verificable",
+          "disponibilidad_detalle": "No se pudieron fijar las fechas seleccionadas en Google Hotels.",
+          "fechas_aplicadas": false
+        },
+        {
+          "proveedor": "booking_ciudad",
+          "link": "https://www.booking.com/searchresults.es.html?ss=Cuernavaca&checkin=2026-12-01&checkout=2026-12-02&group_adults=1&no_rooms=1",
+          "estado": "ok",
+          "elegido": true,
+          "resultado": "Booking.com: Resultados de la búsqueda: Cuernavaca. ¡Reserva tu hotel ahora! | https://www.booking.com/searchresults.es.html?ss=Cuernavaca&checkin=2026-12-01&checkout=2026-12-02&group_adults=1&no_rooms=1&chal_t=1794434171684&force_referer= | Ir al contenido principal MXN Registra tu propiedad Regístrate Iniciar sesión Hospedajes Vuelos Vuelo + Hotel Renta de autos Atracciones Taxis aeropuerto Indica el destino Seleccionar fecha(s) mar, 1.º de dic — mié, 2 de dic Seleccionar ocupación 1 adulto · 0 niños · 1 habitación Buscar Inicio México Morelos Cuernavaca Resultados de la búsqueda Ver",
+          "titulo": "Booking.com: Resultados de la búsqueda: Cuernavaca. ¡Reserva tu hotel ahora!",
+          "url_final": "https://www.booking.com/searchresults.es.html?ss=Cuernavaca&checkin=2026-12-01&checkout=2026-12-02&group_adults=1&no_rooms=1&chal_t=1794434171684&force_referer=",
+          "precio_visible": null,
+          "precios_visibles": [],
+          "moneda_precio": "MXN",
+          "captura": "evidencias/hotel-cuernavaca-2026-12-01-1n__booking_ciudad.png",
+          "fecha_prueba": "2026-11-11T21:56:16.053Z",
+          "modo": "manual",
+          "status_http": 202,
+          "capturable_sistema": {
+            "permitido": false,
+            "estado": "no_permitido",
+            "motivo": "CapturasService.HardBannedDomains (booking.com/expedia.com)"
+          },
+          "disponibilidad": "disponible",
+          "disponibilidad_detalle": "Resultados visibles; precio no normalizado.",
+          "notas": "Precio no normalizado; el banco de pruebas solo verifica disponibilidad en Booking."
+        }
+      ],
+      "decision": {
+        "proveedor": "booking_ciudad",
+        "tipo": "hotel",
+        "patron": "https://www.booking.com/searchresults.es.html?ss={ciudad_destino}&checkin={checkin}&checkout={checkout}&group_adults=1&no_rooms=1",
+        "motivo": "Google Hotels no aplicó las fechas seleccionadas en Cuernavaca durante las pruebas; Booking.com sí las aplica por URL.",
+        "fallback": "Reintentar Google Hotels con el calendario; si sigue fallando, usar Booking.com."
+      }
+    },
+    {
+      "id": "hotel-fiesta-americana-gdl-2026-11-09-2n",
+      "tipo": "hotel",
+      "descripcion": "Búsqueda por nombre: Fiesta Americana Guadalajara, 2 noches",
+      "prioridad": "alta",
+      "entrada": {
+        "ciudad_destino": "Guadalajara",
+        "estado_destino": "Jalisco",
+        "hotel": "Hotel Fiesta Americana Guadalajara",
+        "checkin": "2026-12-09",
+        "checkout": "2026-12-11",
+        "noches": 2,
+        "personas": 1,
+        "lat": 20.672,
+        "lon": -103.338,
+        "fecha_original": "2026-11-09 a 2026-11-11"
+      },
+      "sistema_actual": {
+        "etiqueta": "Hotel real (Booking por nombre)",
+        "precio": 2006,
+        "moneda": "MXN",
+        "fuente": "OpenStreetMap/Nominatim + tabulador (estimado)",
+        "estimado": true,
+        "links": [
+          {
+            "descripcion": "Hotel real por nombre",
+            "url": "https://www.booking.com/searchresults.es.html?ss=Hotel%20Fiesta%20Americana%20Guadalajara&checkin=2026-12-09&checkout=2026-12-11&group_adults=1&no_rooms=1"
+          }
+        ],
+        "resultado": "sin_resultados",
+        "evidencia": "Booking por nombre resolvió Americana (São Paulo, Brasil), no Guadalajara. Google Hotels por ciudad sí mostró resultados.",
+        "captura": "evidencias/hotel-fiesta-americana-gdl-2026-11-09-2n__booking_hotel.png",
+        "disponibilidad": "no_verificable",
+        "disponibilidad_detalle": "Hotel por nombre: no_disponible (El buscador resolvió otra ciudad (Americana, Brasil).)"
+      },
+      "candidatos": [
+        {
+          "proveedor": "booking_hotel",
+          "link": "https://www.booking.com/searchresults.es.html?ss=Hotel%20Fiesta%20Americana%20Guadalajara&checkin=2026-12-09&checkout=2026-12-11&group_adults=1&no_rooms=1",
+          "estado": "sin_resultados",
+          "elegido": false,
+          "resultado": "Booking.com: Hoteles en Americana. ¡Reserva tu hotel ahora! | https://www.booking.com/searchresults.es.html?ss=Hotel%20Fiesta%20Americana%20Guadalajara&checkin=2026-12-09&checkout=2026-12-11&group_adults=1&no_rooms=1&chal_t=1794437636117&force_referer= | Ir al contenido principal MXN Registra tu propiedad Regístrate Iniciar sesión Hospedajes Vuelos Vuelo + Hotel Renta de autos Atracciones Taxis aeropuerto Busca con tus propias palabras Seleccionar fecha(s) mié, 9 de dic — vie, 11 de dic Seleccionar ocupación 1 adulto · 0 niños · 1 habitación Buscar Inicio Brasil Estado de São Paulo Americana Result",
+          "titulo": "Booking.com: Hoteles en Americana. ¡Reserva tu hotel ahora!",
+          "url_final": "https://www.booking.com/searchresults.es.html?ss=Hotel%20Fiesta%20Americana%20Guadalajara&checkin=2026-12-09&checkout=2026-12-11&group_adults=1&no_rooms=1&chal_t=1794437636117&force_referer=",
+          "precio_visible": null,
+          "precios_visibles": [],
+          "moneda_precio": "",
+          "captura": "evidencias/hotel-fiesta-americana-gdl-2026-11-09-2n__booking_hotel.png",
+          "fecha_prueba": "2026-11-11T22:54:00.095Z",
+          "modo": "headless",
+          "status_http": 202,
+          "capturable_sistema": {
+            "permitido": false,
+            "estado": "no_permitido",
+            "motivo": "CapturasService.HardBannedDomains (booking.com/expedia.com)"
+          },
+          "disponibilidad": "no_disponible",
+          "disponibilidad_detalle": "El buscador resolvió otra ciudad (Americana, Brasil).",
+          "notas": "Precio no normalizado; el banco de pruebas solo verifica disponibilidad en Booking."
+        },
+        {
+          "proveedor": "google_hotels_hotel",
+          "link": "https://www.google.com/travel/search?q=Hotel%20Fiesta%20Americana%20Guadalajara&checkin=2026-12-09&checkout=2026-12-11&hl=es-MX&gl=MX&curr=MXN",
+          "estado": "ok",
+          "elegido": false,
+          "resultado": "Busca alojamiento en hoteles de Google en Hotel Fiesta Americana | https://www.google.com/travel/search?q=Hotel%20Fiesta%20Americana%20Guadalajara&checkin=2026-12-09&checkout=2026-12-11&hl=es-MX&gl=MX&curr=MXN&ved=0CAAQ5JsGahcKEwiQh-rPlYGYAxUAAAAAHQAAAAAQCA&ts=CAEaRwopEiUKCy9nLzF0ZHFuempwOhZIb3RlbCBGaWVzdGEgQW1lcmljYW5hGgASGhIUCgcI6g8QDBgJEgcI6g8QDBgLGAIyAggBKgkKBToDTVhOGgA&qs=CAE4DQ&ap=MAE | Ir al contenido principal Comentarios sobre la accesibilidad Explorar Vuelos Hoteles Alquileres de vacaciones Acceder 2 Todos los filtros Precio Tipo de propiedad Ofertas Calificación de los huéspedes Categoría del hotel Comodidades Marcas Certificación ecológica Ordenar por La mejor época para ir Esto es lo que pagarás Hotel Fiesta Americana · 985",
+          "titulo": "Busca alojamiento en hoteles de Google en Hotel Fiesta Americana",
+          "url_final": "https://www.google.com/travel/search?q=Hotel%20Fiesta%20Americana%20Guadalajara&checkin=2026-12-09&checkout=2026-12-11&hl=es-MX&gl=MX&curr=MXN&ved=0CAAQ5JsGahcKEwiQh-rPlYGYAxUAAAAAHQAAAAAQCA&ts=CAEaRwopEiUKCy9nLzF0ZHFuempwOhZIb3RlbCBGaWVzdGEgQW1lcmljYW5hGgASGhIUCgcI6g8QDBgJEgcI6g8QDBgLGAIyAggBKgkKBToDTVhOGgA&qs=CAE4DQ&ap=MAE",
+          "precio_visible": 701,
+          "precios_visibles": [
+            701,
+            952,
+            3254,
+            1646,
+            855,
+            520,
+            638,
+            1100,
+            935,
+            2072
+          ],
+          "moneda_precio": "MXN",
+          "captura": "evidencias/hotel-fiesta-americana-gdl-2026-11-09-2n__google_hotels_hotel.png",
+          "fecha_prueba": "2026-11-12T00:25:39.341Z",
+          "modo": "headless",
+          "status_http": 200,
+          "capturable_sistema": {
+            "permitido": true,
+            "estado": "ok",
+            "motivo": "Sin bloqueo conocido"
+          },
+          "disponibilidad": "disponible",
+          "disponibilidad_detalle": "985 resultados",
+          "fechas_aplicadas": true
+        },
+        {
+          "proveedor": "google_hotels_ciudad",
+          "link": "https://www.google.com/travel/search?q=hoteles%20en%20Guadalajara&checkin=2026-12-09&checkout=2026-12-11&hl=es-MX&gl=MX&curr=MXN",
+          "estado": "ok",
+          "elegido": true,
+          "resultado": "Busca alojamiento en hoteles de Google en Guadalajara | https://www.google.com/travel/search?q=hoteles%20en%20Guadalajara&checkin=2026-12-09&checkout=2026-12-11&hl=es-MX&gl=MX&curr=MXN&ved=0CAAQ5JsGahcKEwiYk53ClYGYAxUAAAAAHQAAAAAQBQ&ts=CAESCgoCCAMKAggDEAAaVgo4EjQyJTB4ODQyOGIxOGNiNTJmZDM5YjoweGQ2M2Q5MzAyYmY4NjU3NTA6C0d1YWRhbGFqYXJhGgASGhIUCgcI6g8QDBgJEgcI6g8QDBgLGAIyAggBKgkKBToDTVhOGgA&qs=CAE4DQ&ap=MAE | Ir al contenido principal Comentarios sobre la accesibilidad Explorar Vuelos Hoteles Alquileres de vacaciones Acceder 2 Todos los filtros Menos de $750 Calificación: >4 Piscina 4- o 5 estrellas Spa Precio Tipo de propiedad Ofertas Calificación de los huéspedes Categoría del hotel Comodidades Marcas Certificación ecológica Ordenar por La mejor época",
+          "titulo": "Busca alojamiento en hoteles de Google en Guadalajara",
+          "url_final": "https://www.google.com/travel/search?q=hoteles%20en%20Guadalajara&checkin=2026-12-09&checkout=2026-12-11&hl=es-MX&gl=MX&curr=MXN&ved=0CAAQ5JsGahcKEwiYk53ClYGYAxUAAAAAHQAAAAAQBQ&ts=CAESCgoCCAMKAggDEAAaVgo4EjQyJTB4ODQyOGIxOGNiNTJmZDM5YjoweGQ2M2Q5MzAyYmY4NjU3NTA6C0d1YWRhbGFqYXJhGgASGhIUCgcI6g8QDBgJEgcI6g8QDBgLGAIyAggBKgkKBToDTVhOGgA&qs=CAE4DQ&ap=MAE",
+          "precio_visible": 941,
+          "precios_visibles": [
+            941,
+            2036,
+            1433,
+            2252,
+            1318,
+            1368,
+            1712,
+            1770,
+            2417,
+            876
+          ],
+          "moneda_precio": "MXN",
+          "captura": "evidencias/hotel-fiesta-americana-gdl-2026-11-09-2n__google_hotels_ciudad.png",
+          "fecha_prueba": "2026-11-12T00:25:10.050Z",
+          "modo": "headless",
+          "status_http": 200,
+          "capturable_sistema": {
+            "permitido": true,
+            "estado": "ok",
+            "motivo": "Sin bloqueo conocido"
+          },
+          "disponibilidad": "disponible",
+          "disponibilidad_detalle": "3,022 resultados",
+          "fechas_aplicadas": true
+        }
+      ],
+      "decision": {
+        "proveedor": "google_hotels_ciudad",
+        "tipo": "hotel",
+        "patron": "https://www.google.com/travel/search?q=hoteles%20en%20{ciudad_destino}&checkin={checkin}&checkout={checkout}&hl=es-MX&gl=MX&curr=MXN",
+        "motivo": "Google Hotels por ciudad mostró precios reales en Monterrey, Guadalajara, Puebla, Torreón, San Quintín y Cuernavaca, incluso en ciudades fuera del tabulador. Booking por nombre resolvió Americana (Brasil).",
+        "fallback": "Booking ciudad como respaldo de reserva; googleMapsUri solo como ver mapa; no usar Booking por nombre. Quitar el fallback silencioso a CDMX."
+      }
+    },
+    {
+      "id": "bus-cdmx-mty-2026-11-09",
+      "tipo": "autobus",
+      "descripcion": "CDMX → Monterrey, solicitud real VIA-6-0026",
+      "prioridad": "alta",
+      "entrada": {
+        "ciudad_origen": "Ciudad de México",
+        "ciudad_destino": "Monterrey",
+        "fecha": "2026-12-09",
+        "personas": 1,
+        "slug_clickbus_origen": "ciudad-de-mexico-df-(todas-las-terminales)",
+        "slug_clickbus_destino": "monterrey-nl-(todas-las-terminales)",
+        "slug_pp_origen": "ciudad-de-mexico",
+        "slug_pp_destino": null,
+        "fecha_original": "2026-11-09"
+      },
+      "sistema_actual": {
+        "etiqueta": "ClickBus (en vivo)",
+        "precio": 1044,
+        "moneda": "MXN",
+        "fuente": "ClickBus (en vivo)",
+        "estimado": false,
+        "patron": "https://www.clickbus.com.mx/trips?departure_place={slug_clickbus_origen}&arrival_place={slug_clickbus_destino}&departure_date={fecha}&minPrice=0&maxPrice=5000",
+        "link_ejemplo": "https://www.clickbus.com.mx/trips?departure_place=ciudad-de-mexico-df-(todas-las-terminales)&arrival_place=monterrey-nl-(todas-las-terminales)&departure_date=2026-12-09&minPrice=0&maxPrice=5000",
+        "resultado": "ok",
+        "evidencia": "ClickBus abrió la ruta y mostró precios reales.",
+        "captura": "evidencias/bus-cdmx-mty-2026-11-09__clickbus.png",
+        "disponibilidad": "disponible",
+        "disponibilidad_detalle": "36 asientos disponibles"
+      },
+      "candidatos": [
+        {
+          "proveedor": "clickbus",
+          "link": "https://www.clickbus.com.mx/trips?departure_place=ciudad-de-mexico-df-(todas-las-terminales)&arrival_place=monterrey-nl-(todas-las-terminales)&departure_date=2026-12-09&minPrice=0&maxPrice=5000",
+          "estado": "ok",
+          "elegido": true,
+          "resultado": "Boletos de autobús de Ciudad de México a Monterrey | ClickBus | https://www.clickbus.com.mx/trips?departure_place=ciudad-de-mexico-df-(todas-las-terminales)&arrival_place=monterrey-nl-(todas-las-terminales)&departure_date=2026-12-09&minPrice=0&maxPrice=5000 | MXN ESP Origen Destino Fecha De Salida Regreso (Opcional) BUSCAR Filtrar búsqueda Ordenar por Precio Estación de salida Estación de llegada Línea de autobús Clase de servicio Hora de salida Price : $0.00 - $5,000.00 Seleccionar ida Dic 4 Dic 5 Dic 6 Dic 7 Dic 8 Dic 9 Dic 10 Dic 11 Dic 12 Dic 13 Dic 14 Dic 15 Dic 16 Compañia Salida Y Llegada Precio ",
+          "titulo": "Boletos de autobús de Ciudad de México a Monterrey | ClickBus",
+          "url_final": "https://www.clickbus.com.mx/trips?departure_place=ciudad-de-mexico-df-(todas-las-terminales)&arrival_place=monterrey-nl-(todas-las-terminales)&departure_date=2026-12-09&minPrice=0&maxPrice=5000",
+          "precio_visible": 1830,
+          "precios_visibles": [
+            1830,
+            1647,
+            1740,
+            1044,
+            1684,
+            1515.5,
+            1444,
+            1299.5
+          ],
+          "moneda_precio": "MXN",
+          "captura": "evidencias/bus-cdmx-mty-2026-11-09__clickbus.png",
+          "fecha_prueba": "2026-11-11T22:48:43.036Z",
+          "modo": "headless",
+          "status_http": 200,
+          "capturable_sistema": {
+            "permitido": true,
+            "estado": "ok",
+            "motivo": "Sin bloqueo conocido"
+          },
+          "disponibilidad": "disponible",
+          "disponibilidad_detalle": "36 asientos disponibles"
+        },
+        {
+          "proveedor": "clickbus_sin_max",
+          "link": "https://www.clickbus.com.mx/trips?departure_place=ciudad-de-mexico-df-(todas-las-terminales)&arrival_place=monterrey-nl-(todas-las-terminales)&departure_date=2026-12-09",
+          "estado": "ok",
+          "elegido": false,
+          "resultado": "Boletos de autobús de Ciudad de México a Monterrey | ClickBus | https://www.clickbus.com.mx/trips?departure_place=ciudad-de-mexico-df-(todas-las-terminales)&arrival_place=monterrey-nl-(todas-las-terminales)&departure_date=2026-12-09&minPrice=0&maxPrice=5000 | MXN ESP Origen Destino Fecha De Salida Regreso (Opcional) BUSCAR Filtrar búsqueda Ordenar por Precio Estación de salida Estación de llegada Línea de autobús Clase de servicio Hora de salida Price : $0.00 - $5,000.00 Seleccionar ida Dic 4 Dic 5 Dic 6 Dic 7 Dic 8 Dic 9 Dic 10 Dic 11 Dic 12 Dic 13 Dic 14 Dic 15 Dic 16 Compañia Salida Y Llegada Precio ",
+          "titulo": "Boletos de autobús de Ciudad de México a Monterrey | ClickBus",
+          "url_final": "https://www.clickbus.com.mx/trips?departure_place=ciudad-de-mexico-df-(todas-las-terminales)&arrival_place=monterrey-nl-(todas-las-terminales)&departure_date=2026-12-09&minPrice=0&maxPrice=5000",
+          "precio_visible": 5000,
+          "precios_visibles": [
+            5000,
+            1830,
+            1647,
+            1740,
+            1044,
+            1684,
+            1515.5,
+            1444,
+            1299.5
+          ],
+          "moneda_precio": "MXN",
+          "captura": "evidencias/bus-cdmx-mty-2026-11-09__clickbus_sin_max.png",
+          "fecha_prueba": "2026-11-11T21:57:15.795Z",
+          "modo": "manual",
+          "status_http": 200,
+          "capturable_sistema": {
+            "permitido": true,
+            "estado": "ok",
+            "motivo": "Sin bloqueo conocido"
+          },
+          "disponibilidad": "disponible",
+          "disponibilidad_detalle": "36 asientos disponibles"
+        },
+        {
+          "proveedor": "primera_plus",
+          "link": null,
+          "estado": "no_aplica",
+          "resultado": "El catálogo de Primera Plus no resolvió Monterrey (places?q=Monterrey devolvió Morelia).",
+          "elegido": false,
+          "capturable_sistema": {
+            "permitido": true,
+            "estado": "no_aplica",
+            "motivo": "Sin bloqueo conocido"
+          },
+          "disponibilidad": "no_verificable",
+          "disponibilidad_detalle": "No aplica o no hay deep link verificado."
+        },
+        {
+          "proveedor": "ado",
+          "link": "https://www.ado.com.mx/",
+          "estado": "no_aplica",
+          "elegido": false,
+          "resultado": "Portada accesible en la prueba; no hay deep link de búsqueda verificado.",
+          "capturable_sistema": {
+            "permitido": true,
+            "estado": "no_aplica",
+            "motivo": "Solo portada; sin deep link de búsqueda"
+          },
+          "disponibilidad": "no_verificable",
+          "disponibilidad_detalle": "No aplica o no hay deep link verificado."
+        }
+      ],
+      "decision": {
+        "proveedor": "clickbus",
+        "tipo": "autobus",
+        "patron": "https://www.clickbus.com.mx/trips?departure_place={slug_clickbus_origen}&arrival_place={slug_clickbus_destino}&departure_date={fecha}&minPrice=0&maxPrice=5000",
+        "motivo": "ClickBus abrió resultados reales en todas las rutas probadas, incluidas Xalapa, Torreón, Saltillo y San Luis Potosí. El filtro maxPrice no cambió el resultado.",
+        "fallback": "Primera Plus solo si su catálogo resuelve la ciudad; si no hay slug, estimado sin link. Quitar Distribusion mientras no haya credenciales."
+      }
+    },
+    {
+      "id": "bus-mty-saltillo-2026-11-11",
+      "tipo": "autobus",
+      "descripcion": "Monterrey → Saltillo, solicitud real VIA-6-0026",
+      "prioridad": "alta",
+      "entrada": {
+        "ciudad_origen": "Monterrey",
+        "ciudad_destino": "Saltillo",
+        "fecha": "2026-12-11",
+        "personas": 1,
+        "slug_clickbus_origen": "monterrey-nl-(todas-las-terminales)",
+        "slug_clickbus_destino": "saltillo-coah-todas-las-terminales",
+        "slug_pp_origen": null,
+        "slug_pp_destino": null,
+        "fecha_original": "2026-11-11"
+      },
+      "sistema_actual": {
+        "etiqueta": "ClickBus (en vivo)",
+        "precio": 139,
+        "moneda": "MXN",
+        "fuente": "ClickBus (en vivo)",
+        "estimado": false,
+        "patron": "https://www.clickbus.com.mx/trips?departure_place={slug_clickbus_origen}&arrival_place={slug_clickbus_destino}&departure_date={fecha}&minPrice=0&maxPrice=5000",
+        "link_ejemplo": "https://www.clickbus.com.mx/trips?departure_place=monterrey-nl-(todas-las-terminales)&arrival_place=saltillo-coah-todas-las-terminales&departure_date=2026-12-11&minPrice=0&maxPrice=5000",
+        "resultado": "ok",
+        "evidencia": "ClickBus abrió la ruta; tardó más de 10 s en mostrar los viajes.",
+        "captura": "evidencias/bus-mty-saltillo-2026-11-11__clickbus.png",
+        "disponibilidad": "disponible",
+        "disponibilidad_detalle": "36 asientos disponibles"
+      },
+      "candidatos": [
+        {
+          "proveedor": "clickbus",
+          "link": "https://www.clickbus.com.mx/trips?departure_place=monterrey-nl-(todas-las-terminales)&arrival_place=saltillo-coah-todas-las-terminales&departure_date=2026-12-11&minPrice=0&maxPrice=5000",
+          "estado": "ok",
+          "elegido": true,
+          "resultado": "Boletos de autobús de Monterrey a Saltillo | ClickBus | https://www.clickbus.com.mx/trips?departure_place=monterrey-nl-(todas-las-terminales)&arrival_place=saltillo-coah-todas-las-terminales&departure_date=2026-12-11&minPrice=0&maxPrice=5000 | MXN ESP Origen Destino Fecha De Salida Regreso (Opcional) BUSCAR Filtrar búsqueda Ordenar por Precio Estación de salida Estación de llegada Línea de autobús Clase de servicio Hora de salida Price : $0.00 - $5,000.00 Seleccionar ida Dic 6 Dic 7 Dic 8 Dic 9 Dic 10 Dic 11 Dic 12 Dic 13 Dic 14 Dic 15 Dic 16 Dic 17 Dic 18 Compañia Salida Y Llegada Preci",
+          "titulo": "Boletos de autobús de Monterrey a Saltillo | ClickBus",
+          "url_final": "https://www.clickbus.com.mx/trips?departure_place=monterrey-nl-(todas-las-terminales)&arrival_place=saltillo-coah-todas-las-terminales&departure_date=2026-12-11&minPrice=0&maxPrice=5000",
+          "precio_visible": 240,
+          "precios_visibles": [
+            240,
+            216,
+            282,
+            253.5,
+            326,
+            293,
+            238,
+            214,
+            577,
+            346
+          ],
+          "moneda_precio": "MXN",
+          "captura": "evidencias/bus-mty-saltillo-2026-11-11__clickbus.png",
+          "fecha_prueba": "2026-11-11T22:49:36.066Z",
+          "modo": "headless",
+          "status_http": 200,
+          "capturable_sistema": {
+            "permitido": true,
+            "estado": "ok",
+            "motivo": "Sin bloqueo conocido"
+          },
+          "disponibilidad": "disponible",
+          "disponibilidad_detalle": "36 asientos disponibles"
+        },
+        {
+          "proveedor": "clickbus_sin_max",
+          "link": "https://www.clickbus.com.mx/trips?departure_place=monterrey-nl-(todas-las-terminales)&arrival_place=saltillo-coah-todas-las-terminales&departure_date=2026-12-11",
+          "estado": "ok",
+          "elegido": false,
+          "resultado": "La página tardó más de 10 s en mostrar resultados; con 15 s aparecieron. El script debe esperar resultados, no solo un tiempo fijo.",
+          "titulo": "Boletos de autobús de Monterrey a Saltillo | ClickBus",
+          "url_final": "https://www.clickbus.com.mx/trips?departure_place=monterrey-nl-(todas-las-terminales)&arrival_place=saltillo-coah-todas-las-terminales&departure_date=2026-12-11&minPrice=0&maxPrice=5000",
+          "precio_visible": 5000,
+          "precios_visibles": [
+            5000,
+            238,
+            214,
+            326,
+            293,
+            282,
+            253.5,
+            577,
+            346,
+            232
+          ],
+          "moneda_precio": "MXN",
+          "captura": "evidencias/bus-mty-saltillo-2026-11-11__clickbus_sin_max.png",
+          "fecha_prueba": "2026-11-11T22:02:40.158Z",
+          "modo": "manual",
+          "status_http": 200,
+          "capturable_sistema": {
+            "permitido": true,
+            "estado": "ok",
+            "motivo": "Sin bloqueo conocido"
+          },
+          "disponibilidad": "disponible",
+          "disponibilidad_detalle": "36 asientos disponibles"
+        },
+        {
+          "proveedor": "primera_plus",
+          "link": null,
+          "estado": "no_aplica",
+          "resultado": "Primera Plus no resolvió Monterrey ni Saltillo.",
+          "elegido": false,
+          "capturable_sistema": {
+            "permitido": true,
+            "estado": "no_aplica",
+            "motivo": "Sin bloqueo conocido"
+          },
+          "disponibilidad": "no_verificable",
+          "disponibilidad_detalle": "No aplica o no hay deep link verificado."
+        }
+      ],
+      "decision": {
+        "proveedor": "clickbus",
+        "tipo": "autobus",
+        "patron": "https://www.clickbus.com.mx/trips?departure_place={slug_clickbus_origen}&arrival_place={slug_clickbus_destino}&departure_date={fecha}&minPrice=0&maxPrice=5000",
+        "motivo": "ClickBus abrió resultados reales en todas las rutas probadas, incluidas Xalapa, Torreón, Saltillo y San Luis Potosí. El filtro maxPrice no cambió el resultado.",
+        "fallback": "Primera Plus solo si su catálogo resuelve la ciudad; si no hay slug, estimado sin link. Quitar Distribusion mientras no haya credenciales."
+      }
+    },
+    {
+      "id": "bus-cdmx-slp-2026-11-10",
+      "tipo": "autobus",
+      "descripcion": "CDMX → San Luis Potosí, solicitud real VIA-6-0025",
+      "prioridad": "alta",
+      "entrada": {
+        "ciudad_origen": "Ciudad de México",
+        "ciudad_destino": "San Luis Potosí",
+        "fecha": "2026-12-10",
+        "personas": 1,
+        "slug_clickbus_origen": "ciudad-de-mexico-df-(todas-las-terminales)",
+        "slug_clickbus_destino": "san-luis-potosi-slp-todas-las-terminales",
+        "slug_pp_origen": "ciudad-de-mexico",
+        "slug_pp_destino": "t-san-luis-potosi-central",
+        "fecha_original": "2026-11-10"
+      },
+      "sistema_actual": {
+        "etiqueta": "ClickBus + Primera Plus (en vivo)",
+        "precio": 559,
+        "moneda": "MXN",
+        "fuente": "ClickBus (en vivo); Primera Plus (en vivo)",
+        "estimado": false,
+        "links": [
+          {
+            "descripcion": "ClickBus",
+            "url": "https://www.clickbus.com.mx/trips?departure_place=ciudad-de-mexico-df-(todas-las-terminales)&arrival_place=san-luis-potosi-slp-todas-las-terminales&departure_date=2026-12-10&minPrice=0&maxPrice=5000"
+          },
+          {
+            "descripcion": "Primera Plus",
+            "url": "https://viaje.primeraplus.com.mx/search/ciudad-de-mexico/t-san-luis-potosi-central/2026-12-10/p/general-1/departures?lang=spanish&seatsOnResultsDiscounts=true"
+          }
+        ],
+        "resultado": "ok",
+        "evidencia": "ClickBus y Primera Plus abrieron la ruta con precios reales.",
+        "captura": "evidencias/bus-cdmx-slp-2026-11-10__clickbus.png",
+        "disponibilidad": "disponible",
+        "disponibilidad_detalle": "36 asientos disponibles"
+      },
+      "candidatos": [
+        {
+          "proveedor": "clickbus",
+          "link": "https://www.clickbus.com.mx/trips?departure_place=ciudad-de-mexico-df-(todas-las-terminales)&arrival_place=san-luis-potosi-slp-todas-las-terminales&departure_date=2026-12-10&minPrice=0&maxPrice=5000",
+          "estado": "ok",
+          "elegido": true,
+          "resultado": "Boletos de autobús de Ciudad de México a San Luis Potosí | ClickBus | https://www.clickbus.com.mx/trips?departure_place=ciudad-de-mexico-df-(todas-las-terminales)&arrival_place=san-luis-potosi-slp-todas-las-terminales&departure_date=2026-12-10&minPrice=0&maxPrice=5000 | MXN ESP Origen Destino Fecha De Salida Regreso (Opcional) BUSCAR Filtrar búsqueda Ordenar por Precio Estación de salida Estación de llegada Línea de autobús Clase de servicio Hora de salida Price : $0.00 - $5,000.00 Seleccionar ida Dic 5 Dic 6 Dic 7 Dic 8 Dic 9 Dic 10 Dic 11 Dic 12 Dic 13 Dic 14 Dic 15 Dic 16 Dic 17 Compañia Salida Y Llegada Precio",
+          "titulo": "Boletos de autobús de Ciudad de México a San Luis Potosí | ClickBus",
+          "url_final": "https://www.clickbus.com.mx/trips?departure_place=ciudad-de-mexico-df-(todas-las-terminales)&arrival_place=san-luis-potosi-slp-todas-las-terminales&departure_date=2026-12-10&minPrice=0&maxPrice=5000",
+          "precio_visible": 1104,
+          "precios_visibles": [
+            1104,
+            1088,
+            1560,
+            1152,
+            691,
+            979,
+            587,
+            1064,
+            1016,
+            812
+          ],
+          "moneda_precio": "MXN",
+          "captura": "evidencias/bus-cdmx-slp-2026-11-10__clickbus.png",
+          "fecha_prueba": "2026-11-11T22:58:44.603Z",
+          "modo": "headless",
+          "status_http": 200,
+          "capturable_sistema": {
+            "permitido": true,
+            "estado": "ok",
+            "motivo": "Sin bloqueo conocido"
+          },
+          "disponibilidad": "disponible",
+          "disponibilidad_detalle": "36 asientos disponibles"
+        },
+        {
+          "proveedor": "clickbus_sin_max",
+          "link": "https://www.clickbus.com.mx/trips?departure_place=ciudad-de-mexico-df-(todas-las-terminales)&arrival_place=san-luis-potosi-slp-todas-las-terminales&departure_date=2026-12-10",
+          "estado": "ok",
+          "elegido": false,
+          "resultado": "Boletos de autobús de Ciudad de México a San Luis Potosí | ClickBus | https://www.clickbus.com.mx/trips?departure_place=ciudad-de-mexico-df-(todas-las-terminales)&arrival_place=san-luis-potosi-slp-todas-las-terminales&departure_date=2026-12-10&minPrice=0&maxPrice=5000 | MXN ESP Origen Destino Fecha De Salida Regreso (Opcional) BUSCAR Filtrar búsqueda Ordenar por Precio Estación de salida Estación de llegada Línea de autobús Clase de servicio Hora de salida Price : $0.00 - $5,000.00 Seleccionar ida Dic 5 Dic 6 Dic 7 Dic 8 Dic 9 Dic 10 Dic 11 Dic 12 Dic 13 Dic 14 Dic 15 Dic 16 Dic 17 Compañia Salida Y Llegada Precio",
+          "titulo": "Boletos de autobús de Ciudad de México a San Luis Potosí | ClickBus",
+          "url_final": "https://www.clickbus.com.mx/trips?departure_place=ciudad-de-mexico-df-(todas-las-terminales)&arrival_place=san-luis-potosi-slp-todas-las-terminales&departure_date=2026-12-10&minPrice=0&maxPrice=5000",
+          "precio_visible": 5000,
+          "precios_visibles": [
+            5000,
+            1104,
+            1088,
+            1560,
+            979,
+            587,
+            1152,
+            691,
+            1064,
+            1016
+          ],
+          "moneda_precio": "MXN",
+          "captura": "evidencias/bus-cdmx-slp-2026-11-10__clickbus_sin_max.png",
+          "fecha_prueba": "2026-11-11T21:57:49.685Z",
+          "modo": "manual",
+          "status_http": 200,
+          "capturable_sistema": {
+            "permitido": true,
+            "estado": "ok",
+            "motivo": "Sin bloqueo conocido"
+          },
+          "disponibilidad": "disponible",
+          "disponibilidad_detalle": "Resultados visibles (prueba manual)."
+        },
+        {
+          "proveedor": "primera_plus",
+          "link": "https://viaje.primeraplus.com.mx/search/ciudad-de-mexico/t-san-luis-potosi-central/2026-12-10/p/general-1/departures?lang=spanish&seatsOnResultsDiscounts=true",
+          "estado": "ok",
+          "elegido": false,
+          "resultado": "Las mejores opciones para tus viajes | https://viaje.primeraplus.com.mx/search/ciudad-de-mexico/t-san-luis-potosi-central/2026-12-10/p/general-1/departures?seatsOnResultsDiscounts=true | ¡Bienvenido a Primera Plus, una forma más sencilla de comprar tus boletos! 1 pasajero Buscar Seleccionar horario de ida 10-dic-26 *Cambios de horario sin previo aviso. 0 Personalizar búsqueda INSEN Directo Hoy hay 13 horarios con descuento · Hasta 35% OFF · +3 boletos vendidos Termina pronto Norte, Ciudad de México - Central Terrestre Potosina, San",
+          "titulo": "Las mejores opciones para tus viajes",
+          "url_final": "https://viaje.primeraplus.com.mx/search/ciudad-de-mexico/t-san-luis-potosi-central/2026-12-10/p/general-1/departures?seatsOnResultsDiscounts=true",
+          "precio_visible": 1080,
+          "precios_visibles": [
+            1080,
+            27000,
+            702,
+            972
+          ],
+          "moneda_precio": "MXN",
+          "captura": "evidencias/bus-cdmx-slp-2026-11-10__primera_plus.png",
+          "fecha_prueba": "2026-11-11T22:47:39.437Z",
+          "modo": "headless",
+          "status_http": 200,
+          "capturable_sistema": {
+            "permitido": true,
+            "estado": "ok",
+            "motivo": "Sin bloqueo conocido"
+          },
+          "disponibilidad": "disponible",
+          "disponibilidad_detalle": "Muestra horarios/precios con opción de seleccionar."
+        }
+      ],
+      "decision": {
+        "proveedor": "clickbus",
+        "tipo": "autobus",
+        "patron": "https://www.clickbus.com.mx/trips?departure_place={slug_clickbus_origen}&arrival_place={slug_clickbus_destino}&departure_date={fecha}&minPrice=0&maxPrice=5000",
+        "motivo": "ClickBus abrió resultados reales en todas las rutas probadas, incluidas Xalapa, Torreón, Saltillo y San Luis Potosí. El filtro maxPrice no cambió el resultado.",
+        "fallback": "Primera Plus solo si su catálogo resuelve la ciudad; si no hay slug, estimado sin link. Quitar Distribusion mientras no haya credenciales."
+      }
+    },
+    {
+      "id": "bus-slp-aguascalientes-2026-11-11",
+      "tipo": "autobus",
+      "descripcion": "San Luis Potosí → Aguascalientes, solicitud real VIA-6-0025",
+      "prioridad": "media",
+      "entrada": {
+        "ciudad_origen": "San Luis Potosí",
+        "ciudad_destino": "Aguascalientes",
+        "fecha": "2026-12-11",
+        "personas": 1,
+        "slug_clickbus_origen": "san-luis-potosi-slp-todas-las-terminales",
+        "slug_clickbus_destino": "aguascalientes-ags-(todas-las-terminales)",
+        "slug_pp_origen": "san-luis-potosi",
+        "slug_pp_destino": null,
+        "fecha_original": "2026-11-11"
+      },
+      "sistema_actual": {
+        "etiqueta": "ClickBus (en vivo)",
+        "precio": 142,
+        "moneda": "MXN",
+        "fuente": "ClickBus (en vivo)",
+        "estimado": false,
+        "patron": "https://www.clickbus.com.mx/trips?departure_place={slug_clickbus_origen}&arrival_place={slug_clickbus_destino}&departure_date={fecha}&minPrice=0&maxPrice=5000",
+        "link_ejemplo": "https://www.clickbus.com.mx/trips?departure_place=san-luis-potosi-slp-todas-las-terminales&arrival_place=aguascalientes-ags-(todas-las-terminales)&departure_date=2026-12-11&minPrice=0&maxPrice=5000",
+        "resultado": "ok",
+        "evidencia": "ClickBus abrió la ruta y mostró precios reales.",
+        "captura": "evidencias/bus-slp-aguascalientes-2026-11-11__clickbus.png",
+        "disponibilidad": "disponible",
+        "disponibilidad_detalle": "36 asientos disponibles"
+      },
+      "candidatos": [
+        {
+          "proveedor": "clickbus",
+          "link": "https://www.clickbus.com.mx/trips?departure_place=san-luis-potosi-slp-todas-las-terminales&arrival_place=aguascalientes-ags-(todas-las-terminales)&departure_date=2026-12-11&minPrice=0&maxPrice=5000",
+          "estado": "ok",
+          "elegido": true,
+          "resultado": "Boletos de autobús de San Luis Potosí a Aguascalientes | ClickBus | https://www.clickbus.com.mx/trips?departure_place=san-luis-potosi-slp-todas-las-terminales&arrival_place=aguascalientes-ags-(todas-las-terminales)&departure_date=2026-12-11&minPrice=0&maxPrice=5000 | MXN ESP Origen Destino Fecha De Salida Regreso (Opcional) BUSCAR Filtrar búsqueda Ordenar por Precio Estación de salida Estación de llegada Línea de autobús Clase de servicio Hora de salida Price : $0.00 - $5,000.00 Seleccionar ida Dic 6 Dic 7 Dic 8 Dic 9 Dic 10 Dic 11 Dic 12 Dic 13 Dic 14 Dic 15 Dic 16 Dic 17 Dic 18 Compañia Salida Y Llegada Preci",
+          "titulo": "Boletos de autobús de San Luis Potosí a Aguascalientes | ClickBus",
+          "url_final": "https://www.clickbus.com.mx/trips?departure_place=san-luis-potosi-slp-todas-las-terminales&arrival_place=aguascalientes-ags-(todas-las-terminales)&departure_date=2026-12-11&minPrice=0&maxPrice=5000",
+          "precio_visible": 1586,
+          "precios_visibles": [
+            1586,
+            1427,
+            242,
+            217.5,
+            378,
+            158,
+            142,
+            494
+          ],
+          "moneda_precio": "MXN",
+          "captura": "evidencias/bus-slp-aguascalientes-2026-11-11__clickbus.png",
+          "fecha_prueba": "2026-11-11T22:54:18.357Z",
+          "modo": "headless",
+          "status_http": 200,
+          "capturable_sistema": {
+            "permitido": true,
+            "estado": "ok",
+            "motivo": "Sin bloqueo conocido"
+          },
+          "disponibilidad": "disponible",
+          "disponibilidad_detalle": "36 asientos disponibles"
+        },
+        {
+          "proveedor": "clickbus_sin_max",
+          "link": "https://www.clickbus.com.mx/trips?departure_place=san-luis-potosi-slp-todas-las-terminales&arrival_place=aguascalientes-ags-(todas-las-terminales)&departure_date=2026-12-11",
+          "estado": "ok",
+          "elegido": false,
+          "resultado": "Boletos de autobús de San Luis Potosí a Aguascalientes | ClickBus | https://www.clickbus.com.mx/trips?departure_place=san-luis-potosi-slp-todas-las-terminales&arrival_place=aguascalientes-ags-(todas-las-terminales)&departure_date=2026-12-11&minPrice=0&maxPrice=5000 | MXN ESP Origen Destino Fecha De Salida Regreso (Opcional) BUSCAR Filtrar búsqueda Ordenar por Precio Estación de salida Estación de llegada Línea de autobús Clase de servicio Hora de salida Price : $0.00 - $5,000.00 Seleccionar ida Dic 6 Dic 7 Dic 8 Dic 9 Dic 10 Dic 11 Dic 12 Dic 13 Dic 14 Dic 15 Dic 16 Dic 17 Dic 18 Compañia Salida Y Llegada Preci",
+          "titulo": "Boletos de autobús de San Luis Potosí a Aguascalientes | ClickBus",
+          "url_final": "https://www.clickbus.com.mx/trips?departure_place=san-luis-potosi-slp-todas-las-terminales&arrival_place=aguascalientes-ags-(todas-las-terminales)&departure_date=2026-12-11&minPrice=0&maxPrice=5000",
+          "precio_visible": 5000,
+          "precios_visibles": [
+            5000,
+            1586,
+            1427,
+            242,
+            217.5,
+            378,
+            494
+          ],
+          "moneda_precio": "MXN",
+          "captura": "evidencias/bus-slp-aguascalientes-2026-11-11__clickbus_sin_max.png",
+          "fecha_prueba": "2026-11-11T22:06:40.227Z",
+          "modo": "manual",
+          "status_http": 200,
+          "capturable_sistema": {
+            "permitido": true,
+            "estado": "ok",
+            "motivo": "Sin bloqueo conocido"
+          },
+          "disponibilidad": "disponible",
+          "disponibilidad_detalle": "36 asientos disponibles"
+        }
+      ],
+      "decision": {
+        "proveedor": "clickbus",
+        "tipo": "autobus",
+        "patron": "https://www.clickbus.com.mx/trips?departure_place={slug_clickbus_origen}&arrival_place={slug_clickbus_destino}&departure_date={fecha}&minPrice=0&maxPrice=5000",
+        "motivo": "ClickBus abrió resultados reales en todas las rutas probadas, incluidas Xalapa, Torreón, Saltillo y San Luis Potosí. El filtro maxPrice no cambió el resultado.",
+        "fallback": "Primera Plus solo si su catálogo resuelve la ciudad; si no hay slug, estimado sin link. Quitar Distribusion mientras no haya credenciales."
+      }
+    },
+    {
+      "id": "bus-cdmx-pue-2026-11-16",
+      "tipo": "autobus",
+      "descripcion": "CDMX → Puebla, hospital UMAE Puebla",
+      "prioridad": "alta",
+      "entrada": {
+        "ciudad_origen": "Ciudad de México",
+        "ciudad_destino": "Puebla",
+        "fecha": "2026-12-16",
+        "personas": 1,
+        "slug_clickbus_origen": "ciudad-de-mexico-df-(todas-las-terminales)",
+        "slug_clickbus_destino": "puebla-pue-todas-las-terminales",
+        "slug_pp_origen": null,
+        "slug_pp_destino": null,
+        "fecha_original": "2026-11-16"
+      },
+      "sistema_actual": {
+        "etiqueta": "ClickBus (en vivo)",
+        "precio": null,
+        "moneda": "MXN",
+        "fuente": "ClickBus (en vivo)",
+        "estimado": false,
+        "patron": "https://www.clickbus.com.mx/trips?departure_place={slug_clickbus_origen}&arrival_place={slug_clickbus_destino}&departure_date={fecha}&minPrice=0&maxPrice=5000",
+        "link_ejemplo": "https://www.clickbus.com.mx/trips?departure_place=ciudad-de-mexico-df-(todas-las-terminales)&arrival_place=puebla-pue-todas-las-terminales&departure_date=2026-12-16&minPrice=0&maxPrice=5000",
+        "resultado": "ok",
+        "evidencia": "ClickBus abrió la ruta y mostró precios reales.",
+        "captura": "evidencias/bus-cdmx-pue-2026-11-16__clickbus.png",
+        "disponibilidad": "disponible",
+        "disponibilidad_detalle": "40 asientos disponibles"
+      },
+      "candidatos": [
+        {
+          "proveedor": "clickbus",
+          "link": "https://www.clickbus.com.mx/trips?departure_place=ciudad-de-mexico-df-(todas-las-terminales)&arrival_place=puebla-pue-todas-las-terminales&departure_date=2026-12-16&minPrice=0&maxPrice=5000",
+          "estado": "ok",
+          "elegido": true,
+          "resultado": "Boletos de autobús de Ciudad de México a Puebla | ClickBus | https://www.clickbus.com.mx/trips?departure_place=ciudad-de-mexico-df-(todas-las-terminales)&arrival_place=puebla-pue-todas-las-terminales&departure_date=2026-12-16&minPrice=0&maxPrice=5000 | MXN ESP Origen Destino Fecha De Salida Regreso (Opcional) BUSCAR Filtrar búsqueda Ordenar por Precio Estación de salida Estación de llegada Línea de autobús Clase de servicio Hora de salida Price : $0.00 - $5,000.00 Seleccionar ida Dic 11 Dic 12 Dic 13 Dic 14 Dic 15 Dic 16 Dic 17 Dic 18 Dic 19 Dic 20 Dic 21 Dic 22 Dic 23 Compañia Salida Y Llegada P",
+          "titulo": "Boletos de autobús de Ciudad de México a Puebla | ClickBus",
+          "url_final": "https://www.clickbus.com.mx/trips?departure_place=ciudad-de-mexico-df-(todas-las-terminales)&arrival_place=puebla-pue-todas-las-terminales&departure_date=2026-12-16&minPrice=0&maxPrice=5000",
+          "precio_visible": 480,
+          "precios_visibles": [
+            480,
+            341,
+            268,
+            189,
+            266,
+            456,
+            218,
+            172,
+            302,
+            314
+          ],
+          "moneda_precio": "MXN",
+          "captura": "evidencias/bus-cdmx-pue-2026-11-16__clickbus.png",
+          "fecha_prueba": "2026-11-11T22:54:36.472Z",
+          "modo": "headless",
+          "status_http": 200,
+          "capturable_sistema": {
+            "permitido": true,
+            "estado": "ok",
+            "motivo": "Sin bloqueo conocido"
+          },
+          "disponibilidad": "disponible",
+          "disponibilidad_detalle": "40 asientos disponibles"
+        },
+        {
+          "proveedor": "primera_plus",
+          "link": null,
+          "estado": "no_aplica",
+          "resultado": "Primera Plus no resolvió Puebla (places?q=Puebla devolvió 0).",
+          "elegido": false,
+          "capturable_sistema": {
+            "permitido": true,
+            "estado": "no_aplica",
+            "motivo": "Sin bloqueo conocido"
+          },
+          "disponibilidad": "no_verificable",
+          "disponibilidad_detalle": "No aplica o no hay deep link verificado."
+        },
+        {
+          "proveedor": "ado",
+          "link": "https://www.ado.com.mx/",
+          "estado": "ok",
+          "elegido": false,
+          "resultado": "ADO: Boletos de Autobús en Línea y Salida de Autobuses | https://www.ado.com.mx/ | Se ha cargado homePage. PROMOCIONES TERMINALES MIS VIAJES Reimprimir boleto Seguir mi viaje AYUDA Atención a clientes Seguir mi viaje Marcas Acerca de ADO Métodos de pago Iniciar sesión 1 2 3 ¿A dónde te vamos a llevar? Ida 1 Adulto(s) Origen Destino Fecha y hora de ida Buscar Viaje RECOMENDADOS ADICIONALES CDMX - Veracruz Visita el Puerto más gran",
+          "titulo": "ADO: Boletos de Autobús en Línea y Salida de Autobuses",
+          "url_final": "https://www.ado.com.mx/",
+          "precio_visible": null,
+          "precios_visibles": [],
+          "moneda_precio": "",
+          "captura": "evidencias/bus-cdmx-pue-2026-11-16__ado.png",
+          "fecha_prueba": "2026-11-11T22:06:56.747Z",
+          "modo": "manual",
+          "status_http": 200,
+          "capturable_sistema": {
+            "permitido": true,
+            "estado": "ok",
+            "motivo": "Solo portada; sin deep link de búsqueda"
+          },
+          "disponibilidad": "no_verificable",
+          "disponibilidad_detalle": "Solo portada; no se evaluó búsqueda."
+        }
+      ],
+      "decision": {
+        "proveedor": "clickbus",
+        "tipo": "autobus",
+        "patron": "https://www.clickbus.com.mx/trips?departure_place={slug_clickbus_origen}&arrival_place={slug_clickbus_destino}&departure_date={fecha}&minPrice=0&maxPrice=5000",
+        "motivo": "ClickBus abrió resultados reales en todas las rutas probadas, incluidas Xalapa, Torreón, Saltillo y San Luis Potosí. El filtro maxPrice no cambió el resultado.",
+        "fallback": "Primera Plus solo si su catálogo resuelve la ciudad; si no hay slug, estimado sin link. Quitar Distribusion mientras no haya credenciales."
+      }
+    },
+    {
+      "id": "bus-cdmx-xalapa-2026-11-20",
+      "tipo": "autobus",
+      "descripcion": "CDMX → Xalapa, caso base de Xalapa",
+      "prioridad": "alta",
+      "entrada": {
+        "ciudad_origen": "Ciudad de México",
+        "ciudad_destino": "Xalapa",
+        "fecha": "2026-12-16",
+        "personas": 1,
+        "slug_clickbus_origen": "ciudad-de-mexico-df-(todas-las-terminales)",
+        "slug_clickbus_destino": "caxa-xalapa-ver",
+        "slug_pp_origen": null,
+        "slug_pp_destino": null,
+        "fecha_original": "2026-11-20"
+      },
+      "sistema_actual": {
+        "etiqueta": "ClickBus (en vivo)",
+        "precio": null,
+        "moneda": "MXN",
+        "fuente": "ClickBus (en vivo)",
+        "estimado": false,
+        "patron": "https://www.clickbus.com.mx/trips?departure_place={slug_clickbus_origen}&arrival_place={slug_clickbus_destino}&departure_date={fecha}&minPrice=0&maxPrice=5000",
+        "link_ejemplo": "https://www.clickbus.com.mx/trips?departure_place=ciudad-de-mexico-df-(todas-las-terminales)&arrival_place=caxa-xalapa-ver&departure_date=2026-12-16&minPrice=0&maxPrice=5000",
+        "resultado": "ok",
+        "evidencia": "ClickBus abrió la ruta y mostró precios reales.",
+        "captura": "evidencias/bus-cdmx-xalapa-2026-11-20__clickbus.png",
+        "disponibilidad": "disponible",
+        "disponibilidad_detalle": "12 asientos disponibles"
+      },
+      "candidatos": [
+        {
+          "proveedor": "clickbus",
+          "link": "https://www.clickbus.com.mx/trips?departure_place=ciudad-de-mexico-df-(todas-las-terminales)&arrival_place=caxa-xalapa-ver&departure_date=2026-12-16&minPrice=0&maxPrice=5000",
+          "estado": "ok",
+          "elegido": true,
+          "resultado": "Boletos de autobús de Ciudad de México a Xalapa | ClickBus | https://www.clickbus.com.mx/trips?departure_place=ciudad-de-mexico-df-(todas-las-terminales)&arrival_place=caxa-xalapa-ver&departure_date=2026-12-16&minPrice=0&maxPrice=5000 | MXN ESP Origen Destino Fecha De Salida Regreso (Opcional) BUSCAR Filtrar búsqueda Ordenar por Precio Estación de salida Estación de llegada Línea de autobús Clase de servicio Hora de salida Price : $0.00 - $5,000.00 Seleccionar ida Dic 11 Dic 12 Dic 13 Dic 14 Dic 15 Dic 16 Dic 17 Dic 18 Dic 19 Dic 20 Dic 21 Dic 22 Dic 23 Compañia Salida Y Llegada P",
+          "titulo": "Boletos de autobús de Ciudad de México a Xalapa | ClickBus",
+          "url_final": "https://www.clickbus.com.mx/trips?departure_place=ciudad-de-mexico-df-(todas-las-terminales)&arrival_place=caxa-xalapa-ver&departure_date=2026-12-16&minPrice=0&maxPrice=5000",
+          "precio_visible": 856,
+          "precios_visibles": [
+            856,
+            616,
+            586,
+            918,
+            1122,
+            412,
+            557,
+            898,
+            469,
+            791
+          ],
+          "moneda_precio": "MXN",
+          "captura": "evidencias/bus-cdmx-xalapa-2026-11-20__clickbus.png",
+          "fecha_prueba": "2026-11-11T22:49:00.614Z",
+          "modo": "headless",
+          "status_http": 200,
+          "capturable_sistema": {
+            "permitido": true,
+            "estado": "ok",
+            "motivo": "Sin bloqueo conocido"
+          },
+          "disponibilidad": "disponible",
+          "disponibilidad_detalle": "12 asientos disponibles"
+        },
+        {
+          "proveedor": "clickbus_sin_max",
+          "link": "https://www.clickbus.com.mx/trips?departure_place=ciudad-de-mexico-df-(todas-las-terminales)&arrival_place=caxa-xalapa-ver&departure_date=2026-12-16",
+          "estado": "ok",
+          "elegido": false,
+          "resultado": "Boletos de autobús de Ciudad de México a Xalapa | ClickBus | https://www.clickbus.com.mx/trips?departure_place=ciudad-de-mexico-df-(todas-las-terminales)&arrival_place=caxa-xalapa-ver&departure_date=2026-12-16&minPrice=0&maxPrice=5000 | MXN ESP Origen Destino Fecha De Salida Regreso (Opcional) BUSCAR Filtrar búsqueda Ordenar por Precio Estación de salida Estación de llegada Línea de autobús Clase de servicio Hora de salida Price : $0.00 - $5,000.00 Seleccionar ida Dic 11 Dic 12 Dic 13 Dic 14 Dic 15 Dic 16 Dic 17 Dic 18 Dic 19 Dic 20 Dic 21 Dic 22 Dic 23 Compañia Salida Y Llegada P",
+          "titulo": "Boletos de autobús de Ciudad de México a Xalapa | ClickBus",
+          "url_final": "https://www.clickbus.com.mx/trips?departure_place=ciudad-de-mexico-df-(todas-las-terminales)&arrival_place=caxa-xalapa-ver&departure_date=2026-12-16&minPrice=0&maxPrice=5000",
+          "precio_visible": 5000,
+          "precios_visibles": [
+            5000,
+            856,
+            616,
+            586,
+            918,
+            1122,
+            412,
+            557,
+            898,
+            469
+          ],
+          "moneda_precio": "MXN",
+          "captura": "evidencias/bus-cdmx-xalapa-2026-11-20__clickbus_sin_max.png",
+          "fecha_prueba": "2026-11-11T21:58:56.110Z",
+          "modo": "manual",
+          "status_http": 200,
+          "capturable_sistema": {
+            "permitido": true,
+            "estado": "ok",
+            "motivo": "Sin bloqueo conocido"
+          },
+          "disponibilidad": "disponible",
+          "disponibilidad_detalle": "12 asientos disponibles"
+        },
+        {
+          "proveedor": "primera_plus",
+          "link": null,
+          "estado": "no_aplica",
+          "resultado": "Primera Plus no resolvió Xalapa.",
+          "elegido": false,
+          "capturable_sistema": {
+            "permitido": true,
+            "estado": "no_aplica",
+            "motivo": "Sin bloqueo conocido"
+          },
+          "disponibilidad": "no_verificable",
+          "disponibilidad_detalle": "No aplica o no hay deep link verificado."
+        },
+        {
+          "proveedor": "ado",
+          "link": "https://www.ado.com.mx/",
+          "estado": "no_aplica",
+          "elegido": false,
+          "resultado": "Portada accesible en la prueba; no hay deep link de búsqueda verificado.",
+          "capturable_sistema": {
+            "permitido": true,
+            "estado": "no_aplica",
+            "motivo": "Solo portada; sin deep link de búsqueda"
+          },
+          "disponibilidad": "no_verificable",
+          "disponibilidad_detalle": "No aplica o no hay deep link verificado."
+        },
+        {
+          "proveedor": "etn",
+          "link": "https://www.etn.com.mx/",
+          "estado": "no_aplica",
+          "elegido": false,
+          "resultado": "Solo se probó la portada; no hay deep link de búsqueda verificado.",
+          "titulo": "Boletos de autobus ETN Turistar ¡Descubre destinos con descuentos!",
+          "url_final": "https://etn.com.mx/",
+          "precio_visible": null,
+          "precios_visibles": [],
+          "moneda_precio": "",
+          "captura": "evidencias/bus-cdmx-xalapa-2026-11-20__etn.png",
+          "fecha_prueba": "2026-11-11T22:13:04.923Z",
+          "modo": "manual",
+          "status_http": 200,
+          "capturable_sistema": {
+            "permitido": true,
+            "estado": "no_aplica",
+            "motivo": "Solo portada; sin deep link"
+          },
+          "disponibilidad": "no_verificable",
+          "disponibilidad_detalle": "No aplica o no hay deep link verificado."
+        }
+      ],
+      "decision": {
+        "proveedor": "clickbus",
+        "tipo": "autobus",
+        "patron": "https://www.clickbus.com.mx/trips?departure_place={slug_clickbus_origen}&arrival_place={slug_clickbus_destino}&departure_date={fecha}&minPrice=0&maxPrice=5000",
+        "motivo": "ClickBus abrió resultados reales en todas las rutas probadas, incluidas Xalapa, Torreón, Saltillo y San Luis Potosí. El filtro maxPrice no cambió el resultado.",
+        "fallback": "Primera Plus solo si su catálogo resuelve la ciudad; si no hay slug, estimado sin link. Quitar Distribusion mientras no haya credenciales."
+      }
+    },
+    {
+      "id": "bus-saltillo-cdmx-2026-11-11",
+      "tipo": "autobus",
+      "descripcion": "Saltillo → CDMX: el sistema mostró estimado aunque el link ClickBus sí existe",
+      "prioridad": "alta",
+      "entrada": {
+        "ciudad_origen": "Saltillo",
+        "ciudad_destino": "Ciudad de México",
+        "fecha": "2026-12-11",
+        "personas": 1,
+        "slug_clickbus_origen": "saltillo-coah-todas-las-terminales",
+        "slug_clickbus_destino": "ciudad-de-mexico-df-(todas-las-terminales)",
+        "slug_pp_origen": null,
+        "slug_pp_destino": null,
+        "fecha_original": "2026-11-11"
+      },
+      "sistema_actual": {
+        "etiqueta": "Autobús (estimado)",
+        "precio": 1305.37,
+        "moneda": "MXN",
+        "fuente": "estimado: sin proveedor de autobuses",
+        "estimado": true,
+        "patron": "https://www.clickbus.com.mx/trips?departure_place={slug_clickbus_origen}&arrival_place={slug_clickbus_destino}&departure_date={fecha}&minPrice=0&maxPrice=5000",
+        "link_ejemplo": "https://www.clickbus.com.mx/trips?departure_place=saltillo-coah-todas-las-terminales&arrival_place=ciudad-de-mexico-df-(todas-las-terminales)&departure_date=2026-12-11&minPrice=0&maxPrice=5000",
+        "resultado": "ok",
+        "evidencia": "ClickBus abrió la ruta y mostró precios reales; el motor mostró un estimado en la solicitud 26 (bug a revisar).",
+        "captura": "evidencias/bus-saltillo-cdmx-2026-11-11__clickbus.png",
+        "disponibilidad": "disponible",
+        "disponibilidad_detalle": "36 asientos disponibles"
+      },
+      "candidatos": [
+        {
+          "proveedor": "clickbus",
+          "link": "https://www.clickbus.com.mx/trips?departure_place=saltillo-coah-todas-las-terminales&arrival_place=ciudad-de-mexico-df-(todas-las-terminales)&departure_date=2026-12-11&minPrice=0&maxPrice=5000",
+          "estado": "ok",
+          "elegido": true,
+          "resultado": "Boletos de autobús de Saltillo a Ciudad de México | ClickBus | https://www.clickbus.com.mx/trips?departure_place=saltillo-coah-todas-las-terminales&arrival_place=ciudad-de-mexico-df-(todas-las-terminales)&departure_date=2026-12-11&minPrice=0&maxPrice=5000 | MXN ESP Origen Destino Fecha De Salida Regreso (Opcional) BUSCAR Filtrar búsqueda Ordenar por Precio Estación de salida Estación de llegada Línea de autobús Clase de servicio Hora de salida Price : $0.00 - $5,000.00 Seleccionar ida Dic 6 Dic 7 Dic 8 Dic 9 Dic 10 Dic 11 Dic 12 Dic 13 Dic 14 Dic 15 Dic 16 Dic 17 Dic 18 Compañia Salida Y Llegada Preci",
+          "titulo": "Boletos de autobús de Saltillo a Ciudad de México | ClickBus",
+          "url_final": "https://www.clickbus.com.mx/trips?departure_place=saltillo-coah-todas-las-terminales&arrival_place=ciudad-de-mexico-df-(todas-las-terminales)&departure_date=2026-12-11&minPrice=0&maxPrice=5000",
+          "precio_visible": 1759,
+          "precios_visibles": [
+            1759,
+            1055,
+            880,
+            1870,
+            1683,
+            2160
+          ],
+          "moneda_precio": "MXN",
+          "captura": "evidencias/bus-saltillo-cdmx-2026-11-11__clickbus.png",
+          "fecha_prueba": "2026-11-11T22:49:18.330Z",
+          "modo": "headless",
+          "status_http": 200,
+          "capturable_sistema": {
+            "permitido": true,
+            "estado": "ok",
+            "motivo": "Sin bloqueo conocido"
+          },
+          "disponibilidad": "disponible",
+          "disponibilidad_detalle": "36 asientos disponibles"
+        },
+        {
+          "proveedor": "clickbus_sin_max",
+          "link": "https://www.clickbus.com.mx/trips?departure_place=saltillo-coah-todas-las-terminales&arrival_place=ciudad-de-mexico-df-(todas-las-terminales)&departure_date=2026-12-11",
+          "estado": "ok",
+          "elegido": false,
+          "resultado": "Boletos de autobús de Saltillo a Ciudad de México | ClickBus | https://www.clickbus.com.mx/trips?departure_place=saltillo-coah-todas-las-terminales&arrival_place=ciudad-de-mexico-df-(todas-las-terminales)&departure_date=2026-12-11&minPrice=0&maxPrice=5000 | MXN ESP Origen Destino Fecha De Salida Regreso (Opcional) BUSCAR Filtrar búsqueda Ordenar por Precio Estación de salida Estación de llegada Línea de autobús Clase de servicio Hora de salida Price : $0.00 - $5,000.00 Seleccionar ida Dic 6 Dic 7 Dic 8 Dic 9 Dic 10 Dic 11 Dic 12 Dic 13 Dic 14 Dic 15 Dic 16 Dic 17 Dic 18 Compañia Salida Y Llegada Preci",
+          "titulo": "Boletos de autobús de Saltillo a Ciudad de México | ClickBus",
+          "url_final": "https://www.clickbus.com.mx/trips?departure_place=saltillo-coah-todas-las-terminales&arrival_place=ciudad-de-mexico-df-(todas-las-terminales)&departure_date=2026-12-11&minPrice=0&maxPrice=5000",
+          "precio_visible": 5000,
+          "precios_visibles": [
+            5000,
+            1759,
+            1055,
+            880,
+            1870,
+            1683,
+            2160
+          ],
+          "moneda_precio": "MXN",
+          "captura": "evidencias/bus-saltillo-cdmx-2026-11-11__clickbus_sin_max.png",
+          "fecha_prueba": "2026-11-11T21:59:18.647Z",
+          "modo": "manual",
+          "status_http": 200,
+          "capturable_sistema": {
+            "permitido": true,
+            "estado": "ok",
+            "motivo": "Sin bloqueo conocido"
+          },
+          "disponibilidad": "disponible",
+          "disponibilidad_detalle": "36 asientos disponibles"
+        },
+        {
+          "proveedor": "primera_plus",
+          "link": null,
+          "estado": "no_aplica",
+          "resultado": "Primera Plus no resolvió Saltillo.",
+          "elegido": false,
+          "capturable_sistema": {
+            "permitido": true,
+            "estado": "no_aplica",
+            "motivo": "Sin bloqueo conocido"
+          },
+          "disponibilidad": "no_verificable",
+          "disponibilidad_detalle": "No aplica o no hay deep link verificado."
+        }
+      ],
+      "decision": {
+        "proveedor": "clickbus",
+        "tipo": "autobus",
+        "patron": "https://www.clickbus.com.mx/trips?departure_place={slug_clickbus_origen}&arrival_place={slug_clickbus_destino}&departure_date={fecha}&minPrice=0&maxPrice=5000",
+        "motivo": "ClickBus abrió resultados reales en todas las rutas probadas, incluidas Xalapa, Torreón, Saltillo y San Luis Potosí. El filtro maxPrice no cambió el resultado.",
+        "fallback": "Primera Plus solo si su catálogo resuelve la ciudad; si no hay slug, estimado sin link. Quitar Distribusion mientras no haya credenciales."
+      }
+    },
+    {
+      "id": "bus-cdmx-xicotlan-2026-10-23",
+      "tipo": "autobus",
+      "descripcion": "CDMX → Xicotlán (Puebla), ciudad fuera del catálogo ClickBus",
+      "prioridad": "alta",
+      "entrada": {
+        "ciudad_origen": "Ciudad de México",
+        "ciudad_destino": "Xicotlán",
+        "fecha": "2026-12-07",
+        "personas": 1,
+        "slug_clickbus_origen": "ciudad-de-mexico-df-(todas-las-terminales)",
+        "slug_clickbus_destino": null,
+        "slug_pp_origen": null,
+        "slug_pp_destino": null,
+        "fecha_original": "2026-10-23"
+      },
+      "sistema_actual": {
+        "etiqueta": "Autobús (estimado)",
+        "precio": 490.92,
+        "moneda": "MXN",
+        "fuente": "estimado: sin proveedor de autobuses",
+        "estimado": true,
+        "patron": "sin link: ClickBus no tiene Xicotlán en su catálogo",
+        "link_ejemplo": "",
+        "resultado": "no_aplica",
+        "evidencia": "Xicotlán no existe en el catálogo de ClickBus ni en Primera Plus; el estimado se queda sin link.",
+        "disponibilidad": "no_verificable",
+        "disponibilidad_detalle": "No aplica o no hay deep link verificado."
+      },
+      "candidatos": [
+        {
+          "proveedor": "clickbus",
+          "link": null,
+          "estado": "no_aplica",
+          "resultado": "ClickBus no tiene Xicotlán en su catálogo (0 resultados).",
+          "elegido": false,
+          "capturable_sistema": {
+            "permitido": true,
+            "estado": "no_aplica",
+            "motivo": "Sin bloqueo conocido"
+          },
+          "disponibilidad": "no_verificable",
+          "disponibilidad_detalle": "No aplica o no hay deep link verificado."
+        },
+        {
+          "proveedor": "primera_plus",
+          "link": null,
+          "estado": "no_aplica",
+          "resultado": "Primera Plus no tiene Xicotlán.",
+          "elegido": false,
+          "capturable_sistema": {
+            "permitido": true,
+            "estado": "no_aplica",
+            "motivo": "Sin bloqueo conocido"
+          },
+          "disponibilidad": "no_verificable",
+          "disponibilidad_detalle": "No aplica o no hay deep link verificado."
+        }
+      ],
+      "decision": {
+        "proveedor": null,
+        "tipo": "autobus",
+        "patron": "",
+        "motivo": "Ni ClickBus ni Primera Plus tienen Xicotlán en su catálogo; el estimado se queda sin link.",
+        "fallback": "Mantener estimado etiquetado y sin URL."
+      }
+    },
+    {
+      "id": "bus-cdmx-torreon-2026-12-07",
+      "tipo": "autobus",
+      "descripcion": "CDMX → Torreón, hospital UMAE Coahuila",
+      "prioridad": "media",
+      "entrada": {
+        "ciudad_origen": "Ciudad de México",
+        "ciudad_destino": "Torreón",
+        "fecha": "2026-12-07",
+        "personas": 1,
+        "slug_clickbus_origen": "ciudad-de-mexico-df-(todas-las-terminales)",
+        "slug_clickbus_destino": "torreon-coah-todas-las-terminales",
+        "slug_pp_origen": null,
+        "slug_pp_destino": null
+      },
+      "sistema_actual": {
+        "etiqueta": "ClickBus (en vivo)",
+        "precio": null,
+        "moneda": "MXN",
+        "fuente": "ClickBus (en vivo)",
+        "estimado": false,
+        "patron": "https://www.clickbus.com.mx/trips?departure_place={slug_clickbus_origen}&arrival_place={slug_clickbus_destino}&departure_date={fecha}&minPrice=0&maxPrice=5000",
+        "link_ejemplo": "https://www.clickbus.com.mx/trips?departure_place=ciudad-de-mexico-df-(todas-las-terminales)&arrival_place=torreon-coah-todas-las-terminales&departure_date=2026-12-07&minPrice=0&maxPrice=5000",
+        "resultado": "ok",
+        "evidencia": "ClickBus abrió la ruta y mostró precios reales.",
+        "captura": "evidencias/bus-cdmx-torreon-2026-12-07__clickbus.png",
+        "disponibilidad": "disponible",
+        "disponibilidad_detalle": "36 asientos disponibles"
+      },
+      "candidatos": [
+        {
+          "proveedor": "clickbus",
+          "link": "https://www.clickbus.com.mx/trips?departure_place=ciudad-de-mexico-df-(todas-las-terminales)&arrival_place=torreon-coah-todas-las-terminales&departure_date=2026-12-07&minPrice=0&maxPrice=5000",
+          "estado": "ok",
+          "elegido": true,
+          "resultado": "Boletos de autobús de Ciudad de México a Torreón | ClickBus | https://www.clickbus.com.mx/trips?departure_place=ciudad-de-mexico-df-(todas-las-terminales)&arrival_place=torreon-coah-todas-las-terminales&departure_date=2026-12-07&minPrice=0&maxPrice=5000 | MXN ESP Origen Destino Fecha De Salida Regreso (Opcional) BUSCAR Filtrar búsqueda Ordenar por Precio Estación de salida Estación de llegada Línea de autobús Clase de servicio Hora de salida Price : $0.00 - $5,000.00 Seleccionar ida Dic 2 Dic 3 Dic 4 Dic 5 Dic 6 Dic 7 Dic 8 Dic 9 Dic 10 Dic 11 Dic 12 Dic 13 Dic 14 Compañia Salida Y Llegada Precio Ch",
+          "titulo": "Boletos de autobús de Ciudad de México a Torreón | ClickBus",
+          "url_final": "https://www.clickbus.com.mx/trips?departure_place=ciudad-de-mexico-df-(todas-las-terminales)&arrival_place=torreon-coah-todas-las-terminales&departure_date=2026-12-07&minPrice=0&maxPrice=5000",
+          "precio_visible": 2804,
+          "precios_visibles": [
+            2804,
+            2523.5
+          ],
+          "moneda_precio": "MXN",
+          "captura": "evidencias/bus-cdmx-torreon-2026-12-07__clickbus.png",
+          "fecha_prueba": "2026-11-11T22:54:54.538Z",
+          "modo": "headless",
+          "status_http": 200,
+          "capturable_sistema": {
+            "permitido": true,
+            "estado": "ok",
+            "motivo": "Sin bloqueo conocido"
+          },
+          "disponibilidad": "disponible",
+          "disponibilidad_detalle": "36 asientos disponibles"
+        },
+        {
+          "proveedor": "clickbus_sin_max",
+          "link": "https://www.clickbus.com.mx/trips?departure_place=ciudad-de-mexico-df-(todas-las-terminales)&arrival_place=torreon-coah-todas-las-terminales&departure_date=2026-12-07",
+          "estado": "ok",
+          "elegido": false,
+          "resultado": "Boletos de autobús de Ciudad de México a Torreón | ClickBus | https://www.clickbus.com.mx/trips?departure_place=ciudad-de-mexico-df-(todas-las-terminales)&arrival_place=torreon-coah-todas-las-terminales&departure_date=2026-12-07&minPrice=0&maxPrice=5000 | MXN ESP Origen Destino Fecha De Salida Regreso (Opcional) BUSCAR Filtrar búsqueda Ordenar por Precio Estación de salida Estación de llegada Línea de autobús Clase de servicio Hora de salida Price : $0.00 - $5,000.00 Seleccionar ida Dic 2 Dic 3 Dic 4 Dic 5 Dic 6 Dic 7 Dic 8 Dic 9 Dic 10 Dic 11 Dic 12 Dic 13 Dic 14 Compañia Salida Y Llegada Precio Ch",
+          "titulo": "Boletos de autobús de Ciudad de México a Torreón | ClickBus",
+          "url_final": "https://www.clickbus.com.mx/trips?departure_place=ciudad-de-mexico-df-(todas-las-terminales)&arrival_place=torreon-coah-todas-las-terminales&departure_date=2026-12-07&minPrice=0&maxPrice=5000",
+          "precio_visible": 5000,
+          "precios_visibles": [
+            5000,
+            2804,
+            2523.5
+          ],
+          "moneda_precio": "MXN",
+          "captura": "evidencias/bus-cdmx-torreon-2026-12-07__clickbus_sin_max.png",
+          "fecha_prueba": "2026-11-11T21:59:41.401Z",
+          "modo": "manual",
+          "status_http": 200,
+          "capturable_sistema": {
+            "permitido": true,
+            "estado": "ok",
+            "motivo": "Sin bloqueo conocido"
+          },
+          "disponibilidad": "disponible",
+          "disponibilidad_detalle": "36 asientos disponibles"
+        }
+      ],
+      "decision": {
+        "proveedor": "clickbus",
+        "tipo": "autobus",
+        "patron": "https://www.clickbus.com.mx/trips?departure_place={slug_clickbus_origen}&arrival_place={slug_clickbus_destino}&departure_date={fecha}&minPrice=0&maxPrice=5000",
+        "motivo": "ClickBus abrió resultados reales en todas las rutas probadas, incluidas Xalapa, Torreón, Saltillo y San Luis Potosí. El filtro maxPrice no cambió el resultado.",
+        "fallback": "Primera Plus solo si su catálogo resuelve la ciudad; si no hay slug, estimado sin link. Quitar Distribusion mientras no haya credenciales."
+      }
+    }
+  ],
+  "capturas": {
+    "modo_sistema": "script local (Playwright) o agente",
+    "nota": "Resultados de captura observados en las pruebas manuales. La política de dominios prohibidos se aplica antes de capturar.",
+    "proveedores": [
+      {
+        "proveedor": "clickbus",
+        "permitido": true,
+        "resultado": "ok",
+        "motivo": "Carga resultados; en algunas rutas tarda más de 10 s en pintar viajes.",
+        "recomendacion": "Esperar el selector de resultados, no solo un tiempo fijo."
+      },
+      {
+        "proveedor": "primera_plus",
+        "permitido": true,
+        "resultado": "ok con domcontentloaded / timeout con networkidle",
+        "motivo": "La página no llega a networkidle; con domcontentloaded sí carga.",
+        "recomendacion": "Cambiar waitUntil a domcontentloaded + espera de resultados."
+      },
+      {
+        "proveedor": "google_flights_q",
+        "permitido": true,
+        "resultado": "intermitente: ok, sin_resultados o portada según la corrida",
+        "motivo": "La misma URL alternó resultados y fallos en corridas distintas; en CEN/JAL/CVM/TRC falló.",
+        "recomendacion": "No usarlo como fuente única; usar Kayak o un API."
+      },
+      {
+        "proveedor": "kayak_vuelos",
+        "permitido": true,
+        "resultado": "ok",
+        "motivo": "Abrió resultados reales en todas las rutas probadas; puede pedir validación anti-bot.",
+        "recomendacion": "Probar con el agente y monitorear bloqueos."
+      },
+      {
+        "proveedor": "google_hotels_ciudad",
+        "permitido": true,
+        "resultado": "ok, con excepciones",
+        "motivo": "Aplica bien las fechas en la mayoría de las ciudades; en Cuernavaca no aplicó el calendario en las pruebas.",
+        "recomendacion": "Fijar las fechas en el calendario; si falla, usar Booking.com."
+      },
+      {
+        "proveedor": "google_hotels_hotel",
+        "permitido": true,
+        "resultado": "ok/intermitente",
+        "motivo": "La búsqueda por ciudad es estable; la ficha de hotel a veces no expone el calendario de fechas y a veces muestra resultados de la zona.",
+        "recomendacion": "Preferir la búsqueda por ciudad + nombre del hotel como texto."
+      },
+      {
+        "proveedor": "booking_ciudad",
+        "permitido": false,
+        "resultado": "no_permitido",
+        "motivo": "CapturasService.HardBannedDomains prohíbe booking.com. Además, Booking muestra el modal \"Inicia sesión y ahorra\" que tapa la captura.",
+        "recomendacion": "Permitirlo con aprobación legal o dejar de usarlo para captura."
+      },
+      {
+        "proveedor": "booking_hotel",
+        "permitido": false,
+        "resultado": "no_permitido / sin_resultados",
+        "motivo": "Además de la prohibición, por nombre puede resolver otra ciudad (Americana, Brasil). Además, Booking muestra el modal \"Inicia sesión y ahorra\" que tapa la captura.",
+        "recomendacion": "Retirarlo del sistema."
+      },
+      {
+        "proveedor": "volaris",
+        "permitido": true,
+        "resultado": "ok portada",
+        "motivo": "Sin deep link verificado.",
+        "recomendacion": "No usar como link de cotización por ahora."
+      },
+      {
+        "proveedor": "vivaaerobus",
+        "permitido": true,
+        "resultado": "ok portada",
+        "motivo": "Sin deep link verificado.",
+        "recomendacion": "No usar como link de cotización por ahora."
+      },
+      {
+        "proveedor": "aeromexico",
+        "permitido": true,
+        "resultado": "bloqueado",
+        "motivo": "Access Denied (Akamai).",
+        "recomendacion": "No usar captura headless."
+      },
+      {
+        "proveedor": "ado",
+        "permitido": true,
+        "resultado": "ok portada",
+        "motivo": "Sin deep link verificado.",
+        "recomendacion": "Evaluar su buscador si se necesita cobertura."
+      },
+      {
+        "proveedor": "distribusion",
+        "permitido": true,
+        "resultado": "404",
+        "motivo": "retailerPartnerNumber de ejemplo.",
+        "recomendacion": "Retirarlo hasta tener credenciales."
+      },
+      {
+        "proveedor": "skyscanner",
+        "permitido": true,
+        "resultado": "captcha",
+        "motivo": "Redirigió a captcha anti-bot.",
+        "recomendacion": "No usar captura headless."
+      },
+      {
+        "proveedor": "google_maps",
+        "permitido": true,
+        "resultado": "ok",
+        "motivo": "Muestra el mapa del hotel; no es cotización.",
+        "recomendacion": "Usarlo solo como ver mapa."
+      },
+      {
+        "proveedor": "etn",
+        "permitido": true,
+        "resultado": "ok portada",
+        "motivo": "Sin deep link verificado.",
+        "recomendacion": "Evaluar su buscador si se necesita cobertura."
+      }
+    ]
+  },
+  "decisiones": {
+    "vuelo": {
+      "proveedor": "kayak_vuelos",
+      "patron": "https://www.kayak.com.mx/flights/{iata_origen}-{iata_destino}/{fecha}?sort=bestflight_a&fs=cabin=e",
+      "motivo": "Kayak abrió resultados reales para todas las rutas probadas. Google Flights q= es intermitente: en corridas repetidas alternó ok, sin_resultados y portada para la misma URL; además falló en CEN (Cajeme), JAL (lo interpretó como Jalisco), CVM y TRC.",
+      "fallback": "Sin IATA validado, no generar link. Google Flights solo como respaldo con IATA validado.",
+      "cambios": [
+        {
+          "archivo": "lefarma.backend/src/Lefarma.API/Features/Viaticos/CalculoCostosRuta.cs",
+          "funcion": "BuscarVuelosEstimadosAsync",
+          "linea": 1206,
+          "cambio": "Reemplazar el builder de Google Flights por el patrón de Kayak. Exigir IATA de origen y destino.",
+          "test": "Actualizar CostosRutaServiceTests.cs:675-719."
+        },
+        {
+          "archivo": "lefarma.backend/src/Lefarma.API/Features/Viaticos/CalculoCostosRuta.cs",
+          "funcion": "Ciudades / Aeropuertos / Iatas",
+          "linea": 38,
+          "cambio": "Agregar JAL para Xalapa, CEN para Ciudad Obregón y CVM para Ciudad Victoria; revisar todo el mapa IATA.",
+          "test": "Tests de IataDeCiudad y TerminalDe."
+        },
+        {
+          "archivo": "lefarma.backend/src/Lefarma.API/Features/Viaticos/CalculoCostosRuta.cs",
+          "funcion": "CalcularTramoAsync",
+          "linea": 1646,
+          "cambio": "No usar el municipio como código de vuelo; usar la tabla IATA y fallar a sin-link si no hay código.",
+          "test": "Caso CEN/Cajeme y CVM/Ciudad Victoria."
+        }
+      ]
+    },
+    "hotel": {
+      "proveedor": "google_hotels_ciudad",
+      "patron": "https://www.google.com/travel/search?q=hoteles%20en%20{ciudad_destino}&checkin={checkin}&checkout={checkout}&hl=es-MX&gl=MX&curr=MXN",
+      "motivo": "Mostró precios reales en ciudades sembradas y no sembradas; Booking por nombre resolvió Americana (Brasil).",
+      "fallback": "Booking ciudad para reserva; googleMapsUri solo como ver mapa; si Google Hotels no aplica las fechas, usar Booking o fijar las fechas en el calendario. Quitar el fallback silencioso a CDMX.",
+      "cambios": [
+        {
+          "archivo": "lefarma.backend/src/Lefarma.API/Features/Viaticos/CalculoCostosRuta.cs",
+          "funcion": "HotelesAsync",
+          "linea": 1823,
+          "cambio": "Cambiar el link de referencia a Google Hotels por ciudad.",
+          "test": "Probar Monterrey, Torreón y San Quintín."
+        },
+        {
+          "archivo": "lefarma.backend/src/Lefarma.API/Features/Viaticos/CalculoCostosRuta.cs",
+          "funcion": "HotelesAsync",
+          "linea": 1845,
+          "cambio": "Cambiar el link de hotel real a Google Hotels (hotel + ciudad); no usar Booking por nombre.",
+          "test": "Probar Fiesta Americana Guadalajara."
+        },
+        {
+          "archivo": "lefarma.backend/src/Lefarma.API/Features/Viaticos/CalculoCostosRuta.cs",
+          "funcion": "Viaticos.GetValueOrDefault / TarifaHotel",
+          "linea": 1820,
+          "cambio": "Quitar key ?? CDMX; usar una clave DEFAULT configurable o null con nota de tarifa no configurada.",
+          "test": "Torreón, San Quintín y Cuernavaca no deben mostrar $3,533."
+        },
+        {
+          "archivo": "lefarma.backend/src/Lefarma.API/Features/Viaticos/CalculoCostosRuta.cs",
+          "funcion": "Categorias[hoteles]",
+          "linea": 1299,
+          "cambio": "Asignar Sitio según el link (Google Hotels, Booking, Google Maps), no siempre Booking.com.",
+          "test": "Revisar el DTO de categorías."
+        }
+      ]
+    },
+    "autobus": {
+      "proveedor": "clickbus",
+      "patron": "https://www.clickbus.com.mx/trips?departure_place={slug_clickbus_origen}&arrival_place={slug_clickbus_destino}&departure_date={fecha}",
+      "motivo": "Abrió resultados reales en todas las rutas probadas; el filtro maxPrice no cambió el resultado. Primera Plus funciona solo con slug resuelto.",
+      "fallback": "Primera Plus si su catálogo resuelve la ciudad; si no hay slug, estimado sin link. Distribusion fuera hasta tener credenciales.",
+      "cambios": [
+        {
+          "archivo": "lefarma.backend/src/Lefarma.API/Features/Viaticos/CalculoCostosRuta.cs",
+          "funcion": "BuscarBusesClickBusAsync / ViajesBusSeed",
+          "linea": 489,
+          "cambio": "Quitar minPrice/maxPrice del link de ClickBus.",
+          "test": "Comparar clickbus vs clickbus_sin_max."
+        },
+        {
+          "archivo": "lefarma.backend/src/Lefarma.API/Features/Viaticos/CalculoCostosRuta.cs",
+          "funcion": "SlugPrimeraPlusAsync / ConsultarLugaresPrimeraPlusAsync",
+          "linea": 947,
+          "cambio": "Validar que places?q devuelva la ciudad solicitada; si no, no generar link de Primera Plus.",
+          "test": "Xalapa, Monterrey, Torreón y Saltillo no deben resolver a otra ciudad."
+        },
+        {
+          "archivo": "lefarma.backend/src/Lefarma.API/Features/Viaticos/CalculoCostosRuta.cs",
+          "funcion": "BuscarBusesDistribusionAsync",
+          "linea": 1159,
+          "cambio": "Quitar o gatear Distribusion; el partner demo responde 404.",
+          "test": "Sin llamada cuando no hay credenciales."
+        }
+      ]
+    },
+    "capturas": {
+      "proveedor": "google_hotels_ciudad / clickbus / primera_plus",
+      "patron": "",
+      "motivo": "Google Hotels, ClickBus y Primera Plus pueden capturarse; Booking está prohibido y Aeroméxico bloquea.",
+      "fallback": "Si el sitio no es capturable, pedir captura manual al usuario.",
+      "cambios": [
+        {
+          "archivo": "lefarma.backend/src/Lefarma.API/Features/Viaticos/CapturasService.cs",
+          "funcion": "HardBannedDomains",
+          "linea": 108,
+          "cambio": "Resolver la contradicción con Booking: permitir con aprobación o dejar de generar links Booking para captura.",
+          "test": "Captura de booking_ciudad debe dar mensaje claro."
+        },
+        {
+          "archivo": "lefarma.frontend/scripts/captura-viaticos.mjs",
+          "funcion": "captureOne",
+          "linea": 237,
+          "cambio": "Cambiar waitUntil networkidle por domcontentloaded + espera de selector de resultados; Primera Plus no llega a networkidle.",
+          "test": "Captura de Primera Plus y ClickBus lento."
+        },
+        {
+          "archivo": "lefarma.frontend/scripts/captura-viaticos.mjs",
+          "funcion": "captureOne",
+          "linea": 59,
+          "cambio": "Mantener la lista de dominios prohibidos sincronizada con CapturasService.",
+          "test": "Booking/Expedia rechazados."
+        }
+      ]
+    }
+  }
+}

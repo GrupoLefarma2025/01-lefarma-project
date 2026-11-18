@@ -1,0 +1,34 @@
+==============================================================================
+COTIZACIÓN cotizacion-20261112-094217-ciudad-de-mexico-puebla
+==============================================================================
+Origen:  Ciudad de México (MEX)
+Destino: Puebla (PBC)
+Ida:     2026-11-24
+Vuelta:  2026-11-24
+Personas: 1
+Medio:   Autobús
+
+TRANSPORTE
+------------------------------------------------------------------------------
+IDA · ClickBus · AU (Paso)
+  05:40 → 07:10 · 1h 30m
+  $189.00 por persona · $189.00 total · disponible (39 asientos disponibles)
+  Link: https://www.clickbus.com.mx/trips?departure_place=ciudad-de-mexico-df-(todas-las-terminales)&arrival_place=puebla-pue-todas-las-terminales&departure_date=2026-11-24
+  Captura: capturas/ida-opciones.png
+  Captura: capturas/ida-elegido.png
+
+VUELTA · ClickBus · AU (Local)
+  03:15 → 05:40 · 2h 25m
+  $196.00 por persona · $196.00 total · disponible (39 asientos disponibles)
+  Link: https://www.clickbus.com.mx/trips?departure_place=puebla-pue-todas-las-terminales&arrival_place=ciudad-de-mexico-df-(todas-las-terminales)&departure_date=2026-11-24
+  Captura: capturas/vuelta-opciones.png
+  Captura: capturas/vuelta-elegido.png
+
+TOTALES
+------------------------------------------------------------------------------
+Transporte: $385.00
+Hotel:      $0.00
+TOTAL:      $385.00 MXN
+
+Precios y disponibilidad obtenidos del buscador al momento de la consulta; no son una reserva.
+==============================================================================
