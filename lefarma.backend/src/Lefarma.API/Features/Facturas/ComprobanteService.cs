@@ -496,7 +496,30 @@ public class ComprobanteService : IComprobanteService
         if (comprobante is null)
             return CommonErrors.NotFound("Comprobante", idComprobante.ToString());
 
-        return await EliminarComprobantesAsync([comprobante], null, idUsuario, ct);
+        // Si es un comprobante de pago y era el ultimo activo de la orden, se limpia la cuenta
+        // capturada por el tesorero (mismo criterio que el borrado masivo por orden).
+        int? idOrden = null;
+        if (comprobante.Categoria == "pago")
+        {
+            var idOrdenComprobante = await _db.ComprobantesPartidas
+                .Where(cp => cp.IdComprobante == comprobante.IdComprobante)
+                .Select(cp => (int?)cp.Partida!.IdOrden)
+                .FirstOrDefaultAsync(ct);
+
+            if (idOrdenComprobante.HasValue)
+            {
+                var existenOtrosPagos = await _db.ComprobantesPartidas
+                    .AnyAsync(cp => cp.Partida!.IdOrden == idOrdenComprobante.Value
+                        && cp.IdComprobante != comprobante.IdComprobante
+                        && cp.Comprobante!.Categoria == "pago"
+                        && (cp.Comprobante.Activo ?? true)
+                        && cp.Activo, ct);
+
+                if (!existenOtrosPagos) idOrden = idOrdenComprobante;
+            }
+        }
+
+        return await EliminarComprobantesAsync([comprobante], idOrden, idUsuario, ct);
     }
 
     public async Task<ErrorOr<PartidaFacturacionResponse>> EliminarAsignacionAsync(
