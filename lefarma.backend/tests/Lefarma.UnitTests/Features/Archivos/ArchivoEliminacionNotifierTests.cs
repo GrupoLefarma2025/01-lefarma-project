@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using FluentAssertions;
 using Lefarma.API.Features.Archivos.Notifications;
@@ -12,6 +13,7 @@ public class ArchivoEliminacionNotifierTests
         string nombreOriginal = "comprobante.pdf",
         string carpeta = "comprobantes",
         string? metadata = "{\"tipo\":\"comprobante_pago\"}",
+        DateTime? fechaCreacion = null,
         DateTime? fechaEliminacion = null) => new(
             IdArchivo: 42,
             EntidadTipo: "OrdenCompra",
@@ -21,7 +23,7 @@ public class ArchivoEliminacionNotifierTests
             Extension: ".pdf",
             TamanoBytes: 2048,
             Metadata: metadata,
-            FechaCreacion: new DateTime(2026, 11, 10, 9, 0, 0),
+            FechaCreacion: fechaCreacion ?? new DateTime(2026, 11, 10, 9, 0, 0),
             IdUsuarioSubio: 3,
             IdUsuarioElimina: 9,
             FechaEliminacion: fechaEliminacion ?? new DateTime(2026, 11, 10, 14, 35, 0));
@@ -69,6 +71,22 @@ public class ArchivoEliminacionNotifierTests
         html.Should().Contain("10/11/2026");
         html.Should().Contain("14:35");
         html.Should().Contain("Comprobante de pago");
+    }
+
+    [Fact]
+    public void ConstruirContenidoHtml_Debe_Mostrar_La_Fecha_De_Subida_En_Hora_Local()
+    {
+        var fechaUtc = new DateTime(2026, 11, 10, 20, 35, 0, DateTimeKind.Utc);
+        var html = ArchivoEliminacionNotifier.ConstruirContenidoHtml(
+            Evento(fechaCreacion: fechaUtc),
+            "OC-2026-00012",
+            "Adriana Arredondo",
+            nombreSubio: "Marco Polo");
+
+        var esperado = fechaUtc.ToLocalTime()
+            .ToString("dd/MM/yyyy HH:mm", CultureInfo.InvariantCulture);
+
+        html.Should().Contain($"Marco Polo el {esperado} hrs");
     }
 
     [Fact]

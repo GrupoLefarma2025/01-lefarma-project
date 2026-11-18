@@ -198,7 +198,7 @@ public class ArchivoEliminacionNotifier : IArchivoEliminacionNotifier
         var hora = evento.FechaEliminacion.ToString("HH:mm", CultureInfo.InvariantCulture);
         var subidoPor = string.IsNullOrWhiteSpace(nombreSubio)
             ? "No registrado"
-            : $"{nombreSubio} el {evento.FechaCreacion.ToString("dd/MM/yyyy HH:mm", CultureInfo.InvariantCulture)} hrs";
+            : $"{nombreSubio} el {ComoHoraLocal(evento.FechaCreacion).ToString("dd/MM/yyyy HH:mm", CultureInfo.InvariantCulture)} hrs";
 
         var sb = new StringBuilder();
         sb.Append("<p style=\"margin:0 0 14px;\">El usuario <strong>")
@@ -224,6 +224,13 @@ public class ArchivoEliminacionNotifier : IArchivoEliminacionNotifier
 
         return sb.ToString();
     }
+
+    /// <summary>
+    /// La fecha de subida se guarda en UTC en la base; se convierte a la hora
+    /// local del servidor para mostrarla en el correo.
+    /// </summary>
+    private static DateTime ComoHoraLocal(DateTime fechaUtc)
+        => DateTime.SpecifyKind(fechaUtc, DateTimeKind.Utc).ToLocalTime();
 
     /// <summary>Describe el archivo según su carpeta y su metadata.</summary>
     internal static string DescribirTipoArchivo(string? carpeta, string? metadata)
