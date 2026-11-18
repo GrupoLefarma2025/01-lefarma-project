@@ -7,12 +7,16 @@ import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 
 import type { OrdenCompraResponse } from '@/types/ordenCompra.types';
+import type { MacroViatico } from '@/types/macroViatico.types';
 import type { ProveedorCuentaBancaria } from '@/types/catalogo.types';
 import { EnvioConcentradoPDF, AGRUPACION_LABELS } from '@/components/ordenes/EnvioConcentradoPDF';
 import type { AgrupacionKey } from '@/components/ordenes/EnvioConcentradoPDF';
 import { OrdenCompraConcentradoPDF } from '@/components/ordenes/OrdenCompraConcentradoPDF';
 import { useAuthStore } from '@/shared/auth/authStore';
+import { usePageTitle } from '@/hooks/usePageTitle';
 import { FileViewer } from '@/components/archivos/FileViewer';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import EnvioConcentradoViaticos from './EnvioConcentradoViaticos';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
@@ -42,7 +46,7 @@ import {
 } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Printer, Paperclip, Send, RefreshCw, LayoutGrid, CheckSquare, Square, CheckCircle, XCircle, AlertTriangle, Download, Eye, Trash } from 'lucide-react';
+import { Printer, Plane, ReceiptText, Paperclip, Send, RefreshCw, LayoutGrid, CheckSquare, Square, CheckCircle, XCircle, AlertTriangle, Download, Eye, Trash } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toApiError } from '@/utils/errors';
 import { fetchFirmaObjectUrl, firmasEndpoints } from '@/services/firmas.service';
@@ -118,6 +122,7 @@ const AGRUPACIONES: Array<{ value: AgrupacionKey; label: string }> = [
 ];
 
 export default function EnvioConcentrado() {
+  usePageTitle('Envío Concentrado');
   const { user } = useAuthStore();
   const [ordenes, setOrdenes] = useState<OrdenCompraResponse[]>([]);
   const [loading, setLoading] = useState(true);
@@ -134,6 +139,8 @@ export default function EnvioConcentrado() {
   const [comentario, setComentario] = useState(
     'Autorización enviada desde el sistema de control de gastos'
   );
+  const [activeTab, setActiveTab] = useState<'gastos' | 'viaticos'>('gastos');
+  const [refreshToken, setRefreshToken] = useState(0);
 
   // ── Fetch órdenes pendientes de envío concentrado ────────────────────────
   // Estado PREPARACION_GAF (id_estado = 11) - paso que tiene envia_concentrado
@@ -146,7 +153,30 @@ export default function EnvioConcentrado() {
       const res = await API.get<ApiResponse<OrdenCompraResponse[]>>(
         `/ordenes?idEstado=${ESTADO_ENVIO_CONCENTRADO}&soloEnvioConcentrado=true`
       );
-      setOrdenes(res.data.data ?? []);
+      const data = res.data.data ?? [];
+
+      // Un gasto que ya está en el concentrado de viáticos no debe volver a
+      // aparecer en el concentrado de gastos.
+      let foliosViatico = new Set<string>();
+      try {
+        const macroRes = await API.get<ApiResponse<MacroViatico[]>>(
+          '/viaticos/macro-concentrado'
+        );
+        foliosViatico = new Set(
+          (macroRes.data.data ?? []).map((fila) => fila.folio.trim())
+        );
+      } catch {
+        // Si no se puede consultar viáticos, se muestran todas las órdenes.
+      }
+
+      const visibles = data.filter(
+        (orden) => !foliosViatico.has(orden.folio.trim())
+      );
+      setOrdenes(visibles);
+      setSelected((prev) => {
+        const ids = new Set(visibles.map((orden) => orden.idOrden));
+        return new Set([...prev].filter((id) => ids.has(id)));
+      });
     } catch {
       setError('No se pudieron cargar las órdenes pendientes de envío concentrado.');
     } finally {
@@ -157,6 +187,11 @@ export default function EnvioConcentrado() {
   useEffect(() => {
     fetchOrdenes();
   }, []);
+
+  const handleRefresh = async () => {
+    await fetchOrdenes();
+    setRefreshToken((token) => token + 1);
+  };
 
   // ── Selección ─────────────────────────────────────────────────────────────
   const toggleSelect = (id: number) => {
@@ -459,15 +494,12 @@ setNombresFirmas({
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold tracking-tight">Envío Concentrado</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            Selecciona las órdenes pendientes de envío concentrado, genera el concentrado PDF y envía al director
-          </p>
         </div>
         <div className="flex items-center gap-2">
           <Button
             variant="outline"
             size="sm"
-            onClick={fetchOrdenes}
+            onClick={handleRefresh}
             disabled={loading}
             className="gap-1.5"
           >
@@ -477,6 +509,34 @@ setNombresFirmas({
         </div>
       </div>
 
+      <Tabs
+        value={activeTab}
+        onValueChange={(v) => setActiveTab(v as 'gastos' | 'viaticos')}
+        className="flex flex-col flex-1 min-h-0 gap-4"
+      >
+        <TabsList className="h-auto w-full justify-start gap-6 rounded-none border-b border-border/70 bg-transparent p-0">
+          <TabsTrigger
+            value="gastos"
+            className="group -mb-px gap-2 rounded-none border-b-2 border-transparent px-1 pb-3 pt-1 text-sm font-medium text-muted-foreground shadow-none transition-colors data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none"
+          >
+            <ReceiptText className="h-4 w-4 text-muted-foreground transition-colors group-data-[state=active]:text-primary" />
+            Concentrado de gastos
+          </TabsTrigger>
+          <TabsTrigger
+            value="viaticos"
+            className="group -mb-px gap-2 rounded-none border-b-2 border-transparent px-1 pb-3 pt-1 text-sm font-medium text-muted-foreground shadow-none transition-colors data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none"
+          >
+            <Plane className="h-4 w-4 text-muted-foreground transition-colors group-data-[state=active]:text-primary" />
+            Concentrado de viáticos
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent
+          value="gastos"
+          forceMount
+          className={cn('flex-1 min-h-0', activeTab !== 'gastos' && 'hidden')}
+        >
+          <div className="flex flex-col h-full gap-4">
       {/* ── Resultado del envío ── */}
       {(envioResult || envioError) && (
         <div
@@ -731,6 +791,19 @@ setNombresFirmas({
           </div>
         </div>
       </div>
+          </div>
+        </TabsContent>
+
+        <TabsContent
+          value="viaticos"
+          forceMount
+          className={cn('flex-1 min-h-0', activeTab !== 'viaticos' && 'hidden')}
+        >
+          <div className="h-full">
+            <EnvioConcentradoViaticos refreshToken={refreshToken} />
+          </div>
+        </TabsContent>
+      </Tabs>
 
       {/* ── Dialog de previsualización antes de enviar ── */}
       <Dialog open={showPreviewDialog} onOpenChange={setShowPreviewDialog}>
