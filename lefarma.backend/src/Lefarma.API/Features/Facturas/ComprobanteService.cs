@@ -161,23 +161,11 @@ public class ComprobanteService : IComprobanteService
             _db.Comprobantes.Add(comprobante);
             await _db.SaveChangesAsync(ct);
 
-            // Obtener folio y contar archivos previos para nombrar archivos
-            var folio = (await _db.OrdenesCompra
-                .Where(o => o.IdOrden == request.IdOrden)
-                .Select(o => o.Folio)
-                .FirstOrDefaultAsync(ct)) ?? $"OC-{request.IdOrden}";
-
-            var countPrevios = await _db.Comprobantes
-                .CountAsync(c => (c.Activo ?? true) && c.Categoria == request.Categoria
-                    && _db.ComprobantesPartidas.Any(cp => cp.IdComprobante == c.IdComprobante && cp.Partida!.IdOrden == request.IdOrden), ct);
-
-            var prefijo = esPago ? "Pago" : "Gasto";
-            var n = countPrevios + 1;
+            // Los archivos del comprobante conservan el nombre original que envió el cliente.
 
             // Subir XML si CFDI
             if (esCfdi && xmlContent != null && xmlFileName != null)
             {
-                var xmlName = $"{folio}-{prefijo}-{n}.xml";
                 using var xmlMs = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(xmlContent));
                 var meta = JsonSerializer.Serialize(new
                 {
@@ -194,7 +182,7 @@ public class ComprobanteService : IComprobanteService
                     nombreAccion  = request.NombreAccion
                 }, _jsonUtf8);
                 await _archivoService.SubirAsync(
-                    xmlMs, xmlName, "application/xml",
+                    xmlMs, xmlFileName, "application/xml",
                     new SubirArchivoRequest
                     {
                         EntidadTipo = "OrdenCompra",
@@ -208,8 +196,6 @@ public class ComprobanteService : IComprobanteService
             if (archivoStream != null && archivoFileName != null && archivoContentType != null)
             {
                 var archivoTipo = esCfdi ? "pdf" : "imagen";
-                var ext = Path.GetExtension(archivoFileName);
-                var pdfName = $"{folio}-{prefijo}-{n}{ext}";
                 var meta = JsonSerializer.Serialize(new
                 {
                     modulo        = "ordenes_compra",
@@ -225,7 +211,7 @@ public class ComprobanteService : IComprobanteService
                     nombreAccion  = request.NombreAccion
                 }, _jsonUtf8);
                 await _archivoService.SubirAsync(
-                    archivoStream, pdfName, archivoContentType,
+                    archivoStream, archivoFileName, archivoContentType,
                     new SubirArchivoRequest
                     {
                         EntidadTipo = "OrdenCompra",

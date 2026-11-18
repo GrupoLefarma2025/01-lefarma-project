@@ -1,13 +1,10 @@
 using Lefarma.API.Features.Archivos.DTOs;
 using Lefarma.API.Features.Archivos.Services;
-using Lefarma.API.Infrastructure.Data;
 using Lefarma.API.Shared.Extensions;
 using Lefarma.API.Shared.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using Swashbuckle.AspNetCore.Annotations;
-using System.Text.Json;
 
 namespace Lefarma.API.Features.Archivos.Controllers;
 
@@ -17,13 +14,11 @@ namespace Lefarma.API.Features.Archivos.Controllers;
 public class ArchivoExternoController : ControllerBase
 {
     private readonly IArchivoService _service;
-    private readonly ApplicationDbContext _db;
     private readonly IConfiguration _configuration;
 
-    public ArchivoExternoController(IArchivoService service, ApplicationDbContext db, IConfiguration configuration)
+    public ArchivoExternoController(IArchivoService service, IConfiguration configuration)
     {
         _service = service;
-        _db = db;
         _configuration = configuration;
     }
 
@@ -83,63 +78,7 @@ public class ArchivoExternoController : ControllerBase
 
         using var stream = file.OpenReadStream();
 
-        // Renombrar archivos adjuntos de orden de compra con formato: {folioSinGuiones}-{ddMMyyyy}-adjunto_{N}.ext
-        var fileName = file.FileName;
-        if (request.EntidadTipo == "OrdenCompra" && request.Carpeta == "ordenes-compra")
-        {
-            var folio = await _db.OrdenesCompra
-                .Where(o => o.IdOrden == request.EntidadId)
-                .Select(o => o.Folio)
-                .FirstOrDefaultAsync();
-
-            if (!string.IsNullOrWhiteSpace(folio))
-            {
-                var folioLimpio = folio.Replace("-", "");
-                var fecha = DateTime.Now.ToString("ddMMyyyy");
-                var count = await _service.GetArchivosCountAsync(request.EntidadTipo, request.EntidadId, request.Carpeta);
-                var ext = Path.GetExtension(file.FileName);
-                fileName = $"{folioLimpio}-{fecha}-adjunto_{count + 1}{ext}";
-            }
-        }
-
-        // Renombrar archivos de comprobantes (pago/gasto): {folioSinGuiones}-{ddMMyyyy}-{tipo}_{N}.ext
-        if (request.EntidadTipo == "OrdenCompra" && request.Carpeta == "comprobantes")
-        {
-            string? tipoComprobante = null;
-            if (!string.IsNullOrWhiteSpace(request.Metadata))
-            {
-                try
-                {
-                    using var metaDoc = JsonDocument.Parse(request.Metadata);
-                    var raiz = metaDoc.RootElement;
-                    var tipo = raiz.TryGetProperty("tipo", out var t) ? t.GetString() ?? "" : "";
-                    tipoComprobante = tipo == "comprobante_pago" ? "pago" : tipo == "comprobante_gasto" ? "gasto" : null;
-                }
-                catch { /* metadata invalido */ }
-            }
-
-            if (tipoComprobante != null)
-            {
-                var folio = await _db.OrdenesCompra
-                    .Where(o => o.IdOrden == request.EntidadId)
-                    .Select(o => o.Folio)
-                    .FirstOrDefaultAsync();
-
-                if (!string.IsNullOrWhiteSpace(folio))
-                {
-                    var folioLimpio = folio.Replace("-", "");
-                    var fecha = DateTime.Now.ToString("ddMMyyyy");
-                    var count = await _db.Comprobantes
-                        .CountAsync(c => (c.Activo ?? true) && c.Categoria == tipoComprobante
-                            && _db.ComprobantesPartidas.Any(cp => cp.IdComprobante == c.IdComprobante && cp.Partida!.IdOrden == request.EntidadId));
-
-                    var ext = Path.GetExtension(file.FileName);
-                    fileName = $"{folioLimpio}-{fecha}-{tipoComprobante}_{count + 1}{ext}";
-                }
-            }
-        }
-
-        var result = await _service.SubirAsync(stream, fileName, file.ContentType, request, userId);
+        var result = await _service.SubirAsync(stream, file.FileName, file.ContentType, request, userId);
 
         return result.ToActionResult(this, archivo => Ok(new ApiResponse<ArchivoResponse>
         {

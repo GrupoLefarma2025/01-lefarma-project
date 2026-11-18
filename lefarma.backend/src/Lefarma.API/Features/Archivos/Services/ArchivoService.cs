@@ -41,8 +41,12 @@ public class ArchivoService : IArchivoService
         int? usuarioId = null,
         CancellationToken cancellationToken = default)
     {
+        // El nombre visible lo envía el cliente (también el API externo): se descarta cualquier
+        // ruta y los caracteres de control, que romperían la cabecera de descarga.
+        var nombreOriginal = new string(Path.GetFileName(fileName).Where(c => !char.IsControl(c)).ToArray()).Trim();
+
         // Validar extensión
-        var extension = Path.GetExtension(fileName).ToLowerInvariant();
+        var extension = Path.GetExtension(nombreOriginal).ToLowerInvariant();
         if (!_settings.ExtensionesPermitidas.Contains(extension))
             return CommonErrors.Validation("ContentType", "El tipo de archivo no está permitido");
 
