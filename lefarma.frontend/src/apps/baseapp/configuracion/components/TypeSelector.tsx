@@ -11,7 +11,7 @@ interface TypeSelectorProps {
 
 export function TypeSelector({ value, onChange, disabled = false }: TypeSelectorProps) {
   return (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+    <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
       {TIPOS_DATO_SELECCIONABLES.map((tipo) => {
         const Icono = ICONOS_TIPO[tipo.valor];
         const seleccionado = value === tipo.valor;
@@ -25,7 +25,7 @@ export function TypeSelector({ value, onChange, disabled = false }: TypeSelector
             onClick={() => onChange(tipo.valor)}
             aria-pressed={seleccionado}
             className={cn(
-              'group relative flex min-h-[142px] flex-col gap-2 rounded-xl border-2 p-3.5 text-left transition-all duration-200',
+              'group relative flex min-h-[clamp(6.5rem,16dvh,9.5rem)] flex-col gap-1.5 rounded-lg border-2 p-3 text-left transition-all duration-200',
               'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
               seleccionado ? tono.seleccionada : tono.tarjeta,
               !seleccionado && 'hover:-translate-y-0.5 hover:shadow-sm',
@@ -35,11 +35,11 @@ export function TypeSelector({ value, onChange, disabled = false }: TypeSelector
             <div className="flex w-full items-start justify-between gap-2">
               <span
                 className={cn(
-                  'flex h-10 w-10 items-center justify-center rounded-xl border shadow-sm transition-colors',
+                  'flex h-9 w-9 items-center justify-center rounded-lg border shadow-sm transition-colors',
                   seleccionado ? tono.iconoSeleccionado : tono.icono,
                 )}
               >
-                <Icono size={22} isAnimated={!disabled} />
+                <Icono size={20} isAnimated={!disabled} />
               </span>
               <span
                 className={cn(
@@ -54,12 +54,12 @@ export function TypeSelector({ value, onChange, disabled = false }: TypeSelector
               </span>
             </div>
 
-            <div className="space-y-1">
-              <p className="text-sm font-semibold leading-tight">{tipo.etiqueta}</p>
-              <p className="text-[11px] leading-snug text-muted-foreground">{tipo.explicacion}</p>
+            <div className="space-y-0.5">
+              <p className="text-[13px] font-semibold leading-tight">{tipo.etiqueta}</p>
+              <p className="text-[10px] leading-snug text-muted-foreground">{tipo.explicacion}</p>
             </div>
 
-            <div className="mt-auto space-y-1.5 border-t border-current/10 pt-2">
+            <div className="mt-auto space-y-1 border-t border-current/10 pt-1.5">
               <p className="truncate font-mono text-[10px] text-foreground/65" title={tipo.ejemplo}>
                 <span className="text-muted-foreground">Ej. </span>
                 {tipo.ejemplo}

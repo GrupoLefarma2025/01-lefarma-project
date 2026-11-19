@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
+import type { CSSProperties } from 'react';
 import {
   AlertCircle,
   Check,
@@ -96,6 +97,15 @@ const PASOS = [
   { numero: 2, titulo: 'Definición' },
   { numero: 3, titulo: 'Valor' },
 ];
+
+/**
+ * Separación vertical fluida: se encoge en pantallas bajas para que el asistente
+ * quepa completo sin scroll. `dvh` mide el alto visible real del navegador.
+ */
+const ESTILO_FLUIDO = {
+  '--ve-gap': 'clamp(0.5rem, 1.5dvh, 1.25rem)',
+  '--ve-gap-sm': 'clamp(0.375rem, 1dvh, 0.875rem)',
+} as CSSProperties;
 
 function estadoInicial(variable: VariableConfiguracion | null): EstadoInicial {
   if (!variable) {
@@ -550,10 +560,14 @@ export function VariableEditorDialog({
           </div>
         </div>
       }
+      bodyClassName="flex flex-col"
     >
-      <div className="space-y-6">
+      <div
+        className="flex min-h-0 flex-1 flex-col gap-[var(--ve-gap)]"
+        style={ESTILO_FLUIDO}
+      >
         {/* Pasos */}
-        <ol className="flex items-center gap-2">
+        <ol className="flex shrink-0 items-center gap-1.5">
           {PASOS.map((item, indice) => {
             const activo = paso === item.numero;
             const completado = paso > item.numero;
@@ -567,20 +581,20 @@ export function VariableEditorDialog({
                     onClick={() => irAPaso(item.numero)}
                     disabled={!clickable}
                     className={cn(
-                      'flex items-center gap-2 rounded-md px-2 py-1 text-sm transition-colors',
+                      'flex items-center gap-1.5 rounded-md px-1.5 py-0.5 text-xs transition-colors',
                       clickable && 'hover:bg-muted',
                       !clickable && 'cursor-default',
                     )}
                   >
                     <span
                       className={cn(
-                        'flex h-6 w-6 items-center justify-center rounded-full border text-xs font-semibold',
+                        'flex h-5 w-5 items-center justify-center rounded-full border text-[10px] font-semibold',
                         activo && 'border-primary bg-primary text-primary-foreground',
                         completado && 'border-primary/40 bg-primary/10 text-primary',
                         !activo && !completado && 'border-border text-muted-foreground',
                       )}
                     >
-                      {completado ? <Check className="h-3.5 w-3.5" /> : item.numero}
+                      {completado ? <Check className="h-3 w-3" /> : item.numero}
                     </span>
                     <span
                       className={cn(
@@ -601,20 +615,20 @@ export function VariableEditorDialog({
         </ol>
 
         {errorGeneral && (
-          <div className="flex items-start gap-2 rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive">
-            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+          <div className="flex shrink-0 items-start gap-2 rounded-lg border border-destructive/40 bg-destructive/5 px-2.5 py-1.5 text-xs text-destructive">
+            <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
             <p>{errorGeneral}</p>
           </div>
         )}
 
         {/* Paso 1: tipo */}
         {paso === 1 && (
-          <section className="space-y-4">
-            <div>
-              <h3 className="text-base font-semibold">Tipo de dato</h3>
-              <p className="text-sm text-muted-foreground">
-                Define qué clase de valor guarda la variable. El editor y la validación se
-                adaptan automáticamente.
+          <section className="flex min-h-0 flex-1 flex-col gap-[var(--ve-gap-sm)] overflow-y-auto overscroll-contain">
+            <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+              <h3 className="text-sm font-semibold">Tipo de dato</h3>
+              <p className="text-[11px] text-muted-foreground">
+                Define qué clase de valor guarda la variable; el editor y la validación se adaptan
+                automáticamente.
               </p>
             </div>
 
@@ -622,7 +636,7 @@ export function VariableEditorDialog({
 
             <label
               className={cn(
-                'flex cursor-pointer items-start gap-3 rounded-xl border-2 p-3.5 transition-colors',
+                'flex cursor-pointer items-start gap-2.5 rounded-lg border-2 p-2.5 transition-colors',
                 esLista
                   ? 'border-teal-400 bg-teal-50/60'
                   : 'border-border bg-card hover:bg-muted/30',
@@ -635,12 +649,12 @@ export function VariableEditorDialog({
                 onCheckedChange={(marcado) => alternarLista(marcado === true)}
                 className="mt-0.5"
               />
-              <span className="flex min-w-0 flex-1 items-start gap-3">
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-teal-200 bg-teal-100 text-teal-700">
+              <span className="flex min-w-0 flex-1 items-start gap-2.5">
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-teal-200 bg-teal-100 text-teal-700">
                   <List className="h-4 w-4" />
                 </span>
                 <span className="min-w-0">
-                  <span className="block text-sm font-semibold">
+                  <span className="block text-xs font-semibold">
                     Convertir este dato en una lista
                   </span>
                   <span className="mt-0.5 block text-[11px] leading-snug text-muted-foreground">
@@ -649,7 +663,7 @@ export function VariableEditorDialog({
                       : 'Selecciona primero un tipo para definir qué elementos contendrá la lista.'}
                   </span>
                   {esLista && tipoActual && (
-                    <Badge variant="secondary" className="mt-2 gap-1 text-[10px]">
+                    <Badge variant="secondary" className="mt-1 gap-1 text-[10px]">
                       <List className="h-3 w-3" />
                       Lista de {etiquetaTipo(tipoActual)}
                     </Badge>
@@ -659,7 +673,7 @@ export function VariableEditorDialog({
             </label>
 
             {esEdicion && (
-              <div className="flex items-start gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+              <div className="flex items-start gap-2 rounded-lg border border-border bg-muted/40 px-2.5 py-1.5 text-[11px] text-muted-foreground">
                 <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                 <p>
                   El tipo de dato forma parte de la identidad de la variable y no se puede
@@ -669,7 +683,7 @@ export function VariableEditorDialog({
             )}
 
             {!tipoCanonicoEditado && variable && (
-              <div className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/5 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
+              <div className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/5 px-2.5 py-1.5 text-[11px] text-amber-700 dark:text-amber-400">
                 <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                 <p>
                   El tipo guardado («{variable.tipoDato}») no es reconocido por esta versión del
@@ -682,17 +696,9 @@ export function VariableEditorDialog({
 
         {/* Paso 2: definición */}
         {paso === 2 && (
-          <section className="space-y-5">
-            <div>
-              <h3 className="text-base font-semibold">Definición</h3>
-              <p className="text-sm text-muted-foreground">
-                La clave identifica la variable en todos los consumidores y no cambia después de
-                crearla.
-              </p>
-            </div>
-
+          <section className="grid min-h-0 flex-1 content-start gap-x-5 gap-y-[var(--ve-gap-sm)] md:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
             {esEdicion && (
-              <div className="flex items-start gap-2 rounded-lg border border-sky-200 bg-sky-50/50 px-3 py-2 text-xs text-sky-800">
+              <div className="flex items-start gap-2 rounded-lg border border-sky-200 bg-sky-50/50 px-2.5 py-1.5 text-[11px] leading-snug text-sky-800 md:col-span-2">
                 <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                 <p>
                   Puedes actualizar <strong>nombre, descripción, destinos, esquema y valor</strong>.
@@ -702,61 +708,56 @@ export function VariableEditorDialog({
               </div>
             )}
 
-            <div className="grid items-start gap-4 lg:grid-cols-2">
-              <div className="space-y-1.5">
-                <Label
-                  htmlFor="variable-nombre"
-                  className="flex min-h-5 items-center gap-1"
-                >
-                  Nombre <span className="text-destructive">*</span>
-                </Label>
-                <Input
-                  id="variable-nombre"
-                  value={nombre}
-                  onChange={(e) => setNombre(e.target.value)}
-                  placeholder="Ej. Días límite de viáticos"
-                  maxLength={200}
-                  aria-invalid={Boolean(erroresPaso2.nombre)}
-                  className={cn(
-                    'h-10',
-                    erroresPaso2.nombre &&
-                      'border-destructive focus-visible:ring-destructive/30',
-                  )}
-                />
-                {erroresPaso2.nombre && (
-                  <p className="flex items-center gap-1.5 text-xs text-destructive">
-                    <AlertCircle className="h-3.5 w-3.5" />
-                    {erroresPaso2.nombre}
-                  </p>
+            <div className="flex min-w-0 flex-col gap-1">
+              <Label htmlFor="variable-nombre" className="text-xs">
+                Nombre <span className="text-destructive">*</span>
+              </Label>
+              <Input
+                id="variable-nombre"
+                value={nombre}
+                onChange={(e) => setNombre(e.target.value)}
+                placeholder="Ej. Días límite de viáticos"
+                maxLength={200}
+                aria-invalid={Boolean(erroresPaso2.nombre)}
+                className={cn(
+                  'h-9',
+                  erroresPaso2.nombre &&
+                    'border-destructive focus-visible:ring-destructive/30',
                 )}
-              </div>
-
-              <div className="space-y-1.5">
-                <Label htmlFor="variable-descripcion" className="flex min-h-5 items-center">
-                  Descripción
-                </Label>
-                <Textarea
-                  id="variable-descripcion"
-                  value={descripcion}
-                  onChange={(e) => setDescripcion(e.target.value)}
-                  placeholder="Para qué sirve y qué impacto tiene cambiarla"
-                  className="min-h-[100px] resize-y bg-background text-sm leading-relaxed"
-                  rows={4}
-                  maxLength={1000}
-                />
-                <p className="text-[10px] text-muted-foreground">
-                  Opcional. Ayuda a que otras personas entiendan el impacto de cambiarla.
+              />
+              {erroresPaso2.nombre && (
+                <p className="flex items-center gap-1.5 text-[11px] text-destructive">
+                  <AlertCircle className="h-3.5 w-3.5" />
+                  {erroresPaso2.nombre}
                 </p>
-              </div>
+              )}
             </div>
 
-            <div className="space-y-2">
-              <div className="flex flex-wrap items-end justify-between gap-2">
-                <div>
-                  <Label>Clave de la variable</Label>
-                  <p className="mt-0.5 text-[11px] text-muted-foreground">
-                    Es el identificador permanente que usarán Backend, Frontend, SQL e
-                    integraciones.
+            <div className="flex min-w-0 flex-col gap-1">
+              <Label htmlFor="variable-descripcion" className="text-xs">
+                Descripción{' '}
+                <span className="font-normal text-muted-foreground">(opcional)</span>
+              </Label>
+              <Textarea
+                id="variable-descripcion"
+                value={descripcion}
+                onChange={(e) => setDescripcion(e.target.value)}
+                placeholder="Para qué sirve y qué impacto tiene cambiarla"
+                className="min-h-[clamp(3rem,7dvh,6rem)] resize-none bg-background text-sm leading-relaxed"
+                rows={3}
+                maxLength={1000}
+              />
+              <p className="text-[10px] leading-snug text-muted-foreground">
+                Ayuda a que otras personas entiendan el impacto de cambiarla.
+              </p>
+            </div>
+
+            <div className="flex min-w-0 flex-col gap-1.5">
+              <div className="flex flex-wrap items-end justify-between gap-x-2 gap-y-1">
+                <div className="min-w-0">
+                  <Label className="text-xs">Clave de la variable</Label>
+                  <p className="mt-0.5 text-[10px] leading-snug text-muted-foreground">
+                    Identificador permanente para Backend, Frontend, SQL e integraciones.
                   </p>
                 </div>
                 {!esEdicion && (
@@ -764,7 +765,7 @@ export function VariableEditorDialog({
                     type="button"
                     size="sm"
                     variant="outline"
-                    className="h-7 px-2 text-[11px]"
+                    className="h-6 px-2 text-[10px]"
                     disabled={!nombre.trim()}
                     onClick={() => {
                       setClave(aCamelCase(nombre));
@@ -778,18 +779,18 @@ export function VariableEditorDialog({
               </div>
 
               {esEdicion ? (
-                <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/30 p-2.5">
-                  <Input value={variable?.clave ?? ''} readOnly disabled className="font-mono text-xs" />
-                  <Badge variant="secondary" className="shrink-0 gap-1">
+                <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/30 p-1.5">
+                  <Input value={variable?.clave ?? ''} readOnly disabled className="h-8 font-mono text-xs" />
+                  <Badge variant="secondary" className="shrink-0 gap-1 text-[10px]">
                     <Lock className="h-3 w-3" />
                     Solo lectura
                   </Badge>
                 </div>
               ) : (
                 <>
-                  <div className="grid gap-3 sm:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
-                    <div className="space-y-1">
-                      <Label htmlFor="variable-namespace" className="text-[11px] text-muted-foreground">
+                  <div className="grid gap-2 sm:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
+                    <div className="flex flex-col gap-1">
+                      <Label htmlFor="variable-namespace" className="text-[10px] text-muted-foreground">
                         Namespace
                       </Label>
                       <Input
@@ -799,7 +800,7 @@ export function VariableEditorDialog({
                         onBlur={() => setClaveTocada(true)}
                         placeholder="Ej. viaticos"
                         className={cn(
-                          'font-mono text-xs',
+                          'h-8 font-mono text-xs',
                           errorClave &&
                             'border-destructive focus-visible:ring-destructive/30',
                         )}
@@ -809,8 +810,8 @@ export function VariableEditorDialog({
                         spellCheck={false}
                       />
                     </div>
-                    <div className="space-y-1">
-                      <Label htmlFor="variable-clave" className="text-[11px] text-muted-foreground">
+                    <div className="flex flex-col gap-1">
+                      <Label htmlFor="variable-clave" className="text-[10px] text-muted-foreground">
                         Nombre de la clave
                       </Label>
                       <Input
@@ -820,7 +821,7 @@ export function VariableEditorDialog({
                         onBlur={() => setClaveTocada(true)}
                         placeholder="Ej. diasLimite"
                         className={cn(
-                          'font-mono text-xs',
+                          'h-8 font-mono text-xs',
                           errorClave &&
                             'border-destructive focus-visible:ring-destructive/30',
                         )}
@@ -833,10 +834,10 @@ export function VariableEditorDialog({
                   </div>
 
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-[11px] text-muted-foreground">Clave final:</span>
+                    <span className="text-[10px] text-muted-foreground">Clave final:</span>
                     <Badge
                       variant="outline"
-                      className="max-w-full gap-1.5 border-primary/25 bg-primary/5 px-2 py-0.5 font-mono text-[11px] font-medium text-foreground"
+                      className="max-w-full gap-1.5 border-primary/25 bg-primary/5 px-2 py-0.5 font-mono text-[10px] font-medium text-foreground"
                     >
                       <KeyRound className="h-3 w-3 shrink-0 text-primary" />
                       <span className="truncate">
@@ -845,13 +846,13 @@ export function VariableEditorDialog({
                     </Badge>
                   </div>
 
-                  <p className="text-[11px] text-muted-foreground">
+                  <p className="text-[10px] leading-snug text-muted-foreground">
                     Usa minúsculas, sin espacios. El namespace agrupa la variable por módulo;
                     la clave identifica el dato dentro de ese módulo.
                   </p>
 
                   {errorClave && (
-                    <p className="flex items-center gap-1.5 text-xs text-destructive">
+                    <p className="flex items-center gap-1.5 text-[11px] text-destructive">
                       <AlertCircle className="h-3.5 w-3.5" />
                       {errorClave}
                     </p>
@@ -860,21 +861,21 @@ export function VariableEditorDialog({
               )}
             </div>
 
-            <div className="space-y-2">
-              <div>
-                <Label>Destinos</Label>
-                <p className="text-[11px] text-muted-foreground">
+            <div className="flex min-w-0 flex-col gap-1.5">
+              <div className="flex flex-col gap-0.5">
+                <Label className="text-xs">Destinos</Label>
+                <p className="text-[10px] leading-snug text-muted-foreground">
                   Dónde puede consumirse la variable. Debe haber al menos uno.
                 </p>
               </div>
-              <div className="grid gap-2 sm:grid-cols-2">
+              <div className="grid grid-cols-2 gap-1.5">
                 {DESTINOS.map((destino) => {
                   const marcado = destinos[destino.campo];
                   return (
                     <label
                       key={destino.clave}
                       className={cn(
-                        'flex cursor-pointer items-start gap-2.5 rounded-lg border p-3 transition-colors',
+                        'flex cursor-pointer items-start gap-2 rounded-lg border p-2 transition-colors',
                         marcado
                           ? 'border-primary/50 bg-primary/5'
                           : 'border-border hover:bg-muted/40',
@@ -888,8 +889,10 @@ export function VariableEditorDialog({
                         className="mt-0.5"
                       />
                       <span className="min-w-0">
-                        <span className="block text-sm font-medium">{destino.etiqueta}</span>
-                        <span className="block text-[11px] text-muted-foreground">
+                        <span className="block text-xs font-medium leading-tight">
+                          {destino.etiqueta}
+                        </span>
+                        <span className="mt-0.5 block text-[10px] leading-snug text-muted-foreground">
                           {destino.descripcion}
                         </span>
                       </span>
@@ -898,37 +901,39 @@ export function VariableEditorDialog({
                 })}
               </div>
               {erroresPaso2.destinos && (
-                <p className="text-xs text-destructive">{erroresPaso2.destinos}</p>
+                <p className="text-[11px] text-destructive">{erroresPaso2.destinos}</p>
               )}
             </div>
 
             {tipoActual === 'seleccion' && (
-              <div className="space-y-2 rounded-lg border border-border bg-card p-3">
-                <OpcionesSeleccionEditor
-                  opciones={opciones}
-                  onChange={setOpciones}
-                  disabled={guardando}
-                />
+              <div className="flex flex-col gap-1.5 rounded-lg border border-border bg-card p-2 md:col-span-2">
+                <div className="max-h-[min(16rem,30dvh)] overflow-y-auto overscroll-contain pr-1">
+                  <OpcionesSeleccionEditor
+                    opciones={opciones}
+                    onChange={setOpciones}
+                    disabled={guardando}
+                  />
+                </div>
                 {erroresPaso2.esquema && (
-                  <p className="text-xs text-destructive">{erroresPaso2.esquema}</p>
+                  <p className="text-[11px] text-destructive">{erroresPaso2.esquema}</p>
                 )}
               </div>
             )}
 
             {tipoActual === 'objeto' && (
-              <div className="space-y-3 rounded-xl border border-blue-200/70 bg-blue-50/20 p-3">
+              <div className="flex flex-col gap-2 rounded-xl border border-blue-200/70 bg-blue-50/20 p-2.5 md:col-span-2">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
-                    <p className="text-sm font-semibold">
+                    <p className="text-xs font-semibold">
                       {esLista ? 'Campos de cada elemento' : 'Estructura del objeto'}
                     </p>
-                    <p className="text-[11px] text-muted-foreground">
+                    <p className="text-[10px] leading-snug text-muted-foreground">
                       {esLista
                         ? 'Cada elemento de la lista tendrá estas propiedades y validaciones.'
                         : 'Define las propiedades, su tipo y cuáles son obligatorias.'}
                     </p>
                   </div>
-                  <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <label className="flex items-center gap-2 text-[11px] text-muted-foreground">
                     <Checkbox
                       checked={clavesAdicionales}
                       onCheckedChange={(marcado) => setClavesAdicionales(marcado === true)}
@@ -937,18 +942,20 @@ export function VariableEditorDialog({
                   </label>
                 </div>
 
-                <FieldSchemaBuilder
-                  campos={campos}
-                  onChange={setCampos}
-                  disabled={guardando}
-                  titulo={esLista ? 'Campos de cada elemento' : 'Propiedades'}
-                />
+                <div className="max-h-[min(20rem,34dvh)] overflow-y-auto overscroll-contain pr-1">
+                  <FieldSchemaBuilder
+                    campos={campos}
+                    onChange={setCampos}
+                    disabled={guardando}
+                    titulo={esLista ? 'Campos de cada elemento' : 'Propiedades'}
+                  />
+                </div>
 
                 <details className="rounded-md border border-border bg-background/70 p-2">
-                  <summary className="cursor-pointer text-xs font-medium text-muted-foreground">
+                  <summary className="cursor-pointer text-[11px] font-medium text-muted-foreground">
                     Ver JSON Schema generado
                   </summary>
-                  <pre className="mt-2 max-h-56 overflow-auto whitespace-pre-wrap font-mono text-[11px] text-foreground">
+                  <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap font-mono text-[10px] text-foreground">
                     {jsonATexto(esquemaActual)}
                   </pre>
                 </details>
@@ -956,7 +963,7 @@ export function VariableEditorDialog({
                 {erroresConstructor.length > 0 && intentoPaso2 && (
                   <ul className="space-y-1">
                     {erroresConstructor.slice(0, 4).map((error) => (
-                      <li key={error} className="text-xs text-destructive">
+                      <li key={error} className="text-[11px] text-destructive">
                         • {error}
                       </li>
                     ))}
@@ -966,14 +973,14 @@ export function VariableEditorDialog({
                 {intentoPaso2 &&
                   erroresPaso2.esquema &&
                   erroresConstructor.length === 0 && (
-                    <p className="text-xs text-destructive">{erroresPaso2.esquema}</p>
+                    <p className="text-[11px] text-destructive">{erroresPaso2.esquema}</p>
                   )}
               </div>
             )}
 
             {esLista && tipoActual !== 'objeto' && tipoActual !== 'seleccion' && (
-              <div className="flex items-start gap-2 rounded-xl border border-teal-200 bg-teal-50/50 p-3 text-xs text-teal-800">
-                <List className="mt-0.5 h-4 w-4 shrink-0" />
+              <div className="flex items-center gap-2 rounded-lg border border-teal-200 bg-teal-50/60 px-2.5 py-1.5 text-[11px] leading-snug text-teal-800 md:col-span-2">
+                <List className="h-3.5 w-3.5 shrink-0" />
                 <p>
                   Este valor se guardará como una lista de <strong>{etiquetaTipo(tipoActual)}</strong>.
                   Podrás agregar, quitar y validar cada elemento por separado en el paso 3.
@@ -985,11 +992,11 @@ export function VariableEditorDialog({
 
         {/* Paso 3: valor */}
         {paso === 3 && (
-          <section className="space-y-4">
+          <section className="flex min-h-0 flex-1 flex-col gap-[var(--ve-gap-sm)]">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
-                <h3 className="text-base font-semibold">Valor y validaciones</h3>
-                <p className="text-sm text-muted-foreground">
+                <h3 className="text-sm font-semibold">Valor y validaciones</h3>
+                <p className="text-[11px] leading-snug text-muted-foreground">
                   Captura un valor de tipo{' '}
                   <strong>
                     {esLista
@@ -1000,13 +1007,13 @@ export function VariableEditorDialog({
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                <Badge variant="outline" className="font-mono text-[11px]">
+                <Badge variant="outline" className="font-mono text-[10px]">
                   {claveEfectiva}
                 </Badge>
                 {metaTipoSeleccionado && (
                   <Badge
                     variant="secondary"
-                    className={cn('gap-1 text-[11px]', tonoTipoSeleccionado?.chip)}
+                    className={cn('gap-1 text-[10px]', tonoTipoSeleccionado?.chip)}
                   >
                     {IconoTipoSeleccionado && <IconoTipoSeleccionado size={12} isAnimated />}
                     {esLista ? 'Lista de ' : ''}
@@ -1017,20 +1024,20 @@ export function VariableEditorDialog({
             </div>
 
             {metaTipoSeleccionado && (
-              <div className="flex flex-wrap items-start gap-3 rounded-xl border border-border bg-muted/20 p-3">
+              <div className="flex flex-wrap items-start gap-2.5 rounded-lg border border-border bg-muted/20 p-2">
                 {IconoTipoSeleccionado && (
                   <span
                     className={cn(
-                      'flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border',
+                      'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border',
                       tonoTipoSeleccionado?.icono,
                     )}
                   >
-                    <IconoTipoSeleccionado size={22} isAnimated />
+                    <IconoTipoSeleccionado size={18} isAnimated />
                   </span>
                 )}
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium">{metaTipoSeleccionado.explicacion}</p>
-                  <p className="mt-0.5 text-[11px] text-muted-foreground">
+                  <p className="text-xs font-medium">{metaTipoSeleccionado.explicacion}</p>
+                  <p className="mt-0.5 text-[10px] leading-snug text-muted-foreground">
                     Editor: <strong>{metaTipoSeleccionado.editor}</strong>. Ejemplo:{' '}
                     <code className="rounded bg-background px-1 py-0.5">
                       {metaTipoSeleccionado.ejemplo}
@@ -1040,8 +1047,8 @@ export function VariableEditorDialog({
               </div>
             )}
 
-            <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
-              <div className="space-y-3">
+            <div className="grid min-h-0 flex-1 gap-3 lg:grid-cols-[minmax(0,1fr)_340px] lg:grid-rows-[minmax(0,1fr)]">
+              <div className="flex min-h-0 flex-col gap-2 overflow-y-auto overscroll-contain pr-1">
                 <DynamicValueEditor
                   tipo={tipoParaValor}
                   esquema={esquemaActual}
@@ -1053,8 +1060,8 @@ export function VariableEditorDialog({
                 />
 
                 {erroresValor.length > 0 && (
-                  <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-3">
-                    <p className="mb-1 flex items-center gap-1.5 text-xs font-medium text-destructive">
+                  <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-2.5">
+                    <p className="mb-1 flex items-center gap-1.5 text-[11px] font-medium text-destructive">
                       <AlertCircle className="h-3.5 w-3.5" />
                       Revisa el valor
                     </p>
@@ -1068,17 +1075,17 @@ export function VariableEditorDialog({
                   </div>
                 )}
 
-                <p className="text-[11px] text-muted-foreground">
+                <p className="text-[10px] leading-snug text-muted-foreground">
                   Los cambios quedan en el historial y pueden restaurarse a una versión anterior.
                 </p>
               </div>
 
-              <div className="space-y-2">
+              <div className="flex min-h-0 flex-col gap-1.5">
                 <div className="flex items-center justify-between">
-                  <Label className="text-xs">Vista previa JSON</Label>
+                  <Label className="text-[11px]">Vista previa JSON</Label>
                   <span className="text-[10px] text-muted-foreground">campo «valor»</span>
                 </div>
-                <pre className="max-h-[360px] min-h-[140px] overflow-auto rounded-lg border border-border bg-muted/30 p-3 font-mono text-[11px] leading-relaxed">
+                <pre className="min-h-[clamp(4.5rem,12dvh,10rem)] flex-1 overflow-auto rounded-lg border border-border bg-muted/30 p-2.5 font-mono text-[11px] leading-relaxed">
                   {valorParaGuardar === undefined
                     ? '// JSON inválido: corrige el editor'
                     : jsonATexto(valorParaGuardar) || '—'}
