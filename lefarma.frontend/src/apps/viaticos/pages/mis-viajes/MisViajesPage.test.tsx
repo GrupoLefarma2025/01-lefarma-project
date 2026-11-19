@@ -508,9 +508,52 @@ const propuestaDeRuta = (): PropuestaRuta => ({
 });
 
 describe('VistaDetalle en revisión', () => {
-  it('arranca en la ruta autorizada con la ruta original y permite recalcular', async () => {
-    const usuario = userEvent.setup();
-    const onRecalcular = vi.fn();
+  it('arranca comparando el viaje inicial con la ruta calculada', () => {
+    const datos = datosRevision({
+      calculo: calculoDe('Ruta original del viajero', 'Destino original'),
+    });
+
+    render(<VistaDetalle solicitud={solicitud(1, { datos, estado: 'enviada' })} modoRevision />);
+
+    const tab = screen.getByRole('tab', { name: 'Inicial vs calculada' });
+    expect(tab).toHaveAttribute('aria-selected', 'true');
+
+    // Lado izquierdo: lo que pidió el solicitante en el wizard.
+    const inicial = screen.getByTestId('comparacion-viaje-inicial');
+    expect(inicial).toHaveTextContent('Ciudad de México');
+    expect(inicial).toHaveTextContent('Aguascalientes');
+
+    // Lado derecho: la ruta calculada, con su diagrama.
+    const calculada = screen.getByTestId('comparacion-ruta-calculada');
+    expect(calculada).toHaveTextContent('Destino original');
+    expect(within(calculada).getByText('Ruta calculada')).toBeInTheDocument();
+    // Sin recálculo no hay propuesta: es la ruta calculada del viaje.
+    expect(screen.queryByTestId('badge-propuesta')).not.toBeInTheDocument();
+  });
+
+  it('en la comparación muestra la propuesta del revisor con su badge', () => {
+    const datos = datosRevision({
+      calculo: calculoDe('Ruta original del viajero', 'Destino original'),
+    });
+
+    render(
+      <VistaDetalle
+        solicitud={solicitud(1, { datos, estado: 'enviada' })}
+        modoRevision
+        propuesta={propuestaDeRuta()}
+      />,
+    );
+
+    const calculada = screen.getByTestId('comparacion-ruta-calculada');
+    expect(within(calculada).getByText('Ruta propuesta')).toBeInTheDocument();
+    expect(within(calculada).getByTestId('badge-propuesta')).toHaveTextContent('Propuesta en revisión');
+    expect(calculada).toHaveTextContent('Destino propuesto');
+    expect(
+      within(screen.getByTestId('comparacion-viaje-inicial')).queryByText('Destino propuesto'),
+    ).not.toBeInTheDocument();
+  });
+
+  it('mantiene la ruta autorizada en su pestaña cuando se pide explícitamente', () => {
     const datos = datosRevision({
       calculo: calculoDe('Ruta original del viajero', 'Destino original'),
     });
@@ -520,7 +563,6 @@ describe('VistaDetalle en revisión', () => {
         solicitud={solicitud(1, { datos, estado: 'enviada' })}
         modoRevision
         pestanaInicial="autorizada"
-        onRecalcular={onRecalcular}
       />,
     );
 
@@ -531,9 +573,6 @@ describe('VistaDetalle en revisión', () => {
     expect(diagrama).toHaveTextContent('Destino original');
     // Sin recálculo no hay propuesta: es la ruta original del viajero.
     expect(screen.queryByTestId('badge-propuesta')).not.toBeInTheDocument();
-
-    await usuario.click(screen.getByRole('button', { name: 'Recalcular ruta' }));
-    expect(onRecalcular).toHaveBeenCalledTimes(1);
   });
 
   it('muestra la propuesta sin autorizar con su badge, nodos con costo y enlace', () => {

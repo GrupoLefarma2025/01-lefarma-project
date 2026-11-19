@@ -40,6 +40,7 @@ public class ConfiguracionController : ControllerBase
         [FromQuery] string? tipo,
         [FromQuery] string? destino,
         [FromQuery] bool? activo,
+        [FromQuery] long? idModulo,
         CancellationToken ct)
     {
         var filtros = new ConfiguracionFiltros
@@ -47,7 +48,8 @@ public class ConfiguracionController : ControllerBase
             Buscar = buscar,
             Tipo = tipo,
             Destino = destino,
-            Activo = activo
+            Activo = activo,
+            IdModulo = idModulo
         };
 
         var result = await _service.ListarAsync(filtros, ct);

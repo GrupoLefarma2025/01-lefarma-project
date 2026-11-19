@@ -338,6 +338,8 @@ builder.Services.AddMemoryCache();
 // Configuración (variables globales): CRUD + bitácora, caché de runtime e integraciones.
 builder.Services.AddScoped<Lefarma.API.Features.Configuracion.IConfiguracionService,
                            Lefarma.API.Features.Configuracion.ConfiguracionService>();
+builder.Services.AddScoped<Lefarma.API.Features.Configuracion.IConfiguracionModulosService,
+                           Lefarma.API.Features.Configuracion.ConfiguracionModulosService>();
 builder.Services.AddScoped<Lefarma.API.Features.Configuracion.IConfiguracionRuntimeService,
                            Lefarma.API.Features.Configuracion.ConfiguracionRuntimeService>();
 builder.Services.AddScoped<Lefarma.API.Features.Configuracion.IConfiguracionIntegracionesService,

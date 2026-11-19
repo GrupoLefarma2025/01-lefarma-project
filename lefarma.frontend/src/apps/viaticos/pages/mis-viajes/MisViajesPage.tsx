@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Camera, Clock, ExternalLink, Eye, MoreHorizontal, Pencil, RefreshCw, Route, Search, Send, Ticket, Trash2 } from 'lucide-react';
+import { Camera, Clock, ExternalLink, Eye, MoreHorizontal, Pencil, Route, Search, Send, Ticket, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -441,7 +441,7 @@ function leerCostosCalculo(datos: unknown, clave: 'calculo' | 'calculo_autorizad
 }
 
 /** Opciones de la propuesta como opciones de solicitud, con id sintético negativo. */
-function opcionesDePropuesta(opciones: OpcionCotizacion[]): SolicitudOpcion[] {
+export function opcionesDePropuesta(opciones: OpcionCotizacion[]): SolicitudOpcion[] {
   return opciones.map((opcion, indice) => ({
     id_opcion: -(indice + 1),
     tipo: opcion.tipo,
@@ -612,9 +612,10 @@ function mapaDeInicial(resumen: NonNullable<ReturnType<typeof resumenDesdeDatos>
 }
 
 /**
- * Detalle del viaje: la ruta calculada (la que manda tras el envío) y, en
- * otra pestaña, la propuesta original del wizard. La tercera pestaña muestra
- * la versión autorizada o la propuesta que el revisor está evaluando.
+ * Detalle del viaje. En revisión arranca con la comparación «inicial vs
+ * calculada» (lo que pidió el solicitante frente a la ruta calculada o a la
+ * propuesta que el revisor está evaluando); después vienen la ruta calculada,
+ * el viaje inicial y la versión autorizada.
  */
 export function VistaDetalle({
   solicitud,
@@ -622,26 +623,24 @@ export function VistaDetalle({
   modoRevision = false,
   pestanaInicial,
   propuesta = null,
-  onRecalcular,
 }: {
   solicitud: Solicitud;
   /**
-   * Acciones del revisor dentro del detalle (autorizar la ruta elegida o
-   * generar una nueva). Mis viajes no las pasa: la persona viajera solo
+   * Acciones del revisor dentro del detalle (recalcular el viaje, editar
+   * costos, autorizar). Mis viajes no las pasa: la persona viajera solo
    * consulta.
    */
   acciones?: ReactNode;
   /**
-   * Vista de revisión (concentrado): habilita «Ruta autorizada» desde el
-   * inicio usando la ruta original como propuesta mientras no haya recálculo.
+   * Vista de revisión (autorizaciones): agrega la pestaña «Inicial vs
+   * calculada» y habilita «Ruta autorizada» desde el inicio usando la ruta
+   * original como propuesta mientras no haya recálculo.
    */
   modoRevision?: boolean;
-  /** Pestaña activa al abrir; por defecto la ruta calculada. */
-  pestanaInicial?: 'calculada' | 'inicial' | 'autorizada';
+  /** Pestaña activa al abrir; en revisión arranca en la comparación. */
+  pestanaInicial?: 'comparar' | 'calculada' | 'inicial' | 'autorizada';
   /** Versión recalculada que el revisor evalúa antes de autorizar. */
   propuesta?: PropuestaRuta | null;
-  /** Vuelve a calcular la ruta desde la revisión. */
-  onRecalcular?: () => void;
 }) {
   const resumen = resumenDesdeDatos(solicitud.datos);
   const calculo = leerCalculoDesdeDatos(solicitud.datos);
@@ -692,15 +691,21 @@ export function VistaDetalle({
     opcionesOriginales.length > 0 &&
     (propuesta !== null || snapshotOriginal !== null || modoRevision);
 
-  const [mapaAbierto, setMapaAbierto] = useState<'calculada' | 'inicial' | 'autorizada' | null>(null);
+  const [mapaAbierto, setMapaAbierto] = useState<
+    'calculada' | 'inicial' | 'autorizada' | 'comparada' | null
+  >(null);
   const [boletoAbierto, setBoletoAbierto] = useState(false);
   const mapaCalculado = mapaDeCalculo(calculo);
   const mapaAutorizado = mapaDeCalculo(versionAutorizada?.calculo ?? null);
   const mapaInicial = resumen ? mapaDeInicial(resumen) : { puntos: [], segmentos: [] };
+  // En revisión la primera pestaña es la comparación: el revisor ya vio los
+  // cálculos en Mis viajes y lo que necesita es decidir si la ruta sirve.
+  const tabPreferida = pestanaInicial ?? (modoRevision ? 'comparar' : 'calculada');
   const tabInicial =
-    pestanaInicial === undefined || (pestanaInicial === 'autorizada' && versionAutorizada === null)
+    (tabPreferida === 'autorizada' && versionAutorizada === null) ||
+    (tabPreferida === 'comparar' && !modoRevision)
       ? 'calculada'
-      : pestanaInicial;
+      : tabPreferida;
   const barraAcciones = acciones ? (
     <div
       data-testid="acciones-detalle"
@@ -758,6 +763,11 @@ export function VistaDetalle({
     <Tabs defaultValue={tabInicial} className="space-y-4">
       {barraAcciones}
       <TabsList className="h-auto w-full justify-start gap-1 overflow-x-auto rounded-none border-b bg-transparent p-0 text-muted-foreground">
+        {modoRevision ? (
+          <TabsTrigger value="comparar" className={folderTabTriggerClassName}>
+            Inicial vs calculada
+          </TabsTrigger>
+        ) : null}
         <TabsTrigger value="calculada" className={folderTabTriggerClassName}>
           Ruta calculada
         </TabsTrigger>
@@ -768,6 +778,115 @@ export function VistaDetalle({
           Ruta autorizada
         </TabsTrigger>
       </TabsList>
+      {modoRevision ? (
+        <TabsContent value="comparar" className="space-y-4">
+          {versionAutorizada && resumen ? (
+            <>
+              <p className="text-sm text-muted-foreground">
+                {versionAutorizada.esPropuesta
+                  ? 'Compara lo que pidió el solicitante con la ruta propuesta. Si no te sirve, recalcula el viaje o edita los costos antes de autorizar.'
+                  : 'Compara lo que pidió el solicitante con la ruta que se calculó para el viaje.'}
+              </p>
+              <div className="grid gap-6 lg:grid-cols-2 lg:gap-0 lg:divide-x lg:divide-border">
+                <div data-testid="comparacion-viaje-inicial" className="min-w-0 space-y-3 lg:pr-6">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div>
+                      <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                        Lo que pidió el solicitante
+                      </p>
+                      <h3 className="text-base font-semibold">Viaje inicial</h3>
+                    </div>
+                    {mapaInicial.puntos.length > 0 ? (
+                      <BotonVerMapa onClick={() => setMapaAbierto('inicial')} />
+                    ) : null}
+                  </div>
+                  <ResumenViaje {...resumen} />
+                </div>
+
+                <div data-testid="comparacion-ruta-calculada" className="min-w-0 space-y-3 lg:pl-6">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div>
+                      <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                        {versionAutorizada.esPropuesta
+                          ? 'La ruta que vas a autorizar'
+                          : 'Cómo se calculó el viaje'}
+                      </p>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="text-base font-semibold">
+                          {versionAutorizada.esPropuesta ? 'Ruta propuesta' : 'Ruta calculada'}
+                        </h3>
+                        {versionAutorizada.esPropuesta ? (
+                          <Badge
+                            data-testid="badge-propuesta"
+                            variant="outline"
+                            className="border-primary/40 bg-primary/10 font-normal text-primary"
+                          >
+                            Propuesta en revisión
+                          </Badge>
+                        ) : null}
+                      </div>
+                    </div>
+                    {mapaAutorizado.puntos.length > 0 ? (
+                      <BotonVerMapa onClick={() => setMapaAbierto('comparada')} />
+                    ) : null}
+                  </div>
+
+                  <div className="rounded-lg border bg-card p-4">
+                    <div className="mb-3 flex flex-wrap gap-1.5">
+                      {versionAutorizada.calculo.km_total != null ? (
+                        <Badge variant="outline" className="gap-1 font-normal">
+                          <Route className="h-3 w-3" aria-hidden />
+                          {versionAutorizada.calculo.km_total.toLocaleString('es-MX', {
+                            maximumFractionDigits: 1,
+                          })}{' '}
+                          km
+                        </Badge>
+                      ) : null}
+                      {versionAutorizada.calculo.horas_total ? (
+                        <Badge variant="outline" className="gap-1 font-normal">
+                          <Clock className="h-3 w-3" aria-hidden />
+                          {versionAutorizada.calculo.horas_total} con margen
+                        </Badge>
+                      ) : null}
+                      <ModoTransporteBadge
+                        modo={
+                          versionAutorizada.calculo.modo_transporte === 'propio' ? 'propio' : 'solicitado'
+                        }
+                      />
+                    </div>
+                    <RutaViajeTimeline
+                      nodos={nodosDesdeCalculo(
+                        versionAutorizada.calculo,
+                        versionAutorizada.opciones,
+                        costosAutorizados,
+                      )}
+                    />
+                  </div>
+
+                  {versionAutorizada.opciones.length > 0 ? (
+                    <div data-testid="opciones-comparacion">
+                      <DetalleOpciones solicitud={solicitud} opcionesVista={versionAutorizada.opciones} />
+                    </div>
+                  ) : null}
+                  <CasetasRuta calculo={versionAutorizada.calculo} />
+                </div>
+              </div>
+              {mostrarComparador ? (
+                <ComparadorRutas
+                  opcionesOriginales={opcionesOriginales}
+                  opcionesPropuestas={versionAutorizada.opciones}
+                  totalOriginal={totalDeOpcionesElegidas(opcionesOriginales).suma}
+                  totalPropuesto={totalDeOpcionesElegidas(versionAutorizada.opciones).suma}
+                />
+              ) : null}
+            </>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              El viaje no tiene una ruta calculada con la que comparar; aquí está lo que pidió el solicitante.
+            </p>
+          )}
+        </TabsContent>
+      ) : null}
       <TabsContent value="calculada" className="space-y-4">
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
           <div data-testid="diagrama-ruta-calculada" className="rounded-lg border bg-card p-4">
@@ -829,19 +948,6 @@ export function VistaDetalle({
                     {mapaAutorizado.puntos.length > 0 ? (
                       <BotonVerMapa onClick={() => setMapaAbierto('autorizada')} />
                     ) : null}
-                    {onRecalcular ? (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="h-7 gap-1.5 px-2 text-xs"
-                        aria-label="Recalcular ruta"
-                        onClick={onRecalcular}
-                      >
-                        <RefreshCw className="h-3.5 w-3.5" aria-hidden />
-                        Recalcular ruta
-                      </Button>
-                    ) : null}
                   </div>
                 </div>
                 <RutaViajeTimeline
@@ -898,6 +1004,18 @@ export function VistaDetalle({
         onOpenChange={(abierto) => setMapaAbierto(abierto ? 'autorizada' : null)}
         titulo="Ruta autorizada"
         descripcion="La versión que autorizó el concentrado, con terminales, hotel y taxis."
+        puntos={mapaAutorizado.puntos}
+        segmentos={mapaAutorizado.segmentos}
+      />
+      <RutaMapaDialog
+        abierto={mapaAbierto === 'comparada'}
+        onOpenChange={(abierto) => setMapaAbierto(abierto ? 'comparada' : null)}
+        titulo={versionAutorizada?.esPropuesta ? 'Ruta propuesta' : 'Ruta calculada'}
+        descripcion={
+          versionAutorizada?.esPropuesta
+            ? 'La ruta que estás evaluando, con terminales, hotel y taxis.'
+            : 'La ruta calculada del viaje, con terminales, hotel y taxis.'
+        }
         puntos={mapaAutorizado.puntos}
         segmentos={mapaAutorizado.segmentos}
       />

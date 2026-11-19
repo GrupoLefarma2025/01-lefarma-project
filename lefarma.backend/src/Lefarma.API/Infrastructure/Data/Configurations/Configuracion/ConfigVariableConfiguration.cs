@@ -37,8 +37,19 @@ public class ConfigVariableConfiguration : IEntityTypeConfiguration<ConfigVariab
 
         // row_version (ROWVERSION) lo administra SQL Server y no se mapea en EF.
 
+        builder.Property(v => v.IdModulo).HasColumnName("id_modulo");
+
+        builder.HasOne(v => v.Modulo)
+            .WithMany()
+            .HasForeignKey(v => v.IdModulo)
+            .HasConstraintName("FK_config_variables_modulos")
+            .OnDelete(DeleteBehavior.Restrict);
+
         builder.HasIndex(v => v.Clave)
             .IsUnique()
             .HasDatabaseName("UQ_config_variables_clave");
+
+        builder.HasIndex(v => new { v.IdModulo, v.Clave })
+            .HasDatabaseName("IX_config_variables_id_modulo");
     }
 }

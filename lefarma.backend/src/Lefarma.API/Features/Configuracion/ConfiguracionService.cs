@@ -1,5 +1,6 @@
 using System.Text.Encodings.Web;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using ErrorOr;
 using Lefarma.API.Domain.Entities.Configuracion;
 using Lefarma.API.Features.Auth;
@@ -22,6 +23,11 @@ public sealed class ConfiguracionService : IConfiguracionService
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
     };
+
+    /// <summary>Clave con módulo: modulo.namespace.clave (cada segmento inicia con minúscula).</summary>
+    private static readonly Regex ClaveConModuloRegex = new(
+        @"^[a-z][a-zA-Z0-9]*(\.[a-z][a-zA-Z0-9]*){2}$",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
     private readonly ApplicationDbContext _context;
     private readonly IConfiguracionRuntimeService _runtime;
@@ -98,6 +104,11 @@ public sealed class ConfiguracionService : IConfiguracionService
             query = query.Where(v => v.Activo == filtros.Activo.Value);
         }
 
+        if (filtros.IdModulo.HasValue)
+        {
+            query = query.Where(v => v.IdModulo == filtros.IdModulo.Value);
+        }
+
         var entidades = await query.OrderBy(v => v.Clave).ToListAsync(ct);
         return entidades.Select(Mapear).ToList();
     }
@@ -150,6 +161,43 @@ public sealed class ConfiguracionService : IConfiguracionService
         if (clave.Length > 200)
         {
             return CommonErrors.Validation("clave", "La clave no puede exceder 200 caracteres.");
+        }
+
+        if (request.IdModulo is null or <= 0)
+        {
+            return CommonErrors.Validation(
+                "idModulo",
+                "Selecciona el módulo al que pertenece la variable.");
+        }
+
+        var modulo = await _context.ConfigModulos
+            .AsNoTracking()
+            .FirstOrDefaultAsync(m => m.IdModulo == request.IdModulo.Value, ct);
+
+        if (modulo is null)
+        {
+            return CommonErrors.NotFound("ConfigModulo", request.IdModulo.Value.ToString());
+        }
+
+        if (!modulo.Activo)
+        {
+            return CommonErrors.Validation(
+                "idModulo",
+                "El módulo seleccionado está inactivo; reactívalo o elige otro.");
+        }
+
+        if (!ClaveConModuloRegex.IsMatch(clave))
+        {
+            return CommonErrors.Validation(
+                "clave",
+                "La clave debe tener el formato modulo.namespace.clave en minúsculas (ej. viaticos.catalogo.diasLimite).");
+        }
+
+        if (!clave.StartsWith($"{modulo.Clave}.", StringComparison.Ordinal))
+        {
+            return CommonErrors.Validation(
+                "clave",
+                $"La clave debe iniciar con «{modulo.Clave}.», la clave del módulo seleccionado.");
         }
 
         if (string.IsNullOrWhiteSpace(nombre))
@@ -211,6 +259,7 @@ public sealed class ConfiguracionService : IConfiguracionService
             DisponibleSql = request.DisponibleSql,
             DisponibleIntegraciones = request.DisponibleIntegraciones,
             Activo = true,
+            IdModulo = modulo.IdModulo,
             FechaCreacion = ahora,
             FechaModificacion = ahora,
             IdUsuarioCreacion = idUsuario,
@@ -955,6 +1004,7 @@ public sealed class ConfiguracionService : IConfiguracionService
             FechaCreacion = variable.FechaCreacion,
             FechaModificacion = variable.FechaModificacion,
             IdUsuarioCreacion = variable.IdUsuarioCreacion,
-            IdUsuarioModificacion = variable.IdUsuarioModificacion
+            IdUsuarioModificacion = variable.IdUsuarioModificacion,
+            IdModulo = variable.IdModulo
         };
 }

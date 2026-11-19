@@ -10,15 +10,18 @@ import type { AxiosResponse } from 'axios';
 import apiClient from '@/shared/api/apiClient';
 import type { ApiError, ApiResponse } from '@/types/api.types';
 import type {
+  ActualizarModuloPayload,
   ActualizarVariablePayload,
   BitacoraDetalle,
   BitacoraVariable,
   CambioEstadoPayload,
   CrearIntegracionPayload,
+  CrearModuloPayload,
   CrearVariablePayload,
   FiltrosVariables,
   IntegracionCliente,
   IntegracionCreada,
+  ModuloConfig,
   RestaurarVariablePayload,
   VariableConfiguracion,
 } from '../types';
@@ -206,4 +209,72 @@ export async function revocarIntegracion(
     { signal, timeout: TIMEOUT_MS },
   );
   return desenvuelve(respuesta) ?? null;
+}
+
+/* ------------------------------------------------------------------ */
+/* Módulos                                                             */
+/* ------------------------------------------------------------------ */
+
+export async function listarModulos(
+  activo?: boolean,
+  signal?: AbortSignal,
+): Promise<ModuloConfig[]> {
+  const params: Record<string, string> = {};
+  if (activo === true) params.activo = 'true';
+  if (activo === false) params.activo = 'false';
+
+  const respuesta = await apiClient.get<ApiResponse<ModuloConfig[]>>(`${BASE}/modulos`, {
+    params,
+    signal,
+    timeout: TIMEOUT_MS,
+  });
+  return desenvuelve(respuesta) ?? [];
+}
+
+export async function crearModulo(
+  payload: CrearModuloPayload,
+  signal?: AbortSignal,
+): Promise<ModuloConfig> {
+  const respuesta = await apiClient.post<ApiResponse<ModuloConfig>>(`${BASE}/modulos`, payload, {
+    signal,
+    timeout: TIMEOUT_MS,
+  });
+  return desenvuelve(respuesta);
+}
+
+export async function actualizarModulo(
+  id: number,
+  payload: ActualizarModuloPayload,
+  signal?: AbortSignal,
+): Promise<ModuloConfig> {
+  const respuesta = await apiClient.put<ApiResponse<ModuloConfig>>(
+    `${BASE}/modulos/${id}`,
+    payload,
+    { signal, timeout: TIMEOUT_MS },
+  );
+  return desenvuelve(respuesta);
+}
+
+export async function desactivarModulo(
+  id: number,
+  signal?: AbortSignal,
+): Promise<ModuloConfig> {
+  const respuesta = await apiClient.post<ApiResponse<ModuloConfig>>(
+    `${BASE}/modulos/${id}/desactivar`,
+    {},
+    { signal, timeout: TIMEOUT_MS },
+  );
+  return desenvuelve(respuesta);
+}
+
+export async function reactivarModulo(
+  id: number,
+  signal?: AbortSignal,
+): Promise<ModuloConfig> {
+  const respuesta = await apiClient.post<ApiResponse<ModuloConfig>>(
+    `${BASE}/modulos/${id}/reactivar`,
+    {},
+    { signal, timeout: TIMEOUT_MS },
+  );
+  return desenvuelve(respuesta);
 }

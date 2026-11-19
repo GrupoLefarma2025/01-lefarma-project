@@ -260,6 +260,21 @@ export interface VariableConfiguracion {
   version: number;
   fechaCreacion: string;
   fechaModificacion: string;
+  /** Módulo dueño de la variable (prefijo de la clave). */
+  idModulo: number | null;
+}
+
+/** Módulo de configuración: agrupa variables y define el prefijo de su clave. */
+export interface ModuloConfig {
+  idModulo: number;
+  clave: string;
+  nombre: string;
+  descripcion: string | null;
+  orden: number;
+  activo: boolean;
+  totalVariables: number;
+  fechaCreacion: string;
+  fechaModificacion: string;
 }
 
 /**
@@ -319,7 +334,21 @@ export interface CrearVariablePayload {
   disponibleFrontend: boolean;
   disponibleSql: boolean;
   disponibleIntegraciones: boolean;
+  idModulo: number;
   idOperacion: string;
+}
+
+export interface CrearModuloPayload {
+  clave: string;
+  nombre: string;
+  descripcion: string | null;
+  orden: number;
+}
+
+export interface ActualizarModuloPayload {
+  nombre: string;
+  descripcion: string | null;
+  orden: number;
 }
 
 export interface ActualizarVariablePayload {

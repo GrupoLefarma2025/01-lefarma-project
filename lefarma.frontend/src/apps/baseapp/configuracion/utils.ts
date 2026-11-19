@@ -22,6 +22,8 @@ import {
 /* ------------------------------------------------------------------ */
 
 export const CLAVE_REGEX = /^[a-z][a-zA-Z0-9]*(\.[a-z][a-zA-Z0-9]*)+$/;
+/** Clave de una variable con módulo: `modulo.namespace.clave` (3 segmentos). */
+export const CLAVE_MODULO_REGEX = /^[a-z][a-zA-Z0-9]*(\.[a-z][a-zA-Z0-9]*){2}$/;
 export const NOMBRE_CAMPO_REGEX = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 export function sinAcentos(texto: string): string {
@@ -59,12 +61,31 @@ export function construirClave(namespace: string, nombre: string): string {
 }
 
 /**
- * Namespace de una clave: la parte anterior al primer punto.
+ * Segmentos de una clave separados por punto.
+ * `viaticos.catalogo.diasLimite` → `['viaticos','catalogo','diasLimite']`.
+ */
+export function segmentosDeClave(clave: string): string[] {
+  return clave.split('.').filter(Boolean);
+}
+
+/**
+ * Módulo de una clave: el primer segmento cuando la clave tiene tres partes.
+ * `viaticos.catalogo.diasLimite` → `viaticos`. En claves de dos segmentos no hay módulo.
+ */
+export function moduloDeClave(clave: string): string | null {
+  const partes = segmentosDeClave(clave);
+  return partes.length >= 3 ? partes[0] : null;
+}
+
+/**
+ * Namespace de una clave: el segundo segmento cuando la clave incluye módulo
+ * (`viaticos.catalogo.diasLimite` → `catalogo`); si no, la parte anterior al primer punto.
  * `pruebas.entero` → `pruebas`. Si no hay punto, devuelve la clave completa.
  */
 export function namespaceDeClave(clave: string): string {
-  const punto = clave.indexOf('.');
-  return punto > 0 ? clave.slice(0, punto) : clave;
+  const partes = segmentosDeClave(clave);
+  if (partes.length >= 3) return partes[1];
+  return partes[0] ?? clave;
 }
 
 /** Namespaces únicos de un listado de variables, ordenados alfabéticamente. */
@@ -76,9 +97,18 @@ export function namespacesDeVariables(
   );
 }
 
-export function validarClave(clave: string): string | null {
+export function validarClave(
+  clave: string,
+  opciones?: { requiereModulo?: boolean },
+): string | null {
   if (!clave.trim()) return 'La clave es obligatoria.';
   if (clave.trim().length > 200) return 'La clave no puede exceder 200 caracteres.';
+  if (opciones?.requiereModulo) {
+    if (!CLAVE_MODULO_REGEX.test(clave.trim())) {
+      return 'Usa el formato módulo.namespace.clave en minúsculas (ej. viaticos.catalogo.diasLimite).';
+    }
+    return null;
+  }
   if (!CLAVE_REGEX.test(clave.trim())) {
     return 'Usa al menos namespace.clave en minúsculas (ej. viaticos.diasLimite).';
   }

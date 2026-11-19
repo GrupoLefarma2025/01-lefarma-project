@@ -62,6 +62,7 @@ public class ApplicationDbContext : DbContext
         public DbSet<ConfigVariable> ConfigVariables { get; set; }
         public DbSet<ConfigVariableBitacora> ConfigVariablesBitacora { get; set; }
         public DbSet<ConfigIntegracion> ConfigIntegraciones { get; set; }
+        public DbSet<ConfigModulo> ConfigModulos { get; set; }
 
         // DbSets - Operaciones
         public DbSet<OrdenCompra> OrdenesCompra { get; set; }

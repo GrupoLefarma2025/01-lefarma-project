@@ -45,6 +45,11 @@ public class ConfigVariable
     /// <summary>Versión para control de concurrencia optimista (arranca en 1).</summary>
     public long Version { get; set; }
 
+    /// <summary>Módulo dueño de la variable (prefijo de la clave). Null en datos previos a módulos.</summary>
+    public long? IdModulo { get; set; }
+
+    public ConfigModulo? Modulo { get; set; }
+
     // NOTA: la columna row_version (ROWVERSION de SQL Server) existe en la tabla pero
     // no se mapea en EF: el control de concurrencia optimista del módulo usa Version.
 

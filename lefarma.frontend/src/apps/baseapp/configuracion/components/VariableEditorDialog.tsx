@@ -19,6 +19,13 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 import {
@@ -30,12 +37,13 @@ import {
   TIPOS_DATO,
   type CampoDestino,
   type JsonSchemaNodo,
+  type ModuloConfig,
   type SchemaField,
   type TipoDatoConfig,
   type VariableConfiguracion,
 } from '../types';
 import {
-  CLAVE_REGEX,
+  CLAVE_MODULO_REGEX,
   aCamelCase,
   clavesAdicionalesDeEsquema,
   construirEsquema,
@@ -52,6 +60,7 @@ import {
   normalizarTipoDato,
   nuevoIdOperacion,
   opcionesDeEsquema,
+  segmentosDeClave,
   tipoEfectivo,
   tipoDatoBackend,
   validarClave,
@@ -71,6 +80,8 @@ import { ICONOS_TIPO, TONOS_TIPO } from './typeVisuals';
 interface VariableEditorDialogProps {
   /** `null` = creación. */
   variable: VariableConfiguracion | null;
+  /** Módulos disponibles; el primero define el prefijo de la clave. */
+  modulos: ModuloConfig[];
   onClose: () => void;
   onSaved: () => void;
   onConflicto: () => void;
@@ -85,6 +96,7 @@ interface EstadoInicial {
   descripcion: string;
   clave: string;
   namespace: string;
+  idModulo: number | null;
   destinos: DestinosEstado;
   campos: SchemaField[];
   opciones: string[];
@@ -116,6 +128,7 @@ function estadoInicial(variable: VariableConfiguracion | null): EstadoInicial {
       descripcion: '',
       clave: '',
       namespace: '',
+      idModulo: null,
       destinos: {
         disponibleBackend: false,
         disponibleFrontend: false,
@@ -159,7 +172,12 @@ function estadoInicial(variable: VariableConfiguracion | null): EstadoInicial {
     tipoBase = 'json';
   }
 
-  const [namespace, ...restoClave] = variable.clave.split('.');
+  // Con tres segmentos (modulo.namespace.clave) el primero es el módulo y el
+  // segundo el namespace; con dos (namespace.clave) se mantiene el formato previo.
+  const partesClave = segmentosDeClave(variable.clave);
+  const tieneModulo = partesClave.length >= 3;
+  const namespace = tieneModulo ? (partesClave[1] ?? '') : (partesClave[0] ?? '');
+  const restoClave = tieneModulo ? partesClave.slice(2) : partesClave.slice(1);
 
   return {
     tipo: tipoBase,
@@ -167,7 +185,8 @@ function estadoInicial(variable: VariableConfiguracion | null): EstadoInicial {
     nombre: variable.nombre,
     descripcion: variable.descripcion ?? '',
     clave: restoClave.join('.'),
-    namespace: namespace ?? '',
+    namespace,
+    idModulo: variable.idModulo ?? null,
     destinos: {
       disponibleBackend: variable.disponibleBackend,
       disponibleFrontend: variable.disponibleFrontend,
@@ -185,6 +204,7 @@ function estadoInicial(variable: VariableConfiguracion | null): EstadoInicial {
 
 export function VariableEditorDialog({
   variable,
+  modulos,
   onClose,
   onSaved,
   onConflicto,
@@ -203,6 +223,7 @@ export function VariableEditorDialog({
   const [descripcion, setDescripcion] = useState(inicial.descripcion);
   const [clave, setClave] = useState(inicial.clave);
   const [namespace, setNamespace] = useState(inicial.namespace);
+  const [idModulo, setIdModulo] = useState<number | null>(inicial.idModulo);
   const [claveTocada, setClaveTocada] = useState(false);
   const [destinos, setDestinos] = useState<DestinosEstado>(inicial.destinos);
 
@@ -232,12 +253,26 @@ export function VariableEditorDialog({
 
   const namespaceLimpio = namespace.trim();
   const claveLimpia = clave.trim();
+
+  const moduloSeleccionado =
+    idModulo != null ? (modulos.find((modulo) => modulo.idModulo === idModulo) ?? null) : null;
+  // Al editar, una variable sin módulo pertenece a «Global».
+  const moduloEfectivo = esEdicion
+    ? (moduloSeleccionado ?? modulos.find((modulo) => modulo.clave === 'global') ?? null)
+    : moduloSeleccionado;
+
   const claveEfectiva =
-    namespaceLimpio && claveLimpia
-      ? `${namespaceLimpio}.${claveLimpia}`
-      : '';
+    esEdicion && variable
+      ? variable.clave
+      : namespaceLimpio && claveLimpia
+        ? moduloSeleccionado
+          ? `${moduloSeleccionado.clave}.${namespaceLimpio}.${claveLimpia}`
+          : `${namespaceLimpio}.${claveLimpia}`
+        : '';
   const errorClave =
-    intentoPaso2 || claveTocada ? validarClave(claveEfectiva) : null;
+    intentoPaso2 || claveTocada
+      ? validarClave(claveEfectiva, { requiereModulo: !esEdicion })
+      : null;
   const tipoParaValor = esLista ? 'lista' : (tipoActual || 'json');
   const metaTipoSeleccionado = tipoActual
     ? TIPOS_DATO.find((tipoDato) => tipoDato.valor === tipoActual)
@@ -291,9 +326,15 @@ export function VariableEditorDialog({
       errores.nombre = 'El nombre es obligatorio.';
     }
 
+    if (!esEdicion && idModulo === null) {
+      errores.modulo = 'Selecciona el módulo al que pertenece la variable.';
+    } else if (!esEdicion && moduloSeleccionado && !moduloSeleccionado.activo) {
+      errores.modulo = 'El módulo seleccionado está inactivo; reactívalo o elige otro.';
+    }
+
     if (!esEdicion) {
-      const errorClave = validarClave(claveEfectiva);
-      if (errorClave) errores.clave = errorClave;
+      const errorDeClave = validarClave(claveEfectiva, { requiereModulo: true });
+      if (errorDeClave) errores.clave = errorDeClave;
     }
 
     if (!DESTINOS.some((destino) => destinos[destino.campo])) {
@@ -398,10 +439,16 @@ export function VariableEditorDialog({
       return;
     }
 
-    if (!esEdicion && !CLAVE_REGEX.test(claveEfectiva.trim())) {
+    if (!esEdicion && idModulo === null) {
+      setPaso(2);
+      toast.error('Selecciona el módulo al que pertenece la variable.');
+      return;
+    }
+
+    if (!esEdicion && !CLAVE_MODULO_REGEX.test(claveEfectiva.trim())) {
       setPaso(2);
       setClaveTocada(true);
-      toast.error('La clave no tiene el formato namespace.clave.');
+      toast.error('La clave debe tener el formato módulo.namespace.clave.');
       return;
     }
 
@@ -443,6 +490,7 @@ export function VariableEditorDialog({
             ...comun,
             clave: claveEfectiva.trim(),
             tipoDato: tipoDatoBackend(tipoGuardar),
+            idModulo: idModulo as number,
             idOperacion,
           },
           controller.signal,
@@ -706,6 +754,72 @@ export function VariableEditorDialog({
               </div>
             )}
 
+            <div className="flex min-w-0 flex-col gap-1 md:col-span-2">
+              <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                <Label className="text-xs">
+                  Módulo <span className="text-destructive">*</span>
+                </Label>
+                <p className="text-[10px] leading-snug text-muted-foreground">
+                  Define el prefijo de la clave: módulo.namespace.clave.
+                </p>
+              </div>
+
+              {esEdicion ? (
+                <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-muted/30 px-2.5 py-1.5">
+                  <Badge variant="secondary" className="font-mono text-[10px]">
+                    {moduloEfectivo?.clave ?? 'global'}
+                  </Badge>
+                  <span className="text-xs font-medium">
+                    {moduloEfectivo?.nombre ?? 'Global'}
+                  </span>
+                  <span className="text-[10px] text-muted-foreground">
+                    El módulo no cambia después de crear la variable.
+                  </span>
+                </div>
+              ) : modulos.length === 0 ? (
+                <p className="rounded-lg border border-amber-200 bg-amber-50/60 px-2.5 py-1.5 text-[11px] leading-snug text-amber-800">
+                  No hay módulos disponibles. Crea uno en la pestaña «Módulos» antes de
+                  registrar variables.
+                </p>
+              ) : (
+                <Select
+                  value={idModulo != null ? String(idModulo) : ''}
+                  onValueChange={(valor) => setIdModulo(Number(valor))}
+                >
+                  <SelectTrigger
+                    className={cn(
+                      'h-9 max-w-[360px]',
+                      erroresPaso2.modulo &&
+                        'border-destructive focus:ring-destructive/30',
+                    )}
+                    aria-label="Módulo de la variable"
+                    aria-invalid={Boolean(erroresPaso2.modulo)}
+                  >
+                    <SelectValue placeholder="Selecciona un módulo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {modulos.map((modulo) => (
+                      <SelectItem
+                        key={modulo.idModulo}
+                        value={String(modulo.idModulo)}
+                        disabled={!modulo.activo}
+                      >
+                        {modulo.nombre} · {modulo.clave}
+                        {modulo.activo ? '' : ' (inactivo)'}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+
+              {erroresPaso2.modulo && (
+                <p className="flex items-center gap-1.5 text-[11px] text-destructive">
+                  <AlertCircle className="h-3.5 w-3.5" />
+                  {erroresPaso2.modulo}
+                </p>
+              )}
+            </div>
+
             <div className="flex min-w-0 flex-col gap-1">
               <Label htmlFor="variable-nombre" className="text-xs">
                 Nombre <span className="text-destructive">*</span>
@@ -796,7 +910,7 @@ export function VariableEditorDialog({
                         value={namespace}
                         onChange={(e) => setNamespace(e.target.value)}
                         onBlur={() => setClaveTocada(true)}
-                        placeholder="Ej. viaticos"
+                        placeholder="Ej. catalogo"
                         className={cn(
                           'h-8 font-mono text-xs',
                           errorClave &&
@@ -839,14 +953,14 @@ export function VariableEditorDialog({
                     >
                       <KeyRound className="h-3 w-3 shrink-0 text-primary" />
                       <span className="truncate">
-                        {claveEfectiva || 'namespace.clave'}
+                        {claveEfectiva || 'módulo.namespace.clave'}
                       </span>
                     </Badge>
                   </div>
 
                   <p className="text-[10px] leading-snug text-muted-foreground">
-                    Usa minúsculas, sin espacios. El namespace agrupa la variable por módulo;
-                    la clave identifica el dato dentro de ese módulo.
+                    Usa minúsculas, sin espacios. La clave final es módulo.namespace.clave; el
+                    namespace agrupa las variables dentro del módulo.
                   </p>
 
                   {errorClave && (

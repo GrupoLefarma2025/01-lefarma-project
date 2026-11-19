@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   AlertTriangle,
+  Boxes,
   Braces,
   Code2,
   Copy,
@@ -66,6 +67,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import {
   desactivarVariable,
+  listarModulos,
   listarVariables,
   reactivarVariable,
 } from '../services/configuracionAdminApi';
@@ -74,6 +76,7 @@ import {
   PERMISOS_CONFIGURACION,
   TIPOS_DATO,
   type DestinoConfig,
+  type ModuloConfig,
   type VariableConfiguracion,
 } from '../types';
 import {
@@ -94,6 +97,7 @@ import {
 import { VariableEditorDialog } from '../components/VariableEditorDialog';
 import { HistoryDialog } from '../components/HistoryDialog';
 import { IntegracionesPanel } from '../components/IntegracionesPanel';
+import { ModulosPanel } from '../components/ModulosPanel';
 import {
   copiarAlPortapapeles,
   etiquetaLenguajeApi,
@@ -143,14 +147,19 @@ export function ConfiguracionVariablesPage() {
   const [buscar, setBuscar] = useState('');
   const [buscarDebounced, setBuscarDebounced] = useState('');
   const [namespaceFiltro, setNamespaceFiltro] = useState('todos');
+  const [moduloFiltro, setModuloFiltro] = useState('todos');
   const [tipo, setTipo] = useState('todos');
   const [destino, setDestino] = useState('todos');
   const [activo, setActivo] = useState<FiltroActivo>('todos');
   const [refreshKey, setRefreshKey] = useState(0);
+  const [tabActiva, setTabActiva] = useState('variables');
 
   const [variables, setVariables] = useState<VariableConfiguracion[]>([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const [modulos, setModulos] = useState<ModuloConfig[]>([]);
+  const [cargandoModulos, setCargandoModulos] = useState(true);
 
   const [editor, setEditor] = useState<{ variable: VariableConfiguracion | null } | null>(null);
   const [historialVariable, setHistorialVariable] = useState<VariableConfiguracion | null>(null);
@@ -193,6 +202,25 @@ export function ConfiguracionVariablesPage() {
     return () => controller.abort();
   }, [buscarDebounced, tipo, destino, activo, refreshKey]);
 
+  useEffect(() => {
+    const controller = new AbortController();
+
+    (async () => {
+      setCargandoModulos(true);
+      try {
+        const datos = await listarModulos(undefined, controller.signal);
+        setModulos(datos);
+      } catch (err) {
+        if (esCancelado(err)) return;
+        toast.error(mensajeError(err, 'No se pudieron cargar los módulos.'));
+      } finally {
+        if (!controller.signal.aborted) setCargandoModulos(false);
+      }
+    })();
+
+    return () => controller.abort();
+  }, [refreshKey]);
+
   const recargar = useCallback(() => {
     setRefreshKey((actual) => actual + 1);
   }, []);
@@ -200,6 +228,7 @@ export function ConfiguracionVariablesPage() {
   const hayFiltros =
     buscar.trim() !== '' ||
     namespaceFiltro !== 'todos' ||
+    moduloFiltro !== 'todos' ||
     tipo !== 'todos' ||
     destino !== 'todos' ||
     activo !== 'todos';
@@ -209,14 +238,29 @@ export function ConfiguracionVariablesPage() {
     namespaces.push(namespaceFiltro);
   }
 
-  const variablesVisibles =
-    namespaceFiltro === 'todos'
-      ? variables
-      : variables.filter((variable) => namespaceDeClave(variable.clave) === namespaceFiltro);
+  const moduloGlobal = modulos.find((modulo) => modulo.clave === 'global') ?? null;
+  const modulosPorId = new Map(modulos.map((modulo) => [modulo.idModulo, modulo]));
+
+  /** Módulo de una variable; las variables sin módulo pertenecen a «Global». */
+  const moduloDeVariable = (variable: VariableConfiguracion): ModuloConfig | null =>
+    variable.idModulo != null
+      ? (modulosPorId.get(variable.idModulo) ?? null)
+      : moduloGlobal;
+
+  const variablesVisibles = variables.filter((variable) => {
+    if (namespaceFiltro !== 'todos' && namespaceDeClave(variable.clave) !== namespaceFiltro) {
+      return false;
+    }
+    if (moduloFiltro !== 'todos') {
+      return moduloDeVariable(variable)?.idModulo === Number(moduloFiltro);
+    }
+    return true;
+  });
 
   const limpiarFiltros = () => {
     setBuscar('');
     setNamespaceFiltro('todos');
+    setModuloFiltro('todos');
     setTipo('todos');
     setDestino('todos');
     setActivo('todos');
@@ -346,7 +390,17 @@ export function ConfiguracionVariablesPage() {
 
   const contenidoVariables = (
     <div className="space-y-4">
-      <div className="flex justify-end">
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          className="border-emerald-600/40 bg-emerald-600 text-white hover:bg-emerald-700 hover:text-white"
+          onClick={() => setTabActiva('modulos')}
+          title="Crear, editar y desactivar módulos"
+        >
+          <Boxes className="h-4 w-4" />
+          Administrar módulos
+        </Button>
         <Button
           type="button"
           onClick={abrirCrear}
@@ -443,6 +497,20 @@ export function ConfiguracionVariablesPage() {
             </SelectContent>
           </Select>
 
+          <Select value={moduloFiltro} onValueChange={setModuloFiltro}>
+            <SelectTrigger className="w-[170px]" aria-label="Filtrar por módulo">
+              <SelectValue placeholder="Módulo" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todos">Todos los módulos</SelectItem>
+              {modulos.map((modulo) => (
+                <SelectItem key={modulo.idModulo} value={String(modulo.idModulo)}>
+                  {modulo.nombre}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
           <Select value={tipo} onValueChange={setTipo}>
             <SelectTrigger className="w-[160px]" aria-label="Filtrar por tipo">
               <SelectValue placeholder="Tipo" />
@@ -527,16 +595,17 @@ export function ConfiguracionVariablesPage() {
               hayFiltros
                 ? 'Ajusta o limpia los filtros para ver más resultados.'
                 : puedeCrear
-                  ? 'Crea la primera variable global para que las aplicaciones la consuman.'
-                  : 'Aún no hay variables globales configuradas.'
+                  ? 'Crea la primera variable para que las aplicaciones la consuman.'
+                  : 'Aún no hay variables configuradas.'
             }
           />
         ) : (
           <div className="overflow-x-auto">
-            <Table className="min-w-[1020px]">
+            <Table className="min-w-[1120px]">
               <TableHeader>
                 <TableRow>
                   <TableHead className="min-w-[240px]">Variable</TableHead>
+                  <TableHead>Módulo</TableHead>
                   <TableHead>Namespace</TableHead>
                   <TableHead>Tipo</TableHead>
                   <TableHead className="min-w-[180px]">Valor</TableHead>
@@ -552,6 +621,7 @@ export function ConfiguracionVariablesPage() {
                   const destinosActivos = DESTINOS.filter(
                     (opcion) => variable[opcion.campo],
                   );
+                  const modulo = moduloDeVariable(variable);
 
                   return (
                     <TableRow key={variable.idVariable}>
@@ -567,6 +637,19 @@ export function ConfiguracionVariablesPage() {
                             </span>
                           )}
                         </div>
+                      </TableCell>
+                      <TableCell>
+                        {modulo ? (
+                          <Badge
+                            variant="secondary"
+                            className="whitespace-nowrap font-mono text-[10px]"
+                            title={modulo.nombre}
+                          >
+                            {modulo.clave}
+                          </Badge>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        )}
                       </TableCell>
                       <TableCell>
                         <Badge
@@ -761,35 +844,49 @@ export function ConfiguracionVariablesPage() {
 
   return (
     <div className="space-y-6">
-      {puedeApiKeys ? (
-        <Tabs defaultValue="variables" className="space-y-4">
-          <TabsList>
-            <TabsTrigger value="variables" className="gap-2">
-              <SlidersHorizontal className="h-4 w-4" />
-              Variables
-            </TabsTrigger>
+      <Tabs value={tabActiva} onValueChange={setTabActiva} className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="variables" className="gap-2">
+            <SlidersHorizontal className="h-4 w-4" />
+            Variables
+          </TabsTrigger>
+          <TabsTrigger value="modulos" className="gap-2">
+            <Boxes className="h-4 w-4" />
+            Módulos
+          </TabsTrigger>
+          {puedeApiKeys && (
             <TabsTrigger value="integraciones" className="gap-2">
               <KeyRound className="h-4 w-4" />
               Integraciones
             </TabsTrigger>
-          </TabsList>
+          )}
+        </TabsList>
 
-          <TabsContent value="variables" className="mt-0">
-            {contenidoVariables}
-          </TabsContent>
+        <TabsContent value="variables" className="mt-0">
+          {contenidoVariables}
+        </TabsContent>
 
+        <TabsContent value="modulos" className="mt-0">
+          <ModulosPanel
+            modulos={modulos}
+            cargando={cargandoModulos}
+            puedeGestionar={puedeCrear || puedeActualizar}
+            onCambio={recargar}
+          />
+        </TabsContent>
+
+        {puedeApiKeys && (
           <TabsContent value="integraciones" className="mt-0">
             <IntegracionesPanel puedeGestionar={puedeApiKeys} />
           </TabsContent>
-        </Tabs>
-      ) : (
-        contenidoVariables
-      )}
+        )}
+      </Tabs>
 
       {editor && (
         <VariableEditorDialog
           key={`${editor.variable?.idVariable ?? 'nueva'}-${editor.variable?.version ?? 0}`}
           variable={editor.variable}
+          modulos={modulos}
           onClose={() => setEditor(null)}
           onSaved={() => {
             setEditor(null);

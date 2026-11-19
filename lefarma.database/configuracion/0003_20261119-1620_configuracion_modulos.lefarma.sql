@@ -29,6 +29,11 @@
 -- ORDEN: ejecutar después de 0001 y 0002. Requiere SQL Server 2016 SP1 o
 --   superior (igual que 0001).
 --
+-- LOTE ÚNICO: el script no usa GO a propósito, para que lo acepten tanto el
+--   panel «Explorador SQL»/SSMS como el migrador DbUp (multiappcli.ps1 sql).
+--   Las sentencias que tocan la columna nueva van en SQL dinámico: la columna
+--   no existe cuando el lote se compila, pero sí cuando esa sentencia corre.
+--
 -- ESTADO: pendiente de aplicar en todos los ambientes. No se ha ejecutado.
 -- =============================================================================
 
@@ -41,7 +46,6 @@ SET ANSI_WARNINGS ON;
 SET ARITHABORT ON;
 SET CONCAT_NULL_YIELDS_NULL ON;
 SET NUMERIC_ROUNDABORT OFF;
-GO
 
 -- =============================================================================
 -- 1. Catálogo de módulos
@@ -68,16 +72,24 @@ BEGIN
             CHECK (clave LIKE '[a-z]%' AND clave NOT LIKE '%[^a-z0-9_]%' AND LEN(clave) BETWEEN 1 AND 50)
     );
 
-    CREATE INDEX IX_config_modulos_orden
-        ON config.modulos (orden, nombre);
-
     PRINT 'Creada config.modulos.';
 END
 ELSE
 BEGIN
     PRINT 'config.modulos ya existe; sin cambios.';
 END
-GO
+
+IF NOT EXISTS
+(
+    SELECT 1
+    FROM sys.indexes
+    WHERE name = N'IX_config_modulos_orden'
+      AND object_id = OBJECT_ID(N'config.modulos')
+)
+BEGIN
+    CREATE INDEX IX_config_modulos_orden
+        ON config.modulos (orden, nombre);
+END
 
 -- =============================================================================
 -- 2. Módulo global (destino por omisión de las variables existentes)
@@ -91,7 +103,6 @@ BEGIN
 
     PRINT 'Sembrado el módulo global.';
 END
-GO
 
 -- =============================================================================
 -- 3. Vínculo de la variable con su módulo
@@ -103,16 +114,16 @@ BEGIN
 
     PRINT 'Añadida config.variables.id_modulo.';
 END
-GO
 
 -- Backfill: toda variable sin módulo queda en「global」.
+EXEC (N'
 UPDATE variables
 SET id_modulo = global_modulo.id_modulo
 FROM config.variables AS variables
 CROSS JOIN config.modulos AS global_modulo
-WHERE global_modulo.clave = N'global'
+WHERE global_modulo.clave = N''global''
   AND variables.id_modulo IS NULL;
-GO
+');
 
 IF NOT EXISTS
 (
@@ -122,13 +133,14 @@ IF NOT EXISTS
       AND parent_object_id = OBJECT_ID(N'config.variables')
 )
 BEGIN
-    ALTER TABLE config.variables WITH CHECK
-        ADD CONSTRAINT FK_config_variables_modulos
-        FOREIGN KEY (id_modulo) REFERENCES config.modulos (id_modulo);
+    EXEC (N'
+ALTER TABLE config.variables WITH CHECK
+    ADD CONSTRAINT FK_config_variables_modulos
+    FOREIGN KEY (id_modulo) REFERENCES config.modulos (id_modulo);
+');
 
     PRINT 'Creada la FK config.variables.id_modulo -> config.modulos.';
 END
-GO
 
 IF NOT EXISTS
 (
@@ -138,14 +150,16 @@ IF NOT EXISTS
       AND object_id = OBJECT_ID(N'config.variables')
 )
 BEGIN
-    CREATE INDEX IX_config_variables_id_modulo
-        ON config.variables (id_modulo, clave);
+    EXEC (N'
+CREATE INDEX IX_config_variables_id_modulo
+    ON config.variables (id_modulo, clave);
+');
 END
-GO
 
 -- =============================================================================
 -- 4. Comprobación final
 -- =============================================================================
+EXEC (N'
 SELECT
     m.id_modulo,
     m.clave,
@@ -157,4 +171,4 @@ FROM config.modulos AS m
 LEFT JOIN config.variables AS v ON v.id_modulo = m.id_modulo
 GROUP BY m.id_modulo, m.clave, m.nombre, m.orden, m.activo
 ORDER BY m.orden, m.nombre;
-GO
+');

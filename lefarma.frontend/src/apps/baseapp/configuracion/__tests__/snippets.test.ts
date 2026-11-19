@@ -24,6 +24,7 @@ const variable = (parcial: Partial<VariableConfiguracion> = {}): VariableConfigu
   version: 1,
   fechaCreacion: '2026-11-05T00:00:00.000Z',
   fechaModificacion: '2026-11-05T00:00:00.000Z',
+  idModulo: null,
   ...parcial,
 });
 

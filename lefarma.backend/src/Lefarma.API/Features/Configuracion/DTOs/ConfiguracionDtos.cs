@@ -13,6 +13,9 @@ public sealed class ConfiguracionFiltros
     public string? Destino { get; set; }
 
     public bool? Activo { get; set; }
+
+    /// <summary>Filtra por módulo dueño de la variable.</summary>
+    public long? IdModulo { get; set; }
 }
 
 /// <summary>Variable de configuración expuesta por la API.</summary>
@@ -52,6 +55,9 @@ public sealed class ConfigVariableResponse
     public int? IdUsuarioCreacion { get; set; }
 
     public int? IdUsuarioModificacion { get; set; }
+
+    /// <summary>Módulo dueño de la variable.</summary>
+    public long? IdModulo { get; set; }
 }
 
 /// <summary>Alta de una variable de configuración.</summary>
@@ -59,6 +65,9 @@ public sealed class CreateConfigVariableRequest
 {
     /// <summary>Identificador idempotente de la operación.</summary>
     public Guid IdOperacion { get; set; }
+
+    /// <summary>Módulo al que pertenece la variable; define el prefijo de la clave.</summary>
+    public long? IdModulo { get; set; }
 
     public string Clave { get; set; } = string.Empty;
 
