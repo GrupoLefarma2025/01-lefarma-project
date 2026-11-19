@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Check, CheckSquare, Eye, Plane, Square } from 'lucide-react';
+import { Check, CheckSquare, Eye, Plane, Printer, Square } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -143,6 +143,8 @@ export function ConcentradoPage() {
   const [comentario, setComentario] = useState('');
   const [accionando, setAccionando] = useState(false);
   const [documentoAbierto, setDocumentoAbierto] = useState(false);
+  /** El visor se abrió con «Vista previa»: manda directo al diálogo de impresión. */
+  const [imprimirAlAbrir, setImprimirAlAbrir] = useState(false);
   const [seleccionadasIds, setSeleccionadasIds] = useState<Set<number>>(() => new Set());
   /** Formato que se previsualiza e imprime: concentrado de costos o de vuelos. */
   const [formato, setFormato] = useState<FormatoConcentrado>('for-008');
@@ -349,9 +351,12 @@ export function ConcentradoPage() {
    * Abre el documento con el formato pedido: el panel derecho siempre muestra
    * el concentrado de costos y la solicitud de avión se pide aparte, para que
    * el documento no cambie solo por tocar un control de la vista previa.
+   * Con `imprimir` abre de una vez el diálogo de impresión del navegador
+   * (botón «Vista previa», igual que el envío concentrado de CxP).
    */
-  const abrirDocumento = useCallback((siguiente: FormatoConcentrado) => {
+  const abrirDocumento = useCallback((siguiente: FormatoConcentrado, imprimir = false) => {
     setFormato(siguiente);
+    setImprimirAlAbrir(imprimir);
     setDocumentoAbierto(true);
   }, []);
 
@@ -779,6 +784,17 @@ export function ConcentradoPage() {
                 variant="outline"
                 size="sm"
                 className="gap-1.5"
+                onClick={() => abrirDocumento('for-008', true)}
+                disabled={seleccionadas.length === 0}
+              >
+                <Printer className="h-3.5 w-3.5" aria-hidden />
+                Vista previa
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="gap-1.5"
                 onClick={() => abrirDocumento('vuelos')}
                 disabled={seleccionadas.length === 0}
               >
@@ -835,7 +851,11 @@ export function ConcentradoPage() {
         grupoPor={agruparPor}
         // El visor imprime exactamente lo seleccionado en la tabla.
         soloAutorizadas={false}
-        onCerrar={() => setDocumentoAbierto(false)}
+        imprimirAlAbrir={imprimirAlAbrir}
+        onCerrar={() => {
+          setDocumentoAbierto(false);
+          setImprimirAlAbrir(false);
+        }}
       />
 
       <Dialog

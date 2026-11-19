@@ -251,6 +251,30 @@ describe('ConcentradoPage', () => {
     expect(documento).toHaveTextContent('Persona Solicitante');
   });
 
+  it('el botón Vista previa manda directo al diálogo de impresión', async () => {
+    const usuario = userEvent.setup();
+    // jsdom no implementa la impresión ni el decode de imágenes del portal.
+    const imprimir = vi.spyOn(window, 'print').mockImplementation(() => {});
+    Object.defineProperty(HTMLImageElement.prototype, 'decode', {
+      configurable: true,
+      writable: true,
+      value: () => Promise.resolve(),
+    });
+
+    render(<ConcentradoPage />);
+    await waitFor(() => expect(screen.getByTestId('concentrado-5')).toBeInTheDocument());
+
+    await usuario.click(screen.getByRole('checkbox', { name: /incluir VIA-TEST-0005 en el concentrado/i }));
+    await usuario.click(screen.getByRole('button', { name: /^vista previa$/i }));
+
+    await waitFor(() => expect(imprimir).toHaveBeenCalled());
+    // El visor queda detrás como vista previa en pantalla.
+    expect(document.querySelector('#concentrado-viaticos-print')).not.toBeNull();
+
+    imprimir.mockRestore();
+    delete (HTMLImageElement.prototype as { decode?: unknown }).decode;
+  });
+
   it('el rango personalizado se aplica solo cuando hay fecha inicial y final', async () => {
     const usuario = userEvent.setup();
     render(<ConcentradoPage />);

@@ -94,6 +94,12 @@ interface Props {
    * de la autorización).
    */
   soloAutorizadas?: boolean;
+  /**
+   * Abre directamente el diálogo de impresión del navegador al montar (lo usa
+   * el botón «Vista previa» de la pantalla, igual que el envío concentrado de
+   * CxP). El visor queda detrás del diálogo como vista previa en pantalla.
+   */
+  imprimirAlAbrir?: boolean;
   onCerrar: () => void;
 }
 
@@ -106,10 +112,13 @@ export function ConcentradoDocumentoPreview({
   gerencia,
   grupoPor = 'ninguna',
   soloAutorizadas = true,
+  imprimirAlAbrir = false,
   onCerrar,
 }: Props) {
   const [imprimiendo, setImprimiendo] = useState(false);
   const mounted = useRef(true);
+  /** Evita que el disparo automático se repita en cada render. */
+  const autoImpreso = useRef(false);
   const filasFor008 = soloAutorizadas
     ? solicitudes.filter(s => (ESTADOS_AUTORIZADOS as readonly string[]).includes(s.estado))
     : solicitudes;
@@ -150,6 +159,17 @@ export function ConcentradoDocumentoPreview({
       if (mounted.current) setImprimiendo(false);
     }
   }, [imprimiendo, hayFilas, id, claseCuerpo, quitarClase]);
+
+  // «Vista previa» abre el diálogo de impresión del navegador de una vez.
+  useEffect(() => {
+    if (!abierto) {
+      autoImpreso.current = false;
+      return;
+    }
+    if (!imprimirAlAbrir || autoImpreso.current || !hayFilas) return;
+    autoImpreso.current = true;
+    void imprimir();
+  }, [abierto, imprimirAlAbrir, hayFilas, imprimir]);
 
   if (!abierto) return null;
 
