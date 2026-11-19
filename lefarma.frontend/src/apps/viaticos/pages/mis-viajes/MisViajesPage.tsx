@@ -1,17 +1,15 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Camera, ChevronDown, Clock, ExternalLink, Eye, MoreHorizontal, Pencil, RefreshCw, Route, Search, Send, SlidersHorizontal, Ticket, Trash2 } from 'lucide-react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Camera, Clock, ExternalLink, Eye, MoreHorizontal, Pencil, RefreshCw, Route, Search, Send, Ticket, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { DataTable, type ColumnDef } from '@/components/ui/data-table';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { folderTabTriggerClassName } from '@/components/ui/folder-tab';
 import { usePageTitle } from '@/hooks/usePageTitle';
+import { usePermission } from '@/hooks/usePermission';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { toApiError } from '@/utils/errors';
@@ -40,113 +38,37 @@ import { BoletoViajeDialog, BotonVerBoleto } from '../../components/BoletoViajeD
 import { ComparadorRutas } from '../../components/ComparadorRutas';
 import type { PuntoMapa, SegmentoMapa } from '../../components/rutaMapa.types';
 import { CalculosViajeModal } from '../../components/CalculosViajeModal';
-import { contarPuntos, resumenDesdeDatos } from '../../services/resumenViaje';
+import { resumenDesdeDatos } from '../../services/resumenViaje';
 import { horaAmPm, leerCalculoAutorizadoDesdeDatos, leerCalculoDesdeDatos } from '../../services/calculoViaje';
 import {
-  ETIQUETA_PERIODO,
-  clasificarRelacion,
   enRango,
   leerDatosViaje,
+  mxn,
   rangoDelFiltro,
+  type FilaViaje,
   type FiltroPeriodo,
-  type ResumenViaje as ResumenDatos,
   type TipoViaje,
 } from './viajes.helpers';
+import { FiltrosSolicitudes } from './FiltrosSolicitudes';
+import { SolicitudesViajeTable } from './SolicitudesViajeTable';
 
-const TIPOS_VIAJE: { id: TipoViaje | 'todos'; etiqueta: string }[] = [
-  { id: 'todos', etiqueta: 'Todos' },
-  { id: 'propio', etiqueta: 'Carro propio' },
-  { id: 'solicitado', etiqueta: 'Transporte solicitado' },
-  { id: 'sin-clasificar', etiqueta: 'Sin clasificar' },
-];
-
-interface FilaViaje {
-  solicitud: Solicitud;
-  resumen: ResumenDatos;
-}
-
-function nombreCreadorDe(solicitud: Solicitud, miId?: number, miNombre?: string): string {
-  const nombre = solicitud.nombre_creador?.trim();
-  if (nombre) return nombre;
-  const idCreador = solicitud.id_usuario_creacion ?? solicitud.id_usuario_solicitante;
-  if (miId !== undefined && idCreador === miId && miNombre?.trim()) return miNombre;
-  return `Usuario #${idCreador}`;
-}
-
-/** Fecha larga al estilo de la bandeja de CxP: "23 de octubre de 2026". */
-function fechaLarga(fecha: string): string {
-  if (!fecha) return '—';
-  const d = new Date(fecha);
-  return Number.isNaN(d.getTime())
-    ? fecha
-    : d.toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric' });
-}
-
-/** Mismo lenguaje de color por estado que la bandeja de órdenes de CxP. */
-const COLOR_POR_ESTADO: Record<string, string> = {
-  borrador: '#64748b',
-  enviada: '#2563eb',
-  autorizada: '#16a34a',
-  autorizada_con_ajustes: '#d97706',
-  rechazada: '#dc2626',
-};
-
-function colorEstado(estado: string): string {
-  return COLOR_POR_ESTADO[estado] ?? '#64748b';
-}
-
+/** Objeto JSON seguro: descarta arrays y primitivos. */
 function comoObjeto(v: unknown): Record<string, unknown> | null {
   return typeof v === 'object' && v !== null && !Array.isArray(v) ? (v as Record<string, unknown>) : null;
 }
 
-/** Personas del viaje: la persona viajera + acompañantes. */
-function personasInvolucradas(solicitud: Solicitud): number {
-  const datos = comoObjeto(solicitud.datos);
-  const transporte = comoObjeto(datos?.transporte);
-  const acompanantes = Array.isArray(transporte?.acompanantes) ? transporte!.acompanantes.length : 0;
-  return 1 + acompanantes;
-}
-
-function modoTransporte(solicitud: Solicitud): 'propio' | 'solicitado' {
-  const datos = comoObjeto(solicitud.datos);
-  const transporte = comoObjeto(datos?.transporte);
-  return transporte?.modo === 'propio' ? 'propio' : 'solicitado';
-}
-
-function tipoTransporte(solicitud: Solicitud): string {
-  return modoTransporte(solicitud) === 'propio' ? 'Carro propio' : 'Solicitud de transporte';
-}
-
-/** Costo conocido del viaje: total del snapshot o comidas + extras + opciones elegidas. */
-function costoViaje(solicitud: Solicitud): number | null {
-  const datos = comoObjeto(solicitud.datos);
-  const totalSnapshot = Number(datos?.total);
-  if (Number.isFinite(totalSnapshot) && totalSnapshot > 0) return totalSnapshot;
-
-  const gastos = comoObjeto(datos?.gastos);
-  const comidas = Number(gastos?.comidas) || 0;
-  const extras = (Array.isArray(gastos?.extras) ? gastos!.extras : []).reduce<number>((suma, extra) => {
-    const obj = comoObjeto(extra);
-    const monto = obj ? Number(obj.monto) : Number(extra);
-    return suma + (Number.isFinite(monto) ? monto : 0);
-  }, 0);
-  const elegidas = solicitud.opciones
-    .filter((opcion) => opcion.fue_elegida)
-    .reduce((suma, opcion) => suma + (opcion.precio ?? 0), 0);
-
-  const total = comidas + extras + elegidas;
-  return total > 0 ? total : null;
-}
-
-function mxn(n: number): string {
-  return n.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
-}
+/** Pestaña visible de la lista; viaja en la URL para poder enlazarla. */
+type Pestana = 'borradores' | 'enviadas';
 
 export function MisViajesPage({ hoy = new Date() }: { hoy?: Date }) {
   usePageTitle('Mis viajes', 'Viáticos');
   const navigate = useNavigate();
+  const [parametros, setParametros] = useSearchParams();
   const miId = useAuthStore((s) => s.user?.id);
   const miNombre = useAuthStore((s) => s.user?.nombre);
+  const puedeVerTodas = usePermission({ require: 'viaticos.ver_todos' });
+
+  const pestana: Pestana = parametros.get('pestana') === 'enviadas' ? 'enviadas' : 'borradores';
 
   const [solicitudes, setSolicitudes] = useState<Solicitud[]>([]);
   const [cargando, setCargando] = useState(true);
@@ -165,7 +87,9 @@ export function MisViajesPage({ hoy = new Date() }: { hoy?: Date }) {
     setCargando(true);
     setError(null);
     try {
-      const res = await solicitudesApi.misSolicitudes();
+      // `todas` solo lo concede el servidor con viaticos.ver_todos; sin el
+      // permiso la API responde 403 y se muestra el error.
+      const res = await solicitudesApi.misSolicitudes(puedeVerTodas ? { todas: true } : undefined);
       if (res.data.success) setSolicitudes(res.data.data ?? []);
       else setError(res.data.message ?? 'No se pudieron cargar tus viajes.');
     } catch (falla: unknown) {
@@ -173,7 +97,7 @@ export function MisViajesPage({ hoy = new Date() }: { hoy?: Date }) {
     } finally {
       setCargando(false);
     }
-  }, []);
+  }, [puedeVerTodas]);
 
   useEffect(() => {
     void cargarSolicitudes();
@@ -182,19 +106,21 @@ export function MisViajesPage({ hoy = new Date() }: { hoy?: Date }) {
   // Referencia «hoy» en hora local; el rango siempre se muestra.
   const rango = rangoDelFiltro(periodo, hoy, desde, hasta);
 
-  const filas = useMemo<FilaViaje[]>(
-    () =>
-      [...solicitudes]
-        // El último creado primero (la API ya ordena; se refuerza aquí).
-        .sort((a, b) =>
-          b.fecha_creacion.localeCompare(a.fecha_creacion) || b.id_solicitud - a.id_solicitud,
-        )
-        .map((s) => ({ solicitud: s, resumen: leerDatosViaje(s.datos) }))
-        .filter(({ resumen }) => (tipo === 'todos' ? true : resumen.tipoViaje === tipo))
-        .filter(({ solicitud }) => enRango(solicitud.fecha_creacion, rango)),
+  const filas = useMemo<{ borradores: FilaViaje[]; enviadas: FilaViaje[] }>(() => {
+    const base = [...solicitudes]
+      // El último creado primero (la API ya ordena; se refuerza aquí).
+      .sort((a, b) =>
+        b.fecha_creacion.localeCompare(a.fecha_creacion) || b.id_solicitud - a.id_solicitud,
+      )
+      .map((s) => ({ solicitud: s, resumen: leerDatosViaje(s.datos) }))
+      .filter(({ resumen }) => (tipo === 'todos' ? true : resumen.tipoViaje === tipo))
+      .filter(({ solicitud }) => enRango(solicitud.fecha_creacion, rango));
+    return {
+      borradores: base.filter(({ solicitud }) => solicitud.estado === 'borrador'),
+      enviadas: base.filter(({ solicitud }) => solicitud.estado === 'enviada'),
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [solicitudes, tipo, periodo, desde, hasta],
-  );
+  }, [solicitudes, tipo, periodo, desde, hasta]);
 
   const verDetalle = useCallback(async (id: number) => {
     setViendoId(id);
@@ -230,221 +156,76 @@ export function MisViajesPage({ hoy = new Date() }: { hoy?: Date }) {
     }
   }, [cargarSolicitudes]);
 
-  const columnas = useMemo<ColumnDef<FilaViaje>[]>(
-    () => [
-      {
-        id: 'viaje',
-        header: 'Viaje',
-        accessorFn: (fila) => fila.solicitud.folio ?? fila.solicitud.id_solicitud,
-        cell: ({ row }) => (
-          <div className="flex flex-col">
-            <span className="font-medium">{row.original.solicitud.folio ?? `#${row.original.solicitud.id_solicitud}`}</span>
-            <span className="text-xs text-muted-foreground">{fechaLarga(row.original.solicitud.fecha_creacion)}</span>
-          </div>
-        ),
-      },
-      {
-        id: 'destino',
-        header: 'Destino',
-        accessorFn: (fila) => fila.resumen.destino ?? '',
-        cell: ({ row }) => {
-          const distintivos = clasificarRelacion(row.original.solicitud, row.original.resumen, miId, miNombre);
-          return (
-            <div className="flex flex-col gap-1">
-              <span className="font-medium">{row.original.resumen.destino ?? 'Destino por confirmar'}</span>
-              {distintivos.length > 0 ? (
-                <div className="flex flex-wrap gap-1">
-                  {distintivos.map((d) => (
-                    <Badge key={d.clave} variant="outline" className="text-[10px]">{d.texto}</Badge>
-                  ))}
-                </div>
-              ) : null}
-            </div>
-          );
-        },
-      },
-      {
-        id: 'lugares',
-        header: () => <div className="text-center">Lugares a visitar</div>,
-        accessorFn: (fila) => fila.solicitud.num_puntos ?? contarPuntos(fila.solicitud.datos),
-        cell: ({ getValue }) => (
-          <div className="text-center">
-            <span className="text-sm font-medium">{getValue<number>()}</span>
-          </div>
-        ),
-      },
-      {
-        id: 'transporte',
-        header: 'Transporte',
-        accessorFn: (fila) => tipoTransporte(fila.solicitud),
-        cell: ({ row }) => <ModoTransporteBadge modo={modoTransporte(row.original.solicitud)} />,
-      },
-      {
-        id: 'personas',
-        header: () => <div className="text-center">Personas involucradas</div>,
-        accessorFn: (fila) => personasInvolucradas(fila.solicitud),
-        cell: ({ getValue }) => (
-          <div className="text-center">
-            <span className="text-sm font-medium">{getValue<number>()}</span>
-          </div>
-        ),
-      },
-      {
-        id: 'costo',
-        header: 'Costo del viaje',
-        accessorFn: (fila) => costoViaje(fila.solicitud) ?? 0,
-        cell: ({ row }) => {
-          const costo = costoViaje(row.original.solicitud);
-          return <span className="text-sm font-medium">{costo !== null ? mxn(costo) : '—'}</span>;
-        },
-      },
-      {
-        id: 'solicitante',
-        header: 'Solicitante',
-        accessorFn: (fila) => `${fila.solicitud.persona_solicitante ?? ''} ${fila.solicitud.persona_viajera ?? ''}`.trim(),
-        cell: ({ row }) => {
-          const solicitante = row.original.solicitud.persona_solicitante?.trim()
-            || nombreCreadorDe(row.original.solicitud, miId, miNombre);
-          const viajero = row.original.solicitud.persona_viajera?.trim() || solicitante;
-          if (solicitante === viajero) {
-            return <Badge variant="secondary" className="font-normal">{solicitante}</Badge>;
-          }
-          return (
-            <div className="flex flex-col gap-0.5 text-xs">
-              <span>
-                <span className="text-muted-foreground">Creador: </span>
-                <span className="font-medium">{solicitante}</span>
-              </span>
-              <span>
-                <span className="text-muted-foreground">Viajero: </span>
-                <span className="font-medium">{viajero}</span>
-              </span>
-            </div>
-          );
-        },
-      },
-      {
-        id: 'creadaPor',
-        header: 'Creada por',
-        accessorFn: (fila) => nombreCreadorDe(fila.solicitud, miId, miNombre),
-        cell: ({ getValue }) => <span className="text-xs">{getValue<string>()}</span>,
-      },
-      {
-        id: 'estado',
-        header: 'Estado',
-        accessorFn: (fila) => estadoTexto(fila.solicitud.estado),
-        cell: ({ row }) => {
-          const estado = row.original.solicitud.estado;
-          const color = colorEstado(estado);
-          return (
-            <span
-              className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors"
-              style={{ borderColor: color, color, backgroundColor: `${color}15` }}
-            >
-              {estadoTexto(estado)}
-            </span>
-          );
-        },
-      },
-      {
-        id: 'acciones',
-        header: () => <div className="text-right">Acción</div>,
-        enableSorting: false,
-        cell: ({ row }) => {
-          const solicitud = row.original.solicitud;
-          const esBorrador = solicitud.estado === 'borrador';
-          const procesando = procesandoId === solicitud.id_solicitud;
-          return (
-            <TooltipProvider delayDuration={150}>
-              <div className="flex items-center justify-end gap-1">
-                {esBorrador ? (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="icon"
-                        aria-label="Enviar a concentrado"
-                        disabled={procesando}
-                        onClick={(evento) => {
-                          evento.stopPropagation();
-                          setCalculo(solicitud);
-                        }}
-                      >
-                        <Send className="h-4 w-4" aria-hidden />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>Enviar a concentrado</TooltipContent>
-                  </Tooltip>
-                ) : null}
+  // La tabla abre el detalle con un clic en la fila y, en la última columna,
+  // muestra las acciones que permiten el estado y la propiedad de la solicitud.
+  const accionesDe = useCallback(
+    (fila: FilaViaje): ReactNode => {
+      const solicitud = fila.solicitud;
+      const esBorrador = solicitud.estado === 'borrador';
+      const esMia = miId !== undefined && solicitud.id_usuario_solicitante === miId;
+      const procesando = procesandoId === solicitud.id_solicitud;
+      const etiqueta = solicitud.folio ?? `#${solicitud.id_solicitud}`;
 
-                {esBorrador ? (
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="icon"
-                        aria-label="Más acciones"
-                        onClick={(evento) => evento.stopPropagation()}
-                      >
-                        <MoreHorizontal className="h-4 w-4" aria-hidden />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent
-                      align="end"
-                      className="w-44"
-                      onClick={(evento) => evento.stopPropagation()}
-                    >
-                      <DropdownMenuItem
-                        onClick={() => {
-                          void verDetalle(solicitud.id_solicitud);
-                        }}
-                      >
-                        <Eye className="mr-2 h-4 w-4" aria-hidden />
-                        Ver detalle
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() => navigate(`/viaticos/solicitud/${solicitud.id_solicitud}`)}
-                      >
-                        <Pencil className="mr-2 h-4 w-4" aria-hidden />
-                        Editar
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        disabled={procesando}
-                        onClick={() => {
-                          void eliminarBorrador(solicitud);
-                        }}
-                      >
-                        <Trash2 className="mr-2 h-4 w-4" aria-hidden />
-                        Eliminar
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                ) : (
-                  // Sin acciones extra no hay menú: se muestra el botón completo.
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="gap-1.5"
-                    aria-label={`Ver detalle ${solicitud.folio ?? `#${solicitud.id_solicitud}`}`}
-                    onClick={(evento) => {
-                      evento.stopPropagation();
-                      void verDetalle(solicitud.id_solicitud);
-                    }}
-                  >
-                    <Eye className="h-4 w-4" aria-hidden />
-                    Ver detalle
-                  </Button>
-                )}
-              </div>
-            </TooltipProvider>
-          );
-        },
-      },
-    ],
-    [miId, miNombre, verDetalle, eliminarBorrador, navigate, procesandoId],
+      const verDetalleBoton = (
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="gap-1.5"
+          aria-label={`Ver detalle ${etiqueta}`}
+          onClick={() => { void verDetalle(solicitud.id_solicitud); }}
+        >
+          <Eye className="h-4 w-4" aria-hidden />
+          Ver detalle
+        </Button>
+      );
+
+      // Con viaticos.ver_todos aparecen borradores de otras personas: ahí solo
+      // se consulta, no se envía, edita ni elimina.
+      if (!esBorrador || !esMia) return verDetalleBoton;
+
+      return (
+        <TooltipProvider delayDuration={150}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                aria-label="Enviar a autorización"
+                disabled={procesando}
+                onClick={() => setCalculo(solicitud)}
+              >
+                <Send className="h-4 w-4" aria-hidden />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Enviar a autorización</TooltipContent>
+          </Tooltip>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button type="button" variant="outline" size="icon" aria-label="Más acciones">
+                <MoreHorizontal className="h-4 w-4" aria-hidden />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-44">
+              <DropdownMenuItem onClick={() => { void verDetalle(solicitud.id_solicitud); }}>
+                <Eye className="mr-2 h-4 w-4" aria-hidden />
+                Ver detalle
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => navigate(`/viaticos/solicitud/${solicitud.id_solicitud}`)}>
+                <Pencil className="mr-2 h-4 w-4" aria-hidden />
+                Editar
+              </DropdownMenuItem>
+              <DropdownMenuItem disabled={procesando} onClick={() => { void eliminarBorrador(solicitud); }}>
+                <Trash2 className="mr-2 h-4 w-4" aria-hidden />
+                Eliminar
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </TooltipProvider>
+      );
+    },
+    [miId, procesandoId, verDetalle, eliminarBorrador, navigate],
   );
 
   // Cuántos filtros se apartan de lo que la página muestra por defecto, para
@@ -458,80 +239,75 @@ export function MisViajesPage({ hoy = new Date() }: { hoy?: Date }) {
 
   return (
     <div className="space-y-4">
-      <div className="rounded-md border bg-card">
-        <details className="group">
-          <summary className="flex cursor-pointer select-none items-center gap-2 rounded-md px-4 py-3 text-sm font-medium hover:bg-muted/50 [&::-webkit-details-marker]:hidden">
-            <SlidersHorizontal className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
-            Filtros
-            {filtrosAplicados > 0 ? (
-              <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
-                {filtrosAplicados} {filtrosAplicados === 1 ? 'aplicado' : 'aplicados'}
-              </span>
-            ) : null}
-            <ChevronDown className="ml-auto h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" aria-hidden />
-          </summary>
-          <div className="grid gap-3 border-t px-4 py-3 md:grid-cols-4">
-            <div className="space-y-1">
-              <Label htmlFor="filtro-periodo">Periodo</Label>
-              <select id="filtro-periodo" aria-label="Periodo" className="h-10 w-full rounded-md border bg-background px-3" value={periodo} onChange={(e) => setPeriodo(e.target.value as FiltroPeriodo)}>
-                {(Object.keys(ETIQUETA_PERIODO) as FiltroPeriodo[]).map((p) => (
-                  <option key={p} value={p}>{ETIQUETA_PERIODO[p]}</option>
-                ))}
-              </select>
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="filtro-tipo">Tipo de viaje</Label>
-              <select id="filtro-tipo" aria-label="Tipo de viaje" className="h-10 w-full rounded-md border bg-background px-3" value={tipo} onChange={(e) => setTipo(e.target.value as TipoViaje | 'todos')}>
-                {TIPOS_VIAJE.map((t) => (
-                  <option key={t.id} value={t.id}>{t.etiqueta}</option>
-                ))}
-              </select>
-            </div>
-            {periodo === 'personalizado' ? (
-              <>
-                <div className="space-y-1">
-                  <Label htmlFor="filtro-desde">Desde</Label>
-                  <Input id="filtro-desde" type="date" value={desde} onChange={(e) => setDesde(e.target.value)} />
-                </div>
-                <div className="space-y-1">
-                  <Label htmlFor="filtro-hasta">Hasta</Label>
-                  <Input id="filtro-hasta" type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} />
-                </div>
-              </>
-            ) : null}
-          </div>
-        </details>
-        {rango ? (
-          <div className="space-y-1 px-4 pb-3">
-            <p data-testid="rango-visible" className="text-xs text-muted-foreground">
-              Mostrando por fecha de creación (provisional): {rango.inicio} al {rango.fin}.
-            </p>
-          </div>
-        ) : null}
-      </div>
+      {puedeVerTodas ? (
+        <p className="text-xs text-muted-foreground">
+          Ves las solicitudes de todos los usuarios. Los borradores de otras personas solo se pueden consultar.
+        </p>
+      ) : null}
+
+      <FiltrosSolicitudes
+        periodo={periodo}
+        onPeriodo={setPeriodo}
+        tipo={tipo}
+        onTipo={setTipo}
+        desde={desde}
+        onDesde={setDesde}
+        hasta={hasta}
+        onHasta={setHasta}
+        rango={rango}
+        filtrosAplicados={filtrosAplicados}
+      />
 
       {error ? <p role="alert" className="text-sm text-destructive">{error}</p> : null}
 
-      <DataTable
-        columns={columnas}
-        data={filas}
-        title="Mis viajes"
-        subtitle={`Total: ${filas.length}`}
-        pagination
-        pageSize={10}
-        height={460}
-        loading={cargando}
-        showRefreshButton
-        onRefresh={() => { void cargarSolicitudes(); }}
-        filterConfig={{
-          tableId: 'mis-viajes-v4',
-          searchableColumns: ['destino', 'estado'],
-          defaultSearchColumns: ['destino'],
-          defaultVisibleColumns: ['viaje', 'destino', 'transporte', 'lugares', 'personas', 'costo', 'solicitante', 'estado', 'acciones'],
+      <Tabs
+        value={pestana}
+        onValueChange={(valor) => {
+          const siguiente = new URLSearchParams(parametros);
+          if (valor === 'enviadas') siguiente.set('pestana', 'enviadas');
+          else siguiente.delete('pestana');
+          setParametros(siguiente, { replace: true });
         }}
-        rowTestId={(fila) => `viaje-${fila.solicitud.id_solicitud}`}
-        onRowClick={(fila) => { void verDetalle(fila.solicitud.id_solicitud); }}
-      />
+      >
+        <TabsList className="h-auto w-full justify-start gap-1 overflow-x-auto rounded-none border-b bg-transparent p-0 text-muted-foreground">
+          <TabsTrigger value="borradores" className={folderTabTriggerClassName}>
+            Borradores ({filas.borradores.length})
+          </TabsTrigger>
+          <TabsTrigger value="enviadas" className={folderTabTriggerClassName}>
+            Enviadas ({filas.enviadas.length})
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="borradores" className="mt-4">
+          <SolicitudesViajeTable
+            filas={filas.borradores}
+            cargando={cargando}
+            titulo="Borradores"
+            subtitulo={`Total: ${filas.borradores.length}`}
+            tableId="mis-viajes-v4"
+            miId={miId}
+            miNombre={miNombre}
+            onVerDetalle={(id) => { void verDetalle(id); }}
+            onRefresh={() => { void cargarSolicitudes(); }}
+            acciones={accionesDe}
+          />
+        </TabsContent>
+
+        <TabsContent value="enviadas" className="mt-4">
+          <SolicitudesViajeTable
+            filas={filas.enviadas}
+            cargando={cargando}
+            titulo="Enviadas"
+            subtitulo={`Total: ${filas.enviadas.length}`}
+            tableId="mis-viajes-v4"
+            miId={miId}
+            miNombre={miNombre}
+            onVerDetalle={(id) => { void verDetalle(id); }}
+            onRefresh={() => { void cargarSolicitudes(); }}
+            acciones={accionesDe}
+          />
+        </TabsContent>
+      </Tabs>
 
       <CalculosViajeModal
         solicitud={calculo}
@@ -541,7 +317,9 @@ export function MisViajesPage({ hoy = new Date() }: { hoy?: Date }) {
         }}
         onEnviado={() => {
           void cargarSolicitudes();
-          navigate('/viaticos/concentrado');
+          // Al enviar, la solicitud pasa a la cola de autorización: la persona
+          // la sigue viendo en la pestaña Enviadas.
+          navigate('/viaticos/mis-viajes?pestana=enviadas');
         }}
       />
 

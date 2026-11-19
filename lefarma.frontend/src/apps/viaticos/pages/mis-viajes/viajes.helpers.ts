@@ -162,3 +162,94 @@ export function enRango(fechaCreacion: string, rango: { inicio: string; fin: str
   const dia = fechaCreacion.slice(0, 10);
   return dia >= rango.inicio && dia <= rango.fin;
 }
+
+// ---- presentación de filas (tabla de viajes, compartida con Autorizaciones) ----
+
+export interface FilaViaje {
+  solicitud: Solicitud;
+  resumen: ResumenViaje;
+}
+
+export const TIPOS_VIAJE: { id: TipoViaje | 'todos'; etiqueta: string }[] = [
+  { id: 'todos', etiqueta: 'Todos' },
+  { id: 'propio', etiqueta: 'Carro propio' },
+  { id: 'solicitado', etiqueta: 'Transporte solicitado' },
+  { id: 'sin-clasificar', etiqueta: 'Sin clasificar' },
+];
+
+export function nombreCreadorDe(solicitud: Solicitud, miId?: number, miNombre?: string): string {
+  const nombre = solicitud.nombre_creador?.trim();
+  if (nombre) return nombre;
+  const idCreador = solicitud.id_usuario_creacion ?? solicitud.id_usuario_solicitante;
+  if (miId !== undefined && idCreador === miId && miNombre?.trim()) return miNombre;
+  return `Usuario #${idCreador}`;
+}
+
+/** Fecha larga al estilo de la bandeja de CxP: "23 de octubre de 2026". */
+export function fechaLarga(fecha: string): string {
+  if (!fecha) return '—';
+  const d = new Date(fecha);
+  return Number.isNaN(d.getTime())
+    ? fecha
+    : d.toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric' });
+}
+
+/** Mismo lenguaje de color por estado que la bandeja de órdenes de CxP. */
+export const COLOR_POR_ESTADO: Record<string, string> = {
+  borrador: '#64748b',
+  enviada: '#2563eb',
+  autorizada: '#16a34a',
+  autorizada_con_ajustes: '#d97706',
+  rechazada: '#dc2626',
+};
+
+export function colorEstado(estado: string): string {
+  return COLOR_POR_ESTADO[estado] ?? '#64748b';
+}
+
+function objetoPlano(v: unknown): Record<string, unknown> | null {
+  return typeof v === 'object' && v !== null && !Array.isArray(v) ? (v as Record<string, unknown>) : null;
+}
+
+/** Personas del viaje: la persona viajera + acompañantes. */
+export function personasInvolucradas(solicitud: Solicitud): number {
+  const datos = objetoPlano(solicitud.datos);
+  const transporte = objetoPlano(datos?.transporte);
+  const acompanantes = Array.isArray(transporte?.acompanantes) ? transporte!.acompanantes.length : 0;
+  return 1 + acompanantes;
+}
+
+export function modoTransporte(solicitud: Solicitud): 'propio' | 'solicitado' {
+  const datos = objetoPlano(solicitud.datos);
+  const transporte = objetoPlano(datos?.transporte);
+  return transporte?.modo === 'propio' ? 'propio' : 'solicitado';
+}
+
+export function tipoTransporte(solicitud: Solicitud): string {
+  return modoTransporte(solicitud) === 'propio' ? 'Carro propio' : 'Solicitud de transporte';
+}
+
+/** Costo conocido del viaje: total del snapshot o comidas + extras + opciones elegidas. */
+export function costoViaje(solicitud: Solicitud): number | null {
+  const datos = objetoPlano(solicitud.datos);
+  const totalSnapshot = Number(datos?.total);
+  if (Number.isFinite(totalSnapshot) && totalSnapshot > 0) return totalSnapshot;
+
+  const gastos = objetoPlano(datos?.gastos);
+  const comidas = Number(gastos?.comidas) || 0;
+  const extras = (Array.isArray(gastos?.extras) ? gastos!.extras : []).reduce<number>((suma, extra) => {
+    const obj = objetoPlano(extra);
+    const monto = obj ? Number(obj.monto) : Number(extra);
+    return suma + (Number.isFinite(monto) ? monto : 0);
+  }, 0);
+  const elegidas = solicitud.opciones
+    .filter((opcion) => opcion.fue_elegida)
+    .reduce((suma, opcion) => suma + (opcion.precio ?? 0), 0);
+
+  const total = comidas + extras + elegidas;
+  return total > 0 ? total : null;
+}
+
+export function mxn(n: number): string {
+  return n.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
+}

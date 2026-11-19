@@ -4,7 +4,15 @@ import userEvent from '@testing-library/user-event';
 import { MisViajesPage, VistaDetalle } from './MisViajesPage';
 import type { CalculoViaje, PropuestaRuta, Solicitud, SolicitudOpcion } from '../../types/solicitud.types';
 
-const mocks = vi.hoisted(() => ({ mis: vi.fn(), detalle: vi.fn(), eliminar: vi.fn(), navigate: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  mis: vi.fn(),
+  detalle: vi.fn(),
+  eliminar: vi.fn(),
+  navigate: vi.fn(),
+  setBusqueda: vi.fn(),
+  busqueda: new URLSearchParams(),
+  verTodas: false,
+}));
 vi.mock('../../services/solicitudes.api', () => ({
   solicitudesApi: {
     misSolicitudes: mocks.mis,
@@ -24,7 +32,11 @@ vi.mock('../../services/evidencias.api', () => ({
     buscar: vi.fn(),
   },
 }));
-vi.mock('react-router-dom', () => ({ useNavigate: () => mocks.navigate }));
+vi.mock('react-router-dom', () => ({
+  useNavigate: () => mocks.navigate,
+  useSearchParams: () => [mocks.busqueda, mocks.setBusqueda],
+}));
+vi.mock('@/hooks/usePermission', () => ({ usePermission: () => mocks.verTodas }));
 vi.mock('@/hooks/usePageTitle', () => ({ usePageTitle: vi.fn() }));
 vi.mock('sonner', () => ({ toast: { error: vi.fn(), success: vi.fn(), warning: vi.fn() } }));
 vi.mock('@/shared/auth/authStore', () => ({
@@ -37,7 +49,7 @@ const solicitud = (id: number, extra: Record<string, unknown>): Solicitud => ({
   id_usuario_solicitante: 7,
   periodo: '2026-11',
   gerencia: '',
-  estado: 'enviada',
+  estado: 'borrador',
   activo: true,
   fecha_creacion: '2026-11-05T12:00:00',
   fecha_modificacion: '2026-11-05T12:00:00',
@@ -49,6 +61,8 @@ const solicitud = (id: number, extra: Record<string, unknown>): Solicitud => ({
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.busqueda = new URLSearchParams();
+  mocks.verTodas = false;
   mocks.detalle.mockResolvedValue({ data: { success: true, data: null } });
   mocks.eliminar.mockResolvedValue({ data: { success: true } });
 });
@@ -110,12 +124,13 @@ describe('MisViajesPage', () => {
   });
 
   it('la tabla ordena del más reciente al más antiguo y muestra folio, solicitante y puntos', async () => {
+    mocks.busqueda = new URLSearchParams('pestana=enviadas');
     mocks.mis.mockResolvedValue({
       data: {
         success: true,
         data: [
-          solicitud(1, { fecha_creacion: '2026-11-01T10:00:00', num_puntos: 2, folio: 'VIA-AAA-0001', persona_solicitante: 'Ana Creadora', persona_viajera: 'Ana Creadora' }),
-          solicitud(2, { fecha_creacion: '2026-11-09T10:00:00', num_puntos: 3, folio: 'VIA-BBB-0002', persona_solicitante: 'Beto Creador', persona_viajera: 'Beto Creador' }),
+          solicitud(1, { estado: 'enviada', fecha_creacion: '2026-11-01T10:00:00', num_puntos: 2, folio: 'VIA-AAA-0001', persona_solicitante: 'Ana Creadora', persona_viajera: 'Ana Creadora' }),
+          solicitud(2, { estado: 'enviada', fecha_creacion: '2026-11-09T10:00:00', num_puntos: 3, folio: 'VIA-BBB-0002', persona_solicitante: 'Beto Creador', persona_viajera: 'Beto Creador' }),
         ],
       },
     });
@@ -144,7 +159,7 @@ describe('MisViajesPage', () => {
     expect(fila).toHaveTextContent('Viajero: Luis Viajero');
   });
 
-  it('un borrador muestra editar, eliminar y enviar a concentrado; uno enviado no', async () => {
+  it('separa borradores de enviadas y solo el borrador propio se puede enviar, editar o eliminar', async () => {
     const usuario = userEvent.setup();
     mocks.mis.mockResolvedValue({
       data: {
@@ -156,23 +171,76 @@ describe('MisViajesPage', () => {
       },
     });
     render(<MisViajesPage />);
-    await waitFor(() => expect(screen.getAllByTestId(/^viaje-/)).toHaveLength(2));
+    // La pestaña por defecto es Borradores: la enviada vive en la otra.
+    await waitFor(() => expect(screen.getAllByTestId(/^viaje-/)).toHaveLength(1));
+    expect(mocks.mis).toHaveBeenCalledWith(undefined);
+    expect(screen.getByRole('tab', { name: /Borradores \(1\)/ })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tab', { name: /Enviadas \(1\)/ })).toBeInTheDocument();
+
     const borrador = screen.getByTestId('viaje-1');
     // El envío queda visible en la fila; editar y eliminar viven en el menú de tres puntos.
-    expect(within(borrador).getByRole('button', { name: /Enviar a concentrado/ })).toBeInTheDocument();
+    expect(within(borrador).getByRole('button', { name: /Enviar a autorización/ })).toBeInTheDocument();
     expect(within(borrador).queryByRole('button', { name: /Editar/ })).not.toBeInTheDocument();
     await usuario.click(within(borrador).getByRole('button', { name: /Más acciones/ }));
     const editar = await screen.findByRole('menuitem', { name: /Editar/ });
     expect(screen.getByRole('menuitem', { name: /Eliminar/ })).toBeInTheDocument();
-    const enviada = screen.getByTestId('viaje-2');
-    expect(within(enviada).queryByRole('button', { name: /Enviar a concentrado/ })).not.toBeInTheDocument();
     await usuario.click(editar);
     expect(mocks.navigate).toHaveBeenCalledWith('/viaticos/solicitud/1');
   });
 
+  it('abre la pestaña Enviadas desde la URL y ahí solo aparecen las enviadas, sin acciones de edición', async () => {
+    mocks.busqueda = new URLSearchParams('pestana=enviadas');
+    mocks.mis.mockResolvedValue({
+      data: {
+        success: true,
+        data: [
+          solicitud(1, { estado: 'borrador', folio: 'VIA-AAA-0001' }),
+          solicitud(2, { estado: 'enviada', folio: 'VIA-BBB-0002' }),
+        ],
+      },
+    });
+    render(<MisViajesPage />);
+    await waitFor(() => expect(screen.getByTestId('viaje-2')).toBeInTheDocument());
+    expect(screen.queryByTestId('viaje-1')).not.toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /Enviadas/ })).toHaveAttribute('aria-selected', 'true');
+    const enviada = screen.getByTestId('viaje-2');
+    expect(within(enviada).getByRole('button', { name: /Ver detalle/ })).toBeInTheDocument();
+    expect(within(enviada).queryByRole('button', { name: /Enviar a autorización/ })).not.toBeInTheDocument();
+    expect(within(enviada).queryByRole('button', { name: /Más acciones/ })).not.toBeInTheDocument();
+  });
+
+  it('con viaticos.ver_todos pide las de todos y deja los borradores ajenos solo para consulta', async () => {
+    mocks.verTodas = true;
+    mocks.mis.mockResolvedValue({
+      data: {
+        success: true,
+        data: [solicitud(1, { estado: 'borrador', id_usuario_solicitante: 11, folio: 'VIA-OTRO-0001' })],
+      },
+    });
+    render(<MisViajesPage />);
+    await waitFor(() => expect(screen.getByTestId('viaje-1')).toBeInTheDocument());
+    expect(mocks.mis).toHaveBeenCalledWith({ todas: true });
+    expect(screen.getByText(/Ves las solicitudes de todos los usuarios/)).toBeInTheDocument();
+    const ajena = screen.getByTestId('viaje-1');
+    expect(within(ajena).getByRole('button', { name: /Ver detalle/ })).toBeInTheDocument();
+    expect(within(ajena).queryByRole('button', { name: /Enviar a autorización/ })).not.toBeInTheDocument();
+    expect(within(ajena).queryByRole('button', { name: /Más acciones/ })).not.toBeInTheDocument();
+  });
+
+  it('al cambiar de pestaña escribe la pestaña en la URL', async () => {
+    const usuario = userEvent.setup();
+    mocks.mis.mockResolvedValue({ data: { success: true, data: [solicitud(1, { estado: 'enviada' })] } });
+    render(<MisViajesPage />);
+    await waitFor(() => expect(mocks.mis).toHaveBeenCalled());
+    await usuario.click(screen.getByRole('tab', { name: /Enviadas/ }));
+    const escrita = mocks.setBusqueda.mock.calls.at(-1)?.[0] as URLSearchParams;
+    expect(escrita.get('pestana')).toBe('enviadas');
+  });
+
   it('el detalle muestra itinerario, participantes y desglose sin duplicar', async () => {
     const usuario = userEvent.setup();
-    mocks.mis.mockResolvedValue({ data: { success: true, data: [solicitud(1, { datos: { version: 'solicitud-v2' } })] } });
+    mocks.busqueda = new URLSearchParams('pestana=enviadas');
+    mocks.mis.mockResolvedValue({ data: { success: true, data: [solicitud(1, { estado: 'enviada', datos: { version: 'solicitud-v2' } })] } });
     mocks.detalle.mockResolvedValue({
       data: {
         success: true,
@@ -236,7 +304,8 @@ describe('MisViajesPage', () => {
         ],
       },
     };
-    mocks.mis.mockResolvedValue({ data: { success: true, data: [solicitud(1, { datos })] } });
+    mocks.busqueda = new URLSearchParams('pestana=enviadas');
+    mocks.mis.mockResolvedValue({ data: { success: true, data: [solicitud(1, { estado: 'enviada', datos })] } });
     mocks.detalle.mockResolvedValue({ data: { success: true, data: solicitud(1, { datos }) } });
     render(<MisViajesPage />);
     await waitFor(() => expect(screen.getByTestId('viaje-1')).toBeInTheDocument());
@@ -295,7 +364,8 @@ describe('MisViajesPage', () => {
         tramos: [tramo('Ruta autorizada por el concentrado', 'Destino aprobado')],
       },
     };
-    mocks.mis.mockResolvedValue({ data: { success: true, data: [solicitud(1, { datos })] } });
+    mocks.busqueda = new URLSearchParams('pestana=enviadas');
+    mocks.mis.mockResolvedValue({ data: { success: true, data: [solicitud(1, { estado: 'enviada', datos })] } });
     mocks.detalle.mockResolvedValue({ data: { success: true, data: solicitud(1, { datos }) } });
     render(<MisViajesPage />);
     await waitFor(() => expect(screen.getByTestId('viaje-1')).toBeInTheDocument());
@@ -586,3 +656,4 @@ describe('VistaDetalle en revisión', () => {
     expect(screen.getByTestId('comparador-total-diferencia')).toHaveTextContent('+$200.00');
   });
 });
+
