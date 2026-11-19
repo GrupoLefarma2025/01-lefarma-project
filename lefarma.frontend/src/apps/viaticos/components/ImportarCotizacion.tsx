@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Send } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -267,9 +268,11 @@ export function ImportarCotizacion({ solicitudId = null, conceptosMotor = null, 
             <div>
               <Button
                 type="button"
+                className="gap-1.5"
                 onClick={enviar}
                 disabled={enviando || enviada || !haySeleccion}
               >
+                <Send className="h-4 w-4" aria-hidden />
                 {enviando ? 'Enviando...' : 'Enviar solicitud'}
               </Button>
               {!haySeleccion && (
