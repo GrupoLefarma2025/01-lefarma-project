@@ -1,18 +1,10 @@
 import { useState } from 'react';
-import { Boxes, Loader2, Pencil, Plus, Power, PowerOff } from 'lucide-react';
+import { Boxes, Layers, Loader2, Pencil, Plus, Power, PowerOff } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { InlineLoader } from '@/components/ui/inline-loader';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -23,6 +15,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { cn } from '@/lib/utils';
 import { desactivarModulo, reactivarModulo } from '../services/configuracionAdminApi';
 import type { ModuloConfig } from '../types';
 import { formatearFecha, mensajeError } from '../utils';
@@ -104,128 +97,119 @@ export function ModulosPanel({
         </Button>
       </div>
 
-      <div className="overflow-x-auto rounded-lg border border-border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Módulo</TableHead>
-              <TableHead className="w-[110px]">Variables</TableHead>
-              <TableHead className="w-[80px]">Orden</TableHead>
-              <TableHead className="w-[110px]">Estado</TableHead>
-              <TableHead className="w-[150px]">Actualizado</TableHead>
-              <TableHead className="w-[120px] text-right">Acciones</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {cargando && modulos.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={6}>
-                  <InlineLoader message="Cargando módulos…" />
-                </TableCell>
-              </TableRow>
-            ) : modulos.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={6} className="p-0">
-                  <EmptyState
-                    icon={<Boxes className="h-10 w-10" />}
-                    title="Aún no hay módulos"
-                    description="El módulo «Global» se crea automáticamente. Crea módulos para agrupar variables por área."
-                  />
-                </TableCell>
-              </TableRow>
-            ) : (
-              modulos.map((modulo) => {
-                const esGlobal = modulo.clave === 'global';
-                return (
-                  <TableRow key={modulo.idModulo}>
-                    <TableCell>
-                      <div className="flex min-w-0 flex-col gap-0.5">
-                        <span className="flex items-center gap-1.5 text-sm font-medium">
-                          {modulo.nombre}
-                          {esGlobal && (
-                            <Badge variant="secondary" className="text-[9px]">
-                              Base
-                            </Badge>
-                          )}
-                        </span>
-                        <span className="font-mono text-[11px] text-muted-foreground">
-                          {modulo.clave}
-                        </span>
-                        {modulo.descripcion && (
-                          <span className="line-clamp-1 text-[10px] text-muted-foreground">
-                            {modulo.descripcion}
-                          </span>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <span className="text-sm tabular-nums">{modulo.totalVariables}</span>
-                    </TableCell>
-                    <TableCell>
-                      <span className="text-sm tabular-nums">{modulo.orden}</span>
-                    </TableCell>
-                    <TableCell>
-                      <Badge
-                        variant="outline"
-                        className={
-                          modulo.activo
-                            ? 'border-emerald-500/40 text-emerald-600'
-                            : 'border-destructive/40 text-destructive'
-                        }
-                      >
-                        {modulo.activo ? 'Activo' : 'Inactivo'}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">
+      {cargando && modulos.length === 0 ? (
+        <InlineLoader message="Cargando módulos…" />
+      ) : modulos.length === 0 ? (
+        <EmptyState
+          icon={<Boxes className="h-10 w-10" />}
+          title="Aún no hay módulos"
+          description="El módulo «Global» se crea automáticamente. Crea módulos para agrupar variables por área."
+        />
+      ) : (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {modulos.map((modulo) => {
+            const esGlobal = modulo.clave === 'global';
+            return (
+              <article
+                key={modulo.idModulo}
+                className={cn(
+                  'flex min-h-[9.5rem] flex-col gap-2 rounded-xl border border-border bg-card p-3.5 shadow-sm transition-colors',
+                  !modulo.activo && 'opacity-75',
+                )}
+              >
+                <div className="flex items-start gap-2">
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+                    <Boxes className="h-4 w-4" />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5">
+                      <h4 className="truncate text-sm font-semibold leading-tight">
+                        {modulo.nombre}
+                      </h4>
+                      {esGlobal && (
+                        <Badge variant="secondary" className="px-1.5 text-[9px]">
+                          Base
+                        </Badge>
+                      )}
+                    </div>
+                    <p className="truncate font-mono text-[11px] text-muted-foreground">
+                      {modulo.clave}
+                    </p>
+                  </div>
+                  <Badge
+                    variant="outline"
+                    className={cn(
+                      'shrink-0 text-[10px]',
+                      modulo.activo
+                        ? 'border-emerald-500/40 text-emerald-600'
+                        : 'border-destructive/40 text-destructive',
+                    )}
+                  >
+                    {modulo.activo ? 'Activo' : 'Inactivo'}
+                  </Badge>
+                </div>
+
+                <p className="line-clamp-2 text-[11px] leading-snug text-muted-foreground">
+                  {modulo.descripcion ?? 'Sin descripción.'}
+                </p>
+
+                <div className="mt-auto flex items-center justify-between gap-2 border-t border-border/60 pt-2">
+                  <span
+                    className="flex items-center gap-1 text-[11px] text-muted-foreground"
+                    title="Variables ligadas al módulo"
+                  >
+                    <Layers className="h-3.5 w-3.5" />
+                    {modulo.totalVariables}{' '}
+                    {modulo.totalVariables === 1 ? 'variable' : 'variables'}
+                  </span>
+                  <div className="flex items-center gap-1">
+                    <span className="mr-1 text-[10px] text-muted-foreground">
                       {formatearFecha(modulo.fechaModificacion)}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7"
-                          onClick={() => abrirEditar(modulo)}
-                          disabled={!puedeGestionar}
-                          title="Editar módulo"
-                        >
-                          <Pencil className="h-3.5 w-3.5" />
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className={
-                            modulo.activo
-                              ? 'h-7 w-7 text-destructive hover:text-destructive'
-                              : 'h-7 w-7 text-emerald-600 hover:text-emerald-600'
-                          }
-                          onClick={() => setModuloEstado(modulo)}
-                          disabled={!puedeGestionar || esGlobal}
-                          title={
-                            esGlobal
-                              ? 'El módulo global no puede desactivarse.'
-                              : modulo.activo
-                                ? 'Desactivar módulo'
-                                : 'Reactivar módulo'
-                          }
-                        >
-                          {modulo.activo ? (
-                            <PowerOff className="h-3.5 w-3.5" />
-                          ) : (
-                            <Power className="h-3.5 w-3.5" />
-                          )}
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                );
-              })
-            )}
-          </TableBody>
-        </Table>
-      </div>
+                    </span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7"
+                      onClick={() => abrirEditar(modulo)}
+                      disabled={!puedeGestionar}
+                      title="Editar módulo"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className={cn(
+                        'h-7 w-7',
+                        modulo.activo
+                          ? 'text-destructive hover:text-destructive'
+                          : 'text-emerald-600 hover:text-emerald-600',
+                      )}
+                      onClick={() => setModuloEstado(modulo)}
+                      disabled={!puedeGestionar || esGlobal}
+                      title={
+                        esGlobal
+                          ? 'El módulo global no puede desactivarse.'
+                          : modulo.activo
+                            ? 'Desactivar módulo'
+                            : 'Reactivar módulo'
+                      }
+                    >
+                      {modulo.activo ? (
+                        <PowerOff className="h-3.5 w-3.5" />
+                      ) : (
+                        <Power className="h-3.5 w-3.5" />
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      )}
 
       <ModuloEditorDialog
         open={editorOpen}

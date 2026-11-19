@@ -270,7 +270,6 @@ export interface ModuloConfig {
   clave: string;
   nombre: string;
   descripcion: string | null;
-  orden: number;
   activo: boolean;
   totalVariables: number;
   fechaCreacion: string;
@@ -342,13 +341,11 @@ export interface CrearModuloPayload {
   clave: string;
   nombre: string;
   descripcion: string | null;
-  orden: number;
 }
 
 export interface ActualizarModuloPayload {
   nombre: string;
   descripcion: string | null;
-  orden: number;
 }
 
 export interface ActualizarVariablePayload {

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
+  aSegmentoClave,
   calcularDiff,
   construirClave,
   construirEsquema,
@@ -224,5 +225,16 @@ describe('configuracion utils', () => {
       validarValorVariable('fecha_hora', '2026-01-31T18:30:00.000Z', null),
     ).toEqual([]);
     expect(validarValorVariable('fecha', '31/01/2026', null).length).toBe(1);
+  });
+
+  it('normaliza los segmentos de clave mientras se escriben', () => {
+    expect(aSegmentoClave('Dias')).toBe('dias');
+    expect(aSegmentoClave('Días límite')).toBe('dias_limite');
+    expect(aSegmentoClave('dias limite')).toBe('dias_limite');
+    expect(aSegmentoClave('dias-límite!')).toBe('diaslimite');
+    expect(aSegmentoClave('  varios   espacios  ')).toBe('varios_espacios');
+    expect(aSegmentoClave('123 clave')).toBe('clave');
+    expect(aSegmentoClave('___')).toBe('');
+    expect(aSegmentoClave('clave.mala')).toBe('clavemala');
   });
 });

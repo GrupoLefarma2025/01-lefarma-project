@@ -8,7 +8,7 @@ import { Modal } from '@/components/ui/modal';
 import { Textarea } from '@/components/ui/textarea';
 import { actualizarModulo, crearModulo } from '../services/configuracionAdminApi';
 import type { ModuloConfig } from '../types';
-import { mensajeError, sinAcentos } from '../utils';
+import { mensajeError, aSegmentoClave, sinAcentos } from '../utils';
 
 const CLAVE_MODULO_REGEX = /^[a-z][a-z0-9_]*$/;
 
@@ -37,19 +37,17 @@ export function ModuloEditorDialog({
   onGuardado,
 }: ModuloEditorDialogProps) {
   const esEdicion = modulo !== null;
-  const [clave, setClave] = useState('');
   const [nombre, setNombre] = useState('');
+  const [clave, setClave] = useState('');
   const [descripcion, setDescripcion] = useState('');
-  const [orden, setOrden] = useState('0');
   const [intento, setIntento] = useState(false);
   const [guardando, setGuardando] = useState(false);
 
   useEffect(() => {
     if (!open) return;
-    setClave(modulo?.clave ?? '');
     setNombre(modulo?.nombre ?? '');
+    setClave(modulo?.clave ?? '');
     setDescripcion(modulo?.descripcion ?? '');
-    setOrden(String(modulo?.orden ?? 0));
     setIntento(false);
     setGuardando(false);
   }, [open, modulo]);
@@ -76,7 +74,6 @@ export function ModuloEditorDialog({
       const payload = {
         nombre: nombre.trim(),
         descripcion: descripcion.trim() || null,
-        orden: Number.parseInt(orden, 10) || 0,
       };
       const guardado = esEdicion
         ? await actualizarModulo(modulo.idModulo, payload)
@@ -124,6 +121,23 @@ export function ModuloEditorDialog({
       }
     >
       <div className="flex flex-col gap-1">
+        <Label htmlFor="modulo-nombre" className="text-xs">
+          Nombre <span className="text-destructive">*</span>
+        </Label>
+        <Input
+          id="modulo-nombre"
+          value={nombre}
+          onChange={(e) => setNombre(e.target.value)}
+          placeholder="Ej. Viáticos"
+          className="h-9"
+          maxLength={200}
+          aria-invalid={Boolean(errorNombre)}
+          autoFocus
+        />
+        {errorNombre && <p className="text-[11px] text-destructive">{errorNombre}</p>}
+      </div>
+
+      <div className="flex flex-col gap-1">
         <div className="flex flex-wrap items-end justify-between gap-x-2 gap-y-1">
           <div className="min-w-0">
             <Label htmlFor="modulo-clave" className="text-xs">
@@ -150,7 +164,7 @@ export function ModuloEditorDialog({
         <Input
           id="modulo-clave"
           value={clave}
-          onChange={(e) => setClave(e.target.value)}
+          onChange={(e) => setClave(aSegmentoClave(e.target.value).slice(0, 50))}
           placeholder="Ej. viaticos"
           className="h-9 font-mono text-sm"
           maxLength={50}
@@ -166,37 +180,6 @@ export function ModuloEditorDialog({
         {errorClave && <p className="text-[11px] text-destructive">{errorClave}</p>}
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_110px]">
-        <div className="flex flex-col gap-1">
-          <Label htmlFor="modulo-nombre" className="text-xs">
-            Nombre <span className="text-destructive">*</span>
-          </Label>
-          <Input
-            id="modulo-nombre"
-            value={nombre}
-            onChange={(e) => setNombre(e.target.value)}
-            placeholder="Ej. Viáticos"
-            className="h-9"
-            maxLength={200}
-            aria-invalid={Boolean(errorNombre)}
-          />
-          {errorNombre && <p className="text-[11px] text-destructive">{errorNombre}</p>}
-        </div>
-        <div className="flex flex-col gap-1">
-          <Label htmlFor="modulo-orden" className="text-xs">
-            Orden
-          </Label>
-          <Input
-            id="modulo-orden"
-            type="number"
-            value={orden}
-            onChange={(e) => setOrden(e.target.value)}
-            className="h-9"
-            min={0}
-          />
-        </div>
-      </div>
-
       <div className="flex flex-col gap-1">
         <Label htmlFor="modulo-descripcion" className="text-xs">
           Descripción{' '}
@@ -207,7 +190,7 @@ export function ModuloEditorDialog({
           value={descripcion}
           onChange={(e) => setDescripcion(e.target.value)}
           placeholder="Para qué sirve este módulo y qué variables agrupa"
-          className="resize-none bg-background text-sm"
+          className="resize-none text-sm"
           rows={3}
           maxLength={1000}
         />

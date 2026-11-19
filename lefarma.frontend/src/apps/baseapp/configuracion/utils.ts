@@ -97,6 +97,21 @@ export function namespacesDeVariables(
   );
 }
 
+/**
+ * Normaliza un segmento de clave mientras se escribe: minúsculas, los espacios
+ * se vuelven `_` y cualquier signo fuera de `a-z0-9_` se descarta.
+ * `Días límite!` → `dias_limite`.
+ */
+export function aSegmentoClave(texto: string): string {
+  return sinAcentos(texto)
+    .toLowerCase()
+    .replace(/\s+/g, '_')
+    .replace(/[^a-z0-9_]+/g, '')
+    .replace(/_+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .replace(/^\d+_?/, '');
+}
+
 export function validarClave(
   clave: string,
   opciones?: { requiereModulo?: boolean },
