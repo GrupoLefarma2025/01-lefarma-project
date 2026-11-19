@@ -206,13 +206,70 @@ describe('SolicitudPage', () => {
     await waitFor(() => expect(mocks.navigate).toHaveBeenCalledWith('/viaticos/mis-viajes'));
   });
 
-  it('la salida del destino es opcional', async () => {
+  it('exige fecha y hora de salida del destino antes de avanzar', async () => {
     await irAlPaso(5, 'solicitado');
     fireEvent.click(screen.getByRole('button', { name: 'Fijar punto de prueba' }));
     fireEvent.change(screen.getByLabelText(/-debe-fecha$/), { target: { value: FECHA_DESTINO } });
     fireEvent.change(screen.getByLabelText(/-debe-hora$/), { target: { value: '12:00' } });
-    expect(screen.getByText('Hora de salida del destino (opcional)')).toBeInTheDocument();
+
+    expect(siguiente()).toBeDisabled();
+    expect(screen.getByText('Hora de salida del destino (obligatoria)')).toBeInTheDocument();
+    expect(screen.getByText('La usamos para calcular el regreso al origen.')).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText(/-sale-fecha$/), { target: { value: FECHA_DESTINO } });
+    expect(siguiente()).toBeDisabled();
+
+    fireEvent.change(screen.getByLabelText(/-sale-fecha$/), { target: { value: '' } });
+    fireEvent.change(screen.getByLabelText(/-sale-hora$/), { target: { value: '18:00' } });
+    expect(siguiente()).toBeDisabled();
+
+    fireEvent.change(screen.getByLabelText(/-sale-fecha$/), { target: { value: FECHA_DESTINO } });
+    fireEvent.change(screen.getByLabelText(/-sale-hora$/), { target: { value: '12:00' } });
     expect(siguiente()).not.toBeDisabled();
+
+    fireEvent.change(screen.getByLabelText(/-sale-hora$/), { target: { value: '18:00' } });
+    expect(siguiente()).not.toBeDisabled();
+  });
+
+  it('exige la salida de cada destino en un viaje con varios destinos', async () => {
+    await irAlPaso(5, 'solicitado');
+    completarDestino();
+    fireEvent.click(screen.getByRole('button', { name: 'Agregar otro destino' }));
+    completarDestino();
+    expect(siguiente()).not.toBeDisabled();
+
+    fireEvent.click(screen.getByRole('tab', { name: /^1\. Toluca, México/ }));
+    fireEvent.change(screen.getByLabelText(/-sale-hora$/), { target: { value: '' } });
+    expect(siguiente()).toBeDisabled();
+
+    fireEvent.change(screen.getByLabelText(/-sale-hora$/), { target: { value: '18:00' } });
+    expect(siguiente()).not.toBeDisabled();
+
+    fireEvent.click(screen.getByRole('tab', { name: /^2\. Toluca, México/ }));
+    fireEvent.change(screen.getByLabelText(/-sale-fecha$/), { target: { value: '' } });
+    expect(siguiente()).toBeDisabled();
+  });
+
+  it('permite guardar un borrador aunque la salida del destino esté incompleta', async () => {
+    await irAlPaso(5, 'solicitado');
+    completarDestino();
+    await irAViaticos();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Volver al paso 5: Destinos' }));
+    expect(await screen.findByTestId('paso-5')).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText(/-sale-fecha$/), { target: { value: '' } });
+    fireEvent.change(screen.getByLabelText(/-sale-hora$/), { target: { value: '' } });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Ir al paso 7: Resumen' }));
+    expect(await screen.findByTestId('paso-7')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar borrador' }));
+
+    await waitFor(() => expect(mocks.crear).toHaveBeenCalledTimes(1));
+    expect(mocks.crear.mock.calls[0][0].datos.destinos[0]).toMatchObject({
+      saleFecha: '',
+      saleHora: '',
+    });
+    await waitFor(() => expect(mocks.navigate).toHaveBeenCalledWith('/viaticos/mis-viajes'));
   });
 
   it('la llegada no puede ser antes de la salida del origen ni la salida antes de la llegada', async () => {

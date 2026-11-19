@@ -410,12 +410,12 @@ export function SolicitudPage() {
 
   const destinoActual = destinos[indiceActual];
 
-  /** Un destino está listo con punto y llegada; la salida es opcional. */
+  /** Un destino está listo con punto, llegada y salida explícita. */
   function destinoCompleto(d: DestinoV2): boolean {
-    if (!d.punto || !d.debeEstarFecha || !d.debeEstarHora) return false;
+    if (!d.punto || !d.debeEstarFecha || !d.debeEstarHora || !d.saleFecha || !d.saleHora) return false;
     const llegada = `${d.debeEstarFecha}T${d.debeEstarHora}`;
     if (origen.fechaSalida && origen.horaSalida && llegada < `${origen.fechaSalida}T${origen.horaSalida}`) return false;
-    return !(d.saleFecha && d.saleHora && `${d.saleFecha}T${d.saleHora}` < llegada);
+    return `${d.saleFecha}T${d.saleHora}` >= llegada;
   }
 
   const puedeAvanzar = destinos.length > 0 && destinos.every(destinoCompleto);
@@ -1107,7 +1107,7 @@ function DestinoEditor(props: {
           {llegadaAntesDelOrigen ? <p role="alert" className="text-xs text-destructive">La llegada no puede ser antes de la salida del origen.</p> : null}
         </div>
         <div className="space-y-1">
-          <Label htmlFor={`dest-${destino.id}-sale`}>Hora de salida del destino (opcional)</Label>
+          <Label htmlFor={`dest-${destino.id}-sale`}>Hora de salida del destino (obligatoria)</Label>
           <DateTimePicker
             id={`dest-${destino.id}-sale`}
             fecha={destino.saleFecha}
@@ -1117,6 +1117,7 @@ function DestinoEditor(props: {
             onHora={(h) => props.onCambiar({ saleHora: h })}
             placeholder="Elige fecha y hora de salida"
           />
+          <p className="text-xs text-muted-foreground">La usamos para calcular el regreso al origen.</p>
           {salidaAntesDeLlegada ? <p role="alert" className="text-xs text-destructive">La salida no puede ser antes de la llegada al destino.</p> : null}
         </div>
       </div>

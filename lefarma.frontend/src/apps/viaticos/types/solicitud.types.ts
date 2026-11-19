@@ -24,6 +24,9 @@ export interface DatosOpcion {
   tramo?: number;
   de?: string;
   a?: string;
+  combustible?: number;
+  casetas_estimadas?: number;
+  source?: string;
   [clave: string]: unknown;
 }
 
