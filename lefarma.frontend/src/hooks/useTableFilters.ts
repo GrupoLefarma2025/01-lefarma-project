@@ -1,4 +1,4 @@
-﻿import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
+import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import type { ColumnDef } from '@tanstack/react-table';
 import type {
   ColumnFilter,
@@ -20,12 +20,15 @@ export function useTableFilters<TData>({
   allColumns,
   defaultSearchColumns = [],
   defaultVisibleColumns,
+  requiredColumns = [],
   columnFilterConfigs: initialColumnFilterConfigs = {},
 }: {
   tableId: string;
   allColumns: ColumnDef<TData>[];
   defaultSearchColumns?: string[];
   defaultVisibleColumns?: string[];
+  /** Columnas que no se pueden ocultar, ni con una configuración guardada. */
+  requiredColumns?: string[];
   columnFilterConfigs?: Record<string, ColumnFilterConfig>;
 }): UseTableFiltersReturn {
   // Extraer IDs de columna de las definiciones de columnas
@@ -37,13 +40,30 @@ export function useTableFilters<TData>({
     [allColumns]
   );
 
+  /** Llave estable: quien llama pasa el arreglo en línea y cambia de identidad en cada render. */
+  const requiredColumnKey = requiredColumns.join('|');
+
   // Estado
   const [activeFilters, setActiveFilters] = useState<ColumnFilter[]>([]);
   const [searchColumnIds, setSearchColumnIds] = useState<string[]>(defaultSearchColumns);
-  const [visibleColumnIds, setVisibleColumnIds] = useState<string[]>(
+  const [visiblesGuardadas, setVisibleColumnIds] = useState<string[]>(
     defaultVisibleColumns ?? allColumnIds
   );
   const [columnFilterConfigs, setColumnFilterConfigs] = useState<Record<string, ColumnFilterConfig>>(initialColumnFilterConfigs);
+
+  // Las columnas requeridas SIEMPRE se ven. Se derivan en vez de guardarse en el
+  // estado para que una configuración guardada que las traía ocultas (o el menú
+  // de columnas) no puedan quitarlas: la casilla de selección es la acción de la
+  // pantalla y sin ella no hay forma de armar el documento.
+  const visibleColumnIds = useMemo(() => {
+    const requeridas = requiredColumnKey
+      .split('|')
+      .filter(id => id !== '' && allColumnIds.includes(id));
+    if (requeridas.length === 0) return visiblesGuardadas;
+    const presentes = new Set(visiblesGuardadas);
+    const faltantes = requeridas.filter(id => !presentes.has(id));
+    return faltantes.length === 0 ? visiblesGuardadas : [...faltantes, ...visiblesGuardadas];
+  }, [visiblesGuardadas, requiredColumnKey, allColumnIds]);
 
   // Trackear inicialización para prevenir race condition de auto-save
   const isInitialized = useRef(false);

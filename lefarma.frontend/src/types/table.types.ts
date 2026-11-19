@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Tipos de filtro soportados según el tipo de dato de la columna
  */
 export type FilterType = 'text' | 'number' | 'boolean' | 'select' | 'date';
@@ -58,6 +58,12 @@ export interface FilterConfig {
   searchableColumns: string[]; // Todas las columnas que PUEDEN ser buscadas
   defaultSearchColumns?: string[]; // Columnas por defecto a buscar (subconjunto de searchableColumns)
   defaultVisibleColumns?: string[]; // Columnas visibles por defecto (subconjunto de todas las columnas)
+  /**
+   * Columnas que siempre se ven: ni una configuración guardada ni el menú de
+   * columnas las pueden ocultar. Para columnas que SON una acción (por ejemplo
+   * la casilla de selección): si desaparecen, la pantalla queda inservible.
+   */
+  requiredColumns?: string[];
   columnFilterConfigs?: Record<string, ColumnFilterConfig>;
   onColumnFilterChange?: (columnId: string, config: ColumnFilterConfig) => void;
 }

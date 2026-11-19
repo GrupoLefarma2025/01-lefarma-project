@@ -705,6 +705,10 @@ export function ConcentradoPage() {
               tableId: 'viaticos-concentrado-v3',
               searchableColumns: ['destino', 'solicitante', 'estado', 'gerencia'],
               defaultSearchColumns: ['destino'],
+              // La casilla de selección es la acción de la pantalla: una
+              // configuración guardada que la ocultara dejaba el concentrado
+              // inservible, así que no se puede ocultar nunca.
+              requiredColumns: ['seleccion'],
               defaultVisibleColumns: [
                 'seleccion',
                 'solicitud',

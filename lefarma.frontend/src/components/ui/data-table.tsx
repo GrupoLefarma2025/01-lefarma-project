@@ -390,6 +390,7 @@ export function DataTable<TData>({
     allColumns: columns,
     defaultSearchColumns: filterConfig?.defaultSearchColumns,
     defaultVisibleColumns: filterConfig?.defaultVisibleColumns,
+    requiredColumns: filterConfig?.requiredColumns,
     columnFilterConfigs: filterConfig?.columnFilterConfigs,
   });
 
