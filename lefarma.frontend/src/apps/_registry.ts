@@ -1,7 +1,7 @@
-import { GraduationCap, Plane, ReceiptText, Users } from 'lucide-react';
+import { FileText, GraduationCap, Plane, ReceiptText, Users } from 'lucide-react';
 import type { ComponentType } from 'react';
 import type { HairlineProps } from '@lucasmarkes/hairline/react';
-import { Branches, Drawer, Riffle, Terrain, Vault } from '@lucasmarkes/hairline/react';
+import { Branches, Drawer, Loupe, Riffle, Terrain, Vault } from '@lucasmarkes/hairline/react';
 
 /**
  * Registro estático de apps — la única fuente de verdad para el launcher del
@@ -84,6 +84,19 @@ export const appRegistry: AppRegistryEntry[] = [
     hairline: Terrain,
     disabled: false,
     permission: 'baseapp.hub.puede_ver_viaticos',
+  },
+  {
+    id: 'sigma',
+    label: 'SIGMA',
+    path: '/SIGMA/',
+    description: 'Documentos y flujo de firmas',
+    icon: FileText,
+    // La lupa sobre la hoja rayada es la figura más cercana al módulo dentro de
+    // la familia Hairline: revisar y validar documentos.
+    hairline: Loupe,
+    disabled: false,
+    // Sin `permission`: el tile siempre es visible en el launcher. El acceso a
+    // cada pantalla lo validan el backend y los guards internos de SIGMA.
   },
   {
     id: 'configuracion',

@@ -370,7 +370,16 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       usuarioDetalle: null,
     });
 
-    if (!window.location.pathname.endsWith('/login')) {
+    // SIGMA tiene su propia pantalla de acceso dentro del módulo (/SIGMA), así
+    // que al cerrar sesión desde allí se vuelve a esa entrada y no al login
+    // global de Lefarma. El resto de la aplicación conserva /login.
+    const pathname = window.location.pathname;
+    const isSigmaPath = /^\/sigma(?:\/|$)/i.test(pathname);
+    if (isSigmaPath) {
+      if (pathname.replace(/\/+$/, '').toLowerCase() !== '/sigma') {
+        navigateTo('/SIGMA');
+      }
+    } else if (!pathname.endsWith('/login')) {
       navigateTo('/login');
     }
   },

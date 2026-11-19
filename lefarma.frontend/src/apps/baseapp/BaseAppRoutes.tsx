@@ -12,6 +12,7 @@ import { CxpRoutes } from '@/apps/cxp/CxpRoutes';
 import { RhRoutes } from '@/apps/rh/RhRoutes';
 import { EducacionMedicaRoutes } from '@/apps/educacion-medica/EducacionMedicaRoutes';
 import { ViaticosRoutes } from '@/apps/viaticos/ViaticosRoutes';
+import { SigmaRoutes } from '@/apps/sigma/SigmaRoutes';
 import BaseAppLogin from './BaseAppLogin';
 
 /**
@@ -151,6 +152,17 @@ export function BaseAppRoutes() {
       */}
       <Route path="viaticos" element={<Outlet />}>
         {ViaticosRoutes({ variant: 'subtree', loginPath: '/viaticos/login' })}
+      </Route>
+
+      {/*
+        SIGMA subtree — documentos y flujo de firmas. El wrapper `sigma` aporta
+        el prefijo y SigmaRoutes declara las rutas relativas a /SIGMA. Las rutas
+        de React Router son case-insensitive y toleran la barra final
+        (`caseSensitive` es false por defecto y el matcher compila `\/*$`), así
+        que `/SIGMA/...` resuelve sin una ruta extra en mayúsculas.
+      */}
+      <Route path="sigma" element={<Outlet />}>
+        {SigmaRoutes({ variant: 'subtree', loginPath: '/login' })}
       </Route>
     </Routes>
   );
