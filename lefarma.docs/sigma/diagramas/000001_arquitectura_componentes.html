@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Arquitectura de componentes — documentos SIGMA en Lefarma</title>
+<style>
+  :root{
+    --paper:#f5f5f5;
+    --ink:#2d3142;
+    --muted:#4f5d75;
+    --soft:#7a8399;
+    --line:#c9ced8;
+    --node:#ffffff;
+    --accent:#eb6c36;
+  }
+
+  *{box-sizing:border-box;}
+
+  body{
+    margin:0;
+    background:var(--paper);
+    color:var(--ink);
+    font-family:"Geist","Segoe UI",system-ui,-apple-system,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+
+  .canvas{
+    position:relative;
+    width:1240px;
+    height:900px;
+    margin:0 auto;
+  }
+
+  .title{
+    position:absolute;
+    left:40px;
+    top:16px;
+    width:1160px;
+  }
+
+  .title h1{
+    margin:0;
+    font-size:24px;
+    font-weight:650;
+    letter-spacing:-.01em;
+    line-height:1.2;
+  }
+
+  .title .rule{
+    width:64px;
+    height:4px;
+    margin:12px 0 10px;
+    background:var(--accent);
+  }
+
+  .title p{
+    margin:0;
+    font-family:"Geist Mono","Cascadia Code",Consolas,monospace;
+    font-size:11px;
+    letter-spacing:.06em;
+    text-transform:uppercase;
+    color:var(--soft);
+  }
+
+  .node{
+    position:absolute;
+    z-index:2;
+    background:var(--node);
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:16px 18px;
+    box-shadow:0 1px 2px rgba(45,49,66,.06);
+    overflow:hidden;
+  }
+
+  .node h3{
+    margin:0;
+    font-size:15px;
+    font-weight:650;
+    line-height:1.25;
+    letter-spacing:-.005em;
+  }
+
+  .node .kind{
+    display:block;
+    margin:6px 0 12px;
+    font-family:"Geist Mono","Cascadia Code",Consolas,monospace;
+    font-size:10px;
+    letter-spacing:.08em;
+    text-transform:uppercase;
+    color:var(--soft);
+  }
+
+  .node ul{
+    margin:0;
+    padding:0;
+    list-style:none;
+  }
+
+  .node li{
+    position:relative;
+    margin:0 0 7px;
+    padding-left:13px;
+    font-size:12px;
+    line-height:1.35;
+    color:var(--muted);
+  }
+
+  .node li:last-child{margin-bottom:0;}
+
+  .node li::before{
+    content:"";
+    position:absolute;
+    left:0;
+    top:6px;
+    width:4px;
+    height:4px;
+    border-radius:2px;
+    background:var(--soft);
+  }
+
+  .node li strong{
+    color:var(--ink);
+    font-weight:600;
+  }
+
+  .node .mono{
+    font-family:"Geist Mono","Cascadia Code",Consolas,monospace;
+    font-size:11px;
+    color:var(--muted);
+  }
+
+  #api{
+    border-top:4px solid var(--accent);
+  }
+
+  #api .kind{color:var(--muted);}
+
+  #band{
+    position:absolute;
+    left:40px;
+    top:744px;
+    width:1160px;
+    z-index:2;
+  }
+
+  #band .note{
+    margin:0;
+    font-size:11px;
+    line-height:1.45;
+    color:var(--muted);
+  }
+
+  #band .note strong{color:var(--ink);font-weight:600;}
+
+  #legend{
+    position:absolute;
+    left:40px;
+    top:806px;
+    width:1160px;
+    z-index:2;
+    display:flex;
+    gap:28px;
+    align-items:center;
+    border-top:1px solid var(--line);
+    padding-top:10px;
+    font-family:"Geist Mono","Cascadia Code",Consolas,monospace;
+    font-size:10px;
+    letter-spacing:.05em;
+    text-transform:uppercase;
+    color:var(--soft);
+  }
+
+  #legend .key{display:flex;align-items:center;gap:7px;}
+  #legend .box{width:12px;height:12px;border:1px solid var(--line);background:var(--node);border-radius:3px;}
+  #legend .line{width:22px;height:0;border-top:1.5px solid var(--muted);}
+
+  .connectors{
+    position:absolute;
+    inset:0;
+    z-index:1;
+    pointer-events:none;
+  }
+
+  .connector{
+    fill:none;
+    stroke:var(--muted);
+    stroke-width:1.5;
+    marker-end:url(#arrow);
+  }
+
+  .connector.dashed{stroke-dasharray:5 5;}
+
+  .label{
+    font-family:"Geist Mono","Cascadia Code",Consolas,monospace;
+    font-size:10px;
+    letter-spacing:.02em;
+    fill:var(--muted);
+  }
+
+  .label.mask{
+    paint-order:stroke;
+    stroke:var(--paper);
+    stroke-width:5px;
+    stroke-linejoin:round;
+  }
+</style>
+</head>
+<body>
+<main class="canvas" aria-label="Arquitectura de componentes del módulo de documentos SIGMA dentro de Lefarma">
+
+  <header class="title">
+    <h1>Arquitectura de componentes — documentos SIGMA en Lefarma</h1>
+    <div class="rule"></div>
+    <p>ADR-00001 · migración del módulo de documentos · 2026-11-19</p>
+  </header>
+
+  <svg class="connectors" viewBox="0 0 1240 900" role="presentation" aria-hidden="true">
+    <defs>
+      <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M 0 0 L 10 5 L 0 10 z" fill="#4f5d75"></path>
+      </marker>
+    </defs>
+
+    <path class="connector" data-connector="navegador-api" d="M340 195 H440"></path>
+    <text class="label mask" x="352" y="186">JSON · JWT / ticket</text>
+
+    <path class="connector" data-connector="api-asokam" d="M780 195 H880"></path>
+    <text class="label mask" x="796" y="186">Dapper · SP app.sp_*</text>
+
+    <path class="connector" data-connector="api-smtp" d="M780 300 H830 V460 H880"></path>
+    <text class="label mask" x="786" y="292">correo</text>
+
+    <path class="connector" data-connector="api-storage" d="M600 400 V560"></path>
+    <text class="label mask" x="612" y="486">PDFs fuera de wwwroot</text>
+
+    <path class="connector dashed" data-connector="navegador-pdf" d="M250 320 V560"></path>
+    <text class="label mask" x="262" y="470">PDFs · mismo origen</text>
+  </svg>
+
+  <section class="node" data-node="navegador" id="navegador" style="left:40px;top:70px;width:300px;height:250px">
+    <h3>Navegador — React SPA</h3>
+    <span class="kind">cliente · 7 pantallas</span>
+    <ul>
+      <li>Siete pantallas bajo <span class="mono">/SIGMA/...</span></li>
+      <li>Tema aislado en <span class="mono">.sigma-theme</span></li>
+      <li>Cliente HTTP: <strong>JWT</strong> o cabecera <span class="mono">X-Sigma-Visitor</span></li>
+    </ul>
+  </section>
+
+  <section class="node" data-node="api" id="api" style="left:440px;top:70px;width:340px;height:330px">
+    <h3>API Lefarma — Features/Sigma</h3>
+    <span class="kind">ASP.NET Core · controladores Sigma</span>
+    <ul>
+      <li><strong>DocumentosV2Controller</strong> · 15 rutas <span class="mono">/api/v2/documentos</span></li>
+      <li><strong>DocumentosController</strong> · 2 rutas <span class="mono">/api/documentos</span></li>
+      <li><strong>EmailDocumentosController</strong> · 3 rutas <span class="mono">/api/email/documentos</span></li>
+      <li><span class="mono">SigmaDb</span> (Dapper) · <span class="mono">SigmaIdentity</span></li>
+      <li><span class="mono">SigmaDocumentAccess</span> · <span class="mono">SigmaVisitorTokenService</span></li>
+      <li><span class="mono">SigmaDocumentStorage</span> · <span class="mono">SigmaDocumentoEmailService</span></li>
+    </ul>
+  </section>
+
+  <section class="node" data-node="asokam" id="asokam" style="left:880px;top:70px;width:300px;height:250px">
+    <h3>BD Asokam</h3>
+    <span class="kind">AsokamDev · Asokam</span>
+    <ul>
+      <li><span class="mono">app.Documentos</span> · <span class="mono">app.DocumentosConFlujo</span></li>
+      <li><span class="mono">app.PasosFlujo</span> · <span class="mono">app.GruposDocumentos</span></li>
+      <li><span class="mono">app.DocumentosHistorial</span> · <span class="mono">app.Usuarios</span></li>
+      <li><strong>20 SP</strong> <span class="mono">app.sp_*</span> + <span class="mono">sp_CrearUsuarioAnonimo</span></li>
+    </ul>
+  </section>
+
+  <section class="node" data-node="pdf-service" id="pdf-service" style="left:40px;top:560px;width:340px;height:170px">
+    <h3>Servicio externo de PDFs</h3>
+    <span class="kind">aplicación Asokam · mismo sitio IIS</span>
+    <ul>
+      <li class="mono">/sisco2-1/asokam/pdf-signature/*</li>
+      <li>subir · listar · pdf · autorizar</li>
+      <li>rechazar · eliminar · verificar</li>
+    </ul>
+  </section>
+
+  <section class="node" data-node="storage" id="storage" style="left:440px;top:560px;width:340px;height:170px">
+    <h3>Almacenamiento de PDFs</h3>
+    <span class="kind">privado · fuera de wwwroot</span>
+    <ul>
+      <li><span class="mono">Sigma:StoragePath</span></li>
+      <li>Por defecto <span class="mono">App_Data/sigma-documentos</span></li>
+      <li><span class="mono">&lt;idDocumento&gt;/archivo_inicial.pdf</span></li>
+      <li>Copia a <span class="mono">archivo_firmado.pdf</span> al aprobar</li>
+    </ul>
+  </section>
+
+  <section class="node" data-node="smtp" id="smtp" style="left:880px;top:400px;width:300px;height:120px">
+    <h3>SMTP de Lefarma</h3>
+    <span class="kind">canal de email</span>
+    <ul>
+      <li><span class="mono">EmailNotificationChannel</span></li>
+      <li>Adjuntos <span class="mono">NotificationAttachment</span></li>
+    </ul>
+  </section>
+
+  <div id="band">
+    <p class="note"><strong>Mismo origen en producción:</strong> Lefarma se publica en la raíz de <span class="mono">http://200.94.77.190:5074/</span> (sitio <span class="mono">sisco2-1</span>) y el servicio de PDFs en <span class="mono">/sisco2-1/asokam/pdf-signature/*</span>. En desarrollo, Vite hace proxy de <span class="mono">/sisco2-1</span> hacia ese mismo host.</p>
+  </div>
+
+  <div id="legend">
+    <span class="key"><span class="box"></span> componente</span>
+    <span class="key"><span class="line"></span> dependencia</span>
+    <span class="key">línea discontinua · llamada directa del navegador</span>
+  </div>
+
+</main>
+</body>
+</html>
