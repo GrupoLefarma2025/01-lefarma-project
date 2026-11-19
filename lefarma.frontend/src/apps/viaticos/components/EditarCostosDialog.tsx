@@ -41,11 +41,11 @@ function aNumero(texto: string): number | null {
   return Number.isFinite(numero) && numero >= 0 ? numero : Number.NaN;
 }
 
-function precioPrincipal(opciones: OpcionCotizacion[], numeroTramo: number): number | null {
+function precioPrincipal(opciones: OpcionCotizacion[], indiceTramo: number): number | null {
   const opcion = opciones.find(
     (candidata) =>
       candidata.fue_elegida &&
-      candidata.datos?.tramo === numeroTramo &&
+      candidata.datos?.tramo === indiceTramo &&
       TRANSPORTE_PRINCIPAL.includes(candidata.tipo),
   );
   return opcion?.precio ?? null;
@@ -66,6 +66,7 @@ function recalcularCosto(calculo: CalculoViaje, opciones: OpcionCotizacion[]): C
         ...calculo.ruta,
         nodos: calculo.ruta.nodos.map((nodo) => {
           const coincidencia = /^(\d+)\./.exec(nodo.titulo.trim());
+          // `datos.tramo` es índice base cero; la parada numerada "1." es la 0.
           const precio = coincidencia ? precioPrincipal(opciones, Number(coincidencia[1]) - 1) : null;
           return precio === null ? nodo : { ...nodo, costo: precio };
         }),

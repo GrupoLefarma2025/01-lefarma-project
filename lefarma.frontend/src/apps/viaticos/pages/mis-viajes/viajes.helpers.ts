@@ -1,4 +1,4 @@
-import type { Solicitud } from '../../types/solicitud.types';
+import type { OpcionCotizacion, Solicitud, SolicitudOpcion } from '../../types/solicitud.types';
 
 export type TipoViaje = 'propio' | 'solicitado' | 'sin-clasificar';
 
@@ -252,4 +252,23 @@ export function costoViaje(solicitud: Solicitud): number | null {
 
 export function mxn(n: number): string {
   return n.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
+}
+
+/**
+ * Opciones recalculadas por el revisor, presentadas como opciones de la
+ * solicitud. Los ids son sintéticos y negativos: no existen en el servidor.
+ */
+export function opcionesDePropuesta(opciones: OpcionCotizacion[]): SolicitudOpcion[] {
+  return opciones.map((opcion, indice) => ({
+    id_opcion: -(indice + 1),
+    tipo: opcion.tipo,
+    linea: opcion.linea,
+    precio: opcion.precio,
+    moneda: opcion.moneda ?? null,
+    url_compra: opcion.url_compra ?? null,
+    fuente: opcion.fuente,
+    fue_elegida: opcion.fue_elegida,
+    ruta_captura: opcion.ruta_captura ?? null,
+    datos: opcion.datos ?? null,
+  }));
 }

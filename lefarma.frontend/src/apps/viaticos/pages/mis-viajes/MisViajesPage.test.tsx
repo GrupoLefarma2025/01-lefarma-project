@@ -520,8 +520,8 @@ describe('VistaDetalle en revisión', () => {
 
     // Lado izquierdo: lo que pidió el solicitante en el wizard.
     const inicial = screen.getByTestId('comparacion-viaje-inicial');
-    expect(inicial).toHaveTextContent('Ciudad de México');
-    expect(inicial).toHaveTextContent('Aguascalientes');
+    expect(inicial).toHaveTextContent('Origen');
+    expect(inicial).toHaveTextContent('1. Aguascalientes');
 
     // Lado derecho: la ruta calculada, con su diagrama.
     const calculada = screen.getByTestId('comparacion-ruta-calculada');

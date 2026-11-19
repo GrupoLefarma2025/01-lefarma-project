@@ -12,7 +12,8 @@ import { solicitudesApi } from '../../services/solicitudes.api';
 import { CalculosViajeModal } from '../../components/CalculosViajeModal';
 import { EditarCostosDialog } from '../../components/EditarCostosDialog';
 import type { PropuestaRuta, Solicitud } from '../../types/solicitud.types';
-import { VistaDetalle, opcionesDePropuesta } from '../mis-viajes/MisViajesPage';
+import { VistaDetalle } from '../mis-viajes/MisViajesPage';
+import { opcionesDePropuesta } from '../mis-viajes/viajes.helpers';
 
 export interface RevisarSolicitudDialogProps {
   /** Solicitud a revisar; `null` mantiene el diálogo cerrado. */
@@ -135,7 +136,9 @@ export function RevisarSolicitudDialog({ idSolicitud, onClose, onResuelta }: Rev
         type="button"
         size="lg"
         className="h-12 w-full gap-2 text-base sm:w-auto"
-        onClick={() => setCalculosAbiertos(true)}
+        onClick={() => {
+          setCalculosAbiertos(true);
+        }}
       >
         <RefreshCw className="h-5 w-5" aria-hidden /> Recalcular viaje
       </Button>

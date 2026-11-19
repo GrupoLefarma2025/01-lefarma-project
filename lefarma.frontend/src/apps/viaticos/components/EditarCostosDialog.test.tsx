@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { EditarCostosDialog } from './EditarCostosDialog';
 import type { CalculoViaje, SolicitudOpcion } from '../types/solicitud.types';
@@ -46,13 +46,13 @@ const opcion = (extra: Partial<SolicitudOpcion>): SolicitudOpcion => ({
   fuente: 'proveedor',
   fue_elegida: true,
   ruta_captura: null,
-  datos: { tramo: 1 },
+  datos: { tramo: 0 },
   ...extra,
 });
 
 const opciones: SolicitudOpcion[] = [
   opcion({ id_opcion: 1, linea: 'Autobús CDMX → Aguascalientes', precio: 1000 }),
-  opcion({ id_opcion: 2, tipo: 'hotel', linea: 'Hotel centro', precio: 800, datos: { tramo: 2 } }),
+  opcion({ id_opcion: 2, tipo: 'hotel', linea: 'Hotel centro', precio: 800, datos: { tramo: 1 } }),
   opcion({
     id_opcion: 3,
     linea: 'Alternativa descartada',
@@ -140,7 +140,7 @@ describe('EditarCostosDialog', () => {
         linea: 'Autobús estimado',
         precio: null,
         fuente: 'estimado',
-        datos: { tramo: 1, tipo_precio: 'estimado' },
+        datos: { tramo: 0, tipo_precio: 'estimado' },
       }),
     ];
 

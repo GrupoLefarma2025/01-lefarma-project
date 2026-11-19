@@ -21,7 +21,6 @@ import { estadoTexto, precioTexto } from '../../types/aprobaciones.types';
 import type {
   CalculoViaje,
   DatosOpcion,
-  OpcionCotizacion,
   PropuestaRuta,
   Solicitud,
   SolicitudOpcion,
@@ -44,6 +43,7 @@ import {
   enRango,
   leerDatosViaje,
   mxn,
+  opcionesDePropuesta,
   rangoDelFiltro,
   type FilaViaje,
   type FiltroPeriodo,
@@ -440,24 +440,7 @@ function leerCostosCalculo(datos: unknown, clave: 'calculo' | 'calculo_autorizad
   };
 }
 
-/** Opciones de la propuesta como opciones de solicitud, con id sintético negativo. */
-export function opcionesDePropuesta(opciones: OpcionCotizacion[]): SolicitudOpcion[] {
-  return opciones.map((opcion, indice) => ({
-    id_opcion: -(indice + 1),
-    tipo: opcion.tipo,
-    linea: opcion.linea,
-    precio: opcion.precio,
-    moneda: opcion.moneda ?? null,
-    url_compra: opcion.url_compra ?? null,
-    fuente: opcion.fuente,
-    fue_elegida: opcion.fue_elegida,
-    ruta_captura: opcion.ruta_captura ?? null,
-    datos: opcion.datos ?? null,
-  }));
-}
-
-/**
- * Opciones que el viajero tenía antes de autorizar. El concentrado las deja en
+/** Opciones que el viajero tenía antes de autorizar. El concentrado las deja en
  * `datos.opciones_originales`; si no existen, las vigentes SON las originales.
  */
 function leerOpcionesOriginales(datos: unknown): SolicitudOpcion[] | null {
