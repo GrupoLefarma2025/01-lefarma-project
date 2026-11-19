@@ -1,0 +1,200 @@
+/*
+ * Tema de SIGMA — tokens aislados bajo `.sigma-theme`.
+ *
+ * Los valores se copian del `:root` y `.dark` de la app original de SIGMA
+ * (my-app/app/app.css). NO se declaran en `:root` global: sólo aplican dentro
+ * del contenedor del módulo (SigmaLayout), así el resto de Lefarma conserva su
+ * paleta.
+ *
+ * En `tailwind.config.js` de Lefarma los colores mapean a `var(--token)` sin
+ * envoltorio, por lo que los valores `oklch(...)` se asignan tal cual.
+ */
+
+.sigma-theme {
+  --radius: 0.65rem;
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.141 0.005 285.823);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.141 0.005 285.823);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.141 0.005 285.823);
+  --primary: oklch(0.646 0.222 41.116);
+  --primary-foreground: oklch(0.98 0.016 73.684);
+  --secondary: oklch(0.967 0.001 286.375);
+  --secondary-foreground: oklch(0.21 0.006 285.885);
+  --muted: oklch(0.967 0.001 286.375);
+  --muted-foreground: oklch(0.552 0.016 285.938);
+  --accent: oklch(0.967 0.001 286.375);
+  --accent-foreground: oklch(0.21 0.006 285.885);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.92 0.004 286.32);
+  --input: oklch(0.92 0.004 286.32);
+  --ring: oklch(0.75 0.183 55.934);
+  --chart-1: oklch(0.837 0.128 66.29);
+  --chart-2: oklch(0.705 0.213 47.604);
+  --chart-3: oklch(0.646 0.222 41.116);
+  --chart-4: oklch(0.553 0.195 38.402);
+  --chart-5: oklch(0.47 0.157 37.304);
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.141 0.005 285.823);
+  --sidebar-primary: oklch(0.646 0.222 41.116);
+  --sidebar-primary-foreground: oklch(0.98 0.016 73.684);
+  --sidebar-accent: oklch(0.967 0.001 286.375);
+  --sidebar-accent-foreground: oklch(0.21 0.006 285.885);
+  --sidebar-border: oklch(0.92 0.004 286.32);
+  --sidebar-ring: oklch(0.75 0.183 55.934);
+
+  /* Fondo del módulo: mismo degradado sutil que usa SIGMA en su <body>
+     (from-background via-background to-muted/20), aplicado sólo a este
+     contenedor para no afectar al resto de la aplicación. */
+  background-color: var(--background);
+  background-image: linear-gradient(to bottom right, var(--background), var(--muted));
+  background-attachment: fixed;
+}
+
+/*
+ * Modo oscuro. `.sigma-theme.dark` cubre el caso en que el propio módulo marque
+ * su contenedor; `.dark .sigma-theme` cubre el modo oscuro global de Lefarma,
+ * que aplica la clase `dark` en <html> (documentElement).
+ */
+.sigma-theme.dark,
+.dark .sigma-theme {
+  --background: oklch(0.141 0.005 285.823);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.21 0.006 285.885);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.21 0.006 285.885);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.705 0.213 47.604);
+  --primary-foreground: oklch(0.98 0.016 73.684);
+  --secondary: oklch(0.274 0.006 286.033);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.274 0.006 286.033);
+  --muted-foreground: oklch(0.705 0.015 286.067);
+  --accent: oklch(0.274 0.006 286.033);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.408 0.123 38.172);
+  --chart-1: oklch(0.837 0.128 66.29);
+  --chart-2: oklch(0.705 0.213 47.604);
+  --chart-3: oklch(0.646 0.222 41.116);
+  --chart-4: oklch(0.553 0.195 38.402);
+  --chart-5: oklch(0.47 0.157 37.304);
+  --sidebar: oklch(0.21 0.006 285.885);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.705 0.213 47.604);
+  --sidebar-primary-foreground: oklch(0.98 0.016 73.684);
+  --sidebar-accent: oklch(0.274 0.006 286.033);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.408 0.123 38.172);
+}
+
+/*
+ * Utilidades de opacidad para el tema de SIGMA.
+ *
+ * Lefarma usa Tailwind 3 con los colores mapeados a `var(--token)` sin
+ * `<alpha-value>`, así que Tailwind NO genera las clases con modificador de
+ * opacidad (`bg-primary/50`, `text-primary/80`, `border-border/60`, ...). Sin
+ * ellas, los encabezados del dashboard quedaban con el fondo transparente (y
+ * su texto `text-primary-foreground` invisible) y la fila de totales
+ * desalineada.
+ *
+ * Aquí se replican SÓLO las clases de opacidad que usa el módulo, dentro de
+ * `.sigma-theme` para no afectar al resto de Lefarma, con
+ * `color-mix(in oklab, var(--token) N%, transparent)` (equivalente al
+ * modificador de opacidad de Tailwind). No se toca `tailwind.config.js`.
+ *
+ * Clases base: bg-primary/{5,10,20,50}, bg-sidebar-primary/50,
+ * bg-muted/{20,30,40,50}, bg-accent/50, bg-background/{60,70,80,95},
+ * bg-destructive/{5,10,20}, bg-muted-foreground/30, text-primary/80,
+ * text-muted-foreground/70, border-primary/{20,30,70}, border-destructive/20,
+ * border-border/{50,60}, border-muted-foreground/50 y el gradiente
+ * from-primary/5 → to-primary/10.
+ *
+ * Además se cubren las variantes que el módulo usa de verdad (`hover:`,
+ * `has-[[aria-checked=true]]:`, `dark:has-[[aria-checked=true]]:` y
+ * `supports-[backdrop-filter]:`), que Tailwind tampoco genera.
+ */
+
+/* --- Fondos --- */
+.sigma-theme .bg-primary\/5 { background-color: color-mix(in oklab, var(--primary) 5%, transparent); }
+.sigma-theme .bg-primary\/10 { background-color: color-mix(in oklab, var(--primary) 10%, transparent); }
+.sigma-theme .bg-primary\/20 { background-color: color-mix(in oklab, var(--primary) 20%, transparent); }
+.sigma-theme .bg-primary\/50 { background-color: color-mix(in oklab, var(--primary) 50%, transparent); }
+.sigma-theme .bg-sidebar-primary\/50 { background-color: color-mix(in oklab, var(--sidebar-primary) 50%, transparent); }
+.sigma-theme .bg-muted\/20 { background-color: color-mix(in oklab, var(--muted) 20%, transparent); }
+.sigma-theme .bg-muted\/30 { background-color: color-mix(in oklab, var(--muted) 30%, transparent); }
+.sigma-theme .bg-muted\/40 { background-color: color-mix(in oklab, var(--muted) 40%, transparent); }
+.sigma-theme .bg-muted\/50 { background-color: color-mix(in oklab, var(--muted) 50%, transparent); }
+.sigma-theme .bg-accent\/50 { background-color: color-mix(in oklab, var(--accent) 50%, transparent); }
+.sigma-theme .bg-background\/60 { background-color: color-mix(in oklab, var(--background) 60%, transparent); }
+.sigma-theme .bg-background\/70 { background-color: color-mix(in oklab, var(--background) 70%, transparent); }
+.sigma-theme .bg-background\/80 { background-color: color-mix(in oklab, var(--background) 80%, transparent); }
+.sigma-theme .bg-background\/95 { background-color: color-mix(in oklab, var(--background) 95%, transparent); }
+.sigma-theme .bg-destructive\/5 { background-color: color-mix(in oklab, var(--destructive) 5%, transparent); }
+.sigma-theme .bg-destructive\/10 { background-color: color-mix(in oklab, var(--destructive) 10%, transparent); }
+.sigma-theme .bg-destructive\/20 { background-color: color-mix(in oklab, var(--destructive) 20%, transparent); }
+.sigma-theme .bg-muted-foreground\/30 { background-color: color-mix(in oklab, var(--muted-foreground) 30%, transparent); }
+
+/* --- Texto --- */
+.sigma-theme .text-primary\/80 { color: color-mix(in oklab, var(--primary) 80%, transparent); }
+.sigma-theme .text-muted-foreground\/70 { color: color-mix(in oklab, var(--muted-foreground) 70%, transparent); }
+
+/* --- Bordes --- */
+.sigma-theme .border-primary\/20 { border-color: color-mix(in oklab, var(--primary) 20%, transparent); }
+.sigma-theme .border-primary\/30 { border-color: color-mix(in oklab, var(--primary) 30%, transparent); }
+.sigma-theme .border-primary\/70 { border-color: color-mix(in oklab, var(--primary) 70%, transparent); }
+.sigma-theme .border-destructive\/20 { border-color: color-mix(in oklab, var(--destructive) 20%, transparent); }
+.sigma-theme .border-border\/50 { border-color: color-mix(in oklab, var(--border) 50%, transparent); }
+.sigma-theme .border-border\/60 { border-color: color-mix(in oklab, var(--border) 60%, transparent); }
+.sigma-theme .border-muted-foreground\/50 { border-color: color-mix(in oklab, var(--muted-foreground) 50%, transparent); }
+
+/* --- Variantes hover --- */
+.sigma-theme .hover\:text-primary\/80:hover { color: color-mix(in oklab, var(--primary) 80%, transparent); }
+.sigma-theme .hover\:bg-accent\/50:hover { background-color: color-mix(in oklab, var(--accent) 50%, transparent); }
+.sigma-theme .hover\:bg-muted\/40:hover { background-color: color-mix(in oklab, var(--muted) 40%, transparent); }
+.sigma-theme .hover\:bg-muted\/50:hover { background-color: color-mix(in oklab, var(--muted) 50%, transparent); }
+.sigma-theme .hover\:border-primary\/70:hover { border-color: color-mix(in oklab, var(--primary) 70%, transparent); }
+
+/* --- Variante has-[[aria-checked=true]] (opciones seleccionadas) --- */
+.sigma-theme .has-\[\[aria-checked\=true\]\]\:bg-primary\/10:has([aria-checked=true]) {
+  background-color: color-mix(in oklab, var(--primary) 10%, transparent);
+}
+.sigma-theme .dark\:has-\[\[aria-checked\=true\]\]\:bg-primary\/20:is(.dark *):has([aria-checked=true]) {
+  background-color: color-mix(in oklab, var(--primary) 20%, transparent);
+}
+
+/*
+ * --- Gradiente del dashboard ---
+ * Mismo mecanismo que Tailwind: `from-*` define `--tw-gradient-from`/`-to`/
+ * `-stops` y `bg-gradient-to-*` consume `--tw-gradient-stops`. Las posiciones
+ * (`--tw-gradient-*-position`) las deja Tailwind vacías en su preflight, por
+ * lo que `var()` se sustituye por nada (igual que en sus utilidades).
+ */
+.sigma-theme .from-primary\/5 {
+  --tw-gradient-from: color-mix(in oklab, var(--primary) 5%, transparent) var(--tw-gradient-from-position);
+  --tw-gradient-to: rgb(255 255 255 / 0) var(--tw-gradient-to-position);
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to);
+}
+.sigma-theme .to-primary\/10 {
+  --tw-gradient-to: color-mix(in oklab, var(--primary) 10%, transparent) var(--tw-gradient-to-position);
+}
+
+/* --- Navbar con backdrop-filter (sólo si el navegador lo soporta) --- */
+@supports (backdrop-filter: var(--tw)) {
+  .sigma-theme .supports-\[backdrop-filter\]\:bg-background\/60 {
+    background-color: color-mix(in oklab, var(--background) 60%, transparent);
+  }
+}
+
+
+/* --- Utilidades de la pantalla de acceso (mismas variantes que SIGMA) --- */
+.sigma-theme .bg-card\/85 { background-color: color-mix(in oklab, var(--card) 85%, transparent); }
+.sigma-theme .border-primary\/50 { border-color: color-mix(in oklab, var(--primary) 50%, transparent); }
+.sigma-theme .border-border\/30 { border-color: color-mix(in oklab, var(--border) 30%, transparent); }
+.sigma-theme .text-muted-foreground\/80 { color: color-mix(in oklab, var(--muted-foreground) 80%, transparent); }
+.sigma-theme .hover\:bg-primary\/90:hover { background-color: color-mix(in oklab, var(--primary) 90%, transparent); }
+.sigma-theme .hover\:bg-primary\/10:hover { background-color: color-mix(in oklab, var(--primary) 10%, transparent); }
