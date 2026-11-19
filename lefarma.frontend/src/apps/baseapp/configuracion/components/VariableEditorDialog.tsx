@@ -636,7 +636,7 @@ export function VariableEditorDialog({
 
             <label
               className={cn(
-                'flex cursor-pointer items-start gap-2.5 rounded-lg border-2 p-2.5 transition-colors',
+                'flex cursor-pointer items-center gap-2 rounded-lg border-2 p-2 transition-colors',
                 esLista
                   ? 'border-teal-400 bg-teal-50/60'
                   : 'border-border bg-card hover:bg-muted/30',
@@ -647,27 +647,25 @@ export function VariableEditorDialog({
                 checked={esLista}
                 disabled={!tipoActual || esEdicion}
                 onCheckedChange={(marcado) => alternarLista(marcado === true)}
-                className="mt-0.5"
+                className="shrink-0"
               />
-              <span className="flex min-w-0 flex-1 items-start gap-2.5">
-                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-teal-200 bg-teal-100 text-teal-700">
-                  <List className="h-4 w-4" />
-                </span>
-                <span className="min-w-0">
-                  <span className="block text-xs font-semibold">
-                    Convertir este dato en una lista
-                  </span>
-                  <span className="mt-0.5 block text-[11px] leading-snug text-muted-foreground">
-                    {tipoActual
-                      ? `Guardará varios elementos de tipo «${etiquetaTipo(tipoActual)}». Cada elemento tendrá su propia validación.`
-                      : 'Selecciona primero un tipo para definir qué elementos contendrá la lista.'}
-                  </span>
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-teal-200 bg-teal-100 text-teal-700">
+                <List className="h-3.5 w-3.5" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                  <span className="text-xs font-semibold">Convertir este dato en una lista</span>
                   {esLista && tipoActual && (
-                    <Badge variant="secondary" className="mt-1 gap-1 text-[10px]">
-                      <List className="h-3 w-3" />
+                    <Badge variant="secondary" className="gap-1 px-1.5 py-0 text-[9px]">
+                      <List className="h-2.5 w-2.5" />
                       Lista de {etiquetaTipo(tipoActual)}
                     </Badge>
                   )}
+                </span>
+                <span className="mt-0.5 block text-[10px] leading-snug text-muted-foreground">
+                  {tipoActual
+                    ? `Guardará varios elementos de tipo «${etiquetaTipo(tipoActual)}», cada uno validado por separado.`
+                    : 'Selecciona primero un tipo para definir qué elementos contendrá la lista.'}
                 </span>
               </span>
             </label>
