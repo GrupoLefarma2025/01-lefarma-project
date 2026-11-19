@@ -432,6 +432,105 @@ public class SolicitudesControllerTests
         resp.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 
+    [Fact]
+    public async Task GetMis_ConVerTodos_DevuelveTambienLasAjenasYBorradores()
+    {
+        using var ctx = new TestContext();
+        const int yoId = 6200;
+        const int otroId = 6201;
+
+        var mia = ctx.SembrarSolicitud(yoId, "MIA -> MTY", estado: "enviada");
+        var borradorMio = ctx.SembrarSolicitud(yoId, "MIA -> GDL");
+        var ajenaEnviada = ctx.SembrarSolicitud(otroId, "OTRO -> CUN", estado: "enviada");
+        // "Ver todas" incluye los borradores ajenos, no solo los enviados.
+        var borradorAjeno = ctx.SembrarSolicitud(otroId, "OTRO -> SJD");
+        var inactivaAjena = ctx.SembrarSolicitud(otroId, "OTRO -> PBC", activo: false);
+
+        using var cliente = ctx.Servidor.CreateClient();
+        cliente.DefaultRequestHeaders.Add("X-Test-UserId", yoId.ToString());
+        cliente.DefaultRequestHeaders.Add("X-Test-Permissions",
+            string.Join(",", Permissions.Viaticos.Solicitar, Permissions.Viaticos.VerTodos));
+
+        var resp = await cliente.GetAsync("/api/viaticos/solicitudes/mis?todas=true");
+
+        resp.StatusCode.Should().Be(HttpStatusCode.OK);
+        var envelope = await resp.Content.ReadFromJsonAsync<ApiEnvelope<List<SolicitudDtoJson>>>();
+        envelope!.Success.Should().BeTrue();
+        var ids = envelope.Data!.Select(x => x.IdSolicitud).ToList();
+        ids.Should().BeEquivalentTo(new[] { mia, borradorMio, ajenaEnviada, borradorAjeno });
+        ids.Should().NotContain(inactivaAjena);
+    }
+
+    [Fact]
+    public async Task GetMis_TodasSinPermisoVerTodos_Retorna403()
+    {
+        using var ctx = new TestContext();
+        ctx.SembrarSolicitud(6210, "MIA -> MTY", estado: "enviada");
+
+        using var cliente = ctx.Servidor.CreateClient();
+        cliente.DefaultRequestHeaders.Add("X-Test-UserId", "6211");
+        // Sin 'ver_todos': pedir 'todas' es un error de configuración, no se ignora.
+        cliente.DefaultRequestHeaders.Add("X-Test-Permissions", Permissions.Viaticos.Solicitar);
+
+        var resp = await cliente.GetAsync("/api/viaticos/solicitudes/mis?todas=true");
+
+        resp.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    // ---------------- GET /api/viaticos/solicitudes/por-autorizar ----------------
+
+    [Fact]
+    public async Task GetPorAutorizar_DevuelveSoloEnviadasActivasDeTodosUsuarios()
+    {
+        using var ctx = new TestContext();
+        const int solicitante = 6300;
+        const int otro = 6301;
+
+        var enviadaPropia = ctx.SembrarSolicitud(solicitante, "MIA -> MTY", estado: "enviada");
+        var enviadaAjena = ctx.SembrarSolicitud(otro, "OTRO -> CUN", estado: "enviada");
+        ctx.SembrarSolicitud(otro, "OTRO -> GDL");                                  // borrador
+        ctx.SembrarSolicitud(otro, "OTRO -> SJD", estado: "autorizada");
+        ctx.SembrarSolicitud(otro, "OTRO -> PBC", estado: "enviada", activo: false);
+
+        using var cliente = ctx.Servidor.CreateClient();
+        cliente.DefaultRequestHeaders.Add("X-Test-UserId", "6310");
+        cliente.DefaultRequestHeaders.Add("X-Test-Permissions", Permissions.Viaticos.Autorizar);
+
+        var resp = await cliente.GetAsync("/api/viaticos/solicitudes/por-autorizar");
+
+        resp.StatusCode.Should().Be(HttpStatusCode.OK);
+        var envelope = await resp.Content.ReadFromJsonAsync<ApiEnvelope<List<SolicitudDtoJson>>>();
+        envelope!.Success.Should().BeTrue();
+        var ids = envelope.Data!.Select(x => x.IdSolicitud).ToList();
+        ids.Should().BeEquivalentTo(new[] { enviadaPropia, enviadaAjena });
+        envelope.Data.Should().OnlyContain(x => x.Estado == "enviada");
+    }
+
+    [Fact]
+    public async Task GetPorAutorizar_SinPermisoAutorizar_Retorna403()
+    {
+        using var ctx = new TestContext();
+        using var cliente = ctx.Servidor.CreateClient();
+        cliente.DefaultRequestHeaders.Add("X-Test-UserId", "6320");
+        // 'ver_todos' no alcanza: la cola es de autorización.
+        cliente.DefaultRequestHeaders.Add("X-Test-Permissions", Permissions.Viaticos.VerTodos);
+
+        var resp = await cliente.GetAsync("/api/viaticos/solicitudes/por-autorizar");
+
+        resp.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
+    public async Task GetPorAutorizar_SinToken_Retorna401()
+    {
+        using var ctx = new TestContext();
+        using var cliente = ctx.Servidor.CreateClient();
+
+        var resp = await cliente.GetAsync("/api/viaticos/solicitudes/por-autorizar");
+
+        resp.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
     // ---------------- GET /api/viaticos/solicitudes/{id} ----------------
 
     [Fact]

@@ -596,10 +596,15 @@ public class SolicitudesController : ControllerBase
     [HttpGet("solicitudes/mis")]
     [SwaggerOperation(
         Summary = "Mis solicitudes de viáticos",
-        Description = "Lista las solicitudes del usuario autenticado, ordenado por fecha de creación desc.")]
+        Description = "Lista las solicitudes del usuario autenticado, ordenado por fecha de creación desc. " +
+                      "Con todas=true y el permiso viaticos.ver_todos devuelve las de todos los usuarios " +
+                      "(incluidos los borradores ajenos).")]
     [SwaggerResponse(200, "Listado", typeof(ApiResponse<List<SolicitudDto>>))]
     [SwaggerResponse(401, "Sin token")]
-    public async Task<IActionResult> MisSolicitudes(CancellationToken ct)
+    [SwaggerResponse(403, "todas=true sin permiso viaticos.ver_todos")]
+    public async Task<IActionResult> MisSolicitudes(
+        [FromQuery] bool todas = false,
+        CancellationToken ct = default)
     {
         var userId = User.GetUserId();
         if (userId <= 0)
@@ -611,22 +616,27 @@ public class SolicitudesController : ControllerBase
             });
         }
 
+        // "Ver todas" es una capacidad, no un filtro opcional: si el cliente
+        // lo pide sin permiso se rechaza en vez de devolver la lista propia y
+        // esconder el error de configuración.
+        if (todas && !User.TienePermiso(Permissions.Viaticos.VerTodos))
+        {
+            return StatusCode(403, new ApiResponse<object>
+            {
+                Success = false,
+                Message = $"No tiene permiso para ver las solicitudes de todos los usuarios ({Permissions.Viaticos.VerTodos}).",
+                Data = null
+            });
+        }
+
         var rows = await _context.Solicitudes
             .AsNoTracking()
             .Include(s => s.Opciones)
-            .Where(s => s.IdUsuarioSolicitante == userId && s.Activo)
+            .Where(s => s.Activo && (todas || s.IdUsuarioSolicitante == userId))
             .OrderByDescending(s => s.FechaCreacion)
             .ToListAsync(ct);
 
-        // Un solo query al directorio para resolver el nombre del creador de
-        // todas las filas (evita N+1). Un usuario dado de baja cae al
-        // fallback "Usuario #{id}".
-        var idsCreadores = rows.Select(s => s.IdUsuarioCreacion).Distinct().ToList();
-        var directorio = await _asokamContext.Usuarios
-            .AsNoTracking()
-            .Where(u => u.EsActivo && idsCreadores.Contains(u.IdUsuario))
-            .Select(u => new { u.IdUsuario, u.NombreCompleto })
-            .ToDictionaryAsync(u => u.IdUsuario, u => u.NombreCompleto, ct);
+        var directorio = await DirectorioDeCreadoresAsync(rows, ct);
 
         var data = rows
             .Select(s => MapearDto(
@@ -639,6 +649,54 @@ public class SolicitudesController : ControllerBase
         {
             Success = true,
             Message = "Listado obtenido.",
+            Data = data
+        });
+    }
+
+    // ----------------------------------------------------------------
+    // GET /api/viaticos/solicitudes/por-autorizar
+    // ----------------------------------------------------------------
+    [HttpGet("solicitudes/por-autorizar")]
+    [SwaggerOperation(
+        Summary = "Solicitudes pendientes de autorizar",
+        Description = "Lista las solicitudes en estado 'enviada' de todos los usuarios. Es la cola de la " +
+                      "pantalla de autorizaciones (paso previo al concentrado) y exige viaticos.autorizar.")]
+    [SwaggerResponse(200, "Solicitudes pendientes", typeof(ApiResponse<List<SolicitudDto>>))]
+    [SwaggerResponse(401, "Sin token")]
+    [SwaggerResponse(403, "Sin permiso viaticos.autorizar")]
+    public async Task<IActionResult> PorAutorizar(CancellationToken ct)
+    {
+        if (!User.TienePermiso(Permissions.Viaticos.Autorizar))
+        {
+            return StatusCode(403, new ApiResponse<object>
+            {
+                Success = false,
+                Message = $"No tiene permiso para autorizar solicitudes de viáticos ({Permissions.Viaticos.Autorizar}).",
+                Data = null
+            });
+        }
+
+        var rows = await _context.Solicitudes
+            .AsNoTracking()
+            .Include(s => s.Opciones)
+            .Where(s => s.Activo && s.Estado == EstadoEnviada)
+            .OrderByDescending(s => s.FechaCreacion)
+            .ToListAsync(ct);
+
+        var directorio = await DirectorioDeCreadoresAsync(rows, ct);
+
+        var data = rows
+            .Select(s => MapearDto(
+                s,
+                opciones: true,
+                eventos: false,
+                nombreCreador: NombreDesdeDirectorio(directorio, s.IdUsuarioCreacion)))
+            .ToList();
+
+        return Ok(new ApiResponse<List<SolicitudDto>>
+        {
+            Success = true,
+            Message = "Solicitudes pendientes de autorizar obtenidas.",
             Data = data
         });
     }
@@ -1421,6 +1479,28 @@ public class SolicitudesController : ControllerBase
         }
 
         return (solicitante, viajero, sam);
+    }
+
+    /// <summary>
+    /// Resuelve en un solo query los nombres de los creadores de un listado
+    /// (evita N+1). Un usuario dado de baja cae al fallback "Usuario #{id}" de
+    /// <see cref="NombreDesdeDirectorio"/>.
+    /// </summary>
+    private async Task<Dictionary<int, string?>> DirectorioDeCreadoresAsync(
+        IEnumerable<Solicitud> filas,
+        CancellationToken ct)
+    {
+        var idsCreadores = filas.Select(s => s.IdUsuarioCreacion).Distinct().ToList();
+        if (idsCreadores.Count == 0)
+        {
+            return new Dictionary<int, string?>();
+        }
+
+        return await _asokamContext.Usuarios
+            .AsNoTracking()
+            .Where(u => u.EsActivo && idsCreadores.Contains(u.IdUsuario))
+            .Select(u => new { u.IdUsuario, u.NombreCompleto })
+            .ToDictionaryAsync(u => u.IdUsuario, u => u.NombreCompleto, ct);
     }
 
     private static string NombreDesdeDirectorio(IReadOnlyDictionary<int, string?> directorio, int idUsuario)
