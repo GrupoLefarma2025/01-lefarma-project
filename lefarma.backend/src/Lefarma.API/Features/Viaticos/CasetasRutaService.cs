@@ -8,12 +8,21 @@ namespace Lefarma.API.Features.Viaticos;
 /// <summary>Plaza de cobro de una ruta, con su km desde el origen y la tarifa de automóvil.</summary>
 public record CasetaRutaInfo(string Nombre, string Carretera, double KmDesdeOrigen, double TarifaAuto, string Direccion);
 
-/// <summary>Resultado de la consulta de ruta: casetas, totales y la fuente de los datos.</summary>
+public static class EstadosCasetasRuta
+{
+    public const string Disponible = "disponible";
+    public const string DestinoNoSoportado = "destino_no_soportado";
+    public const string ProveedorNoDisponible = "proveedor_no_disponible";
+    public const string RespuestaInvalida = "respuesta_invalida";
+}
+
+/// <summary>Official route data when available; null totals never mean official zero.</summary>
 public record ResultadoCasetasRuta(
+    string Estado,
     IReadOnlyList<CasetaRutaInfo> Casetas,
-    double KmTotal,
-    string TiempoTotal,
-    double PeajeTotal,
+    double? KmTotal,
+    string? TiempoTotal,
+    double? PeajeTotal,
     string Fuente);
 
 /// <summary>
@@ -46,22 +55,53 @@ public static class CasetasRutaService
     /// </summary>
     private static readonly SemaphoreSlim Semaforo = new(1, 1);
 
-    public static async Task<ResultadoCasetasRuta> ConsultarAsync(
+    public static Task<ResultadoCasetasRuta> ConsultarAsync(
         HttpClient http,
         string origenMunicipio,
         string origenEstado,
         string destinoMunicipio,
         string destinoEstado,
+        CancellationToken ct) =>
+        ConsultarAsync(http, origenMunicipio, origenEstado, destinoMunicipio, destinoEstado, TimeSpan.FromSeconds(20), ct);
+
+    internal static async Task<ResultadoCasetasRuta> ConsultarAsync(
+        HttpClient http,
+        string origenMunicipio,
+        string origenEstado,
+        string destinoMunicipio,
+        string destinoEstado,
+        TimeSpan tiempoTotal,
         CancellationToken ct)
     {
-        await Semaforo.WaitAsync(ct);
+        using var limiteTiempo = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        limiteTiempo.CancelAfter(tiempoTotal);
+        var token = limiteTiempo.Token;
+        var semaforoAdquirido = false;
         try
         {
-            return await ConsultarInternoAsync(http, origenMunicipio, origenEstado, destinoMunicipio, destinoEstado, ct);
+            await Semaforo.WaitAsync(token);
+            semaforoAdquirido = true;
+            return await ConsultarInternoAsync(http, origenMunicipio, origenEstado, destinoMunicipio, destinoEstado, token);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (OperationCanceledException) when (limiteTiempo.IsCancellationRequested)
+        {
+            Serilog.Log.Warning("SCT: tiempo total de consulta agotado ({TiempoTotal}) {Origen} → {Destino}",
+                tiempoTotal, origenMunicipio, destinoMunicipio);
+            return SinOficial(EstadosCasetasRuta.ProveedorNoDisponible);
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Warning("SCT: proveedor no disponible {Origen} → {Destino}: {Error}",
+                origenMunicipio, destinoMunicipio, ex.Message);
+            return SinOficial(EstadosCasetasRuta.ProveedorNoDisponible);
         }
         finally
         {
-            Semaforo.Release();
+            if (semaforoAdquirido) Semaforo.Release();
         }
     }
 
@@ -75,16 +115,22 @@ public static class CasetasRutaService
     {
         var o = Normalizar(origenMunicipio);
         var d = Normalizar(destinoMunicipio);
-        if (o.Length == 0 || d.Length == 0) return Vacio();
+        if (o.Length == 0 || d.Length == 0) return SinOficial(EstadosCasetasRuta.DestinoNoSoportado);
 
         var html = await GetAsync(http, $"{Base}?action=cmdEscogeRuta", ct);
         var estados = Opciones(html, "edoOrigen");
+        if (estados.Count == 0)
+        {
+            Serilog.Log.Warning("SCT: catálogo inicial sin estados interpretables");
+            return SinOficial(EstadosCasetasRuta.RespuestaInvalida);
+        }
+
         var idEstadoOrigen = ResolverEstado(estados, origenEstado);
         var idEstadoDestino = ResolverEstado(estados, destinoEstado);
         if (idEstadoOrigen is null || idEstadoDestino is null)
         {
             Serilog.Log.Warning("SCT: no se resolvió el estado ({Origen} / {Destino})", origenEstado, destinoEstado);
-            return Vacio();
+            return SinOficial(EstadosCasetasRuta.DestinoNoSoportado);
         }
 
         var conCiudades = await PostAsync(http, Accion(html, "cmdEscogeRuta"), new Dictionary<string, string>
@@ -100,12 +146,20 @@ public static class CasetasRutaService
             ["calculaRendimiento"] = "null",
         }, ct);
 
-        var idCiudadOrigen = ResolverCiudad(Opciones(conCiudades, "ciudadOrigen"), o);
-        var idCiudadDestino = ResolverCiudad(Opciones(conCiudades, "ciudadDestino"), d);
+        var ciudadesOrigen = Opciones(conCiudades, "ciudadOrigen");
+        var ciudadesDestino = Opciones(conCiudades, "ciudadDestino");
+        if (ciudadesOrigen.Count == 0 && ciudadesDestino.Count == 0)
+        {
+            Serilog.Log.Warning("SCT: catálogo de ciudades vacío o no interpretable");
+            return SinOficial(EstadosCasetasRuta.RespuestaInvalida);
+        }
+
+        var idCiudadOrigen = ResolverCiudad(ciudadesOrigen, o);
+        var idCiudadDestino = ResolverCiudad(ciudadesDestino, d);
         if (idCiudadOrigen is null || idCiudadDestino is null)
         {
             Serilog.Log.Warning("SCT: no se resolvió la ciudad ({Origen} / {Destino})", o, d);
-            return Vacio();
+            return SinOficial(EstadosCasetasRuta.DestinoNoSoportado);
         }
 
         var resultado = await PostAsync(http, Accion(conCiudades, "cmdSolRutas"), new Dictionary<string, string>
@@ -240,13 +294,8 @@ public static class CasetasRutaService
     }
 
     /// <summary>Lee la tabla de la ruta: tramos con plaza de cobro, km y tarifa de auto.</summary>
-    private static ResultadoCasetasRuta ParsearRuta(string html)
+    internal static ResultadoCasetasRuta ParsearRuta(string html)
     {
-        var casetas = new List<CasetaRutaInfo>();
-        double kmTotal = 0;
-        double peajeTotal = 0;
-        var tiempoTotal = "";
-
         foreach (Match tabla in Regex.Matches(html, "<table[^>]*>(.*?)</table>", RegexOptions.Singleline))
         {
             var contenido = tabla.Groups[1].Value;
@@ -255,62 +304,126 @@ public static class CasetasRutaService
             var filas = new List<List<string>>();
             foreach (Match fila in Regex.Matches(contenido, "(?s)<tr[^>]*>(.*?)</tr>"))
             {
-                var celdas = new List<string>();
-                foreach (Match celda in Regex.Matches(fila.Groups[1].Value, "(?s)<t[dh][^>]*>(.*?)</t[dh]>"))
-                    celdas.Add(Limpiar(Regex.Replace(celda.Groups[1].Value, "<[^>]+>", " ")));
+                var celdas = ExpandirCeldas(fila);
                 if (celdas.Count > 0) filas.Add(celdas);
             }
-            if (filas.Count == 0) continue;
 
-            // El encabezado es la fila que trae "Carretera" y "Caseta o puente";
-            // antes puede haber filas de título.
             var idxEncabezado = filas.FindIndex(f =>
                 f.Any(c => c.Contains("Caseta o puente", StringComparison.OrdinalIgnoreCase))
                 && f.Any(c => c.Contains("Carretera", StringComparison.OrdinalIgnoreCase)));
             if (idxEncabezado < 0) continue;
 
             var encabezado = filas[idxEncabezado];
-            var colNombre = 0;
-            var colCarretera = Math.Max(0, encabezado.FindIndex(c => c.Contains("Carretera", StringComparison.OrdinalIgnoreCase)));
-            var colKm = Math.Max(0, encabezado.FindIndex(c => c.Contains("Long", StringComparison.OrdinalIgnoreCase)));
-            var colTiempo = Math.Max(0, encabezado.FindIndex(c => c.Contains("Tiempo", StringComparison.OrdinalIgnoreCase)));
-            var colCaseta = Math.Max(0, encabezado.FindIndex(c => c.Contains("Caseta o puente", StringComparison.OrdinalIgnoreCase)));
+            var colCarretera = encabezado.FindIndex(c => c.Contains("Carretera", StringComparison.OrdinalIgnoreCase));
+            var colKm = encabezado.FindIndex(c => c.Contains("Long", StringComparison.OrdinalIgnoreCase));
+            var colTiempo = encabezado.FindIndex(c => c.Contains("Tiempo", StringComparison.OrdinalIgnoreCase));
+            var colCaseta = encabezado.FindIndex(c => c.Contains("Caseta o puente", StringComparison.OrdinalIgnoreCase));
             var colAuto = encabezado.FindIndex(c =>
                 c.Contains("Autom", StringComparison.OrdinalIgnoreCase)
                 && !c.Contains("remolque", StringComparison.OrdinalIgnoreCase)
                 && !c.Contains("Pick", StringComparison.OrdinalIgnoreCase));
-            if (colAuto < 0) colAuto = Math.Min(7, Math.Max(0, encabezado.Count - 1));
+            if (colCarretera < 0 || colKm < 0 || colTiempo < 0 || colCaseta < 0 || colAuto < 0)
+                return Invalida("encabezado de ruta incompleto");
 
+            var casetas = new List<CasetaRutaInfo>();
             var kmAcumulado = 0d;
+            var ultimaColumna = Math.Max(colAuto, Math.Max(colCaseta, Math.Max(colKm, colTiempo)));
             foreach (var fila in filas.Skip(idxEncabezado + 1))
             {
-                if (fila.Count <= colCaseta) continue;
-                var largo = fila.Count > colKm ? double.TryParse(fila[colKm], NumberStyles.Any, CultureInfo.InvariantCulture, out var km) ? km : 0 : 0;
-                kmAcumulado += largo;
-                if (fila[0].StartsWith("Totales", StringComparison.OrdinalIgnoreCase))
+                if (fila.All(string.IsNullOrWhiteSpace)) continue;
+                if (fila.Count <= ultimaColumna) return Invalida("fila con columnas insuficientes");
+
+                if (fila.Any(c => c.StartsWith("Totales", StringComparison.OrdinalIgnoreCase)))
                 {
-                    kmTotal = largo;
-                    tiempoTotal = fila.Count > colTiempo ? fila[colTiempo] : "";
-                    peajeTotal = fila.Count > colAuto
-                        && double.TryParse(fila[colAuto], NumberStyles.Any, CultureInfo.InvariantCulture, out var total) ? total : 0;
-                    break;
+                    if (!TryNumero(fila[colKm], out var kmTotal) || kmTotal < 0)
+                        return Invalida($"distancia total inválida: {fila[colKm]}");
+                    if (!TryNumero(fila[colAuto], out var peajeTotal) || peajeTotal < 0)
+                        return Invalida($"peaje total inválido: {fila[colAuto]}");
+                    var tiempoTotal = fila[colTiempo];
+                    if (!Regex.IsMatch(tiempoTotal, @"^\d{1,3}:\d{2}$"))
+                        return Invalida($"tiempo total inválido: {tiempoTotal}");
+                    return new ResultadoCasetasRuta(
+                        EstadosCasetasRuta.Disponible,
+                        casetas,
+                        kmTotal,
+                        tiempoTotal,
+                        peajeTotal,
+                        "SCT · Rutas Punto a Punto");
                 }
+
+                if (!TryNumero(fila[colKm], out var largo) || largo < 0)
+                    return Invalida($"longitud de tramo inválida: {fila[colKm]}");
+                kmAcumulado += largo;
                 var plaza = fila[colCaseta];
                 if (plaza.Length == 0) continue;
-                var tarifa = fila.Count > colAuto
-                    && double.TryParse(fila[colAuto], NumberStyles.Any, CultureInfo.InvariantCulture, out var t) ? t : 0;
-                var tramo = fila.Count > colNombre ? fila[colNombre] : "";
-                var carretera = fila.Count > colCarretera ? fila[colCarretera] : "";
+                if (!TryNumero(fila[colAuto], out var tarifa) || tarifa < 0)
+                    return Invalida($"tarifa inválida para {plaza}: {fila[colAuto]}");
+
+                var tramo = fila[0];
+                var carretera = fila[colCarretera];
                 var direccion = tramo.Length > 0 ? $"{tramo} · {carretera}".Trim(' ', '·') : carretera;
                 casetas.Add(new CasetaRutaInfo(plaza, carretera, Math.Round(kmAcumulado, 1), tarifa, direccion));
             }
-            break;
+
+            return Invalida("tabla de ruta sin fila de totales");
         }
 
-        if (casetas.Count == 0) return Vacio();
-        return new ResultadoCasetasRuta(casetas, kmTotal, tiempoTotal, peajeTotal, "SCT · Rutas Punto a Punto");
+        return Invalida("no se encontró una tabla de ruta interpretable");
     }
 
-    private static ResultadoCasetasRuta Vacio() =>
-        new([], 0, "", 0, "");
+    private static List<string> ExpandirCeldas(Match fila)
+    {
+        var celdas = new List<string>();
+        foreach (Match celda in Regex.Matches(fila.Groups[1].Value, "(?s)<t[dh]([^>]*)>(.*?)</t[dh]>"))
+        {
+            var atributos = celda.Groups[1].Value;
+            var colspanMatch = Regex.Match(atributos, "(?:^|\\s)colspan\\s*=\\s*[\\\"']?(\\d+)", RegexOptions.IgnoreCase);
+            var colspan = colspanMatch.Success && int.TryParse(colspanMatch.Groups[1].Value, out var n) && n > 0 ? n : 1;
+            celdas.Add(Limpiar(Regex.Replace(celda.Groups[2].Value, "<[^>]+>", " ")));
+            for (var i = 1; i < colspan; i++) celdas.Add(string.Empty);
+        }
+        return celdas;
+    }
+
+    private static bool TryNumero(string texto, out double valor)
+    {
+        valor = 0;
+        var limpio = Limpiar(texto)
+            .Replace("$", string.Empty, StringComparison.Ordinal)
+            .Replace("MXN", string.Empty, StringComparison.OrdinalIgnoreCase)
+            .Replace("km", string.Empty, StringComparison.OrdinalIgnoreCase)
+            .Replace(" ", string.Empty, StringComparison.Ordinal);
+        if (limpio.Length == 0) return false;
+
+        var coma = limpio.LastIndexOf(',');
+        var punto = limpio.LastIndexOf('.');
+        if (coma >= 0 && punto >= 0)
+        {
+            limpio = coma > punto
+                ? limpio.Replace(".", string.Empty, StringComparison.Ordinal).Replace(',', '.')
+                : limpio.Replace(",", string.Empty, StringComparison.Ordinal);
+        }
+        else if (coma >= 0)
+        {
+            var partes = limpio.Split(',');
+            var miles = partes.Length > 2 || (partes.Length == 2 && partes[1].Length == 3);
+            limpio = miles ? string.Join(string.Empty, partes) : string.Join(".", partes);
+        }
+        else if (punto >= 0 && limpio.Count(c => c == '.') > 1)
+        {
+            limpio = limpio.Replace(".", string.Empty, StringComparison.Ordinal);
+        }
+
+        return double.TryParse(limpio, NumberStyles.Number, CultureInfo.InvariantCulture, out valor)
+            && double.IsFinite(valor);
+    }
+
+    private static ResultadoCasetasRuta Invalida(string detalle)
+    {
+        Serilog.Log.Warning("SCT: respuesta inválida: {Detalle}", detalle);
+        return SinOficial(EstadosCasetasRuta.RespuestaInvalida);
+    }
+
+    private static ResultadoCasetasRuta SinOficial(string estado) =>
+        new(estado, [], null, null, null, string.Empty);
 }

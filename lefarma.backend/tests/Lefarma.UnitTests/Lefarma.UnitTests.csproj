@@ -29,4 +29,10 @@
     <ProjectReference Include="..\..\src\Lefarma.API\Lefarma.API.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Update="Features\Viaticos\Fixtures\sct-cdmx-pachuca.html">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>

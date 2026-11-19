@@ -115,6 +115,8 @@ public class CostosRutaResultado
     public List<string> Incumplimientos { get; set; } = [];
     /// <summary>Casetas de la ruta según la SCT, por tramo.</summary>
     public List<CostosRutaCaseta> Casetas { get; set; } = [];
+    /// <summary>One explicit SCT availability result per calculated leg.</summary>
+    public List<CostosRutaCasetaDisponibilidad> CasetasDisponibilidad { get; set; } = [];
 }
 
 /// <summary>Plaza de cobro de la ruta (SCT · Rutas Punto a Punto).</summary>
@@ -132,6 +134,18 @@ public class CostosRutaCaseta
     /// <summary>Tarifa de automóvil en pesos.</summary>
     public double Tarifa { get; set; }
     public string Direccion { get; set; } = string.Empty;
+    public string Fuente { get; set; } = string.Empty;
+}
+
+public class CostosRutaCasetaDisponibilidad
+{
+    public int Tramo { get; set; }
+    public string DeMunicipio { get; set; } = string.Empty;
+    public string AMunicipio { get; set; } = string.Empty;
+    public string Estado { get; set; } = string.Empty;
+    public double? KmTotal { get; set; }
+    public string? TiempoTotal { get; set; }
+    public double? PeajeTotal { get; set; }
     public string Fuente { get; set; } = string.Empty;
 }
 
@@ -223,6 +237,10 @@ public class CostosRutaOferta
     public string Nota { get; set; } = string.Empty;
     public string Fuente { get; set; } = string.Empty;
     public bool Estimado { get; set; }
+    /// <summary>Fuel component already included in CostoGrupo for newly calculated auto offers.</summary>
+    public double? Combustible { get; set; }
+    /// <summary>Estimated toll component already included in CostoGrupo; zero is valid for the free-road offer.</summary>
+    public double? CasetasEstimadas { get; set; }
     public CostosRutaCompra Comprar { get; set; } = new();
 }
 

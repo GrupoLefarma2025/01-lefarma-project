@@ -1253,9 +1253,10 @@ public static class CalculoCostosRuta
                     ci, !opciones.CalcularViajesIntermedios && intermedio, precios, http, cache, ct));
             }
 
-            var casetas = norm.CarroPropio
-                ? await CasetasAsync(prop, tramos, http, cache, ct)
-                : new List<CostosRutaCaseta>();
+            var casetas = new List<CostosRutaCaseta>();
+            var casetasDisponibilidad = new List<CostosRutaCasetaDisponibilidad>();
+            if (norm.CarroPropio)
+                (casetas, casetasDisponibilidad) = await CasetasAsync(prop, tramos, http, cache, ct);
 
             var incumplimientos = new List<string>();
             if (opciones.RespetarHorarioLaboral)
@@ -1279,6 +1280,7 @@ public static class CalculoCostosRuta
                 HotelesPropuestos = hoteles,
                 Incumplimientos = incumplimientos,
                 Casetas = casetas,
+                CasetasDisponibilidad = casetasDisponibilidad,
             };
             resp.Resultados.Add(resultado);
 
@@ -1550,14 +1552,16 @@ public static class CalculoCostosRuta
 
         if (!sinAuto)
         {
+            var divisor = nSh is > 1 ? nSh.Value : 1;
+            var litros = km / RendimientoEfectivo();
             foreach (var (nombre, casetas, factorT) in new[] { ("Auto (cuota)", cas.Costo, 1.0), ("Auto (libre)", 0.0, 1.15) })
             {
                 var dur = hrs * factorT;
                 var sal = salidaPrevia ?? deadline.AddHours(-dur).AddMinutes(-BufferMin);
                 var arr = sal.AddHours(dur);
-                var parte = (gas + casetas) / (nSh is > 1 ? nSh.Value : 1);
+                var parte = (gas + casetas) / divisor;
                 opts.Add(new OpCalc("auto", nombre + NotaSh(), $"{km:F0} km carretera", sal, arr, dur, 0,
-                    parte, parte * 1.1, parte, false, km / RendimientoEfectivo(), precios.Magna, casetas, null,
+                    parte, parte * 1.1, parte, false, litros / divisor, precios.Magna, casetas / divisor, null,
                     arr > deadline, false, arr > deadline ? (int)(arr - deadline).TotalMinutes : 0,
                     $"OSRM + CNE ({srcRuta}; {precios.Fuente})", false,
                     salidaPrevia is not null ? $"casetas + gasolina CNE · sales {sal:dd/MM HH:mm} (tu hora){NotaSh()}" : $"casetas + gasolina CNE · sale {sal:dd/MM HH:mm} para llegar {BufferMin} min antes{NotaSh()}",
@@ -1862,43 +1866,46 @@ public static class CalculoCostosRuta
     /// el origen, carretera y tarifa de automóvil. Se cachea un día porque el
     /// catálogo oficial cambia poco.
     /// </summary>
-    private static async Task<List<CostosRutaCaseta>> CasetasAsync(
+    private static async Task<(List<CostosRutaCaseta> Casetas, List<CostosRutaCasetaDisponibilidad> Disponibilidad)> CasetasAsync(
         List<LugarNorm> lugares, List<TramoCalc> tramos, HttpClient http, IMemoryCache cache, CancellationToken ct)
     {
         var salida = new List<CostosRutaCaseta>();
+        var disponibilidad = new List<CostosRutaCasetaDisponibilidad>();
         for (var t = 0; t < tramos.Count && t + 1 < lugares.Count; t++)
         {
             var origen = lugares[t];
             var destino = lugares[t + 1];
+            ResultadoCasetasRuta info;
             if (string.IsNullOrWhiteSpace(origen.Municipio) || string.IsNullOrWhiteSpace(destino.Municipio))
-                continue;
-
-            var clave = $"casetas-sct:{origen.Municipio}|{origen.Estado}|{destino.Municipio}|{destino.Estado}";
-            ResultadoCasetasRuta? info;
-            if (cache.TryGetValue(clave, out ResultadoCasetasRuta? guardada) && guardada is not null)
             {
-                info = guardada;
+                info = new ResultadoCasetasRuta(
+                    EstadosCasetasRuta.DestinoNoSoportado, [], null, null, null, string.Empty);
             }
             else
             {
-                try
+                var clave = $"casetas-sct:{origen.Municipio}|{origen.Estado}|{destino.Municipio}|{destino.Estado}";
+                if (!cache.TryGetValue(clave, out ResultadoCasetasRuta? guardada) || guardada is null)
                 {
-                    info = await CasetasRutaService.ConsultarAsync(
+                    guardada = await CasetasRutaService.ConsultarAsync(
                         http, origen.Municipio, origen.Estado, destino.Municipio, destino.Estado, ct);
+                    if (guardada.Estado == EstadosCasetasRuta.Disponible)
+                        cache.Set(clave, guardada, TimeSpan.FromHours(24));
                 }
-                catch (OperationCanceledException)
-                {
-                    throw;
-                }
-                catch (Exception ex)
-                {
-                    Serilog.Log.Warning("SCT: falló la consulta de casetas {Origen} → {Destino}: {Error}",
-                        origen.Municipio, destino.Municipio, ex.Message);
-                    info = null;
-                }
-                if (info is not null) cache.Set(clave, info, TimeSpan.FromHours(24));
+                info = guardada;
             }
-            if (info is null) continue;
+
+            disponibilidad.Add(new CostosRutaCasetaDisponibilidad
+            {
+                Tramo = t + 1,
+                DeMunicipio = origen.Municipio,
+                AMunicipio = destino.Municipio,
+                Estado = info.Estado,
+                KmTotal = info.KmTotal,
+                TiempoTotal = info.TiempoTotal,
+                PeajeTotal = info.PeajeTotal,
+                Fuente = info.Fuente,
+            });
+            if (info.Estado != EstadosCasetasRuta.Disponible) continue;
 
             foreach (var caseta in info.Casetas)
             {
@@ -1916,7 +1923,7 @@ public static class CalculoCostosRuta
                 });
             }
         }
-        return salida;
+        return (salida, disponibilidad);
     }
 
     // ---------- Propuestas (6) ----------
@@ -2235,6 +2242,12 @@ public static class CalculoCostosRuta
             CostoGrupo = Math.Round(o.CostoGrupo, 2), CostoPorPersona = Math.Round(mid, 2),
             ATiempo = !o.Late && !o.SaleAntes, LlegaTarde = o.Late, MinutosTarde = o.LateMin, NoTomable = o.SaleAntes,
             Badge = o.Badge, Nota = o.Nota, Fuente = o.Fuente, Estimado = o.Estimado,
+            Combustible = o.Modo == "auto" && o.Litros is { } litros && o.PrecioLitro is { } precioLitro
+                ? Math.Round(litros * precioLitro, 2)
+                : null,
+            CasetasEstimadas = o.Modo == "auto" && o.CasetasVal is { } casetasEstimadas
+                ? Math.Round(casetasEstimadas, 2)
+                : null,
             Comprar = new CostosRutaCompra { Url = o.Url, Sitio = o.Sitio, Accion = o.Accion, Objetivo = o.Objetivo, Fecha = o.Salida.ToString("yyyy-MM-dd") },
         };
     }
