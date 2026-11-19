@@ -696,7 +696,7 @@ export function VariableEditorDialog({
 
         {/* Paso 2: definición */}
         {paso === 2 && (
-          <section className="grid min-h-0 flex-1 content-start gap-x-5 gap-y-[var(--ve-gap-sm)] md:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
+          <section className="grid min-h-0 flex-1 content-start gap-x-5 gap-y-[var(--ve-gap-sm)] overflow-y-auto overscroll-contain md:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
             {esEdicion && (
               <div className="flex items-start gap-2 rounded-lg border border-sky-200 bg-sky-50/50 px-2.5 py-1.5 text-[11px] leading-snug text-sky-800 md:col-span-2">
                 <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0" />
