@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Check, CheckSquare, Eye, Plane, Printer, Square } from 'lucide-react';
+import { Check, CheckSquare, ChevronDown, Eye, Plane, Printer, SlidersHorizontal, Square } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { DataTable, type ColumnDef } from '@/components/ui/data-table';
 import {
@@ -539,18 +538,34 @@ export function ConcentradoPage() {
     ],
   );
 
+  /** Filtros que se apartan de los valores por defecto; se resumen en el encabezado plegable. */
+  const filtrosAplicados = [
+    filtroFecha !== 'todas',
+    campoFecha !== 'modificacion',
+    tipo !== 'todos',
+    recalculo !== 'con',
+    agruparPor !== 'gerencia',
+    definicion !== 'todas',
+  ].filter(Boolean).length;
+
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight">Concentrado de viáticos</h1>
-        <p className="mt-0.5 text-sm text-muted-foreground">
-          Revisa y autoriza la última ruta calculada de cada viaje. Selecciona las solicitudes y
-          genera el concentrado de costos (FOR-008) o el de vuelos (solicitud de avión).
-        </p>
-      </div>
-      <Card>
-        <CardContent className="space-y-3 pt-6">
-          <div className="grid gap-3 md:grid-cols-4">
+      <div className="rounded-md border bg-card">
+        <details className="group">
+          <summary className="flex cursor-pointer select-none items-center gap-2 rounded-md px-4 py-3 text-sm font-medium hover:bg-muted/50 [&::-webkit-details-marker]:hidden">
+            <SlidersHorizontal className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+            Filtros
+            {filtrosAplicados > 0 ? (
+              <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+                {filtrosAplicados} {filtrosAplicados === 1 ? 'aplicado' : 'aplicados'}
+              </span>
+            ) : null}
+            <ChevronDown
+              className="ml-auto h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180"
+              aria-hidden
+            />
+          </summary>
+          <div className="grid gap-3 border-t px-4 py-3 md:grid-cols-4">
             <div className="space-y-1">
               <Label htmlFor="concentrado-periodo">Periodo</Label>
               <select
@@ -647,6 +662,8 @@ export function ConcentradoPage() {
               </select>
             </div>
           </div>
+        </details>
+        <div className="space-y-1 px-4 pb-3">
           {rango ? (
             <p data-testid="rango-visible" className="text-xs text-muted-foreground">
               Mostrando por {ETIQUETA_CAMPO_FECHA[campoFecha].toLowerCase()}: {fechaCorta(rango.inicio)} al{' '}
@@ -678,8 +695,8 @@ export function ConcentradoPage() {
               ))}
             </p>
           ) : null}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {error ? <p role="alert" className="text-sm text-destructive">{error}</p> : null}
 

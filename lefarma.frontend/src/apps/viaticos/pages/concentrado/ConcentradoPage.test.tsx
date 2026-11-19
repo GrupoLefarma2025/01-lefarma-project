@@ -117,6 +117,19 @@ beforeEach(() => {
 });
 
 describe('ConcentradoPage', () => {
+  it('no repite el título de la página y deja los filtros plegados a la vista', async () => {
+    render(<ConcentradoPage />);
+    await waitFor(() => expect(screen.getByTestId('concentrado-5')).toBeInTheDocument());
+
+    // El nombre de la página vive en la barra superior y en la pestaña del navegador.
+    expect(screen.queryByRole('heading', { name: /^concentrado de viáticos$/i })).toBeNull();
+
+    // Los filtros se pliegan, pero el encabezado deja claro que están ahí.
+    const resumen = screen.getByText('Filtros', { selector: 'summary' });
+    expect(resumen).toBeInTheDocument();
+    expect(resumen.parentElement).not.toHaveAttribute('open');
+  });
+
   it('muestra la opción elegida Y las alternativas originales con sus precios', async () => {
     const usuario = userEvent.setup();
     render(<ConcentradoPage />);
