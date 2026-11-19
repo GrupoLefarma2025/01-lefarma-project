@@ -1254,13 +1254,26 @@ function DetalleOpciones({
     );
   };
 
+  /**
+   * Un renglón del desglose. Este panel vive en una columna angosta (340 px en
+   * escritorio y menos cuando la página se ve en una ventana chica), así que
+   * cada opción se apila en dos líneas en vez de repartirse en cinco columnas:
+   * antes el nombre del tramo quedaba en una columna de ~70 px, con una palabra
+   * por renglón, y los precios se salían del marco.
+   */
   const fila = (opcion: SolicitudOpcion) => (
-    <tr key={opcion.id_opcion} className="border-b border-border/60 last:border-0">
-      <td className="py-1 pr-3 align-top">
-        <div>{opcion.linea}</div>
-        <DatosViajeTexto datos={datos[opcion.id_opcion] ?? null} />
-      </td>
-      <td className="py-1 pr-3 align-top">
+    <li key={opcion.id_opcion} className="space-y-1.5 border-b border-border/60 py-2 last:border-0">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          <p className="leading-tight">{opcion.linea}</p>
+          <DatosViajeTexto datos={datos[opcion.id_opcion] ?? null} />
+        </div>
+        <div className="flex shrink-0 items-center gap-0.5">
+          {botonBoleto(opcion)}
+          {botonComprar(opcion)}
+        </div>
+      </div>
+      <div className="flex flex-wrap items-start justify-between gap-x-2 gap-y-1">
         <CeldaCaptura
           ruta={capturas[opcion.id_opcion] ?? opcion.ruta_captura ?? undefined}
           etiqueta={opcion.linea}
@@ -1268,17 +1281,13 @@ function DetalleOpciones({
           subiendo={subiendoCaptura === opcion.id_opcion}
           revision={capturasRevision[opcion.id_opcion] ?? 0}
         />
-      </td>
-      <td className="whitespace-nowrap py-1 text-right align-top tabular-nums">
-        {precioTexto(opcion)}
-      </td>
-      <td className="w-8 py-0.5 pl-1 text-right align-top">{botonBoleto(opcion)}</td>
-      <td className="w-8 py-0.5 pl-1 text-right align-top">{botonComprar(opcion)}</td>
-    </tr>
+        <span className="whitespace-nowrap text-right tabular-nums">{precioTexto(opcion)}</span>
+      </div>
+    </li>
   );
 
   return (
-    <div className="space-y-2 rounded-lg border bg-card p-3 text-sm shadow-[0_2px_10px_rgba(15,23,42,0.10)]">
+    <div className="min-w-0 space-y-2 rounded-lg border bg-card p-3 text-sm shadow-[0_2px_10px_rgba(15,23,42,0.10)]">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs text-muted-foreground">Transporte y hospedaje elegidos</p>
         {hayLinks ? (
@@ -1316,29 +1325,22 @@ function DetalleOpciones({
       {elegidas.length === 0 ? (
         <p>Sin opciones elegidas.</p>
       ) : (
-        <table className="w-full text-sm">
-          <tbody>{elegidas.map(fila)}</tbody>
-          <tfoot>
-            <tr>
-              <td className="pt-2 align-bottom text-xs text-muted-foreground">Desglose</td>
-              <td />
-              <td className="pt-1 text-right text-2xl font-semibold tracking-tight tabular-nums">
-                {textoTotalElegidas(total)}
-              </td>
-              <td />
-              <td />
-            </tr>
-          </tfoot>
-        </table>
+        <div>
+          <ul>{elegidas.map(fila)}</ul>
+          <div className="flex items-baseline justify-between gap-2 pt-2">
+            <span className="text-xs text-muted-foreground">Desglose</span>
+            <span className="text-2xl font-semibold tracking-tight tabular-nums">
+              {textoTotalElegidas(total)}
+            </span>
+          </div>
+        </div>
       )}
       {descartadas.length > 0 ? (
         <details className="text-xs">
           <summary className="cursor-pointer text-muted-foreground">
             Alternativas descartadas ({descartadas.length})
           </summary>
-          <table className="mt-1 w-full text-xs text-muted-foreground">
-            <tbody>{descartadas.map(fila)}</tbody>
-          </table>
+          <ul className="mt-1 text-xs text-muted-foreground">{descartadas.map(fila)}</ul>
         </details>
       ) : null}
 
