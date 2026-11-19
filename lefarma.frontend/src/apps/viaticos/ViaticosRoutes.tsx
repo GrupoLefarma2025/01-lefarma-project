@@ -7,6 +7,7 @@ import { viaticosMenuItems } from './menuItems';
 
 import { SolicitudPage } from './pages/solicitud/SolicitudPage';
 import { MisViajesPage } from './pages/mis-viajes/MisViajesPage';
+import { AutorizacionesPage } from './pages/autorizaciones/AutorizacionesPage';
 import { ConcentradoPage } from './pages/concentrado/ConcentradoPage';
 import { ConfiguracionPage } from './pages/configuracion/ConfiguracionPage';
 import BandejaAprobacionesConDetalle from './pages/aprobaciones/BandejaAprobacionesConDetalle';
@@ -34,6 +35,11 @@ export function ViaticosRoutes({ variant, loginPath }: SubtreeRoutesProps) {
         <Route path="solicitud" element={<SolicitudPage />} />
         <Route path="solicitud/:id" element={<SolicitudPage />} />
         <Route path="mis-viajes" element={<MisViajesPage />} />
+        <Route path="autorizaciones" element={
+          <PermissionGuard blockedPath={bloqueado} require="viaticos.autorizar">
+            <AutorizacionesPage />
+          </PermissionGuard>
+        } />
         <Route path="concentrado" element={
           <PermissionGuard blockedPath={bloqueado} require="viaticos.autorizar">
             <ConcentradoPage />

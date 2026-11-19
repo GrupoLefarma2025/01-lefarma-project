@@ -1,4 +1,4 @@
-import { ClipboardCheck, Luggage, Plane, Settings } from 'lucide-react';
+import { ClipboardCheck, ClipboardList, Luggage, Plane, Settings } from 'lucide-react';
 import type { SidebarMenuItemConfig } from '@/components/layout/sidebar-types';
 
 export const viaticosMenuItems: SidebarMenuItemConfig[] = [
@@ -13,9 +13,16 @@ export const viaticosMenuItems: SidebarMenuItemConfig[] = [
     path: '/viaticos/mis-viajes',
   },
   {
-    // Pantalla de autorización: solo entra quien puede autorizar. El backend
-    // exige el mismo permiso en la bandeja, así que el recorte a las
-    // solicitudes propias ya no aplica aquí.
+    // Punto intermedio entre Mis viajes y el concentrado: aquí se autorizan
+    // las solicitudes enviadas. Solo entra quien puede autorizar.
+    title: 'Autorizaciones',
+    icon: ClipboardList,
+    path: '/viaticos/autorizaciones',
+    permission: { require: 'viaticos.autorizar' },
+  },
+  {
+    // Pantalla de consulta: solo entra quien puede autorizar y ya no autoriza
+    // aquí, el paso previo es Autorizaciones.
     title: 'Concentrado de viáticos',
     icon: ClipboardCheck,
     path: '/viaticos/concentrado',

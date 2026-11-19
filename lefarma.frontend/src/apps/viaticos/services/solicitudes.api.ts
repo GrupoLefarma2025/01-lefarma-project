@@ -49,8 +49,15 @@ export const solicitudesApi = {
   /** GET /viaticos/solicitudes/por-ruta/{idRuta}: todas las cotizaciones de la ruta. */
   porRuta: (idRuta: number) =>
     API.get<ApiResponse<SolicitudOrigenEmResumen[]>>(`${BASE}/por-ruta/${idRuta}`),
-  /** GET /viaticos/solicitudes/mis */
-  misSolicitudes: () => API.get<ApiResponse<Solicitud[]>>(`${BASE}/mis`),
+  /**
+   * GET /viaticos/solicitudes/mis
+   * Con `todas` pide las de todos los usuarios (exige `viaticos.ver_todos` en
+   * el servidor; sin el permiso responde 403).
+   */
+  misSolicitudes: (opciones?: { todas?: boolean }) =>
+    API.get<ApiResponse<Solicitud[]>>(`${BASE}/mis${opciones?.todas ? '?todas=true' : ''}`),
+  /** GET /viaticos/solicitudes/por-autorizar: cola de autorización (solo 'enviada'). */
+  porAutorizar: () => API.get<ApiResponse<Solicitud[]>>(`${BASE}/por-autorizar`),
   /** GET /viaticos/solicitudes/gerencia-sugerida: última gerencia del usuario. */
   gerenciaSugerida: () =>
     API.get<ApiResponse<{ gerencia: string | null }>>(`${BASE}/gerencia-sugerida`),

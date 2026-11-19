@@ -13,6 +13,9 @@ import type { SolicitudBandeja } from './types/aprobaciones.types';
 vi.mock('@/pages/Perfil', () => ({ default: () => <div>PERFIL_MARK</div> }));
 vi.mock('./pages/solicitud/SolicitudPage', () => ({ SolicitudPage: () => <div>SOLICITUD_MARK</div> }));
 vi.mock('./pages/mis-viajes/MisViajesPage', () => ({ MisViajesPage: () => <div>MIS_VIAJES_MARK</div> }));
+vi.mock('./pages/autorizaciones/AutorizacionesPage', () => ({
+  AutorizacionesPage: () => <div>AUTORIZACIONES_MARK</div>,
+}));
 vi.mock('./pages/concentrado/ConcentradoPage', () => ({ ConcentradoPage: () => <div>CONCENTRADO_MARK</div> }));
 vi.mock('@/hooks/usePageTitle', () => ({ usePageTitle: vi.fn() }));
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
@@ -95,6 +98,11 @@ describe('ViaticosRoutes — bandeja de aprobaciones', () => {
   it('/viaticos/mis-viajes resuelve Mis viajes', () => {
     renderAt('/viaticos/mis-viajes');
     expect(screen.getByText('MIS_VIAJES_MARK')).toBeInTheDocument();
+  });
+
+  it('/viaticos/autorizaciones resuelve la pantalla intermedia de autorización', () => {
+    renderAt('/viaticos/autorizaciones');
+    expect(screen.getByText('AUTORIZACIONES_MARK')).toBeInTheDocument();
   });
 
   it('/viaticos/concentrado resuelve el concentrado de revisión', () => {
