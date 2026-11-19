@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Check, CheckSquare, Eye, Square } from 'lucide-react';
+import { Check, CheckSquare, Eye, Plane, Square } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -29,10 +29,7 @@ import {
 } from '../../types/aprobaciones.types';
 import type { Solicitud } from '../../types/solicitud.types';
 import type { PropuestaRuta } from '../../types/solicitud.types';
-import {
-  esEstadoConcentrado,
-  filaConcentrado,
-} from '../aprobaciones/ConcentradoViaticosView';
+import { filaConcentrado } from '../aprobaciones/ConcentradoViaticosView';
 import { esEstadoConcentrable, filaVuelos } from './filaVuelos';
 import { VistaDetalle } from '../mis-viajes/MisViajesPage';
 import {
@@ -40,7 +37,6 @@ import {
   type FormatoConcentrado,
 } from './ConcentradoDocumentoPreview';
 import { ConcentradoViaticosPrint } from '../costos/ConcentradoViaticosPrint';
-import { ConcentradoVuelosPrint } from '../costos/ConcentradoVuelosPrint';
 import { CalculosViajeModal } from '../../components/CalculosViajeModal';
 import { GRUPO_LABELS, type GrupoConcentrado } from '../../constants/grupos';
 import { gerenciaVisible } from '../../constants/gerencias';
@@ -325,8 +321,6 @@ export function ConcentradoPage() {
   const totalSeleccionado = importesSeleccionados.length > 0
     ? importesSeleccionados.reduce((suma, total) => suma + total, 0)
     : null;
-  /** Seleccionadas que todavía no están autorizadas: el FOR-008 avisa. */
-  const sinAutorizar = seleccionadas.filter((fila) => !esEstadoConcentrado(fila.estado)).length;
   const todasSeleccionadas =
     seleccionables.length > 0 && seleccionables.every((fila) => seleccionadasIds.has(fila.id_solicitud));
 
@@ -350,6 +344,16 @@ export function ConcentradoPage() {
       return siguientes;
     });
   }, [seleccionables, todasSeleccionadas]);
+
+  /**
+   * Abre el documento con el formato pedido: el panel derecho siempre muestra
+   * el concentrado de costos y la solicitud de avión se pide aparte, para que
+   * el documento no cambie solo por tocar un control de la vista previa.
+   */
+  const abrirDocumento = useCallback((siguiente: FormatoConcentrado) => {
+    setFormato(siguiente);
+    setDocumentoAbierto(true);
+  }, []);
 
   // Encabezado del documento: el filtro activo y cuántas filas lo componen.
   // La gerencia se toma de las filas seleccionadas (o, sin selección, de las
@@ -768,52 +772,31 @@ export function ConcentradoPage() {
 
         <section className="flex min-w-0 flex-col gap-3" aria-label="Vista previa del concentrado">
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-muted/40 px-3 py-2">
-            <label className="flex flex-wrap items-center gap-2 text-sm font-medium text-muted-foreground">
-              Vista previa de
-              <select
-                aria-label="Formato de impresión"
-                className="h-8 rounded-md border bg-background px-2 text-xs text-foreground"
-                value={formato}
-                onChange={(e) => setFormato(e.target.value as FormatoConcentrado)}
-              >
-                <option value="for-008">Concentrado FOR-008 (costos)</option>
-                <option value="vuelos">Solicitud de avión (vuelos)</option>
-              </select>
-            </label>
-            <div className="flex items-center gap-2">
+            <span className="text-sm font-medium text-muted-foreground">Vista previa del concentrado</span>
+            <div className="flex flex-wrap items-center gap-2">
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
                 className="gap-1.5"
-                onClick={() => setDocumentoAbierto(true)}
+                onClick={() => abrirDocumento('vuelos')}
                 disabled={seleccionadas.length === 0}
               >
-                Vista previa
+                <Plane className="h-3.5 w-3.5" aria-hidden />
+                Solicitud de avión
               </Button>
               <Button
                 type="button"
                 size="sm"
                 className="gap-1.5"
-                onClick={() => setDocumentoAbierto(true)}
+                onClick={() => abrirDocumento('for-008')}
                 disabled={seleccionadas.length === 0}
               >
                 <Check className="h-3.5 w-3.5" aria-hidden />
-                {formato === 'vuelos' ? 'Generar vuelos' : 'Generar concentrado'} ({seleccionadas.length})
+                Generar concentrado ({seleccionadas.length})
               </Button>
             </div>
           </div>
-
-          {formato === 'for-008' && sinAutorizar > 0 ? (
-            <p
-              data-testid="aviso-revision"
-              className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200"
-            >
-              Documento de revisión: {sinAutorizar} de {seleccionadas.length}{' '}
-              {seleccionadas.length === 1 ? 'solicitud no está autorizada' : 'solicitudes no están autorizadas'}.
-              Se imprimen con el importe que tienen ahora; el importe puede cambiar al autorizarse.
-            </p>
-          ) : null}
 
           <div className="min-h-[420px] flex-1 overflow-auto rounded-lg border bg-zinc-100 p-3 dark:bg-zinc-900">
             {seleccionadas.length === 0 ? (
@@ -824,17 +807,8 @@ export function ConcentradoPage() {
                 <div className="text-4xl opacity-30">📄</div>
                 <span className="text-sm">Selecciona solicitudes para ver el concentrado</span>
                 <span className="max-w-sm text-xs opacity-70">
-                  {formato === 'vuelos'
-                    ? 'El formato «Solicitud de avión» se manda a la agencia con el itinerario de cada persona.'
-                    : 'Se imprime exactamente lo que marcas, esté o no autorizado; lo que falta de autorizar sale con el importe actual.'}
+                  Se imprime exactamente lo que marcas, con el importe que tiene cada solicitud.
                 </span>
-              </div>
-            ) : formato === 'vuelos' ? (
-              <div className="min-w-[760px] bg-white shadow-sm">
-                <ConcentradoVuelosPrint
-                  solicitudes={seleccionadas.map(filaVuelos)}
-                  gerencia={gerenciaDocumento}
-                />
               </div>
             ) : (
               <div className="min-w-[820px] bg-white shadow-sm">

@@ -240,8 +240,8 @@ describe('ConcentradoPage', () => {
 
     await usuario.click(casilla);
     expect(screen.getByRole('button', { name: /generar concentrado \(1\)/i })).toBeEnabled();
-    // Lo que falta de autorizar se avisa: el documento es de revisión.
-    expect(screen.getByTestId('aviso-revision')).toHaveTextContent(/no está autorizada/i);
+    // El documento ya no lleva aviso de revisión: se imprime lo marcado a secas.
+    expect(screen.queryByText(/documento de revisión/i)).toBeNull();
 
     await usuario.click(screen.getByRole('button', { name: /generar concentrado \(1\)/i }));
     const documento = document.querySelector('#concentrado-viaticos-print');
@@ -318,7 +318,7 @@ describe('ConcentradoPage', () => {
     expect(within(screen.getByTestId('concentrado-33')).getByText('Sin clasificar')).toBeInTheDocument();
   });
 
-  it('el formato Vuelos permite incluir una enviada y genera la solicitud de avión', async () => {
+  it('la solicitud de avión permite incluir una enviada y arma su documento', async () => {
     const usuario = userEvent.setup();
     mocks.bandeja.mockResolvedValue({
       data: {
@@ -340,16 +340,13 @@ describe('ConcentradoPage', () => {
     render(<ConcentradoPage />);
     await waitFor(() => expect(screen.getByTestId('concentrado-5')).toBeInTheDocument());
 
-    // Los dos formatos marcan lo mismo: el documento se arma antes de autorizar.
-    expect(screen.getByRole('checkbox', { name: /incluir VIA-TEST-0005 en el concentrado/i })).not.toBeDisabled();
-
-    await usuario.selectOptions(screen.getByLabelText(/formato de impresión/i), 'vuelos');
-
     // La solicitud a la agencia también se manda antes de autorizar.
     const casilla = screen.getByRole('checkbox', { name: /incluir VIA-TEST-0005 en el concentrado/i });
     expect(casilla).not.toBeDisabled();
     await usuario.click(casilla);
-    await usuario.click(screen.getByRole('button', { name: /generar vuelos \(1\)/i }));
+
+    // El documento de avión se pide con su botón: la vista previa no cambia de formato.
+    await usuario.click(screen.getByRole('button', { name: /solicitud de avión/i }));
 
     const documento = document.querySelector('#concentrado-vuelos-print') as HTMLElement;
     expect(documento).not.toBeNull();
