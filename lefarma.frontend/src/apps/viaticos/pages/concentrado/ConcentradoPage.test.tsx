@@ -40,12 +40,12 @@ const fila: SolicitudBandeja = {
   periodo: '2026-11',
   gerencia: '',
   destino: 'Destino Uno',
-  estado: 'enviada',
+  // Al concentrado llega lo que ya autorizó la pantalla de Autorizaciones.
+  estado: 'autorizada',
   total: 2000,
   // El concentrado revisa las que ya pasaron por los cálculos.
   recalculada: true,
-  // El filtro por defecto es «Hoy» por fecha de creación: la fila tiene que
-  // haber nacido hoy para que el concentrado la muestre sin tocar los filtros.
+  // El filtro de fecha por defecto es «Todas»: la fila se ve sin tocar nada.
   fecha_creacion: `${HOY}T10:00:00`,
 };
 
@@ -57,7 +57,7 @@ const detalleOk = {
       id_usuario_solicitante: 9,
       periodo: '2026-11',
       gerencia: '',
-      estado: 'enviada',
+      estado: 'autorizada',
       activo: true,
       fecha_creacion: '2026-11-04T10:00:00',
       fecha_modificacion: '2026-11-04T11:00:00',
@@ -145,50 +145,48 @@ describe('ConcentradoPage', () => {
     expect(revision).toHaveTextContent(/2,000/);
   });
 
-  it('aprobar autoriza la solicitud elegida sin reemplazar la opción', async () => {
-    const usuario = userEvent.setup();
-    render(<ConcentradoPage />);
-    await waitFor(() => expect(screen.getByTestId('concentrado-5')).toBeInTheDocument());
-    await usuario.click(within(screen.getByTestId('concentrado-5')).getByRole('button', { name: /Ver detalle/ }));
-    await waitFor(() => expect(screen.getByTestId('revision-solicitud')).toBeInTheDocument());
-    const autorizar = await screen.findByRole('button', { name: /autorizar esta ruta/i });
-    await usuario.click(autorizar);
-    expect(mocks.autorizar).toHaveBeenCalledWith(5);
-  });
-
-  it('abre la revisión en Ruta autorizada y ofrece recalcular dentro de la pestaña', async () => {
+  it('abre el detalle en modo consulta, sin autorizar ni rechazar desde el concentrado', async () => {
     const usuario = userEvent.setup();
     render(<ConcentradoPage />);
     await waitFor(() => expect(screen.getByTestId('concentrado-5')).toBeInTheDocument());
     await usuario.click(within(screen.getByTestId('concentrado-5')).getByRole('button', { name: /Ver detalle/ }));
     await waitFor(() => expect(screen.getByTestId('revision-solicitud')).toBeInTheDocument());
 
+    // Autorizar y rechazar viven en Autorizaciones: aquí solo se consulta.
+    const revision = screen.getByTestId('revision-solicitud');
+    expect(within(revision).queryByRole('button', { name: /autorizar/i })).not.toBeInTheDocument();
+    expect(within(revision).queryByRole('button', { name: /rechazar/i })).not.toBeInTheDocument();
+    expect(within(revision).queryByRole('button', { name: /recalcular ruta/i })).not.toBeInTheDocument();
+    expect(within(revision).getByRole('button', { name: /cerrar/i })).toBeInTheDocument();
+    // El detalle sigue entrando por la ruta que quedó autorizada.
     expect(screen.getByRole('tab', { name: 'Ruta autorizada' })).toHaveAttribute('aria-selected', 'true');
-    await usuario.click(await screen.findByRole('button', { name: /recalcular ruta/i }));
-    expect(await screen.findByText(/Cálculos del viaje/i)).toBeInTheDocument();
   });
 
-  it('rechazar exige comentario y devolver queda deshabilitado sin endpoint', async () => {
+  it('entra mostrando las autorizadas listas para concentrar; las enviadas aparecen al cambiar el activo', async () => {
     const usuario = userEvent.setup();
+    mocks.bandeja.mockResolvedValue({
+      data: {
+        success: true,
+        data: [
+          { ...fila, id_solicitud: 5, folio: 'VIA-AUT-0005', estado: 'autorizada' },
+          { ...fila, id_solicitud: 6, folio: 'VIA-ENV-0006', estado: 'enviada' },
+        ],
+      },
+    });
     render(<ConcentradoPage />);
     await waitFor(() => expect(screen.getByTestId('concentrado-5')).toBeInTheDocument());
-    await usuario.click(within(screen.getByTestId('concentrado-5')).getByRole('button', { name: /Ver detalle/ }));
-    await waitFor(() => expect(screen.getByTestId('revision-solicitud')).toBeInTheDocument());
-    expect(screen.getByRole('button', { name: /rechazar/i })).toBeDisabled();
-    await usuario.type(screen.getByLabelText(/comentario de revisión/i), 'Falta justificación');
-    expect(screen.getByRole('button', { name: /rechazar/i })).not.toBeDisabled();
-    const devolver = screen.getByRole('button', { name: /devolver para corrección/i });
-    expect(devolver).toBeDisabled();
-    expect(screen.getByText(/sin endpoint compatible/i)).toBeInTheDocument();
-  }, 15_000);
+    // La cola de autorización todavía no llega al concentrado.
+    expect(screen.queryByTestId('concentrado-6')).not.toBeInTheDocument();
 
-  it('entra mostrando todas las enviadas, sin recortar por fecha', async () => {
-    render(<ConcentradoPage />);
-    await waitFor(() => expect(screen.getByTestId('concentrado-5')).toBeInTheDocument());
-
-    // El filtro por defecto es "Todas": la fecha no recorta nada.
+    // Sin recorte por fecha: el periodo por defecto es "Todas".
     expect(screen.getByLabelText(/periodo/i)).toHaveValue('todas');
     expect(screen.queryByTestId('rango-visible')).not.toBeInTheDocument();
+
+    await usuario.selectOptions(screen.getByLabelText(/activo/i), 'todas');
+    expect(screen.getByTestId('concentrado-6')).toBeInTheDocument();
+    await usuario.selectOptions(screen.getByLabelText(/activo/i), 'enviada');
+    expect(screen.getByTestId('concentrado-6')).toBeInTheDocument();
+    expect(screen.queryByTestId('concentrado-5')).not.toBeInTheDocument();
   });
 
   it('por fecha de viaje incluye el viaje en curso y descarta el que no toca el rango', async () => {
@@ -240,12 +238,12 @@ describe('ConcentradoPage', () => {
     expect(documento).toHaveTextContent('Persona Solicitante');
   });
 
-  it('permite marcar una solicitud enviada y el documento avisa que va en revisión', async () => {
+  it('permite marcar una solicitud autorizada y el documento la imprime', async () => {
     const usuario = userEvent.setup();
     render(<ConcentradoPage />);
     await waitFor(() => expect(screen.getByTestId('concentrado-5')).toBeInTheDocument());
 
-    // El concentrado se arma antes de autorizar: la enviada se puede marcar.
+    // Al concentrado llega lo ya autorizado: se puede marcar sin más pasos.
     const casilla = screen.getByRole('checkbox', { name: /incluir VIA-TEST-0005 en el concentrado/i });
     expect(casilla).not.toBeDisabled();
     expect(screen.getByRole('button', { name: /generar concentrado \(0\)/i })).toBeDisabled();
@@ -355,7 +353,7 @@ describe('ConcentradoPage', () => {
     expect(within(screen.getByTestId('concentrado-33')).getByText('Sin clasificar')).toBeInTheDocument();
   });
 
-  it('la solicitud de avión permite incluir una enviada y arma su documento', async () => {
+  it('la solicitud de avión incluye una autorizada y arma su documento', async () => {
     const usuario = userEvent.setup();
     mocks.bandeja.mockResolvedValue({
       data: {

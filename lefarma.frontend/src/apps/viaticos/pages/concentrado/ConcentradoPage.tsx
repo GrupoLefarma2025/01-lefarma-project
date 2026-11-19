@@ -15,19 +15,16 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { usePageTitle } from '@/hooks/usePageTitle';
-import { usePermission } from '@/hooks/usePermission';
 import { toast } from 'sonner';
 import { toApiError } from '@/utils/errors';
 import { aprobacionesApi } from '../../services/aprobaciones.api';
 import { solicitudesApi } from '../../services/solicitudes.api';
 import {
-  ESTADO_ENVIADA,
   estadoTexto,
   importeFormateado,
   type SolicitudBandeja,
 } from '../../types/aprobaciones.types';
 import type { Solicitud } from '../../types/solicitud.types';
-import type { PropuestaRuta } from '../../types/solicitud.types';
 import { filaConcentrado } from '../aprobaciones/ConcentradoViaticosView';
 import { esEstadoConcentrable, filaVuelos } from './filaVuelos';
 import { VistaDetalle } from '../mis-viajes/MisViajesPage';
@@ -36,7 +33,6 @@ import {
   type FormatoConcentrado,
 } from './ConcentradoDocumentoPreview';
 import { ConcentradoViaticosPrint } from '../costos/ConcentradoViaticosPrint';
-import { CalculosViajeModal } from '../../components/CalculosViajeModal';
 import { GRUPO_LABELS, type GrupoConcentrado } from '../../constants/grupos';
 import { gerenciaVisible } from '../../constants/gerencias';
 import {
@@ -52,13 +48,14 @@ import {
 } from './periodo.helpers';
 
 /**
- * Vista de revisión (prototipo UI). «Activo» es un contrato sin resolver: la
- * definición se elige en la interfaz y se muestra, no se fija como política de
- * archivo. La revisión autoriza la OPCIÓN ELEGIDA por la persona viajera; las
- * alternativas se muestran como evidencia histórica con sus precios originales.
+ * Vista de consulta del concentrado. La autorización ocurre antes, en
+ * /viaticos/autorizaciones: aquí solo llegan las solicitudes ya autorizadas y
+ * se arma el documento. «Activo» es la definición de estado que se muestra,
+ * no una política de archivo.
  */
 const DEFINICIONES_ACTIVO: { id: string; etiqueta: string; estados: string[] }[] = [
-  { id: 'enviada', etiqueta: 'Enviadas (pendientes de autorización)', estados: ['enviada'] },
+  { id: 'autorizadas', etiqueta: 'Autorizadas (listas para concentrar)', estados: ['autorizada', 'autorizada_con_ajustes'] },
+  { id: 'enviada', etiqueta: 'Enviadas (todavía sin autorizar)', estados: ['enviada'] },
   { id: 'todas', etiqueta: 'Todas (enviadas, autorizadas y rechazadas)', estados: [] as string[] },
 ] as const;
 type DefinicionActivo = string;
@@ -126,30 +123,24 @@ function tipoTransporteDeFila(f: SolicitudBandeja): string {
 
 export function ConcentradoPage() {
   usePageTitle('Concentrado de viáticos', 'Viáticos');
-  const puedeAutorizar = usePermission({ require: 'viaticos.autorizar' });
 
   const [filas, setFilas] = useState<SolicitudBandeja[]>([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [tipo, setTipo] = useState<string>('todos');
-  const [definicion, setDefinicion] = useState<DefinicionActivo>('todas');
+  const [definicion, setDefinicion] = useState<DefinicionActivo>('autorizadas');
   const [filtroFecha, setFiltroFecha] = useState<FiltroFecha>('todas');
   const [campoFecha, setCampoFecha] = useState<CampoFecha>('modificacion');  const [desde, setDesde] = useState('');
   const [hasta, setHasta] = useState('');
   const [revisandoId, setRevisandoId] = useState<number | null>(null);
   const [detalle, setDetalle] = useState<Solicitud | null>(null);
   const [cargandoDetalle, setCargandoDetalle] = useState(false);
-  const [comentario, setComentario] = useState('');
-  const [accionando, setAccionando] = useState(false);
   const [documentoAbierto, setDocumentoAbierto] = useState(false);
   /** El visor se abrió con «Vista previa»: manda directo al diálogo de impresión. */
   const [imprimirAlAbrir, setImprimirAlAbrir] = useState(false);
   const [seleccionadasIds, setSeleccionadasIds] = useState<Set<number>>(() => new Set());
   /** Formato que se previsualiza e imprime: concentrado de costos o de vuelos. */
   const [formato, setFormato] = useState<FormatoConcentrado>('for-008');
-  const [calculoAbierto, setCalculoAbierto] = useState(false);
-  /** Última propuesta calculada en esta revisión; no se persiste hasta autorizar. */
-  const [propuesta, setPropuesta] = useState<(PropuestaRuta & { id_solicitud: number }) | null>(null);
 
   const cargar = useCallback(async () => {
     setCargando(true);
@@ -226,8 +217,6 @@ export function ConcentradoPage() {
   const revisar = useCallback(async (id: number) => {
     setRevisandoId(id);
     setDetalle(null);
-    setComentario('');
-    setPropuesta(null);
     setCargandoDetalle(true);
     try {
       const res = await solicitudesApi.detalle(id);
@@ -243,69 +232,7 @@ export function ConcentradoPage() {
   const cerrarRevision = useCallback(() => {
     setRevisandoId(null);
     setDetalle(null);
-    setCalculoAbierto(false);
-    setPropuesta(null);
   }, []);
-
-  async function aprobar() {
-    if (revisandoId === null || accionando) return;
-    setAccionando(true);
-    try {
-      // La autorización usa la última propuesta calculada. Si el revisor no
-      // recalculó nada, se autoriza la ruta que eligió la persona viajera.
-      const res = propuesta?.id_solicitud === revisandoId
-        ? await aprobacionesApi.autorizar(revisandoId, {
-            calculo: propuesta.calculo,
-            opciones: propuesta.opciones,
-          })
-        : await aprobacionesApi.autorizar(revisandoId);
-      if (res.data.success) {
-        toast.success(
-          res.data.message
-            ?? (propuesta?.id_solicitud === revisandoId
-              ? `Ruta recalculada de la solicitud ${revisandoId} autorizada.`
-              : `Solicitud ${revisandoId} autorizada.`),
-        );
-        setFilas((fs) => fs.map((f) => (f.id_solicitud === revisandoId ? { ...f, estado: 'autorizada' } : f)));
-        cerrarRevision();
-        await cargar();
-      } else toast.error(res.data.message ?? 'No se pudo autorizar.');
-    } catch (falla: unknown) {
-      toast.error(toApiError(falla).message || 'No se pudo autorizar.');
-    } finally {
-      setAccionando(false);
-    }
-  }
-
-  async function rechazar() {    if (revisandoId === null || accionando || comentario.trim() === '') return;
-    setAccionando(true);
-    try {
-      const res = await aprobacionesApi.rechazar(revisandoId, comentario.trim());
-      if (res.data.success) {
-        toast.success(res.data.message ?? `Solicitud ${revisandoId} rechazada.`);
-        setFilas((fs) => fs.map((f) => (f.id_solicitud === revisandoId ? { ...f, estado: 'rechazada' } : f)));
-        cerrarRevision();
-      } else toast.error(res.data.message ?? 'No se pudo rechazar.');
-    } catch (falla: unknown) {
-      toast.error(toApiError(falla).message || 'No se pudo rechazar.');
-    } finally {
-      setAccionando(false);
-    }
-  }
-
-  const filaRevisada = revisandoId !== null ? filas.find((f) => f.id_solicitud === revisandoId) ?? null : null;
-  const esAutorizable = filaRevisada?.estado === ESTADO_ENVIADA && puedeAutorizar;
-  const propuestaRevisada =
-    propuesta !== null && propuesta.id_solicitud === revisandoId ? propuesta : null;
-
-  const alRecibirPropuesta = useCallback(
-    (nueva: PropuestaRuta) => {
-      if (revisandoId === null) return;
-      setPropuesta({ ...nueva, id_solicitud: revisandoId });
-      setCalculoAbierto(false);
-    },
-    [revisandoId],
-  );
 
   // La selección de la tabla significa «incluir en el concentrado». Se puede
   // marcar todo lo que ya salió del borrador, en los dos formatos: el documento
@@ -883,96 +810,25 @@ export function ConcentradoPage() {
       >
         <DialogContent data-testid="revision-solicitud" className="max-h-[92vh] w-[90vw] max-w-[1400px] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Revisión de la solicitud {detalle?.folio ?? (revisandoId !== null ? `#${revisandoId}` : '')}</DialogTitle>
+            <DialogTitle>Detalle de la solicitud {detalle?.folio ?? (revisandoId !== null ? `#${revisandoId}` : '')}</DialogTitle>
             <DialogDescription>
-              Revisa la última ruta propuesta. Puedes recalcularla cuantas veces necesites; solo
-              se guarda cuando autorizas.
+              Consulta de la solicitud ya concentrada. La autorización se hace antes, en
+              la pantalla de Autorizaciones.
             </DialogDescription>
           </DialogHeader>
 
           {cargandoDetalle ? <p role="status">Cargando revisión…</p> : null}
           {detalle ? (
-            <div className="space-y-3">
-              <VistaDetalle
-                solicitud={detalle}
-                modoRevision
-                pestanaInicial="autorizada"
-                propuesta={propuestaRevisada}
-                onRecalcular={
-                  filaRevisada?.estado === ESTADO_ENVIADA && puedeAutorizar
-                    ? () => setCalculoAbierto(true)
-                    : undefined
-                }
-                acciones={
-                  filaRevisada?.estado === ESTADO_ENVIADA && puedeAutorizar ? (
-                    <Button
-                      type="button"
-                      size="sm"
-                      className="gap-1.5"
-                      disabled={accionando}
-                      onClick={() => { void aprobar(); }}
-                    >
-                      <Check className="h-4 w-4" aria-hidden />
-                      {propuestaRevisada ? 'Autorizar ruta recalculada' : 'Autorizar esta ruta'}
-                    </Button>
-                  ) : undefined
-                }
-              />
-              {propuestaRevisada ? (
-                <p className="text-xs text-muted-foreground">
-                  Se autorizará la última propuesta visible en «Ruta autorizada». Los recálculos
-                  no confirmados no se guardan.
-                </p>
-              ) : null}
-              <div className="space-y-1">
-                <Label htmlFor="comentario-revision">Comentario de revisión</Label>
-                <Input
-                  id="comentario-revision"
-                  value={comentario}
-                  onChange={(e) => setComentario(e.target.value)}
-                  placeholder="Motivo u observaciones"
-                />
-              </div>
-              {!puedeAutorizar ? (
-                <p className="text-xs text-muted-foreground">Sin el permiso de autorización los botones no actúan.</p>
-              ) : null}
-              <p className="text-xs text-muted-foreground">Devolver para corrección: prototipo sin endpoint compatible en esta fase.</p>
-            </div>
+            <VistaDetalle solicitud={detalle} modoRevision pestanaInicial="autorizada" />
           ) : null}
 
           <DialogFooter className="gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled
-              title="Sin endpoint compatible en esta fase"
-            >
-              Devolver para corrección
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={!esAutorizable || accionando || comentario.trim() === ''}
-              onClick={rechazar}
-            >
-              Rechazar
+            <Button type="button" variant="outline" size="sm" onClick={cerrarRevision}>
+              Cerrar
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {calculoAbierto && detalle ? (
-        <CalculosViajeModal
-          solicitud={detalle}
-          open={calculoAbierto}
-          onOpenChange={setCalculoAbierto}
-          onEnviado={() => undefined}
-          modo="autorizar"
-          onPropuesta={alRecibirPropuesta}
-        />
-      ) : null}
     </div>
   );
 }
