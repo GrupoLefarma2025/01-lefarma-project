@@ -4,6 +4,7 @@ import {
   claveHotel,
   construirCalculo,
   construirOpcionesPropuesta,
+  construirTramos,
   leerCalculoDesdeDatos,
   resumenCostosRuta,
   type TramoViaje,
@@ -13,7 +14,7 @@ import type {
   CostosRutaOferta,
   CostosRutaResponse,
 } from '../types/costosRuta.types';
-import type { CalculoViaje, CasetaCalculada, OpcionCotizacion } from '../types/solicitud.types';
+import type { CalculoViaje, CasetaCalculada, OpcionCotizacion, Solicitud } from '../types/solicitud.types';
 
 const punto = (nombre: string, municipio: string) => ({
   nombre,
@@ -559,6 +560,40 @@ describe('construirOpcionesPropuesta', () => {
     });
     expect(hoteles.every((opcion) => /estimado/i.test(opcion.fuente))).toBe(true);
   });
+
+  it('persists auto components in datos without changing the selected price', () => {
+    const auto = oferta({
+      id: 'auto-nuevo',
+      modo: 'auto',
+      linea: 'Auto (cuota)',
+      costoGrupo: 300,
+      combustible: 180,
+      casetasEstimadas: 120,
+      fuente: 'OSRM + CNE (fixture)',
+    });
+
+    const opciones = construirOpcionesPropuesta(
+      [tramo('Guadalajara', 'Zapopan')],
+      { 0: respuesta([auto]) },
+      { 0: 'auto-nuevo' },
+    );
+
+    expect(opciones).toHaveLength(1);
+    expect(opciones[0].precio).toBe(300);
+    expect(opciones[0].fue_elegida).toBe(true);
+    expect(opciones[0].datos).toEqual({
+      tramo: 0,
+      de: 'Guadalajara',
+      a: 'Zapopan',
+      tipo_precio: 'cotizado',
+      proveedor: 'ClickBus',
+      disponibilidad: '',
+      disponibilidad_detalle: '',
+      combustible: 180,
+      casetas_estimadas: 120,
+      source: 'OSRM + CNE (fixture)',
+    });
+  });
 });
 
 describe('resumenCostosRuta', () => {
@@ -580,7 +615,7 @@ describe('resumenCostosRuta', () => {
         llegada_fecha: null,
         llegada_hora: null,
         alcanza: null,
-        casetas: [caseta()],
+        casetas: [caseta({ costo: 72 })],
       },
     ],
   };
@@ -593,28 +628,87 @@ describe('resumenCostosRuta', () => {
     opcionElegida({ tipo: 'autobus', precio: 222, fue_elegida: false }),
   ];
 
-  it('suma solo las elegidas y las casetas cuando el transporte es propio', () => {
+  it('keeps legacy auto combined and never adds the SCT reference', () => {
     expect(resumenCostosRuta(calculo, opciones, 'propio')).toEqual({
       autobus: 500.25,
       avion: null,
       gasolina: 300,
-      casetas: 150.25,
+      casetas: null,
       hospedaje: 1200,
       comida: null,
       taxi: 80.5,
-      total: 2231,
+      total: 2080.75,
     });
   });
 
-  it('no suma casetas cuando el transporte es solicitado', () => {
+  it('splits new auto 300 into fuel 180 and toll 120 without adding reference 72', () => {
+    const autoNuevo = opcionElegida({
+      tipo: 'auto',
+      precio: 300,
+      datos: { combustible: 180, casetas_estimadas: 120, source: 'OSRM + CNE (fixture)' },
+    });
+
+    expect(resumenCostosRuta(calculo, [autoNuevo], 'propio')).toEqual({
+      autobus: null,
+      avion: null,
+      gasolina: 180,
+      casetas: 120,
+      hospedaje: null,
+      comida: null,
+      taxi: null,
+      total: 300,
+    });
+  });
+
+  it('keeps rental and legacy auto combined when mixed with a new auto', () => {
+    const seleccion = [
+      opcionElegida({
+        tipo: 'auto',
+        precio: 300,
+        datos: { combustible: 180, casetas_estimadas: 120, source: 'OSRM + CNE (fixture)' },
+      }),
+      opcionElegida({ tipo: 'auto', precio: 500 }),
+      opcionElegida({ tipo: 'renta', precio: 900 }),
+    ];
+
+    const resumen = resumenCostosRuta(calculo, seleccion, 'propio');
+    expect(resumen.gasolina).toBe(1580);
+    expect(resumen.casetas).toBe(120);
+    expect(resumen.total).toBe(1700);
+  });
+
+  it('falls back to the combined price when components do not reconcile', () => {
+    const inconsistente = opcionElegida({
+      tipo: 'auto',
+      precio: 300,
+      datos: { combustible: 180, casetas_estimadas: 60, source: 'OSRM + CNE (fixture)' },
+    });
+
+    const resumen = resumenCostosRuta(calculo, [inconsistente], 'propio');
+    expect(resumen.gasolina).toBe(300);
+    expect(resumen.casetas).toBeNull();
+    expect(resumen.total).toBe(300);
+  });
+
+  it('does not add reference tolls for requested transportation', () => {
     const resumen = resumenCostosRuta(calculo, opciones, 'solicitado');
     expect(resumen.casetas).toBeNull();
     expect(resumen.total).toBe(2080.75);
   });
 
-  it('deja los conceptos en null cuando no hay nada elegido, sin inventar ceros', () => {
-    const resumen = resumenCostosRuta(calculo, [], 'solicitado');
-    expect(resumen).toEqual({
+  it('includes existing food cost so preview matches authorization', () => {
+    const autoNuevo = opcionElegida({
+      tipo: 'auto',
+      precio: 300,
+      datos: { combustible: 180, casetas_estimadas: 120, source: 'OSRM + CNE (fixture)' },
+    });
+
+    const resumen = resumenCostosRuta(calculo, [autoNuevo], 'propio', 350);
+    expect(resumen).toMatchObject({ gasolina: 180, casetas: 120, comida: 350, total: 650 });
+  });
+
+  it('leaves concepts null when nothing is selected instead of inventing zeros', () => {
+    expect(resumenCostosRuta(calculo, [], 'solicitado')).toEqual({
       autobus: null,
       avion: null,
       gasolina: null,
@@ -623,6 +717,134 @@ describe('resumenCostosRuta', () => {
       comida: null,
       taxi: null,
       total: null,
+    });
+  });
+});
+
+function destinoParaTramos(
+  nombre: string,
+  municipio: string,
+  llegada: { fecha: string; hora: string },
+  salida: { fecha: string; hora: string },
+) {
+  return {
+    id: `dest-${nombre}`,
+    punto: punto(nombre, municipio),
+    debeEstarFecha: llegada.fecha,
+    debeEstarHora: llegada.hora,
+    saleFecha: salida.fecha,
+    saleHora: salida.hora,
+    hospedaje: {
+      necesario: false,
+      zona: 'actual' as const,
+      fechaEntrada: '',
+      fechaSalida: '',
+      hotel: null,
+    },
+  };
+}
+
+function solicitudParaTramos(destinos: ReturnType<typeof destinoParaTramos>[]): Solicitud {
+  return {
+    id_solicitud: 1,
+    id_usuario_solicitante: 7,
+    periodo: '2026-11',
+    gerencia: 'IMSS',
+    estado: 'borrador',
+    activo: true,
+    fecha_creacion: '2026-11-01T08:00:00.000Z',
+    fecha_modificacion: '2026-11-01T08:00:00.000Z',
+    datos: {
+      version: 'solicitud-v2',
+      persona: { modo: 'mia', empleadoId: null, nombre: 'Viajero', motivo: 'Visita' },
+      transporte: { modo: 'propio', compartir: false, acompanantes: [] },
+      origen: {
+        punto: punto('Origen', 'Guadalajara'),
+        fechaSalida: '2026-11-10',
+        horaSalida: '06:00',
+      },
+      destinos,
+      retorno: {
+        necesario: true,
+        llegadaRequeridaFecha: '',
+        llegadaRequeridaHora: '',
+        destino: 'origen',
+        punto: null,
+      },
+    },
+    opciones: [],
+    eventos: [],
+  };
+}
+
+describe('construirTramos destination departure', () => {
+  it('uses each explicit departure for the next leg and the return to origin', () => {
+    const resultado = construirTramos(solicitudParaTramos([
+      destinoParaTramos(
+        'Centro Zapopan',
+        'Zapopan',
+        { fecha: '2026-11-10', hora: '10:00' },
+        { fecha: '2026-11-10', hora: '16:30' },
+      ),
+      destinoParaTramos(
+        'Centro Tlajomulco',
+        'Tlajomulco',
+        { fecha: '2026-11-11', hora: '09:00' },
+        { fecha: '2026-11-11', hora: '15:45' },
+      ),
+    ]));
+
+    expect(resultado.error).toBeNull();
+    expect(resultado.tramos).toHaveLength(3);
+    expect(resultado.tramos[1]).toMatchObject({
+      desde: {
+        fecha: '2026-11-10',
+        hora: '16:30',
+        nombre: 'Zapopan, Jalisco',
+        explicita: true,
+      },
+      esRegreso: false,
+    });
+    expect(resultado.tramos[2]).toMatchObject({
+      desde: {
+        fecha: '2026-11-11',
+        hora: '15:45',
+        nombre: 'Tlajomulco, Jalisco',
+        explicita: true,
+      },
+      hasta: {
+        fecha: '2026-11-11',
+        hora: '17:45',
+        nombre: 'Regreso al origen',
+      },
+      esRegreso: true,
+    });
+  });
+
+  it('retains the two-hour fallback for a legacy draft without departure', () => {
+    const resultado = construirTramos(solicitudParaTramos([
+      destinoParaTramos(
+        'Centro Zapopan',
+        'Zapopan',
+        { fecha: '2026-11-10', hora: '23:30' },
+        { fecha: '', hora: '' },
+      ),
+    ]));
+
+    expect(resultado.error).toBeNull();
+    expect(resultado.tramos).toHaveLength(2);
+    expect(resultado.tramos[1]).toMatchObject({
+      desde: {
+        fecha: '2026-11-11',
+        hora: '01:30',
+        explicita: false,
+      },
+      hasta: {
+        fecha: '2026-11-11',
+        hora: '03:30',
+        nombre: 'Regreso al origen',
+      },
+      esRegreso: true,
     });
   });
 });

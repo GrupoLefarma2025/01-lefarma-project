@@ -1053,4 +1053,29 @@ public class CostosRutaServiceTests
                 Content = new StringContent(cuerpo, Encoding.UTF8, "application/json"),
             });
     }
+
+    [Fact]
+    public async Task AutoOffers_ExposeComponentsThatSumToSelectedPrice()
+    {
+        var (http, cache) = Infra();
+
+        var resp = await CalculoCostosRuta.CalcularAsync(new CostosRutaRequest
+        {
+            Opciones = new CostosRutaOpcionesInput { CalcularHoteles = false },
+            Personas = [Ana()],
+        }, http, cache);
+
+        var autos = resp.Resultados.SelectMany(r => r.Tramos)
+            .SelectMany(t => t.Opciones)
+            .Where(o => o.Modo == "auto")
+            .ToList();
+        autos.Should().NotBeEmpty();
+        foreach (var auto in autos)
+        {
+            auto.Combustible.Should().NotBeNull();
+            auto.CasetasEstimadas.Should().NotBeNull();
+            (auto.Combustible!.Value + auto.CasetasEstimadas!.Value)
+                .Should().BeApproximately(auto.CostoGrupo, 0.02);
+        }
+    }
 }

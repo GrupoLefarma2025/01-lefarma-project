@@ -24,6 +24,7 @@ import {
   MARGEN_CARRO,
   aplicarHotelesAlCalculo,
   claveHotel,
+  comidaDesdeSnapshot,
   construirCalculo,
   construirOpcionesPropuesta,
   construirRequestHotel,
@@ -47,11 +48,17 @@ import {
   type TramoViaje,
 } from '../services/calculoViaje';
 import { costosRutaApi } from '../services/costosRuta.api';
-import { casetasDeRuta } from '../services/casetasRuta';
+import { geocodificarReversa } from '../services/geocodificar.api';
 import { hidratarSolicitud } from '../services/solicitudDraft';
 import { solicitudesApi } from '../services/solicitudes.api';
 import { generarCapturasEnSegundoPlano } from '../services/evidencias.api';
-import type { CostosRutaHotel, CostosRutaResponse } from '../types/costosRuta.types';
+import type {
+  CostosRutaCasetaDisponibilidad,
+  CostosRutaHotel,
+  CostosRutaResponse,
+  EstadoCasetasSct,
+  PuntoSeleccion,
+} from '../types/costosRuta.types';
 import type { CalculoViaje, PropuestaRuta, Solicitud } from '../types/solicitud.types';
 
 function mxn(n: number): string {
@@ -62,6 +69,80 @@ function fechaHoraAmPm(valor: string): string {
   const [fecha, hora] = valor.split(' ');
   if (!fecha || !hora) return valor;
   return `${fecha} ${horaAmPm(hora) ?? hora}`;
+}
+
+function disponibilidadDeTramo(
+  respuesta: CostosRutaResponse | undefined,
+  tramo: TramoViaje | undefined,
+): CostosRutaCasetaDisponibilidad | null {
+  if (!tramo) return null;
+  return respuesta?.resultados[0]?.casetasDisponibilidad?.find(
+    (item) => item.deMunicipio === tramo.desde.punto.municipio
+      && item.aMunicipio === tramo.hasta.punto.municipio,
+  ) ?? null;
+}
+
+function mensajeCasetasNoDisponible(estado: EstadoCasetasSct | undefined): string {
+  switch (estado) {
+    case 'destino_no_soportado':
+      return 'La SCT no tiene este origen o destino en su catálogo; no hay desglose oficial disponible.';
+    case 'proveedor_no_disponible':
+      return 'No fue posible consultar la SCT. Intenta nuevamente.';
+    case 'respuesta_invalida':
+    default:
+      return 'No fue posible interpretar el desglose oficial de casetas.';
+  }
+}
+
+const NOMBRES_PUNTO_GENERICO = new Set(['punto seleccionado en mapa', 'punto seleccionado en el mapa']);
+
+type SnapshotConPuntos = Record<string, unknown> & {
+  origen?: { punto?: PuntoSeleccion | null };
+  destinos?: { punto?: PuntoSeleccion | null }[];
+  retorno?: { destino?: string; punto?: PuntoSeleccion | null };
+};
+
+async function resolverPuntoGenerico(punto: PuntoSeleccion | null | undefined) {
+  if (!punto || !NOMBRES_PUNTO_GENERICO.has(punto.nombre.trim().toLowerCase())) return punto;
+  try {
+    const resuelto = await geocodificarReversa(punto.latitud, punto.longitud);
+    return resuelto
+      ? { ...punto, ...resuelto, latitud: punto.latitud, longitud: punto.longitud }
+      : punto;
+  } catch {
+    return punto;
+  }
+}
+
+async function resolverPuntosGenericos(solicitud: Solicitud): Promise<Solicitud> {
+  if (typeof solicitud.datos !== 'object' || solicitud.datos === null || Array.isArray(solicitud.datos)) {
+    return solicitud;
+  }
+  const datos = solicitud.datos as SnapshotConPuntos;
+  const destinosOriginales = Array.isArray(datos.destinos) ? datos.destinos : [];
+  const retornoEsPersonalizado = datos.retorno?.destino === 'otro';
+  const [origen, destinos, retorno] = await Promise.all([
+    resolverPuntoGenerico(datos.origen?.punto),
+    Promise.all(destinosOriginales.map((destino) => resolverPuntoGenerico(destino.punto))),
+    resolverPuntoGenerico(retornoEsPersonalizado ? datos.retorno?.punto : null),
+  ]);
+
+  const cambioOrigen = origen !== datos.origen?.punto;
+  const cambioDestino = destinos.some((punto, indice) => punto !== destinosOriginales[indice].punto);
+  const cambioRetorno = retornoEsPersonalizado && retorno !== datos.retorno?.punto;
+  if (!cambioOrigen && !cambioDestino && !cambioRetorno) return solicitud;
+
+  return {
+    ...solicitud,
+    datos: {
+      ...datos,
+      ...(datos.origen ? { origen: { ...datos.origen, punto: origen } } : {}),
+      ...(datos.destinos
+        ? { destinos: destinosOriginales.map((destino, indice) => ({ ...destino, punto: destinos[indice] })) }
+        : {}),
+      ...(cambioRetorno && datos.retorno ? { retorno: { ...datos.retorno, punto: retorno } } : {}),
+    },
+  };
 }
 
 export function CalculosViajeModal({
@@ -108,15 +189,31 @@ export function CalculosViajeModal({
   const hotelesBuscadosRef = useRef<Set<number>>(new Set());
   const hotelRutaSeqRef = useRef<Record<number, number>>({});
   const sesionRef = useRef(0);
+  const [resolucion, setResolucion] = useState<{ base: Solicitud; resuelta: Solicitud } | null>(null);
 
-  const hidratado = useMemo(() => (solicitud ? hidratarSolicitud(solicitud.datos) : null), [solicitud]);
+  const solicitudActiva = open && resolucion?.base === solicitud ? resolucion.resuelta : null;
+  const solicitudVisible = solicitudActiva ?? solicitud;
+  const hidratado = useMemo(
+    () => (solicitudVisible ? hidratarSolicitud(solicitudVisible.datos) : null),
+    [solicitudVisible],
+  );
   const { tramos, error: errorTramos } = useMemo(
-    () => (solicitud ? construirTramos(solicitud) : { tramos: [], error: 'Sin solicitud.' }),
-    [solicitud],
+    () => (solicitudVisible ? construirTramos(solicitudVisible) : { tramos: [], error: 'Sin solicitud.' }),
+    [solicitudVisible],
   );
 
   useEffect(() => {
-    if (open) return;
+    if (!open || !solicitud) return;
+    let vigente = true;
+    void resolverPuntosGenericos(solicitud).then((resuelta) => {
+      if (vigente) setResolucion({ base: solicitud, resuelta });
+    });
+    return () => {
+      vigente = false;
+    };
+  }, [open, solicitud]);
+
+  useEffect(() => {
     setPaso(0);
     setResultados({});
     setErrores({});
@@ -129,6 +226,7 @@ export function CalculosViajeModal({
     setBuscandoRutaHotel(null);
     setBuscando(null);
     setProgreso(0);
+    setResolucion(null);
     buscadosRef.current.clear();
     hotelesBuscadosRef.current.clear();
     hotelRutaSeqRef.current = {};
@@ -208,37 +306,37 @@ export function CalculosViajeModal({
   const llegaRegreso = tramo?.esRegreso && llegadaCarro
     ? `${llegadaCarro.fecha}T${llegadaCarro.hora}` <= `${tramo.hasta.fecha}T${tramo.hasta.hora}`
     : null;
+  const disponibilidadActual = disponibilidadDeTramo(resultadoActual, tramo);
   const casetasSct = (resultadoActual?.resultados[0]?.casetas ?? []).filter(
     (c) =>
       tramo !== undefined
       && c.deMunicipio === tramo.desde.punto.municipio
       && c.aMunicipio === tramo.hasta.punto.municipio,
   );
-  const casetasRuta = casetasSct.length > 0
+  const casetasRuta = disponibilidadActual?.estado === 'disponible'
     ? casetasSct.map((c) => ({
         nombre: c.nombre,
         km: c.km,
         direccion: c.direccion || c.carretera,
         costo: c.tarifa,
       }))
-    : tramo
-      ? casetasDeRuta(tramo.desde.nombre, tramo.hasta.nombre)
-      : [];
-  const fuenteCasetas = casetasSct.length > 0 ? 'SCT · Rutas Punto a Punto' : 'Referencia 2026';
-
-  const totalCasetasTramo = casetasRuta.reduce((suma, plaza) => suma + (plaza.costo ?? 0), 0);
-  const totalCasetasIda = useMemo(
-    () =>
-      Object.entries(resultados)
-        .filter(([indice]) => Number(indice) !== paso)
-        .reduce(
-          (suma, [, respuesta]) =>
-            suma + (respuesta.resultados[0]?.casetas ?? []).reduce((sub, c) => sub + (c.tarifa ?? 0), 0),
-          0,
-        ),
-    [resultados, paso],
-  );
-  const totalIdaVuelta = totalCasetasTramo + totalCasetasIda;
+    : [];
+  const totalCasetasTramo = disponibilidadActual?.estado === 'disponible'
+    ? disponibilidadActual.peajeTotal
+    : null;
+  const ofertaCostos = ofertaCalculada(resultadoActual, seleccion[paso] ?? null) ?? null;
+  const totalIdaVuelta = useMemo(() => {
+    if (!tramo?.esRegreso) return null;
+    const totales = tramos.map((tramoViaje, indice) => {
+      const disponibilidad = disponibilidadDeTramo(resultados[indice], tramoViaje);
+      return disponibilidad?.estado === 'disponible' && typeof disponibilidad.peajeTotal === 'number'
+        ? disponibilidad.peajeTotal
+        : null;
+    });
+    return totales.every((total): total is number => total !== null)
+      ? totales.reduce((suma, total) => suma + total, 0)
+      : null;
+  }, [resultados, tramo?.esRegreso, tramos]);
 
   const horaSalidaCarro = tramo?.desde.explicita && tramo.desde.hora
     ? tramo.desde.hora
@@ -733,14 +831,14 @@ export function CalculosViajeModal({
   const regresoEnSabado = fechaRegreso?.getDay() === 6;
 
   const buscarTramo = useCallback(async (indice: number) => {
-    if (!solicitud) return;
+    if (!solicitudActiva) return;
     const actual = tramos[indice];
     if (!actual) return;
     const sesion = sesionRef.current;
     setBuscando(indice);
     setErrores((e) => ({ ...e, [indice]: '' }));
     try {
-      const res = await costosRutaApi.calcular(construirRequestTramo(solicitud, actual));
+      const res = await costosRutaApi.calcular(construirRequestTramo(solicitudActiva, actual));
       if (sesion !== sesionRef.current) return;
       if (!res.data.success || !res.data.data) {
         setErrores((e) => ({ ...e, [indice]: res.data.message || 'No se pudo calcular el tramo.' }));
@@ -753,25 +851,25 @@ export function CalculosViajeModal({
     } finally {
       if (sesion === sesionRef.current) setBuscando(null);
     }
-  }, [solicitud, tramos]);
+  }, [solicitudActiva, tramos]);
 
   useEffect(() => {
-    if (!open || !solicitud || !tramo) return;
+    if (!open || !solicitudActiva || !tramo) return;
     if (buscando !== null) return;
     if (buscadosRef.current.has(paso)) return;
     buscadosRef.current.add(paso);
     void buscarTramo(paso);
-  }, [open, solicitud, tramo, paso, buscando, buscarTramo]);
+  }, [open, solicitudActiva, tramo, paso, buscando, buscarTramo]);
 
   async function buscarHotel(indice: number) {
     const tramoHotel = tramos[indice];
-    if (!solicitud || !tramoHotel) return;
+    if (!solicitudActiva || !tramoHotel) return;
     const posicion = esCarro
       ? (tramoHotel.esRegreso ? 'despues' : 'antes')
       : posicionHotel(indice);
     const request = posicion === 'antes'
-      ? construirRequestHotel(solicitud, tramoHotel)
-      : construirRequestHotelDespues(solicitud, tramoHotel);
+      ? construirRequestHotel(solicitudActiva, tramoHotel)
+      : construirRequestHotelDespues(solicitudActiva, tramoHotel);
     if (!request) {
       toast.error(
         posicion === 'despues'
@@ -911,7 +1009,7 @@ export function CalculosViajeModal({
   }, [open, esCarro, usarHotelDelPaso, hotelElegidoDelPaso, hotelDelPaso, hotelesDelPaso, buscando, buscandoRutaHotel, paso]);
 
   async function enviar() {
-    if (!solicitud || !resultadoActual) return;
+    if (!solicitudActiva || !resultadoActual) return;
     if (!esCarro) {
       for (let indice = 0; indice < tramos.length; indice += 1) {
         if (usarHotel[indice] !== true) continue;
@@ -993,7 +1091,12 @@ export function CalculosViajeModal({
         })),
       },
     };
-    const resumen = resumenCostosRuta(calculo, opciones, modoCalculo);
+    const resumen = resumenCostosRuta(
+      calculo,
+      opciones,
+      modoCalculo,
+      comidaDesdeSnapshot(solicitudActiva.datos),
+    );
 
     if (modo === 'autorizar') {
       // El concentrado registra la autorización con esta propuesta; aquí no se
@@ -1010,8 +1113,8 @@ export function CalculosViajeModal({
       // la cadena revisada (terminales, hoteles y taxis) para que el detalle
       // pueda mostrar la evolución sin recalcular.
       const res = opciones.length > 0
-        ? await solicitudesApi.guardarOpciones(solicitud.id_solicitud, opciones, calculo)
-        : await solicitudesApi.enviar(solicitud.id_solicitud, calculo);
+        ? await solicitudesApi.guardarOpciones(solicitudActiva.id_solicitud, opciones, calculo)
+        : await solicitudesApi.enviar(solicitudActiva.id_solicitud, calculo);
       if (!res.data.success) {
         toast.error(res.data.message ?? 'No se pudo enviar a concentrado.');
         return;
@@ -1019,8 +1122,8 @@ export function CalculosViajeModal({
       toast.success('Solicitud enviada a concentrado.');
       // Best-effort: captura las opciones elegidas sin retrasar el cierre del
       // modal. Si falla, el detalle conserva "Generar capturas" para reintentar.
-      generarCapturasEnSegundoPlano(solicitud.id_solicitud);
-      onEnviado(solicitud.id_solicitud);
+      generarCapturasEnSegundoPlano(solicitudActiva.id_solicitud);
+      onEnviado(solicitudActiva.id_solicitud);
       onOpenChange(false);
     } catch (falla: unknown) {
       toast.error(toApiError(falla).message || 'No se pudo enviar a concentrado.');
@@ -1076,39 +1179,241 @@ export function CalculosViajeModal({
               <DireccionTramo desde={tramo.desde.nombre} hasta={tramo.hasta.nombre} />
             </h3>
 
-            <div className="space-y-2 text-sm">
-              {(tramo.desde.explicita || hotelRutaDelPaso) && fechaSalidaMostrar ? (
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-muted-foreground">
-                    {paso === 0 ? 'Salida del origen' : `Salida de ${tramo.desde.nombre}`}
-                  </span>
-                  <Badge variant="outline" className="gap-1 font-normal">
-                    <CalendarDays className="h-3 w-3" aria-hidden />
-                    {fechaSalidaMostrar}
-                  </Badge>
-                  {horaSalidaMostrar ? (
-                    <Badge variant="secondary" className="gap-1 font-normal">
-                      <Clock className="h-3 w-3" aria-hidden />
-                      {horaSalidaMostrar}
-                    </Badge>
+            <div data-testid="calculos-viaje-layout" className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
+              <div data-testid="calculos-viaje-schedule-column" className="min-w-0 space-y-3">
+                <section aria-label="Horarios solicitados" className="space-y-2 text-sm">
+                  {(tramo.desde.explicita || hotelRutaDelPaso) && fechaSalidaMostrar ? (
+                    <div className="flex flex-col gap-1 border-b pb-2 sm:flex-row sm:items-center sm:justify-between">
+                      <span className="text-xs font-medium text-muted-foreground">
+                        {paso === 0 ? 'Salida del origen' : `Salida de ${tramo.desde.nombre}`}
+                      </span>
+                      <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm font-semibold text-foreground">
+                        <span className="inline-flex items-center gap-1.5">
+                          <CalendarDays className="h-4 w-4 text-muted-foreground" aria-hidden />
+                          {fechaSalidaMostrar}
+                        </span>
+                        {horaSalidaMostrar ? (
+                          <span className="inline-flex items-center gap-1.5">
+                            <Clock className="h-4 w-4 text-muted-foreground" aria-hidden />
+                            {horaSalidaMostrar}
+                          </span>
+                        ) : null}
+                      </span>
+                    </div>
                   ) : null}
-                </div>
-              ) : null}
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-muted-foreground">
-                  {tramo.esRegreso ? 'Regreso estimado' : `Llegada a ${tramo.hasta.nombre}`}
-                </span>
-                {fechaLlegadaMostrar ? (
-                  <Badge variant="outline" className="gap-1 font-normal">
-                    <CalendarDays className="h-3 w-3" aria-hidden />
-                    {fechaLlegadaMostrar}
-                  </Badge>
+                  <div className="flex flex-col gap-1 border-b pb-2 sm:flex-row sm:items-center sm:justify-between">
+                    <span className="text-xs font-medium text-muted-foreground">
+                      {tramo.esRegreso ? 'Regreso estimado' : `Llegada a ${tramo.hasta.nombre}`}
+                    </span>
+                    <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm font-semibold text-foreground">
+                      {fechaLlegadaMostrar ? (
+                        <span className="inline-flex items-center gap-1.5">
+                          <CalendarDays className="h-4 w-4 text-muted-foreground" aria-hidden />
+                          {fechaLlegadaMostrar}
+                        </span>
+                      ) : null}
+                      {horaLlegadaMostrar ? (
+                        <span className="inline-flex items-center gap-1.5">
+                          <Clock className="h-4 w-4 text-muted-foreground" aria-hidden />
+                          {horaLlegadaMostrar}
+                        </span>
+                      ) : null}
+                    </span>
+                  </div>
+                </section>
+
+                {resultadoActual && persona && !buscandoEste && esCarro ? (
+                  <>
+                    {tramo.esRegreso ? (
+                      <section aria-label="Resumen calculado del viaje" className="space-y-2 rounded-md border border-primary/20 bg-primary/5 p-3 text-sm">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                          <div className="min-w-0 flex-1 space-y-1">
+                            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                              Llegada estimada al origen
+                            </p>
+                            {llegadaCarro ? (
+                              <p className="break-words text-xl font-semibold leading-tight text-foreground">
+                                {fechaCorta(llegadaCarro.fecha) ?? llegadaCarro.fecha} · {horaAmPm(llegadaCarro.hora) ?? llegadaCarro.hora}
+                              </p>
+                            ) : null}
+                            <p className="break-words text-sm text-foreground">
+                              Salida de {tramo.desde.nombre}: {fechaCorta(tramo.desde.fecha) ?? tramo.desde.fecha} · {horaAmPm(tramo.desde.hora) ?? tramo.desde.hora}
+                            </p>
+                          </div>
+                          {llegaRegreso !== null ? (
+                            <Badge
+                              variant="outline"
+                              className={llegaRegreso
+                                ? 'h-auto max-w-full whitespace-normal text-center text-xs font-semibold leading-snug border-primary/30 bg-primary/10 text-primary'
+                                : 'h-auto max-w-full whitespace-normal text-center text-xs font-semibold leading-snug text-amber-700'}
+                            >
+                              {llegaRegreso ? 'Llega a tiempo' : 'No alcanza la llegada requerida'}
+                            </Badge>
+                          ) : null}
+                        </div>
+                        <p className="text-xs leading-relaxed text-muted-foreground">
+                          Duración ajustada: {duracionTexto(minutosCarro ?? 0)} · Incluye {Math.round(MARGEN_CARRO * 100)}% de margen.
+                        </p>
+                      </section>
+                    ) : tramo.desde.explicita && tramo.desde.fecha && tramo.desde.hora ? (
+                      <section aria-label="Resumen calculado del viaje" className="space-y-2 rounded-md border border-primary/20 bg-primary/5 p-3 text-sm">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                          <div className="min-w-0 flex-1 space-y-1">
+                            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                              Llegada estimada
+                            </p>
+                            {llegadaCarro ? (
+                              <p className="break-words text-xl font-semibold leading-tight text-foreground">
+                                {fechaCorta(llegadaCarro.fecha) ?? llegadaCarro.fecha} · {horaAmPm(llegadaCarro.hora) ?? llegadaCarro.hora}
+                              </p>
+                            ) : null}
+                            <p className="break-words text-sm text-foreground">
+                              Salida de {tramo.desde.nombre}: {fechaCorta(tramo.desde.fecha) ?? tramo.desde.fecha} · {horaAmPm(tramo.desde.hora) ?? tramo.desde.hora}
+                            </p>
+                          </div>
+                          {llegaCarro !== null ? (
+                            <Badge
+                              variant="outline"
+                              className={llegaCarro
+                                ? 'h-auto max-w-full whitespace-normal text-center text-xs font-semibold leading-snug border-primary/30 bg-primary/10 text-primary'
+                                : 'h-auto max-w-full whitespace-normal text-center text-xs font-semibold leading-snug text-amber-700'}
+                            >
+                              {llegaCarro ? 'Llega a tiempo' : 'No alcanza la llegada requerida'}
+                            </Badge>
+                          ) : null}
+                        </div>
+                        <p className="text-xs leading-relaxed text-muted-foreground">
+                          Duración ajustada: {duracionTexto(minutosCarro ?? 0)} · Incluye {Math.round(MARGEN_CARRO * 100)}% de margen.
+                        </p>
+                      </section>
+                    ) : salidaCarro ? (
+                      <section aria-label="Resumen calculado del viaje" className="space-y-2 rounded-md border border-primary/20 bg-primary/5 p-3 text-sm">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                          <div className="min-w-0 flex-1 space-y-1">
+                            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                              Salida aproximada
+                            </p>
+                            <p className="break-words text-xl font-semibold leading-tight text-foreground">
+                              {fechaCorta(salidaCarro.fecha) ?? salidaCarro.fecha} · {horaAmPm(salidaCarro.hora) ?? salidaCarro.hora}
+                            </p>
+                            <p className="break-words text-sm text-foreground">
+                              Llegada requerida: {fechaCorta(tramo.hasta.fecha) ?? tramo.hasta.fecha} · {horaLlegadaAmPm ?? tramo.hasta.hora}
+                            </p>
+                          </div>
+                        </div>
+                        <p className="text-xs leading-relaxed text-muted-foreground">
+                          Duración ajustada: {duracionTexto(salidaCarro.minutos)} · Incluye {Math.round(MARGEN_CARRO * 100)}% de margen.
+                        </p>
+                      </section>
+                    ) : null}
+                  </>
                 ) : null}
-                {horaLlegadaMostrar ? (
-                  <Badge variant="secondary" className="gap-1 font-normal">
-                    <Clock className="h-3 w-3" aria-hidden />
-                    {horaLlegadaMostrar}
-                  </Badge>
+              </div>
+
+              <div data-testid="calculos-viaje-cost-column" className="min-w-0 space-y-3">
+                {resultadoActual && persona && !buscandoEste && esCarro ? (
+                  <>
+                    <section aria-label="Distancia y duración del tramo" className="text-sm">
+                      <h4 className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                        <Car className="h-4 w-4 text-muted-foreground" aria-hidden />
+                        Recorrido en carro
+                      </h4>
+                      <dl className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-3">
+                        <div className="min-w-0">
+                          <dt className="text-xs text-muted-foreground">Distancia</dt>
+                          <dd className="mt-0.5 text-sm font-semibold tabular-nums text-foreground">
+                            {persona.rutaArmada.totales.km.toLocaleString('es-MX', { maximumFractionDigits: 1 })} km
+                          </dd>
+                        </div>
+                        {ofertaCarro ? (
+                          <div className="min-w-0">
+                            <dt className="text-xs text-muted-foreground">Duración base</dt>
+                            <dd className="mt-0.5 text-sm font-semibold text-foreground">{ofertaCarro.duracion} base</dd>
+                          </div>
+                        ) : null}
+                        {minutosCarro !== null ? (
+                          <div className="min-w-0">
+                            <dt className="text-xs text-muted-foreground">Margen</dt>
+                            <dd className="mt-0.5 text-sm font-semibold text-foreground">
+                              +{Math.round(MARGEN_CARRO * 100)}% = {duracionTexto(minutosCarro)}
+                            </dd>
+                          </div>
+                        ) : null}
+                      </dl>
+                    </section>
+
+                    <section aria-label="Detalle de casetas SCT" className="space-y-2 border-t pt-3">
+                      <h4 className="text-sm font-semibold text-foreground">Casetas en la ruta</h4>
+                      {ofertaCostos?.modo === 'auto'
+                        && typeof ofertaCostos.combustible === 'number'
+                        && typeof ofertaCostos.casetasEstimadas === 'number' ? (
+                          <div className="border-b pb-3">
+                            <p className="text-sm leading-relaxed text-foreground">
+                              Estimación de <span className="font-medium">{ofertaCostos.linea}</span>: combustible{' '}
+                              <span className="font-semibold tabular-nums">{mxn(ofertaCostos.combustible)}</span> + casetas estimadas{' '}
+                              <span className="font-semibold tabular-nums">{mxn(ofertaCostos.casetasEstimadas)}</span> ={' '}
+                              <span className="font-semibold tabular-nums">{mxn(ofertaCostos.costoGrupo)}</span>.
+                            </p>
+                            <p role="note" aria-label="Fuente de la estimación del auto" className="mt-1 break-words text-xs leading-relaxed text-muted-foreground">
+                              Fuente de la estimación: <span className="font-medium text-foreground">{ofertaCostos.fuente}</span>. Ya está incluida en el precio seleccionado.
+                            </p>
+                          </div>
+                        ) : null}
+                      {disponibilidadActual?.estado === 'disponible' ? (
+                        <>
+                          {casetasRuta.length > 0 ? (
+                            <table className="w-full table-fixed text-left text-sm">
+                              <thead>
+                                <tr className="border-b border-border/70 text-xs text-muted-foreground">
+                                  <th className="w-[34%] py-2 pr-2 align-bottom font-medium">Caseta</th>
+                                  <th className="w-[14%] px-1 py-2 text-right align-bottom font-medium">Km</th>
+                                  <th className="w-[28%] px-2 py-2 align-bottom font-medium">Dirección</th>
+                                  <th className="w-[24%] py-2 pl-2 text-right align-bottom font-medium">Tarifa auto</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {casetasRuta.map((plaza) => (
+                                  <tr key={`${plaza.nombre}-${plaza.km}`} className="border-b border-border/70 last:border-0">
+                                    <td className="break-words py-2.5 pr-2 align-top text-foreground">{plaza.nombre}</td>
+                                    <td className="px-1 py-2.5 text-right align-top tabular-nums text-foreground">{plaza.km}</td>
+                                    <td className="break-words px-2 py-2.5 align-top text-foreground">{plaza.direccion}</td>
+                                    <td className="py-2.5 pl-2 text-right align-top font-medium tabular-nums text-foreground">
+                                      {plaza.costo != null ? mxn(plaza.costo) : 's/d'}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                              {totalCasetasTramo !== null ? (
+                                <tfoot>
+                                  <tr className="border-t-2 border-border/70 bg-muted/30">
+                                    <td className="py-2.5 pr-2 font-semibold text-foreground" colSpan={3}>Total casetas del tramo</td>
+                                    <td className="py-2.5 pl-2 text-right font-semibold tabular-nums text-foreground">{mxn(totalCasetasTramo)}</td>
+                                  </tr>
+                                </tfoot>
+                              ) : null}
+                            </table>
+                          ) : (
+                            <p className="text-sm leading-relaxed text-foreground">La SCT no reporta plazas de cobro para este tramo.</p>
+                          )}
+                          <p role="note" aria-label="Fuente oficial SCT" className="break-words text-xs leading-relaxed text-muted-foreground">
+                            Fuente oficial: <span className="font-medium text-foreground">{disponibilidadActual.fuente}</span>. Referencia: {disponibilidadActual.kmTotal?.toLocaleString('es-MX', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} km · {disponibilidadActual.tiempoTotal}. No se suma al precio seleccionado.
+                          </p>
+                        </>
+                      ) : (
+                        <p className="text-sm leading-relaxed text-foreground">{mensajeCasetasNoDisponible(disponibilidadActual?.estado)}</p>
+                      )}
+                      {tramo.esRegreso && totalIdaVuelta !== null ? (
+                        <p className="text-sm font-semibold leading-relaxed text-foreground">
+                          Total oficial SCT de ida y vuelta: {mxn(totalIdaVuelta)}. Incluye solo tramos con resultado oficial.
+                        </p>
+                      ) : null}
+                      {tramo.esRegreso && totalIdaVuelta === null ? (
+                        <p className="text-sm leading-relaxed text-foreground">
+                          No hay un total oficial de ida y vuelta: falta detalle oficial en al menos un tramo.
+                        </p>
+                      ) : null}
+                    </section>
+                  </>
                 ) : null}
               </div>
             </div>
@@ -1132,117 +1437,7 @@ export function CalculosViajeModal({
 
             {resultadoActual && persona && !buscandoEste ? (
               <div className="space-y-3">
-                {esCarro ? (
-                  <div className="space-y-2 text-sm">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-medium">Recorrido en carro</span>
-                      <Badge variant="outline" className="gap-1 font-normal">
-                        <Car className="h-3 w-3" aria-hidden />
-                        {persona.rutaArmada.totales.km.toLocaleString('es-MX', { maximumFractionDigits: 1 })} km
-                      </Badge>
-                      {ofertaCarro ? (
-                        <Badge variant="outline" className="gap-1 font-normal">
-                          <Clock className="h-3 w-3" aria-hidden />
-                          {ofertaCarro.duracion} base
-                        </Badge>
-                      ) : null}
-                      {minutosCarro !== null ? (
-                        <Badge variant="secondary" className="gap-1 font-normal">
-                          <Clock className="h-3 w-3" aria-hidden />
-                          +{Math.round(MARGEN_CARRO * 100)}% = {duracionTexto(minutosCarro)}
-                        </Badge>
-                      ) : null}
-                    </div>
-                    {tramo.esRegreso ? (
-                      <div className="rounded-md border border-primary/20 bg-primary/5 p-2 text-xs">
-                        <p className="font-medium text-primary">Regreso</p>
-                        <p>
-                          Salida de {tramo.desde.nombre}: {fechaCorta(tramo.desde.fecha) ?? tramo.desde.fecha} · {horaAmPm(tramo.desde.hora) ?? tramo.desde.hora}
-                        </p>
-                        {llegadaCarro ? (
-                          <p>
-                            Llegada estimada al origen: {fechaCorta(llegadaCarro.fecha) ?? llegadaCarro.fecha} · {horaAmPm(llegadaCarro.hora) ?? llegadaCarro.hora}
-                          </p>
-                        ) : null}
-                        <p className={llegaRegreso === false ? 'text-amber-700' : 'text-muted-foreground'}>
-                          {llegaRegreso === false
-                            ? 'No alcanzas a regresar dentro del límite; considera dormir en el último punto.'
-                            : 'Sí alcanzas a regresar dentro del límite.'}
-                        </p>
-                        <p className="text-muted-foreground">
-                          Incluye {Math.round(MARGEN_CARRO * 100)}% de margen: {ofertaCarro?.duracion} base + {Math.round(MARGEN_CARRO * 100)}% = {duracionTexto(minutosCarro ?? 0)}.
-                        </p>
-                      </div>
-                    ) : tramo.desde.explicita && tramo.desde.fecha && tramo.desde.hora ? (
-                      <div className="rounded-md border border-primary/20 bg-primary/5 p-2 text-xs">
-                        <p className="font-medium text-primary">
-                          Salida de {tramo.desde.nombre}: {fechaCorta(tramo.desde.fecha) ?? tramo.desde.fecha} · {horaAmPm(tramo.desde.hora) ?? tramo.desde.hora}
-                        </p>
-                        {llegadaCarro ? (
-                          <p className={llegaCarro === false ? 'text-amber-700' : 'text-muted-foreground'}>
-                            Llegada estimada: {fechaCorta(llegadaCarro.fecha) ?? llegadaCarro.fecha} · {horaAmPm(llegadaCarro.hora) ?? llegadaCarro.hora} · {llegaCarro === false ? 'no alcanza la llegada requerida.' : 'alcanza la llegada requerida.'}
-                          </p>
-                        ) : null}
-                        <p className="text-muted-foreground">
-                          Incluye {Math.round(MARGEN_CARRO * 100)}% de margen: {ofertaCarro?.duracion} base + {Math.round(MARGEN_CARRO * 100)}% = {duracionTexto(minutosCarro ?? 0)}.
-                        </p>
-                      </div>
-                    ) : salidaCarro ? (
-                      <div className="rounded-md border border-primary/20 bg-primary/5 p-2 text-xs">
-                        <p className="font-medium text-primary">
-                          Salida aproximada: {fechaCorta(salidaCarro.fecha) ?? salidaCarro.fecha} · {horaAmPm(salidaCarro.hora) ?? salidaCarro.hora}
-                        </p>
-                        <p className="text-muted-foreground">
-                          Para llegar el {fechaCorta(tramo.hasta.fecha) ?? tramo.hasta.fecha} a las {horaLlegadaAmPm ?? tramo.hasta.hora}.
-                          {' '}Incluye {Math.round(MARGEN_CARRO * 100)}% de margen: {ofertaCarro?.duracion} base + {Math.round(MARGEN_CARRO * 100)}% = {duracionTexto(salidaCarro.minutos)}.
-                        </p>
-                      </div>
-                    ) : null}
-                    <div className="space-y-1">
-                      <p className="text-xs font-medium">Casetas en la ruta</p>
-                      {casetasRuta.length > 0 ? (
-                        <table className="w-full max-w-3xl text-left text-xs">
-                          <thead>
-                            <tr className="border-b text-muted-foreground">
-                              <th className="py-1 pr-2 font-medium">Caseta</th>
-                              <th className="py-1 text-right font-medium">Km</th>
-                              <th className="py-1 pl-3 font-medium">Dirección</th>
-                              <th className="py-1 text-right font-medium">Tarifa auto</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {casetasRuta.map((plaza) => (
-                              <tr key={plaza.nombre} className="border-b border-border/50 last:border-0">
-                                <td className="py-1 pr-2">{plaza.nombre}</td>
-                                <td className="py-1 text-right tabular-nums">{plaza.km}</td>
-                                <td className="py-1 pl-3 text-muted-foreground">{plaza.direccion}</td>
-                                <td className="py-1 text-right tabular-nums">{plaza.costo != null ? mxn(plaza.costo) : 's/d'}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                          <tfoot>
-                            <tr className="border-t">
-                              <td className="py-1 pr-2 font-medium" colSpan={3}>Total casetas del tramo</td>
-                              <td className="py-1 text-right font-medium tabular-nums">{mxn(totalCasetasTramo)}</td>
-                            </tr>
-                          </tfoot>
-                        </table>
-                      ) : (
-                        <p className="text-xs text-muted-foreground">Sin desglose de plazas para esta ruta.</p>
-                      )}
-                      {tramo.esRegreso && totalIdaVuelta > 0 ? (
-                        <p className="text-xs font-medium">
-                          Total de ida y vuelta: {mxn(totalIdaVuelta)} (el regreso cruza las mismas casetas en sentido inverso).
-                        </p>
-                      ) : null}
-                      {fuenteCasetas !== 'SCT · Rutas Punto a Punto' ? (
-                        <p className="text-[11px] text-muted-foreground">
-                          Km y tarifas de referencia 2026; la ruta y las plazas pueden variar.
-                        </p>
-                      ) : null}
-                    </div>
-                  </div>
-                ) : buscandoRutaHotel === paso && usarHotelDelPaso ? (
+                {esCarro ? null : buscandoRutaHotel === paso && usarHotelDelPaso ? (
                   <div role="status" aria-live="polite" className="rounded-md border bg-muted/20 p-3 text-xs">
                     <p className="font-medium">Ajustando la ruta con el hotel elegido…</p>
                     <p className="text-muted-foreground">

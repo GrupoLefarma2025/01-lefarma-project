@@ -371,16 +371,27 @@ function opcionDesdeOferta(
 ): OpcionCotizacion {
   const capturas = oferta.capturas ?? (oferta.rutaCaptura ? [oferta.rutaCaptura] : []);
   const precio = precioOferta(oferta);
-  // El backend solo admite precio null cuando la fuente declara que es
-  // estimada; si el motor no trae costo, la fuente lo dice explícitamente.
   const estimado = oferta.estimado || precio === null;
+  const fuente = fuenteConEstimado(oferta.fuente?.trim() || 'Motor', estimado);
+  const combustible = oferta.combustible;
+  const casetasEstimadas = oferta.casetasEstimadas;
+  const componentesValidos = oferta.modo === 'auto'
+    && precio !== null
+    && typeof combustible === 'number'
+    && Number.isFinite(combustible)
+    && combustible >= 0
+    && typeof casetasEstimadas === 'number'
+    && Number.isFinite(casetasEstimadas)
+    && casetasEstimadas >= 0
+    && Math.abs(combustible + casetasEstimadas - precio) <= 0.02;
+
   return {
     tipo: TIPO_OPCION[oferta.modo] ?? oferta.modo,
     linea: oferta.linea,
     precio,
     moneda: 'MXN',
     url_compra: urlCompraValida(oferta.comprar?.url),
-    fuente: fuenteConEstimado(oferta.fuente?.trim() || 'Motor', estimado),
+    fuente,
     fue_elegida: fueElegida,
     ruta_captura: capturas[0] ?? null,
     capturas,
@@ -390,6 +401,13 @@ function opcionDesdeOferta(
       proveedor: oferta.proveedor ?? oferta.comprar?.sitio ?? '',
       disponibilidad: oferta.disponibilidad ?? '',
       disponibilidad_detalle: oferta.disponibilidadDetalle ?? '',
+      ...(componentesValidos
+        ? {
+            combustible: dosDecimales(combustible),
+            casetas_estimadas: dosDecimales(casetasEstimadas),
+            source: oferta.fuente.trim() || 'Motor',
+          }
+        : {}),
     },
   };
 }
@@ -681,6 +699,33 @@ export function construirOpcionesPropuesta(
   return opciones;
 }
 
+interface ComponentesAutoPersistidos {
+  combustible: number;
+  casetas: number;
+}
+
+function componentesAutoPersistidos(opcion: OpcionCotizacion): ComponentesAutoPersistidos | null {
+  if (opcion.tipo !== 'auto' || opcion.precio === null || !Number.isFinite(opcion.precio)) return null;
+  const combustible = opcion.datos?.combustible;
+  const casetas = opcion.datos?.casetas_estimadas;
+  const source = opcion.datos?.source;
+  if (
+    typeof combustible !== 'number' || !Number.isFinite(combustible) || combustible < 0
+    || typeof casetas !== 'number' || !Number.isFinite(casetas) || casetas < 0
+    || typeof source !== 'string' || source.trim() === ''
+    || Math.abs(combustible + casetas - opcion.precio) > 0.02
+  ) {
+    return null;
+  }
+  return { combustible, casetas };
+}
+
+export function comidaDesdeSnapshot(datos: unknown): number | null {
+  if (typeof datos !== 'object' || datos === null || Array.isArray(datos)) return null;
+  const comida = (datos as Record<string, unknown>).comida;
+  return typeof comida === 'number' && Number.isFinite(comida) ? comida : null;
+}
+
 /**
  * Resumen de costos de la versión calculada. Un concepto sin opciones elegidas
  * se queda en `null` (no aplica / no se conoce), nunca en cero inventado.
@@ -689,7 +734,9 @@ export function resumenCostosRuta(
   calculo: CalculoViaje,
   opciones: OpcionCotizacion[],
   modoTransporte: 'propio' | 'solicitado',
+  comida: number | null = null,
 ): ResumenCostosRuta {
+  void calculo;
   const sumarElegidas = (filtro: (opcion: OpcionCotizacion) => boolean): number | null => {
     const precios = opciones
       .filter((opcion) => opcion.fue_elegida && filtro(opcion))
@@ -699,27 +746,37 @@ export function resumenCostosRuta(
     return dosDecimales(precios.reduce((suma, precio) => suma + precio, 0));
   };
 
-  const casetas = modoTransporte === 'propio'
-    ? (() => {
-        const costos = calculo.tramos
-          .flatMap((tramo) => tramo.casetas)
-          .map((caseta) => caseta.costo)
-          .filter((costo): costo is number => typeof costo === 'number' && Number.isFinite(costo));
-        return costos.length > 0 ? dosDecimales(costos.reduce((suma, costo) => suma + costo, 0)) : null;
-      })()
-    : null;
+  let gasolinaAcumulada = 0;
+  let casetasAcumuladas = 0;
+  let hayGasolina = false;
+  let hayCasetas = false;
+  for (const opcion of opciones) {
+    if (!opcion.fue_elegida || (opcion.tipo !== 'auto' && opcion.tipo !== 'renta')) continue;
+    if (typeof opcion.precio !== 'number' || !Number.isFinite(opcion.precio)) continue;
+    const componentes = modoTransporte === 'propio' ? componentesAutoPersistidos(opcion) : null;
+    if (componentes) {
+      gasolinaAcumulada += componentes.combustible;
+      casetasAcumuladas += componentes.casetas;
+      hayCasetas = true;
+    } else {
+      gasolinaAcumulada += opcion.precio;
+    }
+    hayGasolina = true;
+  }
 
   const autobus = sumarElegidas((opcion) => opcion.tipo === 'autobus');
   const avion = sumarElegidas((opcion) => opcion.tipo === 'vuelo');
-  const gasolina = sumarElegidas((opcion) => opcion.tipo === 'auto' || opcion.tipo === 'renta');
+  const gasolina = hayGasolina ? dosDecimales(gasolinaAcumulada) : null;
+  const casetas = hayCasetas ? dosDecimales(casetasAcumuladas) : null;
   const hospedaje = sumarElegidas((opcion) => opcion.tipo === 'hotel');
   const taxi = sumarElegidas((opcion) => opcion.tipo === 'taxi');
-  const conceptos = [autobus, avion, gasolina, casetas, hospedaje, taxi];
+  const comidaConocida = typeof comida === 'number' && Number.isFinite(comida) ? dosDecimales(comida) : null;
+  const conceptos = [autobus, avion, gasolina, casetas, hospedaje, comidaConocida, taxi];
   const total = conceptos.some((valor) => valor !== null)
     ? dosDecimales(conceptos.reduce<number>((suma, valor) => suma + (valor ?? 0), 0))
     : null;
 
-  return { autobus, avion, gasolina, casetas, hospedaje, comida: null, taxi, total };
+  return { autobus, avion, gasolina, casetas, hospedaje, comida: comidaConocida, taxi, total };
 }
 
 /**

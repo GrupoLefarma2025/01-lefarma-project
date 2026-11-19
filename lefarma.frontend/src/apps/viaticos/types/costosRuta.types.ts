@@ -124,6 +124,9 @@ export interface CostosRutaOferta {
   proveedor?: string;
   disponibilidad?: string;
   disponibilidadDetalle?: string;
+  /** Components already included in costoGrupo for newly calculated auto offers. */
+  combustible?: number | null;
+  casetasEstimadas?: number | null;
   comprar: CostosRutaCompra;
   /** Ruta del PNG capturado (columna `ruta_captura` de solicitud_opciones). */
   rutaCaptura?: string;
@@ -230,6 +233,23 @@ export interface CostosRutaCaseta {
   fuente: string;
 }
 
+export type EstadoCasetasSct =
+  | 'disponible'
+  | 'destino_no_soportado'
+  | 'proveedor_no_disponible'
+  | 'respuesta_invalida';
+
+export interface CostosRutaCasetaDisponibilidad {
+  tramo: number;
+  deMunicipio?: string;
+  aMunicipio?: string;
+  estado: EstadoCasetasSct;
+  kmTotal: number | null;
+  tiempoTotal: string | null;
+  peajeTotal: number | null;
+  fuente: string;
+}
+
 export interface CostosRutaResultado {
   nombre: string;
   gasolina: string;
@@ -249,6 +269,7 @@ export interface CostosRutaResultado {
   incumplimientos: string[];
   /** Casetas de la ruta según la SCT (plaza, km, carretera y tarifa de auto). */
   casetas?: CostosRutaCaseta[];
+  casetasDisponibilidad?: CostosRutaCasetaDisponibilidad[];
 }
 
 export interface CostosRutaCompartido {

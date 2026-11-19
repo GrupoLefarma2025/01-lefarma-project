@@ -749,21 +749,13 @@ public class AprobacionesController : ControllerBase
 
     /// <summary>
     /// Sella en <c>datos.resumen_autorizado</c> el desglose que imprime el
-    /// FOR-008, calculado con las opciones FUE_ELEGIDA de esta autorizacion y
-    /// la ruta autorizada:
-    /// <list type="bullet">
-    ///   <item><c>autobus</c>/<c>avion</c>/<c>hospedaje</c>/<c>taxi</c>/<c>gasolina</c>:
-    ///   suma de precios de las opciones elegidas del tipo correspondiente.</item>
-    ///   <item><c>casetas</c>: solo con <c>modo_transporte = "propio"</c>, suma
-    ///   de <c>calculo.tramos[].casetas[].costo</c>; en cualquier otro modo
-    ///   <c>null</c> (no aplican).</item>
-    ///   <item><c>comida</c>: no viene de opciones ni del calculo; se conserva
-    ///   el valor numerico que ya traia el snapshot.</item>
-    ///   <item><c>total</c>: suma de los conceptos no nulos; <c>null</c> si no
-    ///   hay ninguno.</item>
-    /// </list>
-    /// Un concepto sin dato queda <c>null</c>, nunca en 0: 0 afirmaria un costo
-    /// que nadie cotizo.
+    /// FOR-008 con las opciones FUE_ELEGIDA de esta autorizacion. Cada precio
+    /// elegido se cuenta una sola vez: un auto nuevo con componentes consistentes
+    /// separa combustible y casetas; autos legados, rentas y metadatos invalidos
+    /// conservan su precio combinado en <c>gasolina</c>. Las casetas SCT de
+    /// <c>calculo.tramos</c> son solo referencia y no se suman al autorizado.
+    /// <c>comida</c> conserva el valor numerico del snapshot y <c>total</c> suma
+    /// los conceptos conocidos. Un concepto sin dato queda <c>null</c>, nunca en 0.
     /// </summary>
     private static void GuardarResumenAutorizado(
         Solicitud solicitud,
@@ -774,14 +766,29 @@ public class AprobacionesController : ControllerBase
 
         decimal? autobus = SumarOpciones(elegidas, "autobus");
         decimal? avion = SumarOpciones(elegidas, "vuelo", "avion");
-        decimal? gasolina = SumarOpciones(elegidas, "auto", "renta");
         decimal? hospedaje = SumarOpciones(elegidas, "hotel");
         decimal? taxi = SumarOpciones(elegidas, "taxi");
-        decimal? casetas = EsModoPropio(calculo) ? SumarCasetas(calculo) : null;
-        // comida se lee ANTES de escribir resumen_autorizado: es el valor
-        // previo del snapshot raiz, el que ya usaba la bandeja.
-        decimal? comida = LeerDecimal(ParsearDatosJson(solicitud.DatosJson), "comida");
+        decimal? gasolina = null;
+        decimal? casetas = null;
+        var desglosaAuto = EsModoPropio(calculo);
+        foreach (var opcion in elegidas.Where(o =>
+            o.Precio.HasValue
+            && (string.Equals(o.Tipo, "auto", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(o.Tipo, "renta", StringComparison.OrdinalIgnoreCase))))
+        {
+            var componentes = desglosaAuto ? LeerComponentesAuto(opcion) : null;
+            if (componentes is null)
+            {
+                gasolina = (gasolina ?? 0m) + opcion.Precio!.Value;
+            }
+            else
+            {
+                gasolina = (gasolina ?? 0m) + componentes.Combustible;
+                casetas = (casetas ?? 0m) + componentes.Casetas;
+            }
+        }
 
+        decimal? comida = LeerDecimal(ParsearDatosJson(solicitud.DatosJson), "comida");
         var conceptos = new[] { autobus, avion, gasolina, casetas, hospedaje, comida, taxi };
         decimal? total = conceptos.Any(c => c.HasValue)
             ? conceptos.Sum(c => c ?? 0m)
@@ -801,6 +808,45 @@ public class AprobacionesController : ControllerBase
                 taxi,
                 total,
             }));
+    }
+
+    private sealed record ComponentesAuto(decimal Combustible, decimal Casetas);
+
+    private static ComponentesAuto? LeerComponentesAuto(SolicitudOpcion opcion)
+    {
+        if (!string.Equals(opcion.Tipo, "auto", StringComparison.OrdinalIgnoreCase)
+            || opcion.Precio is not { } precio
+            || string.IsNullOrWhiteSpace(opcion.DatosJson))
+        {
+            return null;
+        }
+
+        try
+        {
+            using var doc = JsonDocument.Parse(opcion.DatosJson);
+            var datos = doc.RootElement;
+            if (datos.ValueKind != JsonValueKind.Object
+                || !datos.TryGetProperty("combustible", out var combustibleEl)
+                || combustibleEl.ValueKind != JsonValueKind.Number
+                || !combustibleEl.TryGetDecimal(out var combustible)
+                || !datos.TryGetProperty("casetas_estimadas", out var casetasEl)
+                || casetasEl.ValueKind != JsonValueKind.Number
+                || !casetasEl.TryGetDecimal(out var casetas)
+                || !datos.TryGetProperty("source", out var sourceEl)
+                || sourceEl.ValueKind != JsonValueKind.String
+                || string.IsNullOrWhiteSpace(sourceEl.GetString())
+                || combustible < 0
+                || casetas < 0
+                || Math.Abs(combustible + casetas - precio) > 0.02m)
+            {
+                return null;
+            }
+            return new ComponentesAuto(combustible, casetas);
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
     }
 
     /// <summary>
@@ -841,45 +887,6 @@ public class AprobacionesController : ControllerBase
         => calculo is { ValueKind: JsonValueKind.Object } raiz
            && LeerTextoDesdeJson(raiz, "modo_transporte") is { } modo
            && string.Equals(modo, "propio", StringComparison.OrdinalIgnoreCase);
-
-    /// <summary>
-    /// Suma <c>calculo.tramos[].casetas[].costo</c> de la ruta autorizada. Una
-    /// caseta con <c>costo</c> null o de otro tipo no entra (no se inventa); sin
-    /// ninguna caseta con costo devuelve <c>null</c>.
-    /// </summary>
-    private static decimal? SumarCasetas(JsonElement? calculo)
-    {
-        if (calculo is not { ValueKind: JsonValueKind.Object } raiz
-            || !raiz.TryGetProperty("tramos", out var tramos)
-            || tramos.ValueKind != JsonValueKind.Array)
-        {
-            return null;
-        }
-
-        decimal? total = null;
-        foreach (var tramo in tramos.EnumerateArray())
-        {
-            if (tramo.ValueKind != JsonValueKind.Object
-                || !tramo.TryGetProperty("casetas", out var casetas)
-                || casetas.ValueKind != JsonValueKind.Array)
-            {
-                continue;
-            }
-
-            foreach (var caseta in casetas.EnumerateArray())
-            {
-                if (caseta.ValueKind == JsonValueKind.Object
-                    && caseta.TryGetProperty("costo", out var costo)
-                    && costo.ValueKind == JsonValueKind.Number
-                    && costo.TryGetDecimal(out var monto))
-                {
-                    total = (total ?? 0m) + monto;
-                }
-            }
-        }
-
-        return total;
-    }
 
     /// <summary>
     /// Lee una propiedad del snapshot <c>datos_json</c>. Devuelve <c>null</c>

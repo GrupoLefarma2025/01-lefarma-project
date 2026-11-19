@@ -875,13 +875,13 @@ public class AprobacionesControllerTests
         resumen.GetProperty("autobus").ValueKind.Should().Be(JsonValueKind.Null);
         resumen.GetProperty("avion").GetDecimal().Should().Be(5000m);
         resumen.GetProperty("gasolina").GetDecimal().Should().Be(800m);
-        // Casetas solo aplican en automovil propio: 120.50 + 79.50 + 100.
-        resumen.GetProperty("casetas").GetDecimal().Should().Be(300m);
+        // Las casetas de la ruta son solo referencia; la opcion sin componentes conserva su precio combinado.
+        resumen.GetProperty("casetas").ValueKind.Should().Be(JsonValueKind.Null);
         resumen.GetProperty("hospedaje").GetDecimal().Should().Be(2000m);
         // comida no viene de opciones ni del calculo: se conserva la previa.
         resumen.GetProperty("comida").GetDecimal().Should().Be(350m);
         resumen.GetProperty("taxi").GetDecimal().Should().Be(300m);
-        resumen.GetProperty("total").GetDecimal().Should().Be(8750m);
+        resumen.GetProperty("total").GetDecimal().Should().Be(8450m);
 
         // La bandeja FOR-008 proyecta el resumen, no el total raiz historico.
         var bandejaResp = await cliente.GetAsync("/api/viaticos/solicitudes");
@@ -893,11 +893,11 @@ public class AprobacionesControllerTests
         fila.Autobus.Should().BeNull();
         fila.Avion.Should().Be(5000m);
         fila.Gasolina.Should().Be(800m);
-        fila.Casetas.Should().Be(300m);
+        fila.Casetas.Should().BeNull();
         fila.Hospedaje.Should().Be(2000m);
         fila.Comida.Should().Be(350m);
         fila.Taxi.Should().Be(300m);
-        fila.Total.Should().Be(8750m);
+        fila.Total.Should().Be(8450m);
     }
 
     [Fact]
@@ -1034,6 +1034,112 @@ public class AprobacionesControllerTests
         var originales = doc.RootElement.GetProperty("opciones_originales");
         originales.GetArrayLength().Should().Be(1);
         originales[0].GetProperty("linea").GetString().Should().Be("Primera referencia");
+    }
+
+    [Fact]
+    public async Task Authorize_NewAuto_SplitsComponentsAndMatchesPreviewWithoutSct()
+    {
+        using var ctx = new TestContext();
+        const int adminId = 7160;
+        var id = ctx.SembrarSolicitud(adminId, "enviada", """{"comida":350,"total":1000}""");
+        using var cliente = ctx.Servidor.CreateClient();
+        cliente.DefaultRequestHeaders.Add("X-Test-UserId", adminId.ToString());
+        cliente.DefaultRequestHeaders.Add("X-Test-Permissions", Permissions.Viaticos.Autorizar);
+
+        var resp = await cliente.PostAsJsonAsync($"/api/viaticos/solicitudes/{id}/autorizar", new
+        {
+            calculo = new
+            {
+                modo_transporte = "propio",
+                tramos = new[]
+                {
+                    new { de = "CDMX", a = "Pachuca", casetas = new[] { new { nombre = "Ojo de Agua", costo = 72m } } },
+                },
+            },
+            opciones = new[]
+            {
+                new
+                {
+                    tipo = "auto",
+                    linea = "Auto (cuota)",
+                    precio = 300m,
+                    moneda = "MXN",
+                    fuente = "OSRM + CNE (fixture)",
+                    fue_elegida = true,
+                    datos = new { combustible = 180m, casetas_estimadas = 120m, source = "OSRM + CNE (fixture)" },
+                },
+            },
+        });
+
+        resp.StatusCode.Should().Be(HttpStatusCode.OK);
+        var opcion = ctx.LeeOpciones(id).Single();
+        opcion.Precio.Should().Be(300m);
+        opcion.DatosJson.Should().Contain("combustible").And.Contain("casetas_estimadas").And.Contain("source");
+        var resumen = ctx.LeeResumenAutorizado(id);
+        resumen.GetProperty("gasolina").GetDecimal().Should().Be(180m);
+        resumen.GetProperty("casetas").GetDecimal().Should().Be(120m);
+        resumen.GetProperty("comida").GetDecimal().Should().Be(350m);
+        resumen.GetProperty("total").GetDecimal().Should().Be(650m);
+    }
+
+    [Fact]
+    public async Task Authorize_MixedNewLegacyAndRental_CountsEachPriceOnce()
+    {
+        using var ctx = new TestContext();
+        const int adminId = 7161;
+        var id = ctx.SembrarSolicitud(adminId, "enviada", """{"total":1000}""");
+        using var cliente = ctx.Servidor.CreateClient();
+        cliente.DefaultRequestHeaders.Add("X-Test-UserId", adminId.ToString());
+        cliente.DefaultRequestHeaders.Add("X-Test-Permissions", Permissions.Viaticos.Autorizar);
+
+        var resp = await cliente.PostAsJsonAsync($"/api/viaticos/solicitudes/{id}/autorizar", new
+        {
+            calculo = new
+            {
+                modo_transporte = "propio",
+                tramos = new[] { new { de = "CDMX", a = "Pachuca", casetas = new[] { new { nombre = "Referencia", costo = 72m } } } },
+            },
+            opciones = new object[]
+            {
+                new { tipo = "auto", linea = "Nuevo", precio = 300m, moneda = "MXN", fuente = "motor", fue_elegida = true,
+                    datos = new { combustible = 180m, casetas_estimadas = 120m, source = "motor" } },
+                new { tipo = "auto", linea = "Legado", precio = 500m, moneda = "MXN", fuente = "motor", fue_elegida = true },
+                new { tipo = "renta", linea = "Renta", precio = 900m, moneda = "MXN", fuente = "seed renta", fue_elegida = true },
+            },
+        });
+
+        resp.StatusCode.Should().Be(HttpStatusCode.OK);
+        var resumen = ctx.LeeResumenAutorizado(id);
+        resumen.GetProperty("gasolina").GetDecimal().Should().Be(1580m);
+        resumen.GetProperty("casetas").GetDecimal().Should().Be(120m);
+        resumen.GetProperty("total").GetDecimal().Should().Be(1700m);
+    }
+
+    [Fact]
+    public async Task Authorize_InconsistentComponents_PreserveCombinedPrice()
+    {
+        using var ctx = new TestContext();
+        const int adminId = 7162;
+        var id = ctx.SembrarSolicitud(adminId, "enviada", """{"total":1000}""");
+        using var cliente = ctx.Servidor.CreateClient();
+        cliente.DefaultRequestHeaders.Add("X-Test-UserId", adminId.ToString());
+        cliente.DefaultRequestHeaders.Add("X-Test-Permissions", Permissions.Viaticos.Autorizar);
+
+        var resp = await cliente.PostAsJsonAsync($"/api/viaticos/solicitudes/{id}/autorizar", new
+        {
+            calculo = new { modo_transporte = "propio", tramos = Array.Empty<object>() },
+            opciones = new[]
+            {
+                new { tipo = "auto", linea = "Metadata inconsistente", precio = 300m, moneda = "MXN", fuente = "motor", fue_elegida = true,
+                    datos = new { combustible = 180m, casetas_estimadas = 60m, source = "motor" } },
+            },
+        });
+
+        resp.StatusCode.Should().Be(HttpStatusCode.OK);
+        var resumen = ctx.LeeResumenAutorizado(id);
+        resumen.GetProperty("gasolina").GetDecimal().Should().Be(300m);
+        resumen.GetProperty("casetas").ValueKind.Should().Be(JsonValueKind.Null);
+        resumen.GetProperty("total").GetDecimal().Should().Be(300m);
     }
 
     // ---------------- POST /{id}/ajustes ----------------
