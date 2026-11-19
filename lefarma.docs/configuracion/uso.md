@@ -4,8 +4,8 @@ Este documento explica cómo consumir las variables globales desde frontend, bac
 
 ## Reglas generales
 
-- Cada variable tiene una clave estable con formato `namespace.nombre`, por ejemplo `viaticos.diasLimite`.
-- La clave y el tipo de dato raíz no se pueden cambiar después de crear la variable.
+- Cada variable pertenece a un módulo y su clave es estable. En las variables nuevas el formato es `modulo.namespace.nombre`, por ejemplo `viaticos.catalogo.diasLimite`; las variables anteriores a los módulos conservan su formato de dos segmentos, `namespace.nombre` (por ejemplo `viaticos.diasLimite`), y siguen funcionando igual.
+- La clave, el tipo de dato raíz y el módulo no se pueden cambiar después de crear la variable.
 - Una variable debe marcarse explícitamente para cada destino:
   - Backend
   - Frontend
@@ -14,6 +14,28 @@ Este documento explica cómo consumir las variables globales desde frontend, bac
 - Las variables de Backend, SQL o Integraciones nunca se envían al navegador.
 - Todo cambio genera una entrada de bitácora y una nueva revisión.
 - Restaurar una versión crea un cambio nuevo; nunca borra el historial posterior.
+
+## Módulos
+
+Cada variable pertenece a un **módulo**: el catálogo que agrupa y filtra las variables y que presta el primer segmento de la clave.
+
+- El módulo se administra desde la pestaña **Módulos** de la pantalla de Configuración (o con el botón verde **Administrar módulos**, junto a «Crear variable»).
+- La clave del módulo es un slug en minúsculas (`viaticos`, `rh`, `cxp`…), único y de hasta 50 caracteres. No se puede cambiar después de crear el módulo.
+- Existe el módulo **global**, que no se puede desactivar: es el destino de las variables compartidas por todas las aplicaciones y de todas las variables anteriores a los módulos.
+- Desactivar un módulo no desactiva sus variables: impide crear variables nuevas en él, pero las vigentes se siguen leyendo.
+- El módulo se elige al crear la variable y ya no se puede corregir después. Para cambiarlo, crea otra variable con la clave nueva y desactiva la anterior.
+
+### API
+
+```http
+GET  /api/configuracion/modulos            # ?activo=true|false, incluye totalVariables
+POST /api/configuracion/modulos            # { clave, nombre, descripcion }
+PUT  /api/configuracion/modulos/{id}       # { nombre, descripcion }
+POST /api/configuracion/modulos/{id}/desactivar
+POST /api/configuracion/modulos/{id}/reactivar
+```
+
+El listado de variables acepta `idModulo` para filtrar del lado del servidor.
 
 ## Frontend
 
@@ -204,8 +226,8 @@ El módulo está oculto y protegido por permisos:
 | Permiso | Uso |
 |---|---|
 | `configuracion.view` | Ver el módulo, el listado y los valores |
-| `configuracion.create` | Crear variables |
-| `configuracion.update` | Editar, desactivar y reactivar |
+| `configuracion.create` | Crear variables y módulos |
+| `configuracion.update` | Editar, desactivar y reactivar variables y módulos |
 | `configuracion.history` | Consultar la bitácora |
 | `configuracion.restore` | Restaurar versiones |
 | `configuracion.api_keys` | Administrar clientes de integración |
