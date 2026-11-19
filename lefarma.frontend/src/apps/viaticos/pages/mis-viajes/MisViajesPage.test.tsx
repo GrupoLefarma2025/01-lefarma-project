@@ -95,6 +95,20 @@ describe('MisViajesPage', () => {
     await waitFor(() => expect(screen.getAllByTestId(/viaje-/)).toHaveLength(1));
   });
 
+  it('deja los filtros plegados a la vista y avisa cuántos hay aplicados', async () => {
+    const usuario = userEvent.setup();
+    render(<MisViajesPage hoy={new Date(2026, 10, 15)} />);
+    await screen.findAllByTestId(/^viaje-/);
+
+    // El bloque se anuncia con su nombre, pero arranca cerrado.
+    const resumen = screen.getByText('Filtros', { selector: 'summary' });
+    expect(resumen.parentElement).not.toHaveAttribute('open');
+
+    // Con un filtro aplicado el encabezado lo dice sin necesidad de abrirlo.
+    await usuario.selectOptions(screen.getByLabelText('Periodo'), 'mes');
+    expect(screen.getByText('1 aplicado')).toBeInTheDocument();
+  });
+
   it('la tabla ordena del más reciente al más antiguo y muestra folio, solicitante y puntos', async () => {
     mocks.mis.mockResolvedValue({
       data: {

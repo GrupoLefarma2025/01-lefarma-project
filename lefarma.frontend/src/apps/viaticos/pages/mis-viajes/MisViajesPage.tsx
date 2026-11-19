@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Camera, Clock, ExternalLink, Eye, MoreHorizontal, Pencil, RefreshCw, Route, Search, Send, Ticket, Trash2 } from 'lucide-react';
+import { Camera, ChevronDown, Clock, ExternalLink, Eye, MoreHorizontal, Pencil, RefreshCw, Route, Search, Send, SlidersHorizontal, Ticket, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
@@ -448,11 +447,30 @@ export function MisViajesPage({ hoy = new Date() }: { hoy?: Date }) {
     [miId, miNombre, verDetalle, eliminarBorrador, navigate, procesandoId],
   );
 
+  // Cuántos filtros se apartan de lo que la página muestra por defecto, para
+  // que el encabezado plegado diga de un vistazo si hay algo filtrado.
+  const filtrosAplicados = [
+    periodo !== 'todo',
+    tipo !== 'todos',
+    Boolean(desde),
+    Boolean(hasta),
+  ].filter(Boolean).length;
+
   return (
     <div className="space-y-4">
-      <Card>
-        <CardContent className="space-y-3 pt-6">
-          <div className="grid gap-3 md:grid-cols-4">
+      <div className="rounded-md border bg-card">
+        <details className="group">
+          <summary className="flex cursor-pointer select-none items-center gap-2 rounded-md px-4 py-3 text-sm font-medium hover:bg-muted/50 [&::-webkit-details-marker]:hidden">
+            <SlidersHorizontal className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+            Filtros
+            {filtrosAplicados > 0 ? (
+              <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+                {filtrosAplicados} {filtrosAplicados === 1 ? 'aplicado' : 'aplicados'}
+              </span>
+            ) : null}
+            <ChevronDown className="ml-auto h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" aria-hidden />
+          </summary>
+          <div className="grid gap-3 border-t px-4 py-3 md:grid-cols-4">
             <div className="space-y-1">
               <Label htmlFor="filtro-periodo">Periodo</Label>
               <select id="filtro-periodo" aria-label="Periodo" className="h-10 w-full rounded-md border bg-background px-3" value={periodo} onChange={(e) => setPeriodo(e.target.value as FiltroPeriodo)}>
@@ -482,13 +500,15 @@ export function MisViajesPage({ hoy = new Date() }: { hoy?: Date }) {
               </>
             ) : null}
           </div>
-          {rango ? (
+        </details>
+        {rango ? (
+          <div className="space-y-1 px-4 pb-3">
             <p data-testid="rango-visible" className="text-xs text-muted-foreground">
               Mostrando por fecha de creación (provisional): {rango.inicio} al {rango.fin}.
             </p>
-          ) : null}
-        </CardContent>
-      </Card>
+          </div>
+        ) : null}
+      </div>
 
       {error ? <p role="alert" className="text-sm text-destructive">{error}</p> : null}
 
