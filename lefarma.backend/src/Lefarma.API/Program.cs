@@ -43,6 +43,8 @@ using Lefarma.API.Features.Firmas;
 using Lefarma.API.Features.Rh.IncidenciasChecado;
 using Lefarma.API.Features.Rh.SolicitudesPersonal;
 using Lefarma.API.Features.Rh.SolicitudesPersonal.Settings;
+using Lefarma.API.Features.Sigma;
+using Lefarma.API.Features.Sigma.Config;
 using Lefarma.API.Features.Viaticos;
 using Lefarma.API.Infrastructure.Data;
 using Lefarma.API.Infrastructure.Data.Repositories;
@@ -366,6 +368,21 @@ builder.Services.AddOptions<EmailSettings>()
 builder.Services.AddKeyedScoped<Lefarma.API.Domain.Interfaces.INotificationChannel, Lefarma.API.Features.Notifications.Services.Channels.EmailNotificationChannel>("email");
 builder.Services.AddKeyedScoped<Lefarma.API.Domain.Interfaces.INotificationChannel, Lefarma.API.Features.Notifications.Services.Channels.TelegramNotificationChannel>("telegram");
 builder.Services.AddKeyedScoped<Lefarma.API.Domain.Interfaces.INotificationChannel, Lefarma.API.Features.Notifications.Services.Channels.InAppNotificationChannel>("in-app");
+
+// Documentos SIGMA: puerto del módulo de documentos sobre la base legacy Asokam.
+// Acceso Dapper, almacenamiento de PDFs, identidad de visitantes y notificaciones.
+builder.Services.Configure<SigmaOptions>(builder.Configuration.GetSection(SigmaOptions.SectionName));
+builder.Services.Configure<DocumentosNotificacionesOptions>(
+    builder.Configuration.GetSection(DocumentosNotificacionesOptions.SectionName));
+builder.Services.Configure<SigmaPdfSignatureOptions>(
+    builder.Configuration.GetSection(SigmaPdfSignatureOptions.SectionName));
+builder.Services.AddScoped<SigmaDb>();
+builder.Services.AddScoped<SigmaDocumentStorage>();
+builder.Services.AddScoped<SigmaDocumentoEmailService>();
+builder.Services.AddScoped<SigmaDocumentAccess>();
+builder.Services.AddScoped<SigmaIdentity>();
+builder.Services.AddSingleton<SigmaVisitorTokenService>();
+builder.Services.AddScoped<SigmaPdfSignatureRunner>();
 
 // Telegram Settings configuration
 builder.Services.Configure<TelegramSettings>(builder.Configuration.GetSection("TelegramSettings"));

@@ -148,6 +148,13 @@ public class EmailNotificationChannel : INotificationChannel
                 bodyBuilder.TextBody = StripHtml(htmlBody);
             }
 
+            // Adjuntos opcionales (extensión aditiva del módulo Documentos/SIGMA):
+            // Data["attachments"] acepta NotificationAttachment, rutas de archivo o una lista de ambos.
+            if (message.Data != null && message.Data.TryGetValue("attachments", out var attachmentsObj))
+            {
+                AdjuntarArchivos(bodyBuilder, attachmentsObj);
+            }
+
             emailMessage.Body = bodyBuilder.ToMessageBody();
 
             // Send email via SMTP
@@ -374,4 +381,84 @@ public class EmailNotificationChannel : INotificationChannel
 
         return plainText.Trim();
     }
+
+    /// <summary>
+    /// Adjunta los archivos indicados en <c>Data["attachments"]</c>. Acepta una instancia de
+    /// <see cref="NotificationAttachment"/>, una ruta de archivo o una lista de ambos.
+    /// Extensión aditiva: los llamadores existentes no envían esta clave y no cambian.
+    /// </summary>
+    private void AdjuntarArchivos(BodyBuilder bodyBuilder, object? valor)
+    {
+        switch (valor)
+        {
+            case null:
+                return;
+            case NotificationAttachment adjunto:
+                AgregarAdjunto(bodyBuilder, adjunto);
+                return;
+            case string ruta:
+                AgregarAdjuntoDesdeRuta(bodyBuilder, ruta);
+                return;
+            case System.Collections.IEnumerable elementos:
+                foreach (var elemento in elementos)
+                {
+                    switch (elemento)
+                    {
+                        case NotificationAttachment adjunto:
+                            AgregarAdjunto(bodyBuilder, adjunto);
+                            break;
+                        case string rutaElemento:
+                            AgregarAdjuntoDesdeRuta(bodyBuilder, rutaElemento);
+                            break;
+                    }
+                }
+                return;
+        }
+
+        _logger.LogWarning("Data[\"attachments\"] con un tipo no soportado: {Tipo}", valor.GetType().Name);
+    }
+
+    private static void AgregarAdjunto(BodyBuilder bodyBuilder, NotificationAttachment adjunto)
+    {
+        if (adjunto.Content is not { Length: > 0 })
+        {
+            return;
+        }
+
+        var content = new MemoryStream(adjunto.Content, writable: false);
+        var nombre = string.IsNullOrWhiteSpace(adjunto.FileName) ? "adjunto.pdf" : adjunto.FileName;
+
+        ContentType tipoContenido;
+        try
+        {
+            tipoContenido = ContentType.Parse(string.IsNullOrWhiteSpace(adjunto.ContentType) ? "application/pdf" : adjunto.ContentType);
+        }
+        catch (FormatException)
+        {
+            tipoContenido = new ContentType("application", "pdf");
+        }
+
+        bodyBuilder.Attachments.Add(nombre, content, tipoContenido);
+    }
+
+    private void AgregarAdjuntoDesdeRuta(BodyBuilder bodyBuilder, string ruta)
+    {
+        try
+        {
+            if (!File.Exists(ruta))
+            {
+                _logger.LogWarning("No se adjuntó el archivo {Ruta}: no existe", ruta);
+                return;
+            }
+
+            bodyBuilder.Attachments.Add(Path.GetFileName(ruta), File.ReadAllBytes(ruta));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "No se pudo adjuntar el archivo {Ruta}", ruta);
+        }
+    }
 }
+
+/// <summary>Adjunto genérico del canal de correo (contenido en memoria).</summary>
+public sealed record NotificationAttachment(string FileName, byte[] Content, string? ContentType = "application/pdf");
