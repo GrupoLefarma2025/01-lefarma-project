@@ -2,21 +2,22 @@ import type { SolicitudBandeja } from '../../types/aprobaciones.types';
 import type { SolicitudVuelo, TrayectoVuelo } from '../costos/ConcentradoVuelosPrint';
 
 /**
- * Piezas del concentrado de VUELOS («Solicitud de avión»): qué solicitudes se
- * pueden mandar a la agencia y cómo se mapea una fila de la bandeja al
- * documento. Viven fuera de los componentes para no mezclar helpers con el
+ * Piezas del concentrado («Solicitud de avión» y FOR-008): qué solicitudes se
+ * pueden marcar para el documento y cómo se mapea una fila de la bandeja al
+ * de vuelos. Viven fuera de los componentes para no mezclar helpers con el
  * render (regla de Fast Refresh).
  */
 
 /**
- * Estados elegibles para el concentrado de vuelos: la solicitud que se manda a
- * la agencia existe antes de la autorización, así que además de las autorizadas
- * se pueden marcar las enviadas. Un borrador o una rechazada no se envían.
+ * Estados que se pueden marcar para el concentrado: todo lo que ya salió del
+ * borrador. El documento se arma y se revisa ANTES de autorizar —el de vuelos
+ * se manda a la agencia incluso antes—, así que una enviada se marca; un
+ * borrador o una rechazada no se concentran.
  */
-export const ESTADOS_VUELOS = ['enviada', 'autorizada', 'autorizada_con_ajustes'] as const;
+export const ESTADOS_CONCENTRABLES = ['enviada', 'autorizada', 'autorizada_con_ajustes'] as const;
 
-export function esEstadoVuelos(estado: string): boolean {
-  return (ESTADOS_VUELOS as readonly string[]).includes(estado);
+export function esEstadoConcentrable(estado: string): boolean {
+  return (ESTADOS_CONCENTRABLES as readonly string[]).includes(estado);
 }
 
 /**

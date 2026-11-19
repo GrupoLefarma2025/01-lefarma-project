@@ -227,15 +227,28 @@ describe('ConcentradoPage', () => {
     expect(documento).toHaveTextContent('Persona Solicitante');
   });
 
-  it('no permite incluir en el concentrado una solicitud todavía enviada', async () => {
+  it('permite marcar una solicitud enviada y el documento avisa que va en revisión', async () => {
+    const usuario = userEvent.setup();
     render(<ConcentradoPage />);
     await waitFor(() => expect(screen.getByTestId('concentrado-5')).toBeInTheDocument());
 
-    expect(screen.getByRole('checkbox', { name: /aún no está autorizada/i })).toBeDisabled();
+    // El concentrado se arma antes de autorizar: la enviada se puede marcar.
+    const casilla = screen.getByRole('checkbox', { name: /incluir VIA-TEST-0005 en el concentrado/i });
+    expect(casilla).not.toBeDisabled();
     expect(screen.getByRole('button', { name: /generar concentrado \(0\)/i })).toBeDisabled();
-    expect(screen.getByTestId('concentrado-vacio')).toHaveTextContent(
-      /selecciona solicitudes autorizadas/i,
-    );
+    expect(screen.getByTestId('concentrado-vacio')).toHaveTextContent(/selecciona solicitudes/i);
+
+    await usuario.click(casilla);
+    expect(screen.getByRole('button', { name: /generar concentrado \(1\)/i })).toBeEnabled();
+    // Lo que falta de autorizar se avisa: el documento es de revisión.
+    expect(screen.getByTestId('aviso-revision')).toHaveTextContent(/no está autorizada/i);
+
+    await usuario.click(screen.getByRole('button', { name: /generar concentrado \(1\)/i }));
+    const documento = document.querySelector('#concentrado-viaticos-print');
+    expect(documento).not.toBeNull();
+    // Se imprime lo marcado: ya no se filtra por estado al armar el FOR-008.
+    expect(documento).toHaveTextContent('Destino Uno');
+    expect(documento).toHaveTextContent('Persona Solicitante');
   });
 
   it('el rango personalizado se aplica solo cuando hay fecha inicial y final', async () => {
@@ -276,7 +289,7 @@ describe('ConcentradoPage', () => {
     expect(resumen).toHaveTextContent('Descentralizado');
     expect(resumen).toHaveTextContent('IMSS');
 
-    await usuario.click(screen.getByRole('button', { name: /seleccionar todas las autorizadas/i }));
+    await usuario.click(screen.getByRole('button', { name: /seleccionar todas las solicitudes/i }));
     await usuario.click(screen.getByRole('button', { name: /generar concentrado \(3\)/i }));
     const documento = document.querySelector('#concentrado-viaticos-print') as HTMLElement;
     expect(documento).toHaveTextContent(/Gerencia: Descentralizado/i);
@@ -327,12 +340,12 @@ describe('ConcentradoPage', () => {
     render(<ConcentradoPage />);
     await waitFor(() => expect(screen.getByTestId('concentrado-5')).toBeInTheDocument());
 
-    // El FOR-008 es de lo autorizado: la enviada no se puede marcar.
-    expect(screen.getByRole('checkbox', { name: /aún no está autorizada/i })).toBeDisabled();
+    // Los dos formatos marcan lo mismo: el documento se arma antes de autorizar.
+    expect(screen.getByRole('checkbox', { name: /incluir VIA-TEST-0005 en el concentrado/i })).not.toBeDisabled();
 
     await usuario.selectOptions(screen.getByLabelText(/formato de impresión/i), 'vuelos');
 
-    // La solicitud a la agencia va antes de autorizar: la enviada ya se marca.
+    // La solicitud a la agencia también se manda antes de autorizar.
     const casilla = screen.getByRole('checkbox', { name: /incluir VIA-TEST-0005 en el concentrado/i });
     expect(casilla).not.toBeDisabled();
     await usuario.click(casilla);
