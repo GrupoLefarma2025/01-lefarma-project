@@ -11,8 +11,6 @@ public sealed class ConfigModuloResponse
 
     public string? Descripcion { get; set; }
 
-    public int Orden { get; set; }
-
     public bool Activo { get; set; }
 
     /// <summary>Variables ligadas al módulo (incluye inactivas).</summary>
@@ -32,8 +30,6 @@ public sealed class CreateConfigModuloRequest
     public string Nombre { get; set; } = string.Empty;
 
     public string? Descripcion { get; set; }
-
-    public int Orden { get; set; }
 }
 
 /// <summary>Actualización de un módulo. La clave es inmutable.</summary>
@@ -42,6 +38,4 @@ public sealed class UpdateConfigModuloRequest
     public string Nombre { get; set; } = string.Empty;
 
     public string? Descripcion { get; set; }
-
-    public int Orden { get; set; }
 }

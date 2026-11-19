@@ -16,7 +16,6 @@ public class ConfigModuloConfiguration : IEntityTypeConfiguration<ConfigModulo>
         builder.Property(m => m.Clave).HasColumnName("clave").HasMaxLength(50).IsRequired();
         builder.Property(m => m.Nombre).HasColumnName("nombre").HasMaxLength(200).IsRequired();
         builder.Property(m => m.Descripcion).HasColumnName("descripcion").HasMaxLength(1000);
-        builder.Property(m => m.Orden).HasColumnName("orden").HasDefaultValue(0).IsRequired();
         builder.Property(m => m.Activo).HasColumnName("activo").HasDefaultValue(true).IsRequired();
         builder.Property(m => m.FechaCreacion).HasColumnName("fecha_creacion").IsRequired();
         builder.Property(m => m.FechaModificacion).HasColumnName("fecha_modificacion").IsRequired();

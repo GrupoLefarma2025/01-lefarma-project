@@ -6,11 +6,17 @@
 -- TARGET: LefarmaDev / Lefarma (familia .lefarma)
 --
 -- QUÉ CREA (idempotente)
---   1) config.modulos            — catálogo de módulos que agrupan variables.
---   2) Módulo「global」sembrado  — destino de las variables compartidas y de
---                                  todas las variables que ya existían.
+--   1) config.modulos             — catálogo de módulos que agrupan variables.
+--   2) Módulo「global」sembrado   — destino de las variables compartidas y de
+--                                   todas las variables que ya existían.
 --   3) config.variables.id_modulo — FK opcional hacia config.modulos con su
---                                  índice de filtrado y backfill a「global」.
+--                                   índice de filtrado y backfill a「global」.
+--
+-- QUÉ RETIRA (idempotente)
+--   La columna config.modulos.orden se administraba a mano y se retiró del
+--   producto: el catálogo se presenta por nombre. Si el script ya se ejecutó
+--   antes con esa columna (LefarmaDev), este relanzamiento la elimina junto
+--   con su índice y su default.
 --
 -- POR QUÉ
 --   La clave de una variable nueva pasa a ser modulo.namespace.clave. El
@@ -20,7 +26,7 @@
 --
 -- QUÉ NO HACE
 --   - No elimina variables ni les cambia la clave: las existentes conservan su
---     formato módulo.clave de dos segmentos y quedan ligadas a「global」.
+--     formato namespace.clave de dos segmentos y quedan ligadas a「global」.
 --   - No crea triggers: la bitácora de variables sigue siendo append-only y la
 --     escribe únicamente la API.
 --   - No asigna permisos: el CRUD de módulos reutiliza los permisos de
@@ -34,7 +40,9 @@
 --   Las sentencias que tocan la columna nueva van en SQL dinámico: la columna
 --   no existe cuando el lote se compila, pero sí cuando esa sentencia corre.
 --
--- ESTADO: pendiente de aplicar en todos los ambientes. No se ha ejecutado.
+-- ESTADO: aplicado en LefarmaDev (Q-20261119-163418-b0d2). Pendiente en
+--   Lefarma (productivo, Q-20261119-164511-441c) y de relanzarse en LefarmaDev
+--   para retirar la columna orden. No se ha ejecutado en productivo.
 -- =============================================================================
 
 SET NOCOUNT ON;
@@ -58,7 +66,6 @@ BEGIN
         clave                     NVARCHAR(50)  NOT NULL,
         nombre                    NVARCHAR(200) NOT NULL,
         descripcion               NVARCHAR(1000) NULL,
-        orden                     INT           NOT NULL CONSTRAINT DF_config_modulos_orden DEFAULT (0),
         activo                    BIT           NOT NULL CONSTRAINT DF_config_modulos_activo DEFAULT (1),
         fecha_creacion            DATETIME2(3)  NOT NULL CONSTRAINT DF_config_modulos_fecha_creacion DEFAULT (SYSUTCDATETIME()),
         fecha_modificacion        DATETIME2(3)  NOT NULL CONSTRAINT DF_config_modulos_fecha_modificacion DEFAULT (SYSUTCDATETIME()),
@@ -79,7 +86,8 @@ BEGIN
     PRINT 'config.modulos ya existe; sin cambios.';
 END
 
-IF NOT EXISTS
+-- Retiro de la columna orden en instalaciones donde ya existía.
+IF EXISTS
 (
     SELECT 1
     FROM sys.indexes
@@ -87,8 +95,25 @@ IF NOT EXISTS
       AND object_id = OBJECT_ID(N'config.modulos')
 )
 BEGIN
-    CREATE INDEX IX_config_modulos_orden
-        ON config.modulos (orden, nombre);
+    DROP INDEX IX_config_modulos_orden ON config.modulos;
+    PRINT 'Retirado el índice IX_config_modulos_orden.';
+END
+
+IF COL_LENGTH(N'config.modulos', N'orden') IS NOT NULL
+BEGIN
+    IF EXISTS
+    (
+        SELECT 1
+        FROM sys.default_constraints
+        WHERE name = N'DF_config_modulos_orden'
+          AND parent_object_id = OBJECT_ID(N'config.modulos')
+    )
+    BEGIN
+        EXEC (N'ALTER TABLE config.modulos DROP CONSTRAINT DF_config_modulos_orden;');
+    END
+
+    EXEC (N'ALTER TABLE config.modulos DROP COLUMN orden;');
+    PRINT 'Retirada la columna config.modulos.orden.';
 END
 
 -- =============================================================================
@@ -96,10 +121,10 @@ END
 -- =============================================================================
 IF NOT EXISTS (SELECT 1 FROM config.modulos WHERE clave = N'global')
 BEGIN
-    INSERT INTO config.modulos (clave, nombre, descripcion, orden, activo)
+    INSERT INTO config.modulos (clave, nombre, descripcion, activo)
     VALUES (N'global', N'Global',
             N'Variables compartidas por todas las aplicaciones. Es el módulo por omisión de las variables anteriores a los módulos.',
-            0, 1);
+            1);
 
     PRINT 'Sembrado el módulo global.';
 END
@@ -164,11 +189,10 @@ SELECT
     m.id_modulo,
     m.clave,
     m.nombre,
-    m.orden,
     m.activo,
     VariablesDelModulo = COUNT(v.id_variable)
 FROM config.modulos AS m
 LEFT JOIN config.variables AS v ON v.id_modulo = m.id_modulo
-GROUP BY m.id_modulo, m.clave, m.nombre, m.orden, m.activo
-ORDER BY m.orden, m.nombre;
+GROUP BY m.id_modulo, m.clave, m.nombre, m.activo
+ORDER BY m.nombre;
 ');

@@ -36,8 +36,7 @@ public sealed partial class ConfiguracionModulosService : IConfiguracionModulosS
         }
 
         var modulos = await query
-            .OrderBy(m => m.Orden)
-            .ThenBy(m => m.Nombre)
+            .OrderBy(m => m.Nombre)
             .ThenBy(m => m.IdModulo)
             .ToListAsync(ct);
 
@@ -104,7 +103,6 @@ public sealed partial class ConfiguracionModulosService : IConfiguracionModulosS
             Clave = clave,
             Nombre = nombre,
             Descripcion = string.IsNullOrWhiteSpace(request.Descripcion) ? null : request.Descripcion.Trim(),
-            Orden = request.Orden,
             Activo = true,
             FechaCreacion = ahora,
             FechaModificacion = ahora,
@@ -159,7 +157,6 @@ public sealed partial class ConfiguracionModulosService : IConfiguracionModulosS
         entidad.Descripcion = string.IsNullOrWhiteSpace(request.Descripcion)
             ? null
             : request.Descripcion.Trim();
-        entidad.Orden = request.Orden;
         entidad.FechaModificacion = DateTime.UtcNow;
         entidad.IdUsuarioModificacion = idUsuario;
 
@@ -223,7 +220,6 @@ public sealed partial class ConfiguracionModulosService : IConfiguracionModulosS
             Clave = modulo.Clave,
             Nombre = modulo.Nombre,
             Descripcion = modulo.Descripcion,
-            Orden = modulo.Orden,
             Activo = modulo.Activo,
             TotalVariables = totalVariables,
             FechaCreacion = modulo.FechaCreacion,

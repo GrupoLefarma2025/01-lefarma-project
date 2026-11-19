@@ -16,9 +16,6 @@ public class ConfigModulo
 
     public string? Descripcion { get; set; }
 
-    /// <summary>Orden de presentación en los selectores y el catálogo.</summary>
-    public int Orden { get; set; }
-
     public bool Activo { get; set; } = true;
 
     public DateTime FechaCreacion { get; set; }
