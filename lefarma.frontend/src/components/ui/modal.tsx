@@ -24,6 +24,8 @@ interface ModalProps {
     busy?: boolean;
     /** Texto del indicador de progreso cuando `busy` está activo. */
     busyLabel?: string;
+    /** Clases adicionales para el cuerpo (por ejemplo, para que el contenido se distribuya en todo el alto disponible). */
+    bodyClassName?: string;
 }
 
 export const Modal: React.FC<ModalProps> = ({
@@ -40,6 +42,7 @@ export const Modal: React.FC<ModalProps> = ({
     compact = false,
     busy = false,
     busyLabel,
+    bodyClassName,
 }) => {
     // Estilos basados en el tamaño estándar
     const getSizeStyles = () => {
@@ -107,7 +110,7 @@ export const Modal: React.FC<ModalProps> = ({
                     </DialogDescription>
                 </DialogHeader>
                 <hr className="border-border shrink-0" />
-                <div className={cn('min-h-0 flex-1 overflow-y-auto', compact ? '-mx-4 px-4 py-2' : '-mx-6 px-6 py-4')}>{children}</div>
+                <div className={cn('min-h-0 flex-1 overflow-y-auto', compact ? '-mx-4 px-4 py-2' : '-mx-6 px-6 py-4', bodyClassName)}>{children}</div>
                 <hr className="border-border shrink-0" />
                 <DialogFooter className="shrink-0">
                     {footer ? (
