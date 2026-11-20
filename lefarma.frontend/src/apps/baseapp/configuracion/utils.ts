@@ -10,20 +10,22 @@ import { checkPermission } from '@/utils/permissions';
 import {
   TIPO_DATO_BACKEND,
   TIPOS_DATO,
+  esTipoRango,
   type DestinoConfig,
   type JsonSchemaNodo,
   type SchemaField,
   type TipoCampoConstructor,
   type TipoDatoConfig,
+  type TipoDatoRango,
 } from './types';
 
 /* ------------------------------------------------------------------ */
 /* Texto y claves                                                      */
 /* ------------------------------------------------------------------ */
 
-export const CLAVE_REGEX = /^[a-z][a-zA-Z0-9]*(\.[a-z][a-zA-Z0-9]*)+$/;
+export const CLAVE_REGEX = /^[a-z][a-zA-Z0-9_]*(\.[a-z][a-zA-Z0-9_]*)+$/;
 /** Clave de una variable con módulo: `modulo.namespace.clave` (3 segmentos). */
-export const CLAVE_MODULO_REGEX = /^[a-z][a-zA-Z0-9]*(\.[a-z][a-zA-Z0-9]*){2}$/;
+export const CLAVE_MODULO_REGEX = /^[a-z][a-zA-Z0-9_]*(\.[a-z][a-zA-Z0-9_]*){2}$/;
 export const NOMBRE_CAMPO_REGEX = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 export function sinAcentos(texto: string): string {
@@ -98,6 +100,46 @@ export function namespacesDeVariables(
 }
 
 /**
+ * Patrones de claves permitidas para una llave de integración según el alcance
+ * elegido. Sin módulo, namespace ni clave devuelve una lista vacía (sin restricción).
+ *
+ * - Clave → coincidencia exacta.
+ * - Módulo y namespace → `modulo.namespace.*`.
+ * - Sólo módulo → `modulo.*`.
+ * - Sólo namespace → un patrón por módulo que tenga ese namespace; las claves
+ *   legadas de dos segmentos se cubren con `namespace.*`.
+ */
+export function patronesAlcanceIntegracion(
+  variables: ReadonlyArray<{ clave: string }>,
+  modulo: string | null,
+  namespace: string | null,
+  clave: string | null,
+): string[] {
+  if (clave) return [clave];
+  if (modulo && namespace) return [`${modulo}.${namespace}.*`];
+  if (modulo) return [`${modulo}.*`];
+  if (!namespace) return [];
+
+  const modulos = Array.from(
+    new Set(
+      variables
+        .filter((variable) => namespaceDeClave(variable.clave) === namespace)
+        .map((variable) => moduloDeClave(variable.clave))
+        .filter((valor): valor is string => valor !== null),
+    ),
+  ).sort((a, b) => a.localeCompare(b, 'es'));
+
+  const patrones = modulos.map((valor) => `${valor}.${namespace}.*`);
+  const hayClavesLegadas = variables.some(
+    (variable) =>
+      moduloDeClave(variable.clave) === null && namespaceDeClave(variable.clave) === namespace,
+  );
+  if (hayClavesLegadas) patrones.push(`${namespace}.*`);
+
+  return patrones;
+}
+
+/**
  * Normaliza un segmento de clave mientras se escribe: minúsculas, los espacios
  * se vuelven `_` y cualquier signo fuera de `a-z0-9_` se descarta.
  * `Días límite!` → `dias_limite`.
@@ -112,6 +154,16 @@ export function aSegmentoClave(texto: string): string {
     .replace(/^\d+_?/, '');
 }
 
+/**
+ * Igual que `aSegmentoClave`, pero conserva el `_` final que produce un espacio
+ * recién escrito. Si se recortara, el espacio desaparecería antes de la
+ * siguiente letra y nunca se vería el guion bajo.
+ */
+export function aSegmentoClaveAlEscribir(texto: string): string {
+  const normalizado = aSegmentoClave(texto);
+  return /\s$/.test(texto) && normalizado ? `${normalizado}_` : normalizado;
+}
+
 export function validarClave(
   clave: string,
   opciones?: { requiereModulo?: boolean },
@@ -120,12 +172,12 @@ export function validarClave(
   if (clave.trim().length > 200) return 'La clave no puede exceder 200 caracteres.';
   if (opciones?.requiereModulo) {
     if (!CLAVE_MODULO_REGEX.test(clave.trim())) {
-      return 'Usa el formato módulo.namespace.clave en minúsculas (ej. viaticos.catalogo.diasLimite).';
+      return 'Usa el formato módulo.namespace.clave en minúsculas (ej. viaticos.catalogo.dias_limite).';
     }
     return null;
   }
   if (!CLAVE_REGEX.test(clave.trim())) {
-    return 'Usa al menos namespace.clave en minúsculas (ej. viaticos.diasLimite).';
+    return 'Usa al menos namespace.clave en minúsculas (ej. viaticos.dias_limite).';
   }
   return null;
 }
@@ -165,6 +217,17 @@ const ALIAS_TIPO: Record<string, TipoDatoConfig> = {
   fechahora: 'fecha_hora',
   datetime: 'fecha_hora',
   timestamp: 'fecha_hora',
+  rangofecha: 'rango_fecha',
+  daterange: 'rango_fecha',
+  periodo: 'rango_fecha',
+  rangofechahora: 'rango_fecha_hora',
+  datetimerange: 'rango_fecha_hora',
+  rangoentero: 'rango_entero',
+  integerrange: 'rango_entero',
+  enteros: 'rango_entero',
+  rangodecimal: 'rango_decimal',
+  decimalrange: 'rango_decimal',
+  decimales: 'rango_decimal',
   seleccion: 'seleccion',
   select: 'seleccion',
   selector: 'seleccion',
@@ -270,6 +333,10 @@ export function valorPorDefecto(tipo: string, esquema?: JsonSchemaNodo | null): 
       const opciones = opcionesDeEsquema(esquema ?? null);
       return opciones[0] ?? '';
     }
+    case 'rango_fecha':
+    case 'rango_fecha_hora':
+    case 'rango_entero':
+    case 'rango_decimal':
     case 'objeto':
       return {};
     case 'lista':
@@ -292,6 +359,10 @@ export function valorInicialFormulario(tipo: string, esLista = false): unknown {
     case 'entero':
     case 'decimal':
       return null;
+    case 'rango_fecha':
+    case 'rango_fecha_hora':
+    case 'rango_entero':
+    case 'rango_decimal':
     case 'objeto':
       return {};
     case 'json':
@@ -324,6 +395,11 @@ export function valorDesdeServidor(tipo: string, valor: unknown): unknown {
     case 'hora':
     case 'fecha_hora':
       return typeof valor === 'string' ? valor : '';
+    case 'rango_fecha':
+    case 'rango_fecha_hora':
+    case 'rango_entero':
+    case 'rango_decimal':
+      return esObjetoPlano(valor) ? valor : {};
     case 'seleccion':
       return valor === null || valor === undefined ? '' : String(valor);
     case 'lista':
@@ -470,7 +546,47 @@ export function campoVacio(): SchemaField {
   };
 }
 
+/** Esquema de un rango: objeto `{ desde, hasta }` del tipo base. */
+export function esquemaRango(tipo: TipoDatoRango): JsonSchemaNodo {
+  const base: JsonSchemaNodo =
+    tipo === 'rango_fecha'
+      ? { type: 'string', format: 'date' }
+      : tipo === 'rango_fecha_hora'
+        ? { type: 'string', format: 'date-time' }
+        : tipo === 'rango_entero'
+          ? { type: 'integer' }
+          : { type: 'number' };
+
+  return {
+    type: 'object',
+    properties: { desde: { ...base }, hasta: { ...base } },
+    required: ['desde', 'hasta'],
+    additionalProperties: false,
+  };
+}
+
+/** Reconoce el esquema de un rango; null si no tiene esa forma. */
+function tipoDeEsquemaRango(nodo: JsonSchemaNodo): TipoDatoRango | null {
+  if (nodo.type !== 'object') return null;
+  const desde = nodo.properties?.desde;
+  const hasta = nodo.properties?.hasta;
+  if (!esObjetoPlano(desde) || !esObjetoPlano(hasta)) return null;
+
+  const tipoBase = tipoDeNodo(desde as JsonSchemaNodo);
+  return tipoBase === 'fecha'
+    ? 'rango_fecha'
+    : tipoBase === 'fecha_hora'
+      ? 'rango_fecha_hora'
+      : tipoBase === 'entero'
+        ? 'rango_entero'
+        : tipoBase === 'decimal'
+          ? 'rango_decimal'
+          : null;
+}
+
 function esquemaDeTipo(tipo: TipoCampoConstructor): JsonSchemaNodo {
+  if (esTipoRango(tipo)) return esquemaRango(tipo);
+
   switch (tipo) {
     case 'texto_corto':
       return { type: 'string' };
@@ -613,6 +729,11 @@ export function construirEsquema(config: ConfiguracionEsquema): JsonSchemaNodo |
 
   let base: JsonSchemaNodo | null = null;
 
+  if (esTipoRango(t)) {
+    const esquema = esquemaRango(t);
+    return config.esLista ? { type: 'array', items: esquema } : esquema;
+  }
+
   if (t === 'objeto') {
     base = esquemaObjetoDesdeCampos(config.campos, config.clavesAdicionales);
   } else if (t === 'seleccion') {
@@ -668,7 +789,7 @@ export function itemListaDeEsquema(esquema: unknown): ItemListaConfig {
 }
 
 function tipoDeNodo(nodo: JsonSchemaNodo): TipoCampoConstructor {
-  if (nodo.type === 'object') return 'objeto';
+  if (nodo.type === 'object') return tipoDeEsquemaRango(nodo) ?? 'objeto';
   if (nodo.type === 'array') return 'lista';
   if (nodo.type === 'integer') return 'entero';
   if (nodo.type === 'number') return 'decimal';
@@ -937,6 +1058,79 @@ function validarContraEsquema(
   }
 }
 
+const REGEX_FECHA_RANGO = /^\d{4}-\d{2}-\d{2}$/;
+
+/** Valida un rango `{ desde, hasta }` del tipo indicado y su orden. */
+function validarRangoVariable(tipo: TipoDatoRango, valor: unknown): string[] {
+  if (!esObjetoPlano(valor)) {
+    return ['Completa el rango con un valor desde y uno hasta.'];
+  }
+
+  const errores: string[] = [];
+
+  const validarExtremo = (nombre: 'desde' | 'hasta'): string | number | null => {
+    const extremo = valor[nombre];
+
+    if (extremo === null || extremo === undefined || extremo === '') {
+      errores.push(`Indica el valor «${nombre}» del rango.`);
+      return null;
+    }
+
+    if (tipo === 'rango_fecha') {
+      if (typeof extremo !== 'string' || !REGEX_FECHA_RANGO.test(extremo)) {
+        errores.push(`El valor «${nombre}» debe ser una fecha válida.`);
+        return null;
+      }
+      return extremo;
+    }
+
+    if (tipo === 'rango_fecha_hora') {
+      if (
+        typeof extremo !== 'string' ||
+        !extremo ||
+        Number.isNaN(new Date(extremo).getTime())
+      ) {
+        errores.push(`El valor «${nombre}» debe ser una fecha y hora válidas.`);
+        return null;
+      }
+      return extremo;
+    }
+
+    if (typeof extremo !== 'number' || !Number.isFinite(extremo)) {
+      errores.push(`El valor «${nombre}» debe ser un número.`);
+      return null;
+    }
+
+    if (tipo === 'rango_entero' && !Number.isInteger(extremo)) {
+      errores.push(`El valor «${nombre}» debe ser un número entero.`);
+      return null;
+    }
+
+    return extremo;
+  };
+
+  const desde = validarExtremo('desde');
+  const hasta = validarExtremo('hasta');
+
+  if (desde !== null && hasta !== null) {
+    let desordenado: boolean;
+
+    if (tipo === 'rango_entero' || tipo === 'rango_decimal') {
+      desordenado = Number(desde) > Number(hasta);
+    } else if (tipo === 'rango_fecha_hora') {
+      desordenado = new Date(String(desde)).getTime() > new Date(String(hasta)).getTime();
+    } else {
+      desordenado = String(desde) > String(hasta);
+    }
+
+    if (desordenado) {
+      errores.push('El valor «desde» no puede ser mayor que el valor «hasta».');
+    }
+  }
+
+  return errores;
+}
+
 /** Valida el valor según el tipo de la variable. Devuelve mensajes. */
 export function validarValorVariable(
   tipo: string,
@@ -978,6 +1172,12 @@ export function validarValorVariable(
       if (typeof valor !== 'string' || !valor || Number.isNaN(new Date(valor).getTime())) {
         errores.push('Selecciona una fecha y hora válidas.');
       }
+      break;
+    case 'rango_fecha':
+    case 'rango_fecha_hora':
+    case 'rango_entero':
+    case 'rango_decimal':
+      errores.push(...validarRangoVariable(t, valor));
       break;
     case 'seleccion': {
       if (typeof valor !== 'string' || !valor) {

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   aSegmentoClave,
+  aSegmentoClaveAlEscribir,
   calcularDiff,
   construirClave,
   construirEsquema,
@@ -9,8 +10,10 @@ import {
   namespaceDeClave,
   namespacesDeVariables,
   normalizarTipoDato,
+  patronesAlcanceIntegracion,
   nuevoIdOperacion,
   tipoDatoBackend,
+  validarClave,
   validarValorVariable,
   valorInicialFormulario,
 } from '../utils';
@@ -54,6 +57,31 @@ describe('configuracion utils', () => {
         { clave: 'pruebas.otra' },
       ]),
     ).toEqual(['pruebas', 'zona']);
+  });
+
+  it('calcula el alcance de una llave de integración por módulo, namespace o clave', () => {
+    const variables = [
+      { clave: 'global.configuracion.enviar' },
+      { clave: 'global.configuracion.otra' },
+      { clave: 'global.pagos.terminal' },
+      { clave: 'viaticos.configuracion.limite' },
+      { clave: 'viaticos.catalogo.dias' },
+      { clave: 'legado.clave' },
+    ];
+
+    expect(patronesAlcanceIntegracion(variables, null, null, null)).toEqual([]);
+    expect(patronesAlcanceIntegracion(variables, 'global', null, null)).toEqual(['global.*']);
+    expect(patronesAlcanceIntegracion(variables, 'global', 'configuracion', null)).toEqual([
+      'global.configuracion.*',
+    ]);
+    expect(patronesAlcanceIntegracion(variables, null, 'configuracion', null)).toEqual([
+      'global.configuracion.*',
+      'viaticos.configuracion.*',
+    ]);
+    expect(patronesAlcanceIntegracion(variables, null, 'legado', null)).toEqual(['legado.*']);
+    expect(patronesAlcanceIntegracion(variables, null, null, 'global.pagos.terminal')).toEqual([
+      'global.pagos.terminal',
+    ]);
   });
 
   it('genera idOperacion UUID aun cuando randomUUID no está disponible', () => {
@@ -236,5 +264,108 @@ describe('configuracion utils', () => {
     expect(aSegmentoClave('123 clave')).toBe('clave');
     expect(aSegmentoClave('___')).toBe('');
     expect(aSegmentoClave('clave.mala')).toBe('clavemala');
+  });
+
+  it('conserva el guion bajo del espacio recién escrito', () => {
+    expect(aSegmentoClaveAlEscribir('dias ')).toBe('dias_');
+    expect(aSegmentoClaveAlEscribir('dias l')).toBe('dias_l');
+    expect(aSegmentoClaveAlEscribir('dias_limite ')).toBe('dias_limite_');
+    expect(aSegmentoClaveAlEscribir('dias')).toBe('dias');
+    expect(aSegmentoClaveAlEscribir(' ')).toBe('');
+  });
+
+  it('acepta guiones bajos en las claves', () => {
+    expect(validarClave('viaticos.catalogo.dias_limite', { requiereModulo: true })).toBeNull();
+    expect(validarClave('catalogo.dias_limite')).toBeNull();
+    expect(validarClave('viaticos.catalogo.dias limite', { requiereModulo: true })).not.toBeNull();
+  });
+
+  it('mapea los rangos al valor canónico del backend', () => {
+    expect(tipoDatoBackend('rango_fecha')).toBe('date_range');
+    expect(tipoDatoBackend('rango_fecha_hora')).toBe('datetime_range');
+    expect(tipoDatoBackend('rango_entero')).toBe('integer_range');
+    expect(tipoDatoBackend('rango_decimal')).toBe('decimal_range');
+    expect(normalizarTipoDato('date_range')).toBe('rango_fecha');
+    expect(normalizarTipoDato('datetime_range')).toBe('rango_fecha_hora');
+    expect(normalizarTipoDato('integer_range')).toBe('rango_entero');
+    expect(normalizarTipoDato('decimal_range')).toBe('rango_decimal');
+  });
+
+  it('construye el esquema de un rango como objeto desde/hasta', () => {
+    expect(
+      construirEsquema({
+        tipo: 'rango_fecha',
+        campos: [],
+        opciones: [],
+        clavesAdicionales: false,
+      }),
+    ).toEqual({
+      type: 'object',
+      required: ['desde', 'hasta'],
+      additionalProperties: false,
+      properties: {
+        desde: { type: 'string', format: 'date' },
+        hasta: { type: 'string', format: 'date' },
+      },
+    });
+
+    expect(
+      construirEsquema({
+        tipo: 'rango_entero',
+        esLista: true,
+        campos: [],
+        opciones: [],
+        clavesAdicionales: false,
+      }),
+    ).toEqual({
+      type: 'array',
+      items: {
+        type: 'object',
+        required: ['desde', 'hasta'],
+        additionalProperties: false,
+        properties: {
+          desde: { type: 'integer' },
+          hasta: { type: 'integer' },
+        },
+      },
+    });
+  });
+
+  it('valida que el rango tenga ambos extremos y en orden', () => {
+    expect(
+      validarValorVariable('rango_fecha', { desde: '2026-01-01', hasta: '2026-03-31' }, null),
+    ).toEqual([]);
+    expect(validarValorVariable('rango_fecha', { desde: '2026-01-01' }, null)).toHaveLength(1);
+    expect(
+      validarValorVariable('rango_fecha', { desde: '2026-03-31', hasta: '2026-01-01' }, null)[0],
+    ).toContain('no puede ser mayor');
+
+    expect(validarValorVariable('rango_fecha_hora', {
+      desde: '2026-01-01T08:00:00.000Z',
+      hasta: '2026-01-01T18:00:00.000Z',
+    }, null)).toEqual([]);
+
+    expect(validarValorVariable('rango_entero', { desde: 10, hasta: 20 }, null)).toEqual([]);
+    expect(validarValorVariable('rango_entero', { desde: 10.5, hasta: 20 }, null)).toHaveLength(1);
+    expect(validarValorVariable('rango_decimal', { desde: 1.5, hasta: 9.99 }, null)).toEqual([]);
+    expect(validarValorVariable('rango_fecha', null, null)).toHaveLength(1);
+  });
+
+  it('reconoce el tipo de un rango al leer el esquema', () => {
+    const [vigencia] = esquemaACampos({
+      type: 'object',
+      properties: {
+        vigencia: {
+          type: 'object',
+          required: ['desde', 'hasta'],
+          properties: {
+            desde: { type: 'string', format: 'date' },
+            hasta: { type: 'string', format: 'date' },
+          },
+        },
+      },
+    });
+
+    expect(vigencia.tipo).toBe('rango_fecha');
   });
 });

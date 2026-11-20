@@ -8,7 +8,9 @@ import { Modal } from '@/components/ui/modal';
 import { Textarea } from '@/components/ui/textarea';
 import { actualizarModulo, crearModulo } from '../services/configuracionAdminApi';
 import type { ModuloConfig } from '../types';
-import { mensajeError, aSegmentoClave, sinAcentos } from '../utils';
+import { mensajeError, aSegmentoClaveAlEscribir, sinAcentos } from '../utils';
+import { colorAleatorioModulo, colorDeModulo } from '../colores';
+import { ColorPickerModulo } from './ColorPickerModulo';
 
 const CLAVE_MODULO_REGEX = /^[a-z][a-z0-9_]*$/;
 
@@ -40,6 +42,7 @@ export function ModuloEditorDialog({
   const [nombre, setNombre] = useState('');
   const [clave, setClave] = useState('');
   const [descripcion, setDescripcion] = useState('');
+  const [color, setColor] = useState(colorAleatorioModulo());
   const [intento, setIntento] = useState(false);
   const [guardando, setGuardando] = useState(false);
 
@@ -48,6 +51,9 @@ export function ModuloEditorDialog({
     setNombre(modulo?.nombre ?? '');
     setClave(modulo?.clave ?? '');
     setDescripcion(modulo?.descripcion ?? '');
+    setColor(
+      modulo ? colorDeModulo(modulo.color, modulo.clave) : colorAleatorioModulo(),
+    );
     setIntento(false);
     setGuardando(false);
   }, [open, modulo]);
@@ -74,6 +80,7 @@ export function ModuloEditorDialog({
       const payload = {
         nombre: nombre.trim(),
         descripcion: descripcion.trim() || null,
+        color,
       };
       const guardado = esEdicion
         ? await actualizarModulo(modulo.idModulo, payload)
@@ -164,7 +171,8 @@ export function ModuloEditorDialog({
         <Input
           id="modulo-clave"
           value={clave}
-          onChange={(e) => setClave(aSegmentoClave(e.target.value).slice(0, 50))}
+          onChange={(e) => setClave(aSegmentoClaveAlEscribir(e.target.value).slice(0, 50))}
+          onBlur={() => setClave((valor) => valor.replace(/_+$/, ''))}
           placeholder="Ej. viaticos"
           className="h-9 font-mono text-sm"
           maxLength={50}
@@ -181,6 +189,22 @@ export function ModuloEditorDialog({
       </div>
 
       <div className="flex flex-col gap-1">
+        <Label htmlFor="modulo-color" className="text-xs">
+          Color del módulo
+        </Label>
+        <p className="text-[10px] leading-snug text-muted-foreground">
+          Se muestra en la pantalla principal para identificar el módulo. Si no
+          eliges uno, se asigna al azar.
+        </p>
+        <ColorPickerModulo
+          id="modulo-color"
+          value={color}
+          onChange={setColor}
+          disabled={guardando}
+        />
+      </div>
+
+      <div className="flex flex-col gap-1">
         <Label htmlFor="modulo-descripcion" className="text-xs">
           Descripción{' '}
           <span className="font-normal text-muted-foreground">(opcional)</span>
@@ -190,7 +214,7 @@ export function ModuloEditorDialog({
           value={descripcion}
           onChange={(e) => setDescripcion(e.target.value)}
           placeholder="Para qué sirve este módulo y qué variables agrupa"
-          className="resize-none text-sm"
+          className="resize-none border-border text-sm"
           rows={3}
           maxLength={1000}
         />

@@ -23,6 +23,10 @@ export type TipoDatoConfig =
   | 'fecha'
   | 'hora'
   | 'fecha_hora'
+  | 'rango_fecha'
+  | 'rango_fecha_hora'
+  | 'rango_entero'
+  | 'rango_decimal'
   | 'seleccion'
   | 'objeto'
   | 'lista'
@@ -129,6 +133,42 @@ export const TIPOS_DATO: TipoDatoDefinicion[] = [
     tono: 'violet',
   },
   {
+    valor: 'rango_fecha',
+    etiqueta: 'Rango de fechas',
+    descripcion: 'Desde y hasta una fecha',
+    explicacion: 'Un periodo con fecha inicial y final, por ejemplo una vigencia.',
+    ejemplo: '{ "desde": "2026-01-01", "hasta": "2026-03-31" }',
+    editor: 'Dos calendarios (desde / hasta)',
+    tono: 'rose',
+  },
+  {
+    valor: 'rango_fecha_hora',
+    etiqueta: 'Rango de fecha y hora',
+    descripcion: 'Desde y hasta un momento',
+    explicacion: 'Un periodo con hora de inicio y de fin, por ejemplo una ventana de mantenimiento.',
+    ejemplo: '{ "desde": "2026-01-01T08:00", "hasta": "2026-01-01T18:00" }',
+    editor: 'Calendario y hora (desde / hasta)',
+    tono: 'violet',
+  },
+  {
+    valor: 'rango_entero',
+    etiqueta: 'Rango de enteros',
+    descripcion: 'Desde y hasta un entero',
+    explicacion: 'Un intervalo de cantidades sin decimales, por ejemplo de 10 a 20 piezas.',
+    ejemplo: '{ "desde": 10, "hasta": 20 }',
+    editor: 'Dos campos numéricos (desde / hasta)',
+    tono: 'amber',
+  },
+  {
+    valor: 'rango_decimal',
+    etiqueta: 'Rango de decimales',
+    descripcion: 'Desde y hasta un decimal',
+    explicacion: 'Un intervalo de importes o medidas, por ejemplo de 100.50 a 500.00.',
+    ejemplo: '{ "desde": 100.5, "hasta": 500 }',
+    editor: 'Dos campos numéricos (desde / hasta)',
+    tono: 'orange',
+  },
+  {
     valor: 'seleccion',
     etiqueta: 'Selección',
     descripcion: 'Una opción de una lista',
@@ -171,6 +211,30 @@ export const TIPOS_DATO_SELECCIONABLES = TIPOS_DATO.filter(
   (tipo) => tipo.valor !== 'lista',
 );
 
+/** Tipos con forma de rango: se guardan como `{ desde, hasta }`. */
+export const TIPOS_DATO_RANGO = [
+  'rango_fecha',
+  'rango_fecha_hora',
+  'rango_entero',
+  'rango_decimal',
+] as const;
+
+export type TipoDatoRango = (typeof TIPOS_DATO_RANGO)[number];
+
+export function esTipoRango(
+  tipo: string | null | undefined,
+): tipo is TipoDatoRango {
+  return Boolean(tipo) && (TIPOS_DATO_RANGO as readonly string[]).includes(tipo as string);
+}
+
+/**
+ * Tipos que puede tener un campo del constructor de objetos. Los rangos y la
+ * lista solo se eligen como tipo principal de la variable.
+ */
+export const TIPOS_DATO_CAMPO = TIPOS_DATO.filter(
+  (tipo) => tipo.valor !== 'lista' && !esTipoRango(tipo.valor),
+);
+
 export const ETIQUETA_TIPO: Record<string, string> = Object.fromEntries(
   TIPOS_DATO.map((t) => [t.valor, t.etiqueta]),
 );
@@ -188,6 +252,10 @@ export const TIPO_DATO_BACKEND: Record<TipoDatoConfig, string> = {
   fecha: 'date',
   hora: 'time',
   fecha_hora: 'datetime',
+  rango_fecha: 'date_range',
+  rango_fecha_hora: 'datetime_range',
+  rango_entero: 'integer_range',
+  rango_decimal: 'decimal_range',
   seleccion: 'enum',
   objeto: 'object',
   lista: 'array',
@@ -270,6 +338,8 @@ export interface ModuloConfig {
   clave: string;
   nombre: string;
   descripcion: string | null;
+  /** Color hex #rrggbb para identificarlo en la pantalla principal. */
+  color: string | null;
   activo: boolean;
   totalVariables: number;
   fechaCreacion: string;
@@ -341,11 +411,15 @@ export interface CrearModuloPayload {
   clave: string;
   nombre: string;
   descripcion: string | null;
+  /** Si es null, el backend asigna un color al azar. */
+  color: string | null;
 }
 
 export interface ActualizarModuloPayload {
   nombre: string;
   descripcion: string | null;
+  /** Si es null, se conserva el color actual. */
+  color: string | null;
 }
 
 export interface ActualizarVariablePayload {
@@ -403,19 +477,11 @@ export interface JsonSchemaNodo {
   [clave: string]: unknown;
 }
 
-export type TipoCampoConstructor =
-  | 'texto_corto'
-  | 'texto_largo'
-  | 'entero'
-  | 'decimal'
-  | 'booleano'
-  | 'fecha'
-  | 'hora'
-  | 'fecha_hora'
-  | 'seleccion'
-  | 'objeto'
-  | 'lista'
-  | 'json';
+/**
+ * Tipo de un campo del constructor de objetos. Comparte los valores con
+ * `TipoDatoConfig`; el constructor solo ofrece los de `TIPOS_DATO_CAMPO`.
+ */
+export type TipoCampoConstructor = TipoDatoConfig;
 
 /** Modelo editable del constructor de objetos (solo UI, no se envía). */
 export interface SchemaField {

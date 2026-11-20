@@ -19,6 +19,7 @@ import { cn } from '@/lib/utils';
 import { desactivarModulo, reactivarModulo } from '../services/configuracionAdminApi';
 import type { ModuloConfig } from '../types';
 import { formatearFecha, mensajeError } from '../utils';
+import { colorDeModulo, colorTextoContraste } from '../colores';
 import { ModuloEditorDialog } from './ModuloEditorDialog';
 
 interface ModulosPanelProps {
@@ -109,6 +110,7 @@ export function ModulosPanel({
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {modulos.map((modulo) => {
             const esGlobal = modulo.clave === 'global';
+            const color = colorDeModulo(modulo.color, modulo.clave);
             return (
               <article
                 key={modulo.idModulo}
@@ -118,7 +120,14 @@ export function ModulosPanel({
                 )}
               >
                 <div className="flex items-start gap-2">
-                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+                  <span
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
+                    style={{
+                      backgroundColor: color,
+                      color: colorTextoContraste(color),
+                    }}
+                    title={`Color del módulo: ${color}`}
+                  >
                     <Boxes className="h-4 w-4" />
                   </span>
                   <div className="min-w-0 flex-1">
