@@ -148,7 +148,11 @@ export function FlujoOrdenPDF({ orden, progresoPasos, eventosPorPaso, pasosMap }
     minute: '2-digit',
   });
 
-  const estInfo = ESTADO_INFO[orden.idEstado] ?? { label: `Estado ${orden.idEstado}`, bg: '#dbeafe', color: '#1e3a8a' };
+  const estInfo = ESTADO_INFO[orden.idEstado] ?? {
+    label: orden.estadoNombre ?? `Estado ${orden.idEstado}`,
+    bg: '#dbeafe',
+    color: '#1e3a8a',
+  };
   const estadoBg = estInfo.bg;
   const estadoColor = estInfo.color;
 

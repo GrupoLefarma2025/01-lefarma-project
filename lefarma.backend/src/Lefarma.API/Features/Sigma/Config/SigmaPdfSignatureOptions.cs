@@ -8,6 +8,9 @@ public sealed class SigmaPdfSignatureOptions
 {
     public const string SectionName = "Sigma:PdfSignature";
 
+    /// <summary>Motor de firma: <c>csharp</c> (nativo) o <c>python</c> (script original).</summary>
+    public string Motor { get; set; } = "csharp";
+
     /// <summary>Ejecutable de Python; por defecto el que esté en el PATH.</summary>
     public string PythonExe { get; set; } = "python";
 
@@ -20,6 +23,6 @@ public sealed class SigmaPdfSignatureOptions
     /// <summary>Texto del PDF que se sustituye por la imagen de la firma.</summary>
     public string SearchText { get; set; } = "#firmad";
 
-    /// <summary>Tiempo máximo de ejecución del script, en segundos.</summary>
+    /// <summary>Tiempo máximo de ejecución del firmado, en segundos.</summary>
     public int TimeoutSeconds { get; set; } = 120;
 }
