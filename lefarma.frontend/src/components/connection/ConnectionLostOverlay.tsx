@@ -60,8 +60,12 @@ export function ConnectionLostOverlay() {
             variant="outline"
             onClick={() => navigate('/login')}
             style={{
-              borderColor: 'rgba(255,255,255,0.4)',
-              color: 'white',
+              // Fondo blanco y texto oscuro: es la única combinación que se lee
+              // seguro sobre el aviso (antes el texto blanco se perdía en el
+              // fondo claro del botón outline).
+              background: 'white',
+              borderColor: 'rgba(255, 255, 255, 0.4)',
+              color: '#111',
               fontWeight: 500,
               cursor: 'pointer',
             }}

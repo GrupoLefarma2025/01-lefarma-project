@@ -14,6 +14,23 @@
     }
   })();
 </script>
+  <script>
+  // Centinela de arranque: si el bundle no llega a ejecutarse, main.tsx nunca
+  // corre y la telemetría no arranca. Este script deja guardado el fallo para
+  // que la siguiente carga lo envíe.
+  (function () {
+    var pendientes = (window.__telemetriaArranque = window.__telemetriaArranque || []);
+    window.addEventListener('error', function (evento) {
+      var objetivo = evento && evento.target;
+      if (objetivo && objetivo.tagName === 'SCRIPT') {
+        pendientes.push({
+          mensaje: 'No se pudo cargar el bundle ' + (objetivo.src || '(sin src)'),
+          url: objetivo.src
+        });
+      }
+    }, true);
+  })();
+</script>
 </head>
 
 <body>

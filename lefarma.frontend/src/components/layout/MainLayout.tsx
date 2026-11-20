@@ -1,6 +1,7 @@
-﻿import { useState } from 'react';
-import { Outlet } from 'react-router-dom';
+import { useState } from 'react';
+import { Outlet, useLocation } from 'react-router-dom';
 import { AppSidebar } from './AppSidebar';
+import { ErrorBoundary } from '@/shared/telemetria/ErrorBoundary';
 import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar';
 import { Header } from './Header';
 import { AyudaPdfModal } from '@/components/ayuda/AyudaPdfModal';
@@ -19,6 +20,7 @@ export const MainLayout = ({ items, brandTitle, brandPath, configPath, showConte
   const defaultCollapsed = true;
   const helpPdf = items.find((item): item is HelpMenuItem => 'helpPdf' in item)?.helpPdf;
   const [helpOpen, setHelpOpen] = useState(false);
+  const { pathname } = useLocation();
 
   const openHelp = () => setHelpOpen(true);
 
@@ -39,7 +41,11 @@ export const MainLayout = ({ items, brandTitle, brandPath, configPath, showConte
           onOpenHelp={openHelp}
         />
         <main className="flex-1 overflow-y-auto p-6">
-          <Outlet />
+          {/* Si una pantalla revienta, el módulo se queda vacío y al cambiar de
+              ruta se reintenta solo: el menú sigue disponible para seguir. */}
+          <ErrorBoundary resetKey={pathname}>
+            <Outlet />
+          </ErrorBoundary>
         </main>
       </SidebarInset>
       {helpPdf && (

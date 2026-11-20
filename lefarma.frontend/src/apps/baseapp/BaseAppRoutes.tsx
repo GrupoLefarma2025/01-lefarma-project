@@ -1,8 +1,10 @@
 import { Navigate, Outlet, Routes, Route } from 'react-router-dom';
+import { lazy, Suspense } from 'react';
 import { RequireAuth } from '@/shared/auth/RequireAuth';
 import { useAuthStore } from '@/shared/auth/authStore';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { PermissionGuard } from '@/components/auth/PermissionGuard';
+import { InlineLoader } from '@/components/ui/inline-loader';
 import { configuracionMenuItems, shellMenuItems } from './menuItems';
 import { Home } from './Home';
 import { Profile } from './Profile';
@@ -14,6 +16,12 @@ import { EducacionMedicaRoutes } from '@/apps/educacion-medica/EducacionMedicaRo
 import { ViaticosRoutes } from '@/apps/viaticos/ViaticosRoutes';
 import { SigmaRoutes } from '@/apps/sigma/SigmaRoutes';
 import BaseAppLogin from './BaseAppLogin';
+
+const TelemetriaPage = lazy(() =>
+  import('@/apps/telemetria/TelemetriaPage').then((modulo) => ({
+    default: modulo.TelemetriaPage,
+  })),
+);
 
 /**
  * Árbol de rutas para el shell del base-app raíz — el modelo de navegación
@@ -79,6 +87,16 @@ export function BaseAppRoutes() {
         <Route path="/hub" element={<Home />} />
         <Route path="/perfil" element={<Profile />} />
         <Route path="/perfil/configuracion" element={<PerfilConfig />} />
+        <Route
+          path="/telemetria"
+          element={
+            <PermissionGuard require="telemetria.ver" blockedPath="/hub">
+              <Suspense fallback={<InlineLoader message="Cargando telemetría…" />}>
+                <TelemetriaPage />
+              </Suspense>
+            </PermissionGuard>
+          }
+        />
       </Route>
 
       {/* Configuración tiene su propio layout: no muestra el acceso a Perfil. */}

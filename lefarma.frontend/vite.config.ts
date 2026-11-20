@@ -44,6 +44,11 @@ export default defineConfig(({ mode }) => {
   server: {
     host: '0.0.0.0',
     port: 5173,
+    watch: {
+      // Otros procesos dejan carpetas temporales bloqueadas dentro de src y el
+      // watcher de Vite se cae con EBUSY; no hacen falta para el HMR.
+      ignored: ['**/.*.tmpdir/**', '**/*.tmp'],
+    },
     proxy: {
       '/api': {
         target: 'http://localhost:5174',

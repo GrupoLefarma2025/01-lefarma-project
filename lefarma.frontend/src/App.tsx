@@ -1,4 +1,4 @@
-﻿import { useEffect } from 'react';
+import { useEffect } from 'react';
 import { BrowserRouter, useNavigate } from 'react-router-dom';
 import { BaseAppRoutes } from './apps/baseapp/BaseAppRoutes';
 import { useAuthStore } from '@/shared/auth/authStore';
@@ -8,7 +8,9 @@ import { AutoVerify } from '@/components/AutoVerify';
 import { useTokenRefresh } from '@/hooks/useTokenRefresh';
 import { setNavigate } from '@/lib/navigation';
 import { ConnectionLostOverlay } from '@/components/connection/ConnectionLostOverlay';
+import { startConnectivityWatchers } from '@/shared/connection/connectionStore';
 import { ConfigSyncProvider } from '@/shared/configuracion/ConfigSyncProvider';
+import { ErrorBoundary } from './shared/telemetria/ErrorBoundary';
 
 function NavigationRegistrar() {
   const navigate = useNavigate();
@@ -34,6 +36,10 @@ function App() {
     }
   }, [tema, setTema]);
 
+  // Reintentar la conexión en cuanto el navegador avisa de que hay red o de que
+  // la pestaña vuelve a estar visible (ver startConnectivityWatchers).
+  useEffect(() => startConnectivityWatchers(), []);
+
   // Iniciar refresh proactivo de token
   useTokenRefresh();
 
@@ -53,7 +59,9 @@ function App() {
     <BrowserRouter basename={import.meta.env.BASE_URL}>
       <NavigationRegistrar />
       <ConfigSyncProvider>
-        <BaseAppRoutes />
+        <ErrorBoundary>
+          <BaseAppRoutes />
+        </ErrorBoundary>
       </ConfigSyncProvider>
       <Toaster />
       <ConnectionLostOverlay />

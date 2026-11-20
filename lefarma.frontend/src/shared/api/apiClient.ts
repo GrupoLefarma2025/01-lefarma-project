@@ -4,6 +4,7 @@ import { useAuthStore } from '@/shared/auth/authStore';
 import { ApiError } from '@/types/api.types';
 import { navigateTo } from '@/lib/navigation';
 import { useConnectionStore } from '@/shared/connection/connectionStore';
+import { registrarFalloHttp } from '@/shared/telemetria/capturaErrores';
 
 
 const baseURL = import.meta.env.VITE_API_URL || '/api';
@@ -56,6 +57,10 @@ apiClient.interceptors.request.use(
 apiClient.interceptors.response.use(
   (response) => {
     consecutiveConnectionFailures = 0;
+    // Cualquier respuesta con éxito confirma que el servidor está vivo: no solo
+    // el probe de /health o el onopen del SSE. Sin esto, si las peticiones que
+    // vuelven al reconectar no son ninguna de esas dos, el overlay se queda.
+    useConnectionStore.getState().markConnected();
     return response;
   },
   async (error: AxiosError<ApiError>) => {
@@ -120,6 +125,19 @@ apiClient.interceptors.response.use(
 
     if (error.response?.status === 403) {
       // Permiso denegado - el backend ya responde con el mensaje apropiado
+    }
+
+    const estado = error.response?.status;
+    const urlPeticion = originalRequest?.url ?? '';
+    if (estado && estado >= 400 && !urlPeticion.includes('/telemetria/')) {
+      registrarFalloHttp({
+        metodo: originalRequest?.method ?? 'get',
+        url: `${originalRequest?.baseURL ?? ''}${urlPeticion}`,
+        estado,
+        requestId: error.response?.headers?.['x-request-id'] as
+          | string
+          | undefined,
+      });
     }
 
     const apiError: ApiError = {
