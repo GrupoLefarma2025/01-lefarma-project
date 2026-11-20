@@ -16,6 +16,9 @@ public class ConfigModulo
 
     public string? Descripcion { get; set; }
 
+    /// <summary>Color hex #rrggbb con el que se identifica el módulo en la UI.</summary>
+    public string? Color { get; set; }
+
     public bool Activo { get; set; } = true;
 
     public DateTime FechaCreacion { get; set; }

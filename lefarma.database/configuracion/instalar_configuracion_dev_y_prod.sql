@@ -119,7 +119,8 @@ BEGIN TRY
                 tipo_dato IN
                 (
                     ''string'', ''text'', ''integer'', ''decimal'', ''boolean'', ''date'',
-                    ''time'', ''datetime'', ''enum'', ''object'', ''array'', ''json''
+                    ''time'', ''datetime'', ''enum'', ''object'', ''array'', ''json'',
+                    ''date_range'', ''datetime_range'', ''integer_range'', ''decimal_range''
                 )
             ),
             CONSTRAINT CK_variables_valor_json CHECK (ISJSON(valor_json) = 1),
@@ -275,7 +276,11 @@ BEGIN
     IF @tipo_dato IS NULL
         RETURN NULL;
 
-    IF @tipo_dato IN (''object'', ''array'', ''json'')
+    IF @tipo_dato IN
+    (
+        ''object'', ''array'', ''json'',
+        ''date_range'', ''datetime_range'', ''integer_range'', ''decimal_range''
+    )
         RETURN @valor_json;
 
     IF LEFT(LTRIM(@valor_json), 1) IN (N''{'', N''['')

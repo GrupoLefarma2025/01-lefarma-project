@@ -1,7 +1,7 @@
 ---
 fecha_creacion: 2026-11-19 16:20
-fecha_modificacion: 2026-11-19 16:45
-resumen: Módulo Configuración — catálogo config.modulos que agrupa y filtra las variables, módulo「global」sembrado como destino por omisión de las variables anteriores, columna config.variables.id_modulo con FK opcional e índice, clave de tres segmentos modulo.namespace.clave para las variables nuevas (las de dos segmentos siguen vigentes), módulo inmutable tras la creación, CRUD por API en api/configuracion/modulos reutilizando los permisos de Configuración y script de esquema en un solo lote sin GO.
+fecha_modificacion: 2026-11-20 11:30
+resumen: Módulo Configuración — catálogo config.modulos que agrupa y filtra las variables, módulo「global」sembrado como destino por omisión de las variables anteriores, columna config.variables.id_modulo con FK opcional e índice, clave de tres segmentos modulo.namespace.clave para las variables nuevas (las de dos segmentos siguen vigentes), módulo inmutable tras la creación, color identificador #rrggbb elegible y aleatorio por omisión, CRUD por API en api/configuracion/modulos reutilizando los permisos de Configuración y scripts de esquema en un solo lote sin GO.
 ---
 
 # 00002 — Módulos dueños de las variables de configuración
@@ -25,6 +25,7 @@ Accepted
 - [[#Fase 5 — API y permisos|Fase 5 — API y permisos]]
 - [[#Fase 6 — Pantalla|Fase 6 — Pantalla]]
 - [[#Fase 7 — Script de esquema|Fase 7 — Script de esquema]]
+- [[#Fase 8 — Color de módulo|Fase 8 — Color de módulo]]
 - [[#Validación|Validación]]
 - [[#Consequences|Consequences]]
 - [[#Anexo — Fuentes|Anexo — Fuentes]]
@@ -47,8 +48,10 @@ Accepted
    viejas; la API exige módulo en toda alta nueva.
 5. **La clave de las variables nuevas es `modulo.namespace.clave`.** El primer
    segmento es la clave del módulo elegido, el segundo agrupa dentro del módulo y
-   el tercero identifica la variable. Es una validación de formato, no un
-   reemplazo del texto: `clave` sigue siendo un único campo `NVARCHAR(200)`.
+   el tercero identifica la variable. Cada segmento admite minúsculas, números y
+   guion bajo: al capturar, los espacios se vuelven `_` y los signos se descartan.
+   Es una validación de formato, no un reemplazo del texto: `clave` sigue siendo
+   un único campo `NVARCHAR(200)`.
 6. **Las variables existentes conservan su formato.** Sus claves `namespace.clave`
    de dos segmentos siguen válidas y se siguen mostrando y editando; solo se
    exige el formato de tres segmentos al crear.
@@ -68,14 +71,18 @@ Accepted
     botón verde **Administrar módulos** junto a «Crear variable», filtro por
     módulo y columna «Módulo» en la tabla de variables. El módulo es el primer
     campo del paso 2 del asistente.
+11. **Cada módulo tiene un color identificador.** `config.modulos.color` guarda
+    un hex `#rrggbb` editable; el alta propone uno al azar de la paleta y la
+    pantalla lo muestra en la tarjeta del módulo y en la columna «Módulo» de la
+    tabla de variables.
 
 ## Fase 1 — Catálogo de módulos
 
 `config.modulos` guarda `id_modulo` (identity), `clave` (único, CHECK de slug),
-`nombre`, `descripcion`, `activo`, las columnas de auditoría del módulo
-(`fecha_creacion`, `fecha_modificacion`, `id_usuario_creacion`,
-`id_usuario_modificacion`) y `row_version`. Lleva un índice único de `clave` para
-impedir dos módulos con el mismo prefijo.
+`nombre`, `descripcion`, `color` (hex `#rrggbb`), `activo`, las columnas de
+auditoría del módulo (`fecha_creacion`, `fecha_modificacion`,
+`id_usuario_creacion`, `id_usuario_modificacion`) y `row_version`. Lleva un índice
+único de `clave` para impedir dos módulos con el mismo prefijo.
 
 Se descartó un campo manual de orden: se probó en la primera versión y se retiró
 porque obligaba a una decisión extra al crear un módulo sin aportar nada; el
@@ -138,6 +145,24 @@ es idempotente y va en **un solo lote sin `GO`**, con las sentencias que tocan l
 columna nueva en SQL dinámico: así lo aceptan SSMS, el panel «Explorador SQL» y el
 migrador DbUp. Se aplica antes de publicar el backend que consulta la tabla.
 
+## Fase 8 — Color de módulo
+
+Cada módulo lleva `color`, un hex `#rrggbb` que lo identifica visualmente en la
+pantalla principal: el tile de la tarjeta del módulo y el punto de la columna
+«Módulo» de la tabla de variables. Se eligió un color guardado y no uno derivado
+de la clave porque el usuario debe poder seleccionarlo; el derivado solo queda
+como respaldo de lecturas antiguas sin color.
+
+- La paleta vive en el frontend (`colores.ts`) y el backend replica los mismos
+  valores para elegir uno al azar cuando el alta no envía color.
+- El selector es un componente shadcn construido con `Popover` + paleta +
+  `<input type="color">` + hex editable, sin añadir dependencias.
+- La API valida `^#[0-9a-fA-F]{6}$` y guarda en minúsculas; la base refuerza el
+  formato con `CK_config_modulos_color_formato`.
+- `lefarma.database/configuracion/0004_20261120-1130_configuracion_modulos_color.lefarma.sql`
+  agrega la columna, hace backfill («global» conserva el naranja de la casa) y
+  deja el campo listo antes de publicar el backend que lo lee.
+
 ## Validación
 
 - Esquema aplicado en LefarmaDev; verificado por consulta: `config.modulos` con
@@ -151,7 +176,11 @@ migrador DbUp. Se aplica antes de publicar el backend que consulta la tabla.
 - Aplicado también en productivo (`Lefarma`): tabla, «global», FK e índice, sin
   la columna `orden`. Verificado por consulta tras ejecutarlo.
 - En `LefarmaDev` se retiró la columna `orden` con un relanzamiento del script;
-  la tabla queda con las 10 columnas definitivas.
+  la tabla queda con las 11 columnas definitivas (la última, `color`).
+- Color: backend compila (`dotnet build`), `tsc`, `eslint` de los archivos
+  tocados y `npm run build` en verde. El script `0004` queda pendiente de
+  ejecución en LefarmaDev y Lefarma; no se declara aplicado hasta que el humano
+  lo ejecute desde la Bandeja.
 
 ## Consequences
 
@@ -168,12 +197,14 @@ migrador DbUp. Se aplica antes de publicar el backend que consulta la tabla.
 ## Anexo — Fuentes
 
 - `lefarma.database/configuracion/0003_20261119-1620_configuracion_modulos.lefarma.sql`
+- `lefarma.database/configuracion/0004_20261120-1130_configuracion_modulos_color.lefarma.sql`
 - `lefarma.docs/configuracion/decisiones/00001_esquema-variables-configuracion.md`
 - `lefarma.docs/configuracion/uso.md`
 - Implementación backend: `Features/Configuracion/ConfiguracionModulosController.cs`,
   `ConfiguracionModulosService.cs`, `IConfiguracionModulosService.cs`,
   `DTOs/ConfiguracionModulosDtos.cs`.
 - Implementación frontend: `apps/baseapp/configuracion/components/ModulosPanel.tsx`,
-  `ModuloEditorDialog.tsx`, `pages/ConfiguracionVariablesPage.tsx`,
-  `components/VariableEditorDialog.tsx`, `utils.ts`, `types.ts`,
+  `ModuloEditorDialog.tsx`, `ColorPickerModulo.tsx`,
+  `pages/ConfiguracionVariablesPage.tsx`, `components/VariableEditorDialog.tsx`,
+  `utils.ts`, `colores.ts`, `types.ts`,
   `services/configuracionAdminApi.ts`.

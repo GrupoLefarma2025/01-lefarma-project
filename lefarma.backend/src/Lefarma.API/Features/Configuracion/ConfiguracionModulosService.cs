@@ -17,6 +17,23 @@ public sealed partial class ConfiguracionModulosService : IConfiguracionModulosS
     /// <summary>Módulo por omisión: no puede desactivarse.</summary>
     private const string ClaveGlobal = "global";
 
+    /// <summary>Paleta de identificación de módulos; el color inicial se elige al azar.</summary>
+    private static readonly string[] ColoresModulo =
+    [
+        "#eb6c36",
+        "#0ea5e9",
+        "#10b981",
+        "#f59e0b",
+        "#8b5cf6",
+        "#ec4899",
+        "#14b8a6",
+        "#ef4444",
+        "#6366f1",
+        "#84cc16",
+        "#f97316",
+        "#06b6d4"
+    ];
+
     private readonly ApplicationDbContext _context;
 
     public ConfiguracionModulosService(ApplicationDbContext context)
@@ -97,12 +114,29 @@ public sealed partial class ConfiguracionModulosService : IConfiguracionModulosS
             return CommonErrors.AlreadyExists("ConfigModulo", "clave", clave);
         }
 
+        string color;
+        if (string.IsNullOrWhiteSpace(request.Color))
+        {
+            color = ColoresModulo[Random.Shared.Next(ColoresModulo.Length)];
+        }
+        else
+        {
+            var colorSolicitado = request.Color.Trim();
+            if (!ColorHexRegex().IsMatch(colorSolicitado))
+            {
+                return CommonErrors.Validation("color", "El color debe tener formato hexadecimal #rrggbb.");
+            }
+
+            color = colorSolicitado.ToLowerInvariant();
+        }
+
         var ahora = DateTime.UtcNow;
         var entidad = new ConfigModulo
         {
             Clave = clave,
             Nombre = nombre,
             Descripcion = string.IsNullOrWhiteSpace(request.Descripcion) ? null : request.Descripcion.Trim(),
+            Color = color,
             Activo = true,
             FechaCreacion = ahora,
             FechaModificacion = ahora,
@@ -153,10 +187,27 @@ public sealed partial class ConfiguracionModulosService : IConfiguracionModulosS
             return CommonErrors.Validation("descripcion", "La descripción no puede exceder 1000 caracteres.");
         }
 
+        string? color = null;
+        if (!string.IsNullOrWhiteSpace(request.Color))
+        {
+            var colorSolicitado = request.Color.Trim();
+            if (!ColorHexRegex().IsMatch(colorSolicitado))
+            {
+                return CommonErrors.Validation("color", "El color debe tener formato hexadecimal #rrggbb.");
+            }
+
+            color = colorSolicitado.ToLowerInvariant();
+        }
+
         entidad.Nombre = nombre;
         entidad.Descripcion = string.IsNullOrWhiteSpace(request.Descripcion)
             ? null
             : request.Descripcion.Trim();
+        if (color is not null)
+        {
+            entidad.Color = color;
+        }
+
         entidad.FechaModificacion = DateTime.UtcNow;
         entidad.IdUsuarioModificacion = idUsuario;
 
@@ -220,6 +271,7 @@ public sealed partial class ConfiguracionModulosService : IConfiguracionModulosS
             Clave = modulo.Clave,
             Nombre = modulo.Nombre,
             Descripcion = modulo.Descripcion,
+            Color = modulo.Color,
             Activo = modulo.Activo,
             TotalVariables = totalVariables,
             FechaCreacion = modulo.FechaCreacion,
@@ -228,4 +280,7 @@ public sealed partial class ConfiguracionModulosService : IConfiguracionModulosS
 
     [GeneratedRegex("^[a-z][a-z0-9_]*$", RegexOptions.CultureInvariant)]
     private static partial Regex ClaveModuloRegex();
+
+    [GeneratedRegex("^#[0-9a-fA-F]{6}$", RegexOptions.CultureInvariant)]
+    private static partial Regex ColorHexRegex();
 }
