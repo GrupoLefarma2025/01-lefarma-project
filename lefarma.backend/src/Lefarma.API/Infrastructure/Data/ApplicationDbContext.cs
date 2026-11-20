@@ -12,6 +12,7 @@ using Lefarma.API.Domain.Entities.Archivos;
 using Microsoft.EntityFrameworkCore;
 using System.Reflection;
 using Lefarma.API.Domain.Entities.Rh;
+using Lefarma.API.Domain.Entities.Telemetria;
 
 namespace Lefarma.API.Infrastructure.Data {
 public class ApplicationDbContext : DbContext
@@ -63,6 +64,14 @@ public class ApplicationDbContext : DbContext
         public DbSet<ConfigVariableBitacora> ConfigVariablesBitacora { get; set; }
         public DbSet<ConfigIntegracion> ConfigIntegraciones { get; set; }
         public DbSet<ConfigModulo> ConfigModulos { get; set; }
+
+        // DbSets - Telemetría (errores del navegador, clics y mapa de calor)
+        public DbSet<LoteTelemetriaProcesado> TelemetriaLotesProcesados { get; set; }
+        public DbSet<EventoErrorTelemetria> TelemetriaErrores { get; set; }
+        public DbSet<EventoClicTelemetria> TelemetriaClics { get; set; }
+        public DbSet<MapaCalorTelemetria> TelemetriaMapasCalor { get; set; }
+        public DbSet<VisitaTelemetria> TelemetriaVisitas { get; set; }
+        public DbSet<ParametroTelemetria> TelemetriaParametros { get; set; }
 
         // DbSets - Operaciones
         public DbSet<OrdenCompra> OrdenesCompra { get; set; }

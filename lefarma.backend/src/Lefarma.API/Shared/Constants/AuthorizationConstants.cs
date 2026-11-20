@@ -141,4 +141,13 @@ public static class Permissions
         public const string Autorizar = "viaticos.autorizar";
         public const string Ajustar = "viaticos.ajustar";
     }
+
+    /// <summary>
+    /// Módulo Telemetría: errores del navegador, clics y mapa de calor.
+    /// </summary>
+    public static class Telemetria
+    {
+        public const string View = "telemetria.ver";
+        public const string Manage = "telemetria.administrar";
+    }
 }

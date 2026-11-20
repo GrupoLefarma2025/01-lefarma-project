@@ -45,6 +45,7 @@ using Lefarma.API.Features.Rh.SolicitudesPersonal;
 using Lefarma.API.Features.Rh.SolicitudesPersonal.Settings;
 using Lefarma.API.Features.Sigma;
 using Lefarma.API.Features.Sigma.Config;
+using Lefarma.API.Features.Sigma.Services.PdfSignature;
 using Lefarma.API.Features.Viaticos;
 using Lefarma.API.Infrastructure.Data;
 using Lefarma.API.Infrastructure.Data.Repositories;
@@ -66,6 +67,7 @@ using Lefarma.API.Shared.ModelBinders;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc.Filters;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.IdentityModel.Tokens;
@@ -75,6 +77,7 @@ using Serilog.Events;
 using Serilog.Formatting.Json;
 using System.Reflection;
 using System.Text;
+using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -353,6 +356,22 @@ builder.Services.Configure<CapturasSettings>(builder.Configuration.GetSection("C
 builder.Services.AddSingleton<ICapturasScriptRunner, NodeCapturasScriptRunner>();
 builder.Services.AddSingleton<CapturasService>();
 
+// Telemetría: almacén analítico DuckDB embebido. Un solo escritor por proceso (el API);
+// no escalar a varias instancias por ambiente mientras no se adopte Quack o una base compartida.
+builder.Services.Configure<Lefarma.API.Features.Telemetria.TelemetriaOpciones>(
+    builder.Configuration.GetSection(Lefarma.API.Features.Telemetria.TelemetriaOpciones.Seccion));
+builder.Services.AddSingleton<Lefarma.API.Features.Telemetria.Cola.TelemetriaCola>();
+builder.Services.AddSingleton<Lefarma.API.Features.Telemetria.Escritor.TelemetriaEscritor>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<Lefarma.API.Features.Telemetria.Escritor.TelemetriaEscritor>());
+builder.Services.AddScoped<Lefarma.API.Features.Telemetria.Almacen.TelemetriaRepositorio>();
+builder.Services.AddScoped<Lefarma.API.Features.Telemetria.Ingesta.IAtribucionUsuario, Lefarma.API.Features.Telemetria.Ingesta.AtribucionUsuario>();
+builder.Services.AddScoped<Lefarma.API.Features.Telemetria.Ingesta.TelemetriaIngesta>();
+builder.Services.AddScoped<Lefarma.API.Features.Telemetria.Consulta.ITelemetriaConsulta, Lefarma.API.Features.Telemetria.Consulta.TelemetriaConsulta>();
+builder.Services.Configure<Lefarma.API.Features.Telemetria.Avisos.TelemetriaAvisosOpciones>(
+    builder.Configuration.GetSection(Lefarma.API.Features.Telemetria.Avisos.TelemetriaAvisosOpciones.Seccion));
+builder.Services.AddSingleton<Lefarma.API.Features.Telemetria.Avisos.TelemetriaAvisos>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<Lefarma.API.Features.Telemetria.Avisos.TelemetriaAvisos>());
+
 // Notification Services
 builder.Services.AddScoped<Lefarma.API.Domain.Interfaces.ITemplateService, TemplateService>();
 builder.Services.AddScoped<Lefarma.API.Domain.Interfaces.INotificationService, Lefarma.API.Features.Notifications.Services.NotificationService>();
@@ -384,6 +403,11 @@ builder.Services.AddScoped<SigmaDocumentoEmailService>();
 builder.Services.AddScoped<SigmaDocumentAccess>();
 builder.Services.AddScoped<SigmaIdentity>();
 builder.Services.AddSingleton<SigmaVisitorTokenService>();
+builder.Services.AddScoped<IPdfDocumentStore, PdfDocumentStore>();
+builder.Services.AddScoped<RasterStampRenderer>();
+builder.Services.AddScoped<VectorStampRenderer>();
+builder.Services.AddScoped<CSharpPdfSignatureEngine>();
+builder.Services.AddScoped<PythonPdfSignatureEngine>();
 builder.Services.AddScoped<SigmaPdfSignatureRunner>();
 
 // Telegram Settings configuration
@@ -511,6 +535,33 @@ builder.Services.AddCors(options =>
                   .AllowAnyHeader()
                   .AllowAnyMethod();
     });
+});
+
+// Límite de frecuencia de la telemetría (primer limitador del API). Ventana fija de
+// un minuto; el usuario autenticado se cuenta por su identificador y el anónimo por IP.
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddPolicy(Lefarma.API.Features.Telemetria.Ingesta.TelemetriaRateLimit.Politica, contexto =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            Lefarma.API.Features.Telemetria.Ingesta.TelemetriaRateLimit.Particion(contexto),
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = Lefarma.API.Features.Telemetria.Ingesta.TelemetriaRateLimit.PorMinuto,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0,
+                AutoReplenishment = true
+            }));
+    options.AddPolicy(Lefarma.API.Features.Telemetria.Ingesta.TelemetriaRateLimit.PoliticaAnonima, contexto =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            Lefarma.API.Features.Telemetria.Ingesta.TelemetriaRateLimit.ParticionAnonima(contexto),
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = Lefarma.API.Features.Telemetria.Ingesta.TelemetriaRateLimit.AnonimoPorMinuto,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0,
+                AutoReplenishment = true
+            }));
 });
 
 // Wide Event logging accessor
@@ -656,6 +707,10 @@ app.UseStaticFiles(new StaticFileOptions
 var capturasDir = Path.Combine(app.Environment.WebRootPath, "media", "capturas-viaticos");
 Directory.CreateDirectory(capturasDir);
 
+// Telemetría: el almacén es SQL Server; las tablas las crea el script manual de
+// lefarma.database/telemetria. Si aún no existen, /api/telemetria/estado lo
+// reporta con disponible=false y la ingesta responde 202 sin escribir en disco.
+
 // Authentication & Authorization - Order matters: Authentication must come before Authorization
 app.UseAuthentication();
 
@@ -667,13 +722,38 @@ if (app.Environment.IsDevelopment())
 
 app.UseAuthorization();
 
-app.MapGet("/api/health", () => Results.Ok(new { status = "ok", timestamp = DateTime.UtcNow }))
-   .AllowAnonymous();
+// Debe ir después de autorización y antes de mapear endpoints.
+app.UseRateLimiter();
+
+// Sonda de vida pública: los monitores la consultan con frecuencia para saber si
+// el API responde y desde cuándo está arriba. A propósito NO toca base de datos ni
+// servicios externos: mide la disponibilidad del proceso, no la de sus dependencias,
+// así que un fallo de BD no la tumba y consultarla seguido no cuesta nada.
+var startedAtUtc = DateTime.UtcNow;
+app.Lifetime.ApplicationStarted.Register(() => startedAtUtc = DateTime.UtcNow);
 
 var appVersion = System.Reflection.Assembly.GetExecutingAssembly()
     .GetCustomAttributes(typeof(System.Reflection.AssemblyMetadataAttribute), false)
     .Cast<System.Reflection.AssemblyMetadataAttribute>()
     .FirstOrDefault(a => a.Key == "AppVersion")?.Value ?? "dev";
+
+app.MapGet("/api/health", (HttpContext http) =>
+{
+    var ahora = DateTime.UtcNow;
+
+    // Un monitor nunca debe leer una respuesta vieja cacheada por un proxy.
+    http.Response.Headers.CacheControl = "no-store";
+
+    return Results.Ok(new
+    {
+        status = "ok",
+        version = appVersion,
+        startedAt = startedAtUtc,
+        uptimeSeconds = (long)(ahora - startedAtUtc).TotalSeconds,
+        timestamp = ahora
+    });
+})
+.AllowAnonymous();
 
 app.MapGet("/api/version", () => Results.Ok(new { version = appVersion }))
    .AllowAnonymous();

@@ -32,6 +32,10 @@ public sealed class WideEventLoggingMiddleware(
         var stopwatch = Stopwatch.StartNew();
         var wideEvent = CreateWideEvent(context);
 
+        // Correlación visible para el navegador: el SDK de telemetría guarda esta
+        // cabecera junto al error HTTP y así se cruza con Serilog y ErrorLog.
+        context.Response.Headers["X-Request-Id"] = context.TraceIdentifier;
+
         // Store WideEvent in HttpContext.Items for enrichment by services
         context.Items[WideEventKey] = wideEvent;
 
