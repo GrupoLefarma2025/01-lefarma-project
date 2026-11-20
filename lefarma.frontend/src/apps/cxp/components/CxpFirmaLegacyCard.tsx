@@ -165,6 +165,7 @@ export function CxpFirmaLegacyCard() {
                   type="button"
                   variant="outline"
                   size="sm"
+                  data-track="cxp.firma.reemplazar"
                   onClick={() => setChoiceDialogOpen(true)}
                 >
                   <Upload className="mr-2 h-4 w-4" />
@@ -175,6 +176,7 @@ export function CxpFirmaLegacyCard() {
           ) : (
             <button
               type="button"
+              data-track="cxp.firma.seleccionar"
               onClick={() => setChoiceDialogOpen(true)}
               className="flex w-full cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/10 p-8 transition-colors hover:border-primary/50 hover:bg-muted/20"
             >
@@ -205,6 +207,7 @@ export function CxpFirmaLegacyCard() {
               type="button"
               variant="outline"
               className="h-auto items-start justify-start py-3"
+              data-track="cxp.firma.subir-imagen"
               onClick={() => {
                 setChoiceDialogOpen(false);
                 fileInputRef.current?.click();
@@ -220,6 +223,7 @@ export function CxpFirmaLegacyCard() {
               type="button"
               variant="outline"
               className="h-auto items-start justify-start py-3"
+              data-track="cxp.firma.dibujar"
               onClick={() => {
                 setChoiceDialogOpen(false);
                 setPadDialogOpen(true);
@@ -277,7 +281,7 @@ export function CxpFirmaLegacyCard() {
                       </Button>
                     </ImageCropReset>
                     <ImageCropApply asChild>
-                      <Button variant="default" size="sm">
+                      <Button variant="default" size="sm" data-track="cxp.firma.recorte.aplicar">
                         <Crop className="mr-2 h-4 w-4" />
                         Aplicar y Guardar
                       </Button>

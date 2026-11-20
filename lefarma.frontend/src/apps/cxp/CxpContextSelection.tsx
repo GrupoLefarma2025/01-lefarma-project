@@ -308,6 +308,7 @@ export function CxpContextSelection() {
 
       <Button
         type="submit"
+        data-track="cxp.contexto.entrar"
         className="w-full"
         disabled={
           !(effectiveEmpresa || selectedEmpresa) ||
@@ -321,6 +322,7 @@ export function CxpContextSelection() {
 
       <button
         type="button"
+        data-track="cxp.contexto.volver"
         onClick={handleBack}
         className="flex w-full items-center justify-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
         disabled={isLoading}

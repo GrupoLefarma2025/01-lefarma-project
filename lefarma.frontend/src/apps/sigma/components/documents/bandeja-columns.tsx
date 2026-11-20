@@ -214,11 +214,16 @@ export const createBandejaColumns = (
       );
     },
     cell: ({ row }) => {
+      const uploadedBy = String(row.getValue("uploadedBy") ?? "");
       return (
-        <div className="text-muted-foreground max-w-[120px] truncate">
-          {row.getValue("uploadedBy")}
+        <div className="text-muted-foreground max-w-[160px] truncate" title={uploadedBy}>
+          {uploadedBy}
         </div>
       );
+    },
+    meta: {
+      className: "w-[160px] min-w-[160px]",
+      headerClassName: "w-[160px] min-w-[160px]",
     },
   },
   {
@@ -236,11 +241,16 @@ export const createBandejaColumns = (
       );
     },
     cell: ({ row }) => {
+      const fecha = formatDate(row.getValue("uploadDate"));
       return (
-        <div className="text-muted-foreground max-w-[120px] truncate">
-          {formatDate(row.getValue("uploadDate"))}
+        <div className="text-muted-foreground whitespace-nowrap" title={fecha}>
+          {fecha}
         </div>
       );
+    },
+    meta: {
+      className: "w-[165px] min-w-[165px]",
+      headerClassName: "w-[165px] min-w-[165px]",
     },
   },
   {
