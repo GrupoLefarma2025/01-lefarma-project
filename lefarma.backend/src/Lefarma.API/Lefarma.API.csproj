@@ -27,6 +27,8 @@
 
   <ItemGroup>
     <PackageReference Include="Dapper" Version="2.1.66" />
+    <!-- Almacén analítico de telemetría (DuckDB embebido). La variante Full trae la librería nativa. -->
+    <PackageReference Include="DuckDB.NET.Data.Full" Version="1.5.6.1" />
     <PackageReference Include="ErrorOr" Version="2.0.1" />
     <PackageReference Include="FluentValidation" Version="12.1.1" />
     <PackageReference Include="FluentValidation.DependencyInjectionExtensions" Version="12.1.1" />
@@ -39,6 +41,12 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
     <PackageReference Include="Microsoft.OpenApi" Version="2.12.2" />
+    <!-- Motor de firma de PDFs (sustituye a pdf_signature_replacer.py).
+         PdfPig: localizar el texto; PDFsharp: dibujar, aplanar y cifrar;
+         PDFtoImage (PDFium + SkiaSharp): rasterizar a 250 dpi. -->
+    <PackageReference Include="PdfPig" Version="0.1.16" />
+    <PackageReference Include="PDFsharp" Version="6.2.4" />
+    <PackageReference Include="PDFtoImage" Version="5.4.0" />
     <PackageReference Include="Serilog.AspNetCore" Version="10.0.0" />
     <PackageReference Include="Serilog.Expressions" Version="5.0.0" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="10.1.0" />

@@ -131,3 +131,9 @@ pids.json
 
 # Scratch local (capturas/opencode)
 .tmp-opencode/
+
+# Almacén local de telemetría (datos del navegador; no se versiona)
+lefarma.backend/src/Lefarma.API/App_Data/telemetria/
+
+# Copias locales de PDF de Sigma (documentos firmados; se generan en tiempo de ejecución)
+lefarma.backend/src/Lefarma.API/App_Data/sigma-documentos/
