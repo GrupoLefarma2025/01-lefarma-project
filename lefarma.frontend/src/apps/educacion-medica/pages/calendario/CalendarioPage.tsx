@@ -1568,6 +1568,7 @@ export default function CalendarioPage() {
               variant="ghost"
               size="icon"
               className="h-7 w-7 rounded-lg"
+              data-track="educacion-medica.calendario.mes-anterior"
               onClick={() => cambiarMes(sumarMeses(`${periodoMes}-01`, -1).slice(0, 7))}
               aria-label="Mes anterior"
             >
@@ -1585,6 +1586,7 @@ export default function CalendarioPage() {
               variant="ghost"
               size="icon"
               className="h-7 w-7 rounded-lg"
+              data-track="educacion-medica.calendario.mes-siguiente"
               onClick={() => cambiarMes(sumarMeses(`${periodoMes}-01`, 1).slice(0, 7))}
               aria-label="Mes siguiente"
             >
@@ -1595,6 +1597,7 @@ export default function CalendarioPage() {
             <Button
               size="sm"
               className="h-9 gap-1.5 rounded-xl bg-[#eb6c36] px-3 text-[11px] text-white hover:bg-[#d95a2b]"
+              data-track="educacion-medica.calendario.volver"
               onClick={() => cambiarModo('calendario')}
             >
               <Presentation className="h-3.5 w-3.5" />
@@ -1606,6 +1609,7 @@ export default function CalendarioPage() {
                 <Button
                   size="sm"
                   className="h-9 gap-1.5 rounded-xl bg-[#eb6c36] px-3 text-[11px] text-white hover:bg-[#d95a2b]"
+                  data-track="educacion-medica.calendario.abrir-matriz"
                   disabled={seleccionesConGerencia.length === 0}
                   title={
                     seleccionesConGerencia.length === 0
@@ -1668,6 +1672,7 @@ export default function CalendarioPage() {
                 <Button
                   size="sm"
                   className="h-9 gap-1.5 rounded-xl bg-slate-900 px-3 text-[11px] text-white hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200"
+                  data-track="educacion-medica.calendario.generar-propuesta"
                   disabled={seleccionesCerradas.length === 0 || cargandoGenerar}
                   title={
                     seleccionesCerradas.length === 0
@@ -1718,6 +1723,7 @@ export default function CalendarioPage() {
               variant="outline"
               size="sm"
               className="h-9 gap-1.5 rounded-xl border-emerald-200 bg-emerald-50/60 px-3 text-[11px] text-emerald-700 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-emerald-900 dark:bg-emerald-950/20 dark:text-emerald-300 dark:hover:bg-emerald-950/40"
+              data-track="educacion-medica.calendario.preparar-cotizacion"
               onClick={() => setRutaCotizarAbierta(true)}
               disabled={cotizacionBloqueada}
               title={

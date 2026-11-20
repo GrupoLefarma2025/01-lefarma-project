@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { DataTable, type ColumnDef } from './data-table';
 
 interface Persona {
@@ -46,5 +47,100 @@ describe('DataTable', () => {
     const { container } = render(<DataTable columns={COLUMNS} data={[]} loading />);
 
     expect(bodyRows(container)).toHaveLength(10);
+  });
+});
+
+describe('DataTable · filtro por valores (estilo Excel)', () => {
+  interface Modulo {
+    modulo: string;
+    namespace: string;
+  }
+
+  const COLUMNAS_MODULO: ColumnDef<Modulo, unknown>[] = [
+    { accessorKey: 'modulo', header: 'Módulo' },
+    { accessorKey: 'namespace', header: 'Namespace' },
+  ];
+
+  const DATOS_MODULO: Modulo[] = [
+    { modulo: 'global', namespace: 'uno' },
+    { modulo: 'global', namespace: 'dos' },
+    { modulo: 'configuracion', namespace: 'tres' },
+  ];
+
+  it('lista los valores repetidos una sola vez y filtra al elegirlos', async () => {
+    const user = userEvent.setup();
+    const { container } = render(
+      <DataTable
+        columns={COLUMNAS_MODULO}
+        data={DATOS_MODULO}
+        filterConfig={{ tableId: 'prueba-valores', searchableColumns: ['modulo'] }}
+      />
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Filtrar Módulo' }));
+
+    // «Seleccionar todo» + un valor por cada módulo distinto (global, dos veces en los datos).
+    expect(screen.getAllByRole('checkbox')).toHaveLength(3);
+    await user.click(screen.getByRole('checkbox', { name: 'configuracion' }));
+    await user.click(screen.getByRole('button', { name: 'Aceptar' }));
+
+    expect(bodyRows(container)).toHaveLength(1);
+    expect(screen.getByText('tres')).toBeInTheDocument();
+    expect(screen.queryByText('uno')).toBeNull();
+  });
+
+  it('Cancelar cierra el embudo sin aplicar los valores marcados', async () => {
+    const user = userEvent.setup();
+    const { container } = render(
+      <DataTable
+        columns={COLUMNAS_MODULO}
+        data={DATOS_MODULO}
+        filterConfig={{ tableId: 'prueba-cancelar', searchableColumns: ['modulo'] }}
+      />
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Filtrar Módulo' }));
+    await user.click(screen.getByRole('checkbox', { name: 'configuracion' }));
+    await user.click(screen.getByRole('button', { name: 'Cancelar' }));
+
+    expect(bodyRows(container)).toHaveLength(3);
+    expect(screen.getByText('uno')).toBeInTheDocument();
+  });
+
+  it('filtra por texto en una columna sin `filterFn` propio (regresión «heredado is not a function»)', async () => {
+    interface Variable {
+      namespace: string;
+      valor: string;
+    }
+
+    const COLUMNAS_VARIABLE: ColumnDef<Variable, unknown>[] = [
+      { accessorKey: 'namespace', header: 'Namespace' },
+      { accessorKey: 'valor', header: 'Valor' },
+    ];
+
+    const DATOS_VARIABLE: Variable[] = [
+      { namespace: 'uno', valor: '4' },
+      { namespace: 'dos', valor: '42' },
+      { namespace: 'tres', valor: 'texto' },
+    ];
+
+    const user = userEvent.setup();
+    const { container } = render(
+      <DataTable
+        columns={COLUMNAS_VARIABLE}
+        data={DATOS_VARIABLE}
+        filterConfig={{ tableId: 'prueba-texto', searchableColumns: ['valor'] }}
+      />
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Filtrar Valor' }));
+    await user.click(screen.getByRole('button', { name: 'Texto' }));
+    await user.type(screen.getByPlaceholderText('Ingrese valor...'), '4');
+    await user.click(screen.getByRole('button', { name: 'Aplicar' }));
+
+    expect(bodyRows(container)).toHaveLength(2);
+    expect(screen.getByText('uno')).toBeInTheDocument();
+    expect(screen.getByText('dos')).toBeInTheDocument();
+    expect(screen.queryByText('tres')).toBeNull();
   });
 });

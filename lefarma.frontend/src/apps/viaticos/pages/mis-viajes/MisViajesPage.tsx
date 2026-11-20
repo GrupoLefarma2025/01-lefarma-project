@@ -172,6 +172,7 @@ export function MisViajesPage({ hoy = new Date() }: { hoy?: Date }) {
           variant="outline"
           size="sm"
           className="gap-1.5"
+          data-track="viaticos.mis-viajes.ver-detalle"
           aria-label={`Ver detalle ${etiqueta}`}
           onClick={() => { void verDetalle(solicitud.id_solicitud); }}
         >
@@ -192,6 +193,7 @@ export function MisViajesPage({ hoy = new Date() }: { hoy?: Date }) {
                 type="button"
                 variant="outline"
                 size="icon"
+                data-track="viaticos.mis-viajes.enviar"
                 aria-label="Enviar a autorización"
                 disabled={procesando}
                 onClick={() => setCalculo(solicitud)}
@@ -203,7 +205,13 @@ export function MisViajesPage({ hoy = new Date() }: { hoy?: Date }) {
           </Tooltip>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button type="button" variant="outline" size="icon" aria-label="Más acciones">
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                data-track="viaticos.mis-viajes.mas-acciones"
+                aria-label="Más acciones"
+              >
                 <MoreHorizontal className="h-4 w-4" aria-hidden />
               </Button>
             </DropdownMenuTrigger>
@@ -346,6 +354,7 @@ export function MisViajesPage({ hoy = new Date() }: { hoy?: Date }) {
                 variant="outline"
                 size="sm"
                 className="gap-1.5"
+                data-track="viaticos.mis-viajes.detalle.editar"
                 onClick={() => {
                   const id = detalle.id_solicitud;
                   setViendoId(null);

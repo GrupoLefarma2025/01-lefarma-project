@@ -1,4 +1,4 @@
-﻿import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -18,6 +18,10 @@ interface ColumnFilterPopoverProps {
   onApplyFilter: (filter: ColumnFilter) => void;
   onClearFilter: () => void;
   selectOptions?: { value: string; label: string }[];
+  /** Valores distintos de la columna, para el filtro tipo Excel. */
+  valueOptions?: string[];
+  /** Filtro vigente de la columna, para reabrir el embudo con lo ya elegido. */
+  activeFilter?: ColumnFilter;
 }
 
 export function ColumnFilterPopover({
@@ -28,6 +32,8 @@ export function ColumnFilterPopover({
   onApplyFilter,
   onClearFilter,
   selectOptions = [],
+  valueOptions = [],
+  activeFilter,
 }: ColumnFilterPopoverProps) {
   const [open, setOpen] = useState(false);
 
@@ -38,6 +44,9 @@ export function ColumnFilterPopover({
           variant="ghost"
           size="sm"
           className={`h-6 w-6 p-0 ${hasActiveFilter ? 'text-primary' : 'text-muted-foreground'}`}
+          aria-label={`Filtrar ${columnName}`}
+          title={`Filtrar ${columnName}`}
+          onClick={(event) => event.stopPropagation()}
         >
           <Filter className="h-3.5 w-3.5" />
         </Button>
@@ -47,6 +56,8 @@ export function ColumnFilterPopover({
           <TextFilterPopover
             columnId={columnId}
             columnName={columnName}
+            valueOptions={valueOptions}
+            activeFilter={activeFilter}
             onApplyFilter={onApplyFilter}
             onClearFilter={onClearFilter}
             hasActiveFilter={hasActiveFilter}
@@ -97,6 +108,8 @@ export function ColumnFilterPopover({
 interface TextFilterPopoverProps {
   columnId: string;
   columnName: string;
+  valueOptions: string[];
+  activeFilter?: ColumnFilter;
   onApplyFilter: (filter: ColumnFilter) => void;
   onClearFilter: () => void;
   hasActiveFilter: boolean;
@@ -107,32 +120,105 @@ interface TextFilterPopoverProps {
 function TextFilterPopover({
   columnId,
   columnName,
+  valueOptions,
+  activeFilter,
   onApplyFilter,
   onClearFilter,
   hasActiveFilter,
   open,
   setOpen,
 }: TextFilterPopoverProps) {
-  const [operator, setOperator] = useState<TextOperator>('contains');
-  const [value, setValue] = useState('');
+  // El contenido del popover se desmonta al cerrarse, así que el estado inicial
+  // se toma del filtro vigente: al reabrir el embudo aparece lo ya elegido.
+  const valoresActivos = Array.isArray(activeFilter?.value)
+    ? (activeFilter.value as (string | number)[]).map(String)
+    : [];
+  const textoActivo =
+    activeFilter && !Array.isArray(activeFilter.value) ? String(activeFilter.value) : '';
 
-  const handleApply = () => {
-    if (!value.trim()) return;
+  const [modo, setModo] = useState<'valores' | 'texto'>(
+    textoActivo || valueOptions.length === 0 ? 'texto' : 'valores'
+  );
+  const [operador, setOperador] = useState<TextOperator>(
+    activeFilter && !Array.isArray(activeFilter.value)
+      ? (activeFilter.operator as TextOperator)
+      : 'contains'
+  );
+  const [valor, setValor] = useState(textoActivo);
+  const [seleccionados, setSeleccionados] = useState<string[]>(valoresActivos);
+  const [busquedaValor, setBusquedaValor] = useState('');
+
+  const opcionesVisibles = useMemo(() => {
+    const termino = busquedaValor.trim().toLocaleLowerCase('es');
+    if (!termino) return valueOptions;
+    return valueOptions.filter((option) =>
+      option.toLocaleLowerCase('es').includes(termino)
+    );
+  }, [valueOptions, busquedaValor]);
+
+  const seleccionVisibles = opcionesVisibles.filter((option) =>
+    seleccionados.includes(option)
+  ).length;
+  const todosVisibles =
+    opcionesVisibles.length > 0 && seleccionVisibles === opcionesVisibles.length;
+  const algunosVisibles = seleccionVisibles > 0 && !todosVisibles;
+
+  const alternarValor = (option: string) => {
+    setSeleccionados((prev) =>
+      prev.includes(option) ? prev.filter((item) => item !== option) : [...prev, option]
+    );
+  };
+
+  const alternarTodos = () => {
+    setSeleccionados((prev) => {
+      if (todosVisibles) return prev.filter((item) => !opcionesVisibles.includes(item));
+      return [...new Set([...prev, ...opcionesVisibles])];
+    });
+  };
+
+  const aplicarValores = () => {
+    if (seleccionados.length === 0) return;
+
+    // Elegir todos los valores equivale a no filtrar, igual que en Excel.
+    if (seleccionados.length === valueOptions.length) {
+      onClearFilter();
+      setOpen(false);
+      return;
+    }
+
+    const etiqueta =
+      seleccionados.length <= 2
+        ? seleccionados.map((item) => `"${item}"`).join(', ')
+        : `"${seleccionados[0]}", "${seleccionados[1]}" +${seleccionados.length - 2}`;
 
     onApplyFilter({
       columnId,
       type: 'text',
-      operator,
-      value: value.trim(),
-      displayLabel: `${getOperatorLabel(operator)} "${value}"`,
+      operator: 'exact',
+      value: seleccionados,
+      displayLabel: etiqueta,
     });
-    setValue('');
+    setOpen(false);
+  };
+
+  const aplicarTexto = () => {
+    if (!valor.trim()) return;
+
+    onApplyFilter({
+      columnId,
+      type: 'text',
+      operator: operador,
+      value: valor.trim(),
+      displayLabel: `${getOperatorLabel(operador)} "${valor.trim()}"`,
+    });
     setOpen(false);
   };
 
   const handleClear = () => {
     onClearFilter();
-    setValue('');
+    setSeleccionados([]);
+    setValor('');
+    setBusquedaValor('');
   };
 
   return (
@@ -144,41 +230,140 @@ function TextFilterPopover({
         </Button>
       </div>
 
-      <div className="space-y-2">
-        <Label>Operador</Label>
-        <Select value={operator} onValueChange={(v) => setOperator(v as TextOperator)}>
-          <SelectTrigger>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="contains">Contiene</SelectItem>
-            <SelectItem value="exact">Exacto</SelectItem>
-            <SelectItem value="startsWith">Comienza con</SelectItem>
-            <SelectItem value="endsWith">Termina con</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
-      <div className="space-y-2">
-        <Label>Valor</Label>
-        <Input
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          placeholder="Ingrese valor..."
-          onKeyDown={(e) => e.key === 'Enter' && handleApply()}
-        />
-      </div>
-
-      <div className="flex gap-2">
-        <Button size="sm" onClick={handleApply} className="flex-1" disabled={!value.trim()}>
-          Aplicar
-        </Button>
-        {hasActiveFilter && (
-          <Button size="sm" variant="outline" onClick={handleClear}>
-            <X className="h-4 w-4" />
+      {valueOptions.length > 0 && (
+        <div className="grid grid-cols-2 gap-1 rounded-md bg-muted p-0.5">
+          <Button
+            type="button"
+            size="sm"
+            variant={modo === 'valores' ? 'secondary' : 'ghost'}
+            className="h-7 text-xs"
+            onClick={() => setModo('valores')}
+          >
+            Valores
           </Button>
-        )}
-      </div>
+          <Button
+            type="button"
+            size="sm"
+            variant={modo === 'texto' ? 'secondary' : 'ghost'}
+            className="h-7 text-xs"
+            onClick={() => setModo('texto')}
+          >
+            Texto
+          </Button>
+        </div>
+      )}
+
+      {modo === 'valores' ? (
+        <div className="space-y-2">
+          <Input
+            value={busquedaValor}
+            onChange={(e) => setBusquedaValor(e.target.value)}
+            placeholder="Buscar valor..."
+            className="h-8"
+          />
+
+          <div className="max-h-48 space-y-1.5 overflow-y-auto rounded-md border border-border p-2">
+            <div className="flex items-center gap-2 border-b border-border pb-1.5">
+              <Checkbox
+                id={`${columnId}-filtro-todos`}
+                checked={todosVisibles ? true : algunosVisibles ? 'indeterminate' : false}
+                onCheckedChange={alternarTodos}
+              />
+              <Label
+                htmlFor={`${columnId}-filtro-todos`}
+                className="cursor-pointer text-xs font-medium"
+              >
+                (Seleccionar todo)
+              </Label>
+            </div>
+
+            {opcionesVisibles.length === 0 ? (
+              <p className="py-2 text-xs text-muted-foreground">Ningún valor coincide.</p>
+            ) : (
+              opcionesVisibles.map((option, indice) => (
+                <div key={option} className="flex items-start gap-2">
+                  <Checkbox
+                    id={`${columnId}-filtro-${indice}`}
+                    className="mt-0.5"
+                    checked={seleccionados.includes(option)}
+                    onCheckedChange={() => alternarValor(option)}
+                  />
+                  <Label
+                    htmlFor={`${columnId}-filtro-${indice}`}
+                    className="cursor-pointer break-all text-xs font-normal leading-snug"
+                    title={option}
+                  >
+                    {option}
+                  </Label>
+                </div>
+              ))
+            )}
+          </div>
+
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              onClick={aplicarValores}
+              className="flex-1"
+              disabled={seleccionados.length === 0}
+            >
+              Aceptar
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => setOpen(false)}>
+              Cancelar
+            </Button>
+          </div>
+
+          {hasActiveFilter && (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="w-full text-xs text-muted-foreground"
+              onClick={handleClear}
+            >
+              Borrar filtro
+            </Button>
+          )}
+        </div>
+      ) : (
+        <>
+          <div className="space-y-2">
+            <Label>Operador</Label>
+            <Select value={operador} onValueChange={(v) => setOperador(v as TextOperator)}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="contains">Contiene</SelectItem>
+                <SelectItem value="exact">Exacto</SelectItem>
+                <SelectItem value="startsWith">Comienza con</SelectItem>
+                <SelectItem value="endsWith">Termina con</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Valor</Label>
+            <Input
+              value={valor}
+              onChange={(e) => setValor(e.target.value)}
+              placeholder="Ingrese valor..."
+              onKeyDown={(e) => e.key === 'Enter' && aplicarTexto()}
+            />
+          </div>
+
+          <div className="flex gap-2">
+            <Button size="sm" onClick={aplicarTexto} className="flex-1" disabled={!valor.trim()}>
+              Aplicar
+            </Button>
+            {hasActiveFilter && (
+              <Button size="sm" variant="outline" onClick={handleClear}>
+                <X className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
+        </>
+      )}
     </div>
   );
 }

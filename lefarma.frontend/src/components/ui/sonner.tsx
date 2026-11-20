@@ -14,6 +14,8 @@ const Toaster = ({ ...props }: ToasterProps) => {
       closeButton
       expand
       position="top-right"
+      // Debajo del encabezado fijo (h-16): los avisos no deben tapar la X de los diálogos.
+      offset={{ top: 72 }}
       visibleToasts={5}
       invert={true}
       style={{ zIndex: 9999 }}

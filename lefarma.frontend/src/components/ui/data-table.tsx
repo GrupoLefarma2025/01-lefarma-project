@@ -6,7 +6,9 @@ import {
   type PaginationState,
   type RowSelectionState,
   type Updater,
+  type FilterFn,
   flexRender,
+  filterFns,
   getCoreRowModel,
   getSortedRowModel,
   getFilteredRowModel,
@@ -103,6 +105,9 @@ export interface DataTableProps<TData> {
   totalCount?: number;
   paginationState?: PaginationState;
   onPaginationChange?: (state: PaginationState) => void;
+
+  /** Orden inicial de las columnas; por defecto la tabla abre sin ordenar. */
+  initialSorting?: SortingState;
 
   // Configuración de filtros
   filterConfig?: FilterConfigType;
@@ -221,6 +226,97 @@ function getFilterTypeForColumn(
   return 'text';
 }
 
+// ─── Filtro por valores (estilo Excel) ─────────────────────────────────────────
+
+/** Texto comparable de una celda, tal como se muestra en la lista de valores. */
+function textoDeCelda(value: unknown): string {
+  if (value == null) return '';
+  if (Array.isArray(value)) return value.map(textoDeCelda).join(' ').trim();
+  return String(value).trim();
+}
+
+/** Orden natural: «valor 2» antes que «valor 10». */
+const ordenNatural = new Intl.Collator('es', { numeric: true, sensitivity: 'base' });
+
+/** Id con el que TanStack identifica la columna (id explícito o accessorKey). */
+function idDeColumna<TData>(column: ColumnDef<TData, unknown>): string {
+  if (column.id) return column.id;
+  return 'accessorKey' in column && column.accessorKey != null
+    ? String(column.accessorKey)
+    : '';
+}
+
+/** Valores distintos de una columna, como los listaría el filtro de Excel. */
+function valoresUnicosDeColumna<TData>(
+  column: ColumnDef<TData, unknown>,
+  data: TData[]
+): string[] {
+  const accessor = (
+    column as { accessorFn?: (row: TData, index: number) => unknown }
+  ).accessorFn;
+  const accessorKey = 'accessorKey' in column ? column.accessorKey : undefined;
+  if (!accessor && accessorKey == null) return [];
+
+  const vistos = new Set<string>();
+  data.forEach((fila, indice) => {
+    const bruto = accessor
+      ? accessor(fila, indice)
+      : (fila as Record<string, unknown>)[String(accessorKey)];
+    const texto = textoDeCelda(bruto);
+    if (texto) vistos.add(texto);
+  });
+
+  return [...vistos].sort(ordenNatural.compare);
+}
+
+/**
+ * Filtro de la columna. Si el valor es una lista de textos (filtro del embudo
+ * estilo Excel) compara la celda contra los valores elegidos; en cualquier otro
+ * caso delega en el filtro que ya tenía la columna (propio, por nombre o auto).
+ */
+function crearFiltroDeColumna<TData>(
+  original: ColumnDef<TData, unknown>['filterFn']
+): FilterFn<TData> {
+  return (row, columnId, filterValue, addMeta) => {
+    if (
+      Array.isArray(filterValue) &&
+      filterValue.length > 0 &&
+      filterValue.every((item) => typeof item === 'string')
+    ) {
+      const celda = textoDeCelda(row.getValue(columnId)).toLocaleLowerCase('es');
+      return (filterValue as string[]).some(
+        (item) => textoDeCelda(item).toLocaleLowerCase('es') === celda
+      );
+    }
+
+    const heredado =
+      typeof original === 'function'
+        ? original
+        : original != null && original in filterFns
+          ? filterFns[original as keyof typeof filterFns]
+          : undefined;
+    if (heredado) return heredado(row, columnId, filterValue, addMeta);
+
+    // Sin filtro propio (o con el comodín `auto` de TanStack): se resuelve con
+    // texto. `filterFns` no trae la clave `auto`, así que llamarla directamente
+    // lanzaba «heredado is not a function» al escribir en el filtro de texto.
+    const celda = row.getValue(columnId);
+    if (typeof celda === 'string') {
+      return celda
+        .toLocaleLowerCase('es')
+        .includes(textoDeCelda(filterValue).toLocaleLowerCase('es'));
+    }
+    if (Array.isArray(celda)) {
+      return celda.some(
+        (item) =>
+          textoDeCelda(item).toLocaleLowerCase('es') ===
+          textoDeCelda(filterValue).toLocaleLowerCase('es')
+      );
+    }
+    return textoDeCelda(celda) === textoDeCelda(filterValue);
+  };
+}
+
 // ─── Componente ────────────────────────────────────────────────────────────────
 
 export function DataTable<TData>({
@@ -263,6 +359,7 @@ export function DataTable<TData>({
   totalCount,
   paginationState: paginationStateProp,
   onPaginationChange,
+  initialSorting,
 }: DataTableProps<TData>) {
   const { ui, updateComponentPreferences } = useConfigStore();
 
@@ -295,12 +392,29 @@ export function DataTable<TData>({
     enableHiding: false,
   }), []);
 
-  const displayColumns = useMemo<ColumnDef<TData, unknown>[]>(
-    () => (enableRowSelection ? [selectionColumn, ...columns] : columns),
-    [enableRowSelection, selectionColumn, columns]
-  );
+  const displayColumns = useMemo<ColumnDef<TData, unknown>[]>(() => {
+    // Cada columna conserva su filtro, pero además acepta listas de valores
+    // elegidos en el embudo (filtro estilo Excel).
+    const columnsWithFilters = columns.map<ColumnDef<TData, unknown>>((column) => ({
+      ...column,
+      filterFn: crearFiltroDeColumna(column.filterFn),
+    }));
+    return enableRowSelection ? [selectionColumn, ...columnsWithFilters] : columnsWithFilters;
+  }, [enableRowSelection, selectionColumn, columns]);
 
-  const [sorting, setSorting] = useState<SortingState>([]);
+  // Valores distintos por columna para la lista del embudo. La llave es un
+  // texto para no depender de la identidad del arreglo que pasa la pantalla.
+  const columnasFiltrablesKey = (filterConfig?.searchableColumns ?? []).join('|');
+  const valoresPorColumna = useMemo(() => {
+    const resultado: Record<string, string[]> = {};
+    for (const columnId of columnasFiltrablesKey.split('|').filter(Boolean)) {
+      const column = columns.find((item) => idDeColumna(item) === columnId);
+      if (column) resultado[columnId] = valoresUnicosDeColumna(column, data);
+    }
+    return resultado;
+  }, [columnasFiltrablesKey, columns, data]);
+
+  const [sorting, setSorting] = useState<SortingState>(initialSorting ?? []);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
@@ -756,6 +870,10 @@ export function DataTable<TData>({
                                     hasActiveFilter={activeFilters.some(
                                       (f) => f.columnId === header.id
                                     )}
+                                    activeFilter={activeFilters.find(
+                                      (f) => f.columnId === header.id
+                                    )}
+                                    valueOptions={valoresPorColumna[header.id]}
                                     onApplyFilter={addFilter}
                                     onClearFilter={() => removeFilter(header.id)}
                                   />
