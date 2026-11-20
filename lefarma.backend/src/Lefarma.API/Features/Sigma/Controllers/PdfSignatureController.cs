@@ -5,6 +5,7 @@ using Lefarma.API.Features.Sigma.DTOs;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.SqlClient;
+using Microsoft.Net.Http.Headers;
 
 namespace Lefarma.API.Features.Sigma.Controllers;
 
@@ -139,8 +140,12 @@ public sealed class PdfSignatureController : ControllerBase
                 return NotFound(new { success = false, message = "PDF no disponible" });
             }
 
-            Response.Headers.ContentDisposition =
-                $"{(descargar ? "attachment" : "inline")}; filename=\"{documento.NombreArchivo ?? $"documento_{id}.pdf"}\"";
+            // El nombre del archivo puede traer acentos (p. ej. «Autorización»); Kestrel
+            // rechaza caracteres no ASCII en cabeceras, así que se codifica con RFC 5987.
+            var nombreArchivo = documento.NombreArchivo ?? $"documento_{id}.pdf";
+            var disposicion = new ContentDispositionHeaderValue(descargar ? "attachment" : "inline");
+            disposicion.SetHttpFileName(nombreArchivo);
+            Response.Headers.ContentDisposition = disposicion.ToString();
 
             return File(bytes, "application/pdf");
         }
