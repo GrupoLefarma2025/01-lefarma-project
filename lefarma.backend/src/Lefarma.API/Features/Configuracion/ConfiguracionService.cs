@@ -26,7 +26,7 @@ public sealed class ConfiguracionService : IConfiguracionService
 
     /// <summary>Clave con módulo: modulo.namespace.clave (cada segmento inicia con minúscula).</summary>
     private static readonly Regex ClaveConModuloRegex = new(
-        @"^[a-z][a-zA-Z0-9]*(\.[a-z][a-zA-Z0-9]*){2}$",
+        @"^[a-z][a-zA-Z0-9_]*(\.[a-z][a-zA-Z0-9_]*){2}$",
         RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
     private readonly ApplicationDbContext _context;
@@ -190,7 +190,7 @@ public sealed class ConfiguracionService : IConfiguracionService
         {
             return CommonErrors.Validation(
                 "clave",
-                "La clave debe tener el formato modulo.namespace.clave en minúsculas (ej. viaticos.catalogo.diasLimite).");
+                "La clave debe tener el formato modulo.namespace.clave en minúsculas (ej. viaticos.catalogo.dias_limite).");
         }
 
         if (!clave.StartsWith($"{modulo.Clave}.", StringComparison.Ordinal))

@@ -18,13 +18,29 @@ public static class ConfiguracionTiposDato
     public const string Object = "object";
     public const string Array = "array";
     public const string Json = "json";
+    public const string DateRange = "date_range";
+    public const string DateTimeRange = "datetime_range";
+    public const string IntegerRange = "integer_range";
+    public const string DecimalRange = "decimal_range";
 
     public static readonly string[] Todos =
     [
-        String, Text, Integer, Decimal, Boolean, Date, Time, DateTime, Enum, Object, Array, Json
+        String, Text, Integer, Decimal, Boolean, Date, Time, DateTime, Enum, Object, Array, Json,
+        DateRange, DateTimeRange, IntegerRange, DecimalRange
+    ];
+
+    /// <summary>Tipos con forma de rango: objeto <c>{ desde, hasta }</c>.</summary>
+    public static readonly string[] Rangos =
+    [
+        DateRange, DateTimeRange, IntegerRange, DecimalRange
     ];
 
     private static readonly HashSet<string> Soportados = new(Todos, StringComparer.OrdinalIgnoreCase);
+
+    private static readonly HashSet<string> SoportadosRango = new(Rangos, StringComparer.OrdinalIgnoreCase);
+
+    public static bool EsRango(string? tipoDato)
+        => !string.IsNullOrWhiteSpace(tipoDato) && SoportadosRango.Contains(tipoDato.Trim());
 
     public static bool EsValido(string? tipoDato)
         => !string.IsNullOrWhiteSpace(tipoDato) && Soportados.Contains(tipoDato.Trim());

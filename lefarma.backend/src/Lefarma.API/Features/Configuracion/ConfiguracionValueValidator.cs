@@ -203,8 +203,86 @@ public static class ConfiguracionValueValidator
             case ConfiguracionTiposDato.Json:
                 return Result.Success;
 
+            case ConfiguracionTiposDato.DateRange:
+            case ConfiguracionTiposDato.DateTimeRange:
+            case ConfiguracionTiposDato.IntegerRange:
+            case ConfiguracionTiposDato.DecimalRange:
+                return ValidarRango(tipo, valor, ruta);
+
             default:
                 return Campo(ruta, $"usa un tipo de dato no soportado ({tipo})");
+        }
+    }
+
+    /// <summary>
+    /// Valida un rango: objeto con <c>desde</c> y <c>hasta</c> obligatorios, cada uno del
+    /// tipo base del rango, y con <c>desde</c> menor o igual que <c>hasta</c>.
+    /// </summary>
+    private static ErrorOr<Success> ValidarRango(string tipo, JsonElement valor, string ruta)
+    {
+        if (valor.ValueKind != JsonValueKind.Object)
+        {
+            return Campo(ruta, "debe ser un objeto JSON con las propiedades 'desde' y 'hasta'");
+        }
+
+        foreach (var extremo in new[] { "desde", "hasta" })
+        {
+            if (!valor.TryGetProperty(extremo, out var contenido)
+                || contenido.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined)
+            {
+                return Campo($"{ruta}.{extremo}", "es obligatorio en un rango");
+            }
+        }
+
+        var tipoBase = tipo switch
+        {
+            ConfiguracionTiposDato.DateRange => ConfiguracionTiposDato.Date,
+            ConfiguracionTiposDato.DateTimeRange => ConfiguracionTiposDato.DateTime,
+            ConfiguracionTiposDato.IntegerRange => ConfiguracionTiposDato.Integer,
+            _ => ConfiguracionTiposDato.Decimal
+        };
+
+        var desde = valor.GetProperty("desde");
+        var hasta = valor.GetProperty("hasta");
+
+        var validacionDesde = ValidarTipo(tipoBase, desde, $"{ruta}.desde");
+        if (validacionDesde.IsError)
+        {
+            return validacionDesde.Errors;
+        }
+
+        var validacionHasta = ValidarTipo(tipoBase, hasta, $"{ruta}.hasta");
+        if (validacionHasta.IsError)
+        {
+            return validacionHasta.Errors;
+        }
+
+        return DesdeEsMenorOIgual(tipoBase, desde, hasta)
+            ? Result.Success
+            : Campo(ruta, "no es un rango válido: 'desde' debe ser menor o igual que 'hasta'");
+    }
+
+    private static bool DesdeEsMenorOIgual(string tipoBase, JsonElement desde, JsonElement hasta)
+    {
+        switch (tipoBase)
+        {
+            case ConfiguracionTiposDato.Date:
+                DateOnly.TryParseExact(desde.GetString(), FormatosFecha, CultureInfo.InvariantCulture, DateTimeStyles.None, out var fechaDesde);
+                DateOnly.TryParseExact(hasta.GetString(), FormatosFecha, CultureInfo.InvariantCulture, DateTimeStyles.None, out var fechaHasta);
+                return fechaDesde <= fechaHasta;
+
+            case ConfiguracionTiposDato.DateTime:
+                DateTimeOffset.TryParse(desde.GetString(), CultureInfo.InvariantCulture, DateTimeStyles.AssumeLocal, out var momentoDesde);
+                DateTimeOffset.TryParse(hasta.GetString(), CultureInfo.InvariantCulture, DateTimeStyles.AssumeLocal, out var momentoHasta);
+                return momentoDesde <= momentoHasta;
+
+            default:
+                if (!desde.TryGetDecimal(out var numeroDesde) || !hasta.TryGetDecimal(out var numeroHasta))
+                {
+                    return false;
+                }
+
+                return numeroDesde <= numeroHasta;
         }
     }
 

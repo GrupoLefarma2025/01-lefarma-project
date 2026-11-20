@@ -35,6 +35,10 @@ public class ConfiguracionValueValidatorTests
     [InlineData("array", "[1,2,3]")]
     [InlineData("json", "{\"libre\":[1,2]}")]
     [InlineData("json", "null")]
+    [InlineData("date_range", "{\"desde\":\"2026-01-01\",\"hasta\":\"2026-01-31\"}")]
+    [InlineData("datetime_range", "{\"desde\":\"2026-01-01T08:00\",\"hasta\":\"2026-01-01T18:30\"}")]
+    [InlineData("integer_range", "{\"desde\":-5,\"hasta\":5}")]
+    [InlineData("decimal_range", "{\"desde\":1.5,\"hasta\":9.99}")]
     public void Validar_Tipo_Valido_No_Devuelve_Errores(string tipo, string valorJson)
     {
         var resultado = ConfiguracionValueValidator.Validar(tipo, Json(valorJson), null);
@@ -55,6 +59,12 @@ public class ConfiguracionValueValidatorTests
     [InlineData("datetime", "\"ayer\"")]
     [InlineData("object", "[1,2]")]
     [InlineData("array", "{\"a\":1}")]
+    [InlineData("date_range", "{\"desde\":\"2026-01-01\"}")]
+    [InlineData("date_range", "{\"desde\":\"2026-03-31\",\"hasta\":\"2026-01-01\"}")]
+    [InlineData("date_range", "[1,2]")]
+    [InlineData("datetime_range", "{\"desde\":\"2026-01-01T18:00\",\"hasta\":\"2026-01-01T08:00\"}")]
+    [InlineData("integer_range", "{\"desde\":1.5,\"hasta\":3}")]
+    [InlineData("decimal_range", "{\"desde\":\"1\",\"hasta\":3}")]
     public void Validar_Tipo_Invalido_Devuelve_Error(string tipo, string valorJson)
     {
         var resultado = ConfiguracionValueValidator.Validar(tipo, Json(valorJson), null);
@@ -79,6 +89,30 @@ public class ConfiguracionValueValidatorTests
 
         resultado.IsError.Should().BeTrue();
         resultado.FirstError.Description.Should().Contain("obligatorio");
+    }
+
+    // ------------------------------------------------------------------ rangos
+
+    [Fact]
+    public void Validar_Rango_Devuelve_Ruta_Del_Extremo_Invalido()
+    {
+        var resultado = ConfiguracionValueValidator.Validar(
+            "date_range",
+            Json("{\"desde\":\"2026-01-01\",\"hasta\":\"31/01/2026\"}"),
+            null);
+
+        resultado.IsError.Should().BeTrue();
+        resultado.FirstError.Code.Should().Be("Validation.valor.hasta");
+    }
+
+    [Fact]
+    public void Validar_Rango_Contra_Esquema_De_Objeto_No_Devuelve_Errores()
+    {
+        var esquema = Json(
+            "{\"type\":\"object\",\"properties\":{\"desde\":{\"type\":\"string\",\"format\":\"date\"},\"hasta\":{\"type\":\"string\",\"format\":\"date\"}},\"required\":[\"desde\",\"hasta\"],\"additionalProperties\":false}");
+
+        ConfiguracionValueValidator.Validar("date_range", Json("{\"desde\":\"2026-01-01\",\"hasta\":\"2026-01-31\"}"), esquema)
+            .IsError.Should().BeFalse();
     }
 
     // ------------------------------------------------------------ restricciones

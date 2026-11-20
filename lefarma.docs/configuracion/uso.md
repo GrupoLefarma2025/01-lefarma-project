@@ -4,7 +4,7 @@ Este documento explica cómo consumir las variables globales desde frontend, bac
 
 ## Reglas generales
 
-- Cada variable pertenece a un módulo y su clave es estable. En las variables nuevas el formato es `modulo.namespace.nombre`, por ejemplo `viaticos.catalogo.diasLimite`; las variables anteriores a los módulos conservan su formato de dos segmentos, `namespace.nombre` (por ejemplo `viaticos.diasLimite`), y siguen funcionando igual.
+- Cada variable pertenece a un módulo y su clave es estable. En las variables nuevas el formato es `modulo.namespace.nombre`, por ejemplo `viaticos.catalogo.dias_limite`; cada segmento admite minúsculas, números y guion bajo (los espacios se vuelven `_` y los signos no se aceptan). Las variables anteriores a los módulos conservan su formato de dos segmentos, `namespace.nombre` (por ejemplo `viaticos.diasLimite`), y siguen funcionando igual.
 - La clave, el tipo de dato raíz y el módulo no se pueden cambiar después de crear la variable.
 - Una variable debe marcarse explícitamente para cada destino:
   - Backend
@@ -24,18 +24,22 @@ Cada variable pertenece a un **módulo**: el catálogo que agrupa y filtra las v
 - Existe el módulo **global**, que no se puede desactivar: es el destino de las variables compartidas por todas las aplicaciones y de todas las variables anteriores a los módulos.
 - Desactivar un módulo no desactiva sus variables: impide crear variables nuevas en él, pero las vigentes se siguen leyendo.
 - El módulo se elige al crear la variable y ya no se puede corregir después. Para cambiarlo, crea otra variable con la clave nueva y desactiva la anterior.
+- Cada módulo tiene un **color** (`#rrggbb`) que se muestra en su tarjeta y como punto en la columna «Módulo» de la tabla de variables. Al crear el módulo se propone uno al azar de la paleta; puedes elegir otro con el selector o escribir el hex.
 
 ### API
 
 ```http
-GET  /api/configuracion/modulos            # ?activo=true|false, incluye totalVariables
-POST /api/configuracion/modulos            # { clave, nombre, descripcion }
-PUT  /api/configuracion/modulos/{id}       # { nombre, descripcion }
+GET  /api/configuracion/modulos            # ?activo=true|false, incluye totalVariables y color
+POST /api/configuracion/modulos            # { clave, nombre, descripcion, color? }
+PUT  /api/configuracion/modulos/{id}       # { nombre, descripcion, color? }
 POST /api/configuracion/modulos/{id}/desactivar
 POST /api/configuracion/modulos/{id}/reactivar
 ```
 
 El listado de variables acepta `idModulo` para filtrar del lado del servidor.
+
+En el alta, si `color` se omite, el servidor asigna uno al azar de la paleta; en la
+edición, si se omite, se conserva el color actual. El valor debe ser `#rrggbb`.
 
 ## Frontend
 
@@ -175,7 +179,7 @@ Contrato:
 - Devuelve `NULL` si la clave no existe, está inactiva o no está disponible para SQL.
 - Los tipos escalares se devuelven como texto sin comillas JSON.
 - Los booleanos se devuelven como `1` o `0`.
-- Objetos, arreglos y JSON libre se devuelven como JSON completo.
+- Objetos, arreglos, JSON libre y los rangos (`date_range`, `datetime_range`, `integer_range`, `decimal_range`) se devuelven como JSON completo.
 - En consultas masivas, lee la variable una vez en una variable T-SQL o usa un JOIN; no invoques la función por cada fila.
 
 ## API para otros sistemas
