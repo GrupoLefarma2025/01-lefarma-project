@@ -18,4 +18,5 @@ public static class WorkflowEstadoCodigo
     public const string DEVUELTA = "DEVUELTA";
     public const string PREPARACION = "PREPARACION";
     public const string REVISION_DIRECTOR = "REVISION_DIRECTOR";
+    public const string REVISION_CXP = "REVISION_CXP";
 }

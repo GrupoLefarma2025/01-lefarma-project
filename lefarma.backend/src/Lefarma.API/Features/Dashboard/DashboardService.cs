@@ -64,6 +64,7 @@ namespace Lefarma.API.Features.Dashboard
 
             int idCreada = estados.GetValueOrDefault(WorkflowEstadoCodigo.CREADA);
             int idRevision = estados.GetValueOrDefault(WorkflowEstadoCodigo.REVISION);
+            int idRevisionCxp = estados.GetValueOrDefault(WorkflowEstadoCodigo.REVISION_CXP);
             int idRevisionDirector = estados.GetValueOrDefault(WorkflowEstadoCodigo.REVISION_DIRECTOR);
             int idCerrada = estados.GetValueOrDefault(WorkflowEstadoCodigo.CERRADA);
             int idPagada = estados.GetValueOrDefault(WorkflowEstadoCodigo.PAGADA);
@@ -75,7 +76,7 @@ namespace Lefarma.API.Features.Dashboard
                 .ToListAsync();
 
             var pendientesEnvio = allOrdenes.Count(oc => oc.IdEstado == idCreada);
-            var enFirmas = allOrdenes.Count(oc => oc.IdEstado == idRevision);
+            var enFirmas = allOrdenes.Count(oc => oc.IdEstado == idRevision || oc.IdEstado == idRevisionCxp);
             var revisionDirector = allOrdenes.Count(oc => oc.IdEstado == idRevisionDirector);
             var cerradas = allOrdenes.Count(oc => oc.IdEstado == idCerrada || oc.IdEstado == idPagada);
             var canceladas = allOrdenes.Count(oc => oc.IdEstado == idCancelada);
