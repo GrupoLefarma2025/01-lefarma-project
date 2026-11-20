@@ -15,7 +15,6 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { MultiSelect, type MultiSelectOption } from '@/components/ui/multi-select';
 import {
   Select,
   SelectContent,
@@ -49,22 +48,25 @@ import {
   listarVariables,
   revocarIntegracion,
 } from '../services/configuracionAdminApi';
-import type { IntegracionCliente, IntegracionCreada } from '../types';
+import type { IntegracionCliente, IntegracionCreada, ModuloConfig } from '../types';
 import { copiarAlPortapapeles } from '../snippets';
 import {
-  desdeDatetimeLocal,
   esCancelado,
   esConflicto,
   esErrorReintentable,
   formatearFecha,
   mensajeError,
   mensajeErrorCompleto,
+  moduloDeClave,
   namespaceDeClave,
+  patronesAlcanceIntegracion,
 } from '../utils';
 
 interface IntegracionesPanelProps {
   /** Permiso `configuracion.api_keys`. Sin él no se debe renderizar el panel. */
   puedeGestionar: boolean;
+  /** Módulos activos, para mostrar su nombre en el selector de alcance. */
+  modulos: ModuloConfig[];
 }
 
 function estadoIntegracion(integracion: IntegracionCliente): {
@@ -85,19 +87,61 @@ function estadoIntegracion(integracion: IntegracionCliente): {
   return { etiqueta: 'Activa', clase: 'border-emerald-500/40 text-emerald-600', revocada: false };
 }
 
-export function IntegracionesPanel({ puedeGestionar }: IntegracionesPanelProps) {
+const SIN_FILTRO = '__todos__';
+
+type ModoExpiracion = 'nunca' | '1' | '7' | '30' | '90' | 'personalizado';
+
+const DIAS_MAXIMOS_EXPIRACION = 3650;
+
+interface VariableIntegracion {
+  clave: string;
+  nombre: string;
+  modulo: string | null;
+  namespace: string;
+}
+
+function namespacesDeAlcance(
+  variables: VariableIntegracion[],
+  modulo: string,
+): string[] {
+  const base =
+    modulo === SIN_FILTRO ? variables : variables.filter((variable) => variable.modulo === modulo);
+  return Array.from(new Set(base.map((variable) => variable.namespace))).sort((a, b) =>
+    a.localeCompare(b, 'es'),
+  );
+}
+
+function clavesDeAlcance(
+  variables: VariableIntegracion[],
+  modulo: string,
+  namespace: string,
+): VariableIntegracion[] {
+  return variables.filter(
+    (variable) =>
+      (modulo === SIN_FILTRO || variable.modulo === modulo) &&
+      (namespace === SIN_FILTRO || variable.namespace === namespace),
+  );
+}
+
+function fechaExpiracionDesdeDias(dias: number): string {
+  return new Date(Date.now() + dias * 24 * 60 * 60 * 1000).toISOString();
+}
+
+export function IntegracionesPanel({ puedeGestionar, modulos }: IntegracionesPanelProps) {
   const [integraciones, setIntegraciones] = useState<IntegracionCliente[]>([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const [crearAbierto, setCrearAbierto] = useState(false);
   const [nombre, setNombre] = useState('');
-  const [expiracion, setExpiracion] = useState('');
-  const [namespaceSeleccionado, setNamespaceSeleccionado] = useState('');
-  const [clavesSeleccionadas, setClavesSeleccionadas] = useState<string[]>([]);
-  const [opcionesClaves, setOpcionesClaves] = useState<MultiSelectOption[]>([]);
-  const [cargandoClaves, setCargandoClaves] = useState(true);
-  const [errorClaves, setErrorClaves] = useState<string | null>(null);
+  const [modoExpiracion, setModoExpiracion] = useState<ModoExpiracion>('90');
+  const [diasExpiracion, setDiasExpiracion] = useState('30');
+  const [moduloSeleccionado, setModuloSeleccionado] = useState(SIN_FILTRO);
+  const [namespaceSeleccionado, setNamespaceSeleccionado] = useState(SIN_FILTRO);
+  const [claveSeleccionada, setClaveSeleccionada] = useState(SIN_FILTRO);
+  const [variablesIntegracion, setVariablesIntegracion] = useState<VariableIntegracion[]>([]);
+  const [cargandoVariables, setCargandoVariables] = useState(true);
+  const [errorVariables, setErrorVariables] = useState<string | null>(null);
   const [guardando, setGuardando] = useState(false);
   const [errorCrear, setErrorCrear] = useState<string | null>(null);
 
@@ -134,28 +178,30 @@ export function IntegracionesPanel({ puedeGestionar }: IntegracionesPanelProps) 
     const controller = new AbortController();
 
     void (async () => {
-      setCargandoClaves(true);
-      setErrorClaves(null);
+      setCargandoVariables(true);
+      setErrorVariables(null);
       try {
         const variables = await listarVariables(
           { destino: 'integraciones', activo: true },
           controller.signal,
         );
-        setOpcionesClaves(
+        setVariablesIntegracion(
           variables
             .map((variable) => ({
-              value: variable.clave,
-              label: `${variable.clave} · ${variable.nombre}`,
+              clave: variable.clave,
+              nombre: variable.nombre,
+              modulo: moduloDeClave(variable.clave),
+              namespace: namespaceDeClave(variable.clave),
             }))
-            .sort((a, b) => a.value.localeCompare(b.value)),
+            .sort((a, b) => a.clave.localeCompare(b.clave)),
         );
       } catch (err) {
         if (esCancelado(err)) return;
-        setErrorClaves(
+        setErrorVariables(
           mensajeError(err, 'No se pudieron cargar las variables disponibles para integraciones.'),
         );
       } finally {
-        if (!controller.signal.aborted) setCargandoClaves(false);
+        if (!controller.signal.aborted) setCargandoVariables(false);
       }
     })();
 
@@ -168,29 +214,98 @@ export function IntegracionesPanel({ puedeGestionar }: IntegracionesPanelProps) 
     };
   }, []);
 
-  const namespaces = useMemo(
-    () =>
-      Array.from(new Set(opcionesClaves.map((opcion) => namespaceDeClave(opcion.value)))).sort(
-        (a, b) => a.localeCompare(b, 'es'),
+  const modulosDisponibles = useMemo(() => {
+    const claves = Array.from(
+      new Set(
+        variablesIntegracion
+          .map((variable) => variable.modulo)
+          .filter((modulo): modulo is string => modulo !== null),
       ),
-    [opcionesClaves],
+    );
+    const nombres = new Map(modulos.map((modulo) => [modulo.clave, modulo.nombre]));
+    return claves
+      .map((clave) => ({ clave, nombre: nombres.get(clave) ?? clave }))
+      .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+  }, [variablesIntegracion, modulos]);
+
+  const namespacesDisponibles = useMemo(
+    () => namespacesDeAlcance(variablesIntegracion, moduloSeleccionado),
+    [variablesIntegracion, moduloSeleccionado],
   );
 
-  const opcionesClavesVisibles = useMemo(
-    () =>
-      namespaceSeleccionado
-        ? opcionesClaves.filter(
-            (opcion) => namespaceDeClave(opcion.value) === namespaceSeleccionado,
-          )
-        : [],
-    [namespaceSeleccionado, opcionesClaves],
+  const clavesDisponibles = useMemo(
+    () => clavesDeAlcance(variablesIntegracion, moduloSeleccionado, namespaceSeleccionado),
+    [variablesIntegracion, moduloSeleccionado, namespaceSeleccionado],
   );
+
+  const diasSeleccionados =
+    modoExpiracion === 'personalizado'
+      ? Number(diasExpiracion)
+      : modoExpiracion === 'nunca'
+        ? null
+        : Number(modoExpiracion);
+
+  const diasValidos =
+    diasSeleccionados === null ||
+    (Number.isInteger(diasSeleccionados) &&
+      diasSeleccionados >= 1 &&
+      diasSeleccionados <= DIAS_MAXIMOS_EXPIRACION);
+
+  const fechaExpiracionPreview =
+    diasSeleccionados !== null && diasValidos
+      ? fechaExpiracionDesdeDias(diasSeleccionados)
+      : null;
+
+  const patronesAlcance = useMemo(
+    () =>
+      patronesAlcanceIntegracion(
+        variablesIntegracion,
+        moduloSeleccionado === SIN_FILTRO ? null : moduloSeleccionado,
+        namespaceSeleccionado === SIN_FILTRO ? null : namespaceSeleccionado,
+        claveSeleccionada === SIN_FILTRO ? null : claveSeleccionada,
+      ),
+    [variablesIntegracion, moduloSeleccionado, namespaceSeleccionado, claveSeleccionada],
+  );
+
+  const cambiarModulo = (valor: string) => {
+    const namespacesNuevos = namespacesDeAlcance(variablesIntegracion, valor);
+    const namespaceEfectivo =
+      namespaceSeleccionado !== SIN_FILTRO && namespacesNuevos.includes(namespaceSeleccionado)
+        ? namespaceSeleccionado
+        : SIN_FILTRO;
+
+    setModuloSeleccionado(valor);
+    if (namespaceEfectivo !== namespaceSeleccionado) setNamespaceSeleccionado(namespaceEfectivo);
+
+    if (
+      claveSeleccionada !== SIN_FILTRO &&
+      !clavesDeAlcance(variablesIntegracion, valor, namespaceEfectivo).some(
+        (variable) => variable.clave === claveSeleccionada,
+      )
+    ) {
+      setClaveSeleccionada(SIN_FILTRO);
+    }
+  };
+
+  const cambiarNamespace = (valor: string) => {
+    setNamespaceSeleccionado(valor);
+    if (
+      claveSeleccionada !== SIN_FILTRO &&
+      !clavesDeAlcance(variablesIntegracion, moduloSeleccionado, valor).some(
+        (variable) => variable.clave === claveSeleccionada,
+      )
+    ) {
+      setClaveSeleccionada(SIN_FILTRO);
+    }
+  };
 
   const limpiarFormulario = () => {
     setNombre('');
-    setExpiracion('');
-    setNamespaceSeleccionado('');
-    setClavesSeleccionadas([]);
+    setModoExpiracion('90');
+    setDiasExpiracion('30');
+    setModuloSeleccionado(SIN_FILTRO);
+    setNamespaceSeleccionado(SIN_FILTRO);
+    setClaveSeleccionada(SIN_FILTRO);
     setErrorCrear(null);
   };
 
@@ -207,19 +322,15 @@ export function IntegracionesPanel({ puedeGestionar }: IntegracionesPanelProps) 
       return;
     }
 
-    if (expiracion) {
-      const fecha = new Date(expiracion);
-      if (Number.isNaN(fecha.getTime())) {
-        setErrorCrear('La fecha de expiración no es válida.');
-        return;
-      }
-      if (fecha.getTime() < Date.now()) {
-        setErrorCrear('La fecha de expiración debe ser posterior a hoy.');
-        return;
-      }
+    if (!diasValidos) {
+      setErrorCrear(
+        `Los días de expiración deben ser un entero entre 1 y ${DIAS_MAXIMOS_EXPIRACION}.`,
+      );
+      return;
     }
 
-    const claves = clavesSeleccionadas;
+    const fechaExpiracion =
+      diasSeleccionados === null ? null : fechaExpiracionDesdeDias(diasSeleccionados);
 
     setGuardando(true);
     setErrorCrear(null);
@@ -230,8 +341,8 @@ export function IntegracionesPanel({ puedeGestionar }: IntegracionesPanelProps) 
       const respuesta = await crearIntegracion(
         {
           nombre: nombre.trim(),
-          ...(expiracion ? { fechaExpiracion: desdeDatetimeLocal(expiracion) } : {}),
-          ...(claves.length > 0 ? { clavesPermitidas: claves } : {}),
+          ...(fechaExpiracion ? { fechaExpiracion } : {}),
+          ...(patronesAlcance.length > 0 ? { clavesPermitidas: patronesAlcance } : {}),
         },
         controller.signal,
       );
@@ -410,7 +521,7 @@ export function IntegracionesPanel({ puedeGestionar }: IntegracionesPanelProps) 
                 <TableRow>
                   <TableHead>Cliente</TableHead>
                   <TableHead>Llave</TableHead>
-                  <TableHead>Claves permitidas</TableHead>
+                  <TableHead>Alcance</TableHead>
                   <TableHead>Expira</TableHead>
                   <TableHead>Estado</TableHead>
                   <TableHead>Creado</TableHead>
@@ -420,7 +531,7 @@ export function IntegracionesPanel({ puedeGestionar }: IntegracionesPanelProps) 
               <TableBody>
                 {visibles.map((integracion) => {
                   const estado = estadoIntegracion(integracion);
-                  const claves = integracion.clavesPermitidas ?? [];
+                  const alcance = integracion.clavesPermitidas ?? [];
 
                   return (
                     <TableRow key={integracion.idIntegracion}>
@@ -438,16 +549,16 @@ export function IntegracionesPanel({ puedeGestionar }: IntegracionesPanelProps) 
                         </code>
                       </TableCell>
                       <TableCell>
-                        {claves.length > 0 ? (
+                        {alcance.length > 0 ? (
                           <div className="flex max-w-[220px] flex-wrap gap-1">
-                            {claves.slice(0, 3).map((clave) => (
-                              <Badge key={clave} variant="outline" className="text-[10px]">
-                                {clave}
+                            {alcance.slice(0, 3).map((patron) => (
+                              <Badge key={patron} variant="outline" className="text-[10px]">
+                                {patron}
                               </Badge>
                             ))}
-                            {claves.length > 3 && (
+                            {alcance.length > 3 && (
                               <Badge variant="secondary" className="text-[10px]">
-                                +{claves.length - 3}
+                                +{alcance.length - 3}
                               </Badge>
                             )}
                           </div>
@@ -540,82 +651,148 @@ export function IntegracionesPanel({ puedeGestionar }: IntegracionesPanelProps) 
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="integracion-expira">Fecha de expiración (opcional)</Label>
-            <Input
-              id="integracion-expira"
-              type="datetime-local"
-              value={expiracion}
-              onChange={(e) => setExpiracion(e.target.value)}
-            />
-            <p className="text-[11px] text-muted-foreground">
-              Si se deja vacía, la llave no expira por tiempo.
-            </p>
-          </div>
-
-          <div className="space-y-1.5">
-            <Label htmlFor="integracion-namespace">Namespace</Label>
+            <Label htmlFor="integracion-expira">Expiración</Label>
             <Select
-              value={namespaceSeleccionado}
-              onValueChange={setNamespaceSeleccionado}
-              disabled={cargandoClaves || guardando || namespaces.length === 0}
+              value={modoExpiracion}
+              onValueChange={(valor) => setModoExpiracion(valor as ModoExpiracion)}
+              disabled={guardando}
             >
-              <SelectTrigger
-                id="integracion-namespace"
-                aria-label="Filtrar claves permitidas por namespace"
-              >
-                <SelectValue
-                  placeholder={
-                    cargandoClaves
-                      ? 'Cargando namespaces…'
-                      : namespaces.length === 0
-                        ? 'No hay namespaces disponibles'
-                        : 'Selecciona un namespace'
-                  }
-                />
+              <SelectTrigger id="integracion-expira" aria-label="Expiración de la llave">
+                <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {namespaces.map((namespace) => (
-                  <SelectItem key={namespace} value={namespace}>
-                    {namespace}
-                  </SelectItem>
-                ))}
+                <SelectItem value="nunca">Nunca</SelectItem>
+                <SelectItem value="1">1 día</SelectItem>
+                <SelectItem value="7">7 días</SelectItem>
+                <SelectItem value="30">30 días</SelectItem>
+                <SelectItem value="90">90 días</SelectItem>
+                <SelectItem value="personalizado">Personalizado</SelectItem>
               </SelectContent>
             </Select>
+            {modoExpiracion === 'personalizado' && (
+              <div className="space-y-1.5 pt-1">
+                <Label htmlFor="integracion-dias">Días para expirar</Label>
+                <Input
+                  id="integracion-dias"
+                  type="number"
+                  min={1}
+                  max={DIAS_MAXIMOS_EXPIRACION}
+                  step={1}
+                  value={diasExpiracion}
+                  onChange={(e) => setDiasExpiracion(e.target.value)}
+                  disabled={guardando}
+                />
+              </div>
+            )}
             <p className="text-[11px] text-muted-foreground">
-              Paso 1: elige el namespace. Paso 2: selecciona una o varias claves de ese namespace.
-              Puedes combinar claves de distintos namespaces.
+              {fechaExpiracionPreview
+                ? `La llave expirará el ${formatearFecha(fechaExpiracionPreview, true)}.`
+                : modoExpiracion === 'nunca'
+                  ? 'La llave no expira por tiempo.'
+                  : 'Indica cuántos días debe durar la llave.'}
             </p>
           </div>
 
-          <div className="space-y-1.5">
-            <Label htmlFor="integracion-claves">Claves permitidas (opcional)</Label>
-            <MultiSelect
-              options={opcionesClavesVisibles}
-              value={clavesSeleccionadas}
-              onChange={setClavesSeleccionadas}
-              disabled={cargandoClaves || guardando || !namespaceSeleccionado}
-              placeholder={
-                cargandoClaves
-                  ? 'Cargando variables…'
-                  : opcionesClaves.length === 0
-                    ? 'No hay variables con destino Integraciones'
-                    : !namespaceSeleccionado
-                      ? 'Selecciona primero un namespace'
-                      : 'Selecciona las claves permitidas…'
-              }
-              searchPlaceholder="Buscar por clave o nombre…"
-              emptyText="No hay variables con ese criterio."
-            />
-            {errorClaves && (
+          <div className="space-y-3 rounded-lg border border-border p-3">
+            <div>
+              <p className="text-sm font-medium">Alcance de la llave</p>
+              <p className="text-[11px] text-muted-foreground">
+                Opcional. Sin módulo, namespace ni clave, la llave podrá leer todas las variables
+                activas con destino Integraciones.
+              </p>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="integracion-modulo">Módulo</Label>
+                <Select
+                  value={moduloSeleccionado}
+                  onValueChange={cambiarModulo}
+                  disabled={cargandoVariables || guardando || modulosDisponibles.length === 0}
+                >
+                  <SelectTrigger id="integracion-modulo" aria-label="Módulo del alcance">
+                    <SelectValue placeholder={cargandoVariables ? 'Cargando…' : 'Ninguno'} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={SIN_FILTRO}>Ninguno</SelectItem>
+                    {modulosDisponibles.map((modulo) => (
+                      <SelectItem key={modulo.clave} value={modulo.clave}>
+                        {modulo.nombre}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="integracion-namespace">Namespace</Label>
+                <Select
+                  value={namespaceSeleccionado}
+                  onValueChange={cambiarNamespace}
+                  disabled={cargandoVariables || guardando || namespacesDisponibles.length === 0}
+                >
+                  <SelectTrigger id="integracion-namespace" aria-label="Namespace del alcance">
+                    <SelectValue placeholder={cargandoVariables ? 'Cargando…' : 'Ninguno'} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={SIN_FILTRO}>Ninguno</SelectItem>
+                    {namespacesDisponibles.map((namespace) => (
+                      <SelectItem key={namespace} value={namespace}>
+                        {namespace}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="integracion-clave">Clave</Label>
+              <Select
+                value={claveSeleccionada}
+                onValueChange={setClaveSeleccionada}
+                disabled={cargandoVariables || guardando || clavesDisponibles.length === 0}
+              >
+                <SelectTrigger id="integracion-clave" aria-label="Clave del alcance">
+                  <SelectValue placeholder={cargandoVariables ? 'Cargando…' : 'Ninguna'} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={SIN_FILTRO}>Ninguna</SelectItem>
+                  {clavesDisponibles.map((variable) => (
+                    <SelectItem key={variable.clave} value={variable.clave}>
+                      {variable.clave} · {variable.nombre}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {errorVariables && (
               <p className="flex items-center gap-1.5 text-[11px] text-destructive">
                 <AlertTriangle className="h-3.5 w-3.5" />
-                {errorClaves}
+                {errorVariables}
               </p>
             )}
-            <p className="text-[11px] text-muted-foreground">
-              Si no seleccionas ninguna clave, la llave permitirá todas las variables activas con
-              destino Integraciones.
-            </p>
+
+            <div className="rounded-md bg-muted/60 px-2.5 py-2 text-[11px]">
+              <span className="font-medium text-foreground">Alcance resultante: </span>
+              {patronesAlcance.length === 0 ? (
+                <span className="text-muted-foreground">
+                  todas las variables activas con destino Integraciones.
+                </span>
+              ) : (
+                <span className="inline-flex flex-wrap gap-1">
+                  {patronesAlcance.map((patron) => (
+                    <code
+                      key={patron}
+                      className="rounded bg-background px-1 py-0.5 font-mono text-[10px]"
+                    >
+                      {patron}
+                    </code>
+                  ))}
+                </span>
+              )}
+            </div>
           </div>
 
           {errorCrear && (

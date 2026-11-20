@@ -48,6 +48,7 @@ import {
 import {
   CLAVE_MODULO_REGEX,
   aSegmentoClave,
+  aSegmentoClaveAlEscribir,
   clavesAdicionalesDeEsquema,
   construirEsquema,
   depurarValorSegunEsquema,
@@ -892,7 +893,7 @@ export function VariableEditorDialog({
                 >
                   <SelectTrigger
                     className={cn(
-                      'h-9 w-full',
+                      'h-9 w-full border-border',
                       erroresPaso2.modulo &&
                         'border-destructive focus:ring-destructive/30',
                     )}
@@ -1032,8 +1033,11 @@ export function VariableEditorDialog({
                       <Input
                         id="variable-namespace"
                         value={namespace}
-                        onChange={(e) => setNamespace(aSegmentoClave(e.target.value))}
-                        onBlur={() => setClaveTocada(true)}
+                        onChange={(e) => setNamespace(aSegmentoClaveAlEscribir(e.target.value))}
+                        onBlur={() => {
+                          setNamespace((valor) => valor.replace(/_+$/, ''));
+                          setClaveTocada(true);
+                        }}
                         placeholder="Ej. catalogo"
                         className={cn(
                           'h-9 font-mono text-xs',
@@ -1053,8 +1057,11 @@ export function VariableEditorDialog({
                       <Input
                         id="variable-clave"
                         value={clave}
-                        onChange={(e) => setClave(aSegmentoClave(e.target.value))}
-                        onBlur={() => setClaveTocada(true)}
+                        onChange={(e) => setClave(aSegmentoClaveAlEscribir(e.target.value))}
+                        onBlur={() => {
+                          setClave((valor) => valor.replace(/_+$/, ''));
+                          setClaveTocada(true);
+                        }}
                         placeholder="Ej. dias_limite"
                         className={cn(
                           'h-9 font-mono text-xs',
@@ -1114,7 +1121,7 @@ export function VariableEditorDialog({
                   value={descripcion}
                   onChange={(e) => setDescripcion(e.target.value)}
                   placeholder="Para qué sirve y qué impacto tiene cambiarla"
-                  className="min-h-[clamp(4rem,9dvh,7rem)] resize-none text-sm leading-relaxed"
+                  className="min-h-[clamp(4rem,9dvh,7rem)] resize-none border-border text-sm leading-relaxed"
                   rows={3}
                   maxLength={1000}
                 />

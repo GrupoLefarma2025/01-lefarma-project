@@ -3,9 +3,11 @@ import {
   AlertTriangle,
   Boxes,
   Braces,
+  ChevronDown,
   Code2,
   Copy,
   Database,
+  Eye,
   History,
   KeyRound,
   MoreHorizontal,
@@ -24,6 +26,7 @@ import {
 import { toast } from 'sonner';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { usePermissionVersion } from '@/utils/permissions';
+import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -36,14 +39,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
+import { DataTable, type ColumnDef } from '@/components/ui/data-table';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -94,10 +90,14 @@ import {
   tienePermiso,
   tipoDatoBackend,
 } from '../utils';
+import { colorDeModulo, colorTextoContraste } from '../colores';
 import { VariableEditorDialog } from '../components/VariableEditorDialog';
 import { HistoryDialog } from '../components/HistoryDialog';
 import { IntegracionesPanel } from '../components/IntegracionesPanel';
 import { ModulosPanel } from '../components/ModulosPanel';
+import { TipoVariable } from '../components/TipoVariable';
+import { ValorVariable } from '../components/ValorVariable';
+import { DestinosVariable } from '../components/DestinosVariable';
 import {
   copiarAlPortapapeles,
   etiquetaLenguajeApi,
@@ -110,6 +110,7 @@ import {
 } from '../snippets';
 
 type FiltroActivo = 'todos' | 'activas' | 'inactivas';
+type FiltroActualizado = 'todos' | 'hoy' | '7d' | '30d';
 
 const ICONO_SNIPPET: Record<SnippetCodigo, typeof Code2> = {
   frontend: Code2,
@@ -151,6 +152,7 @@ export function ConfiguracionVariablesPage() {
   const [tipo, setTipo] = useState('todos');
   const [destino, setDestino] = useState('todos');
   const [activo, setActivo] = useState<FiltroActivo>('todos');
+  const [actualizadoFiltro, setActualizadoFiltro] = useState<FiltroActualizado>('todos');
   const [refreshKey, setRefreshKey] = useState(0);
   const [tabActiva, setTabActiva] = useState('variables');
 
@@ -231,7 +233,8 @@ export function ConfiguracionVariablesPage() {
     moduloFiltro !== 'todos' ||
     tipo !== 'todos' ||
     destino !== 'todos' ||
-    activo !== 'todos';
+    activo !== 'todos' ||
+    actualizadoFiltro !== 'todos';
 
   const namespaces = namespacesDeVariables(variables);
   if (namespaceFiltro !== 'todos' && !namespaces.includes(namespaceFiltro)) {
@@ -247,12 +250,32 @@ export function ConfiguracionVariablesPage() {
       ? (modulosPorId.get(variable.idModulo) ?? null)
       : moduloGlobal;
 
+  /** Desde cuándo se considera «actualizada» una variable; null = sin filtro. */
+  let desdeActualizado: number | null = null;
+  if (actualizadoFiltro !== 'todos') {
+    const limite = new Date();
+    if (actualizadoFiltro === 'hoy') {
+      limite.setHours(0, 0, 0, 0);
+    } else {
+      limite.setDate(limite.getDate() - (actualizadoFiltro === '7d' ? 7 : 30));
+    }
+    desdeActualizado = limite.getTime();
+  }
+
+  const fechaEnMs = (variable: VariableConfiguracion): number => {
+    const fecha = new Date(variable.fechaModificacion).getTime();
+    return Number.isNaN(fecha) ? 0 : fecha;
+  };
+
   const variablesVisibles = variables.filter((variable) => {
     if (namespaceFiltro !== 'todos' && namespaceDeClave(variable.clave) !== namespaceFiltro) {
       return false;
     }
-    if (moduloFiltro !== 'todos') {
-      return moduloDeVariable(variable)?.idModulo === Number(moduloFiltro);
+    if (moduloFiltro !== 'todos' && moduloDeVariable(variable)?.idModulo !== Number(moduloFiltro)) {
+      return false;
+    }
+    if (desdeActualizado !== null && fechaEnMs(variable) < desdeActualizado) {
+      return false;
     }
     return true;
   });
@@ -264,6 +287,7 @@ export function ConfiguracionVariablesPage() {
     setTipo('todos');
     setDestino('todos');
     setActivo('todos');
+    setActualizadoFiltro('todos');
   };
 
   const abrirCrear = () => {
@@ -304,21 +328,33 @@ export function ConfiguracionVariablesPage() {
     }
   };
 
+  const abrirSnippet = (variable: VariableConfiguracion, tipo: SnippetCodigo) => {
+    const lenguaje = tipo === 'api' ? lenguajeApiPredeterminado(variable) : undefined;
+    setSnippetVisible({
+      variable,
+      tipo,
+      codigo: generarSnippet(variable, tipo, lenguaje),
+      lenguaje,
+    });
+  };
+
   const copiarCodigo = async (variable: VariableConfiguracion, tipo: SnippetCodigo) => {
     const lenguaje = tipo === 'api' ? lenguajeApiPredeterminado(variable) : undefined;
     const codigo = generarSnippet(variable, tipo, lenguaje);
-    setSnippetVisible({ variable, tipo, codigo, lenguaje });
     const copiado = await copiarAlPortapapeles(codigo);
 
     if (copiado) {
-      toast.success(`Código ${NOMBRE_SNIPPET[tipo]} copiado.`, {
-        description: 'También puedes revisarlo o seleccionarlo en la ventana.',
-      });
-    } else {
-      toast.error('El portapapeles fue bloqueado por el navegador.', {
-        description: 'El código quedó visible para que lo copies manualmente.',
-      });
+      toast.success(`Código ${NOMBRE_SNIPPET[tipo]} copiado al portapapeles.`);
+      return;
     }
+
+    toast.error('El navegador bloqueó el portapapeles.', {
+      description: 'Puedes abrir el código y copiarlo manualmente.',
+      action: {
+        label: 'Ver código',
+        onClick: () => abrirSnippet(variable, tipo),
+      },
+    });
   };
 
   const cerrarPorConflicto = () => {
@@ -388,6 +424,262 @@ export function ConfiguracionVariablesPage() {
 
   const accionesDisponibles = puedeActualizar || puedeHistorial;
 
+  const columnas: ColumnDef<VariableConfiguracion>[] = [
+    {
+      id: 'nombre',
+      header: 'Variable',
+      accessorFn: (variable) => variable.nombre,
+      cell: ({ row }) => {
+        const variable = row.original;
+        return (
+          <div className="flex min-w-[220px] flex-col gap-0.5">
+            <span className="text-sm font-medium">{variable.nombre}</span>
+            <code className="w-fit rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
+              {variable.clave}
+            </code>
+            {variable.descripcion && (
+              <span className="line-clamp-1 max-w-[320px] text-[11px] text-muted-foreground">
+                {variable.descripcion}
+              </span>
+            )}
+          </div>
+        );
+      },
+    },
+    {
+      id: 'modulo',
+      header: 'Módulo',
+      accessorFn: (variable) => moduloDeVariable(variable)?.clave ?? '',
+      cell: ({ row }) => {
+        const modulo = moduloDeVariable(row.original);
+        if (!modulo) {
+          return <span className="text-xs text-muted-foreground">—</span>;
+        }
+        const color = colorDeModulo(modulo.color, modulo.clave);
+        return (
+          <Badge
+            variant="outline"
+            className="whitespace-nowrap border-transparent font-mono text-[10px]"
+            style={{ backgroundColor: color, color: colorTextoContraste(color) }}
+            title={modulo.nombre}
+          >
+            {modulo.clave}
+          </Badge>
+        );
+      },
+    },
+    {
+      id: 'namespace',
+      header: 'Namespace',
+      accessorFn: (variable) => namespaceDeClave(variable.clave),
+      cell: ({ row }) => (
+        <Badge variant="outline" className="whitespace-nowrap font-mono text-[10px]">
+          {namespaceDeClave(row.original.clave)}
+        </Badge>
+      ),
+    },
+    {
+      id: 'tipo',
+      header: 'Tipo',
+      accessorFn: (variable) => etiquetaTipo(variable.tipoDato),
+      cell: ({ row }) => (
+        <TipoVariable tipo={row.original.tipoDato} esquema={row.original.esquema} />
+      ),
+    },
+    {
+      id: 'valor',
+      header: 'Valor',
+      enableSorting: false,
+      accessorFn: (variable) => resumirValor(variable.valor),
+      cell: ({ row }) => <ValorVariable variable={row.original} />,
+    },
+    {
+      id: 'destinos',
+      header: 'Destinos',
+      enableSorting: false,
+      accessorFn: (variable) =>
+        DESTINOS.filter((destino) => variable[destino.campo])
+          .map((destino) => destino.etiqueta)
+          .join(' '),
+      cell: ({ row }) => <DestinosVariable variable={row.original} />,
+    },
+    {
+      id: 'estado',
+      header: 'Estado',
+      accessorFn: (variable) => (variable.activo ? 'Activa' : 'Inactiva'),
+      sortingFn: (a, b) => Number(a.original.activo) - Number(b.original.activo),
+      cell: ({ row }) => (
+        <Badge
+          variant="outline"
+          className={
+            row.original.activo
+              ? 'border-emerald-500/40 text-emerald-600 dark:text-emerald-400'
+              : 'border-border text-muted-foreground'
+          }
+        >
+          {row.original.activo ? 'Activa' : 'Inactiva'}
+        </Badge>
+      ),
+    },
+    {
+      id: 'version',
+      header: 'Versión',
+      accessorFn: (variable) => variable.version,
+      filterFn: (row, columnId, filterValue) =>
+        String(row.getValue(columnId) ?? '').includes(String(filterValue).trim()),
+      cell: ({ row }) => (
+        <span className="font-mono text-[11px] text-muted-foreground">
+          v{row.original.version}
+        </span>
+      ),
+    },
+    {
+      id: 'actualizado',
+      header: 'Actualizado',
+      accessorFn: (variable) => formatearFecha(variable.fechaModificacion, true),
+      sortingFn: (a, b) => fechaEnMs(a.original) - fechaEnMs(b.original),
+      cell: ({ row }) => (
+        <span className="whitespace-nowrap text-xs text-muted-foreground">
+          {formatearFecha(row.original.fechaModificacion, true)}
+        </span>
+      ),
+    },
+    {
+      id: 'acciones',
+      header: () => <span className="block w-full text-right">Acciones</span>,
+      enableSorting: false,
+      cell: ({ row }) => {
+        const variable = row.original;
+
+        return (
+          <div className="flex items-center justify-end gap-1">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  aria-label={`Copiar código de uso de ${variable.nombre}`}
+                  title="Copiar código de uso"
+                >
+                  <Copy className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-64">
+                <DropdownMenuLabel className="space-y-0.5">
+                  <span className="block text-xs font-medium">Copiar código de uso</span>
+                  <span className="block truncate font-mono text-[10px] font-normal text-muted-foreground">
+                    {variable.clave}
+                  </span>
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {opcionesSnippet(variable).map((opcion) => {
+                  const Icono = ICONO_SNIPPET[opcion.tipo];
+                  return (
+                    <DropdownMenuItem
+                      key={opcion.tipo}
+                      disabled={!opcion.disponible}
+                      onSelect={() => {
+                        if (opcion.disponible) {
+                          void copiarCodigo(variable, opcion.tipo);
+                        }
+                      }}
+                      title={
+                        opcion.disponible
+                          ? `Copiar ejemplo para ${opcion.etiqueta}`
+                          : `La variable no tiene activo el destino ${opcion.etiqueta}`
+                      }
+                    >
+                      <Icono className="mr-2 h-4 w-4 shrink-0" />
+                      <span className="flex min-w-0 flex-col">
+                        <span className="text-xs font-medium">{opcion.etiqueta}</span>
+                        <span className="truncate font-mono text-[10px] font-normal text-muted-foreground">
+                          {opcion.disponible ? opcion.descripcion : 'Destino no habilitado'}
+                        </span>
+                      </span>
+                    </DropdownMenuItem>
+                  );
+                })}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onSelect={() => {
+                    const primero = opcionesSnippet(variable).find(
+                      (opcion) => opcion.disponible,
+                    );
+                    if (primero) abrirSnippet(variable, primero.tipo);
+                  }}
+                >
+                  <Eye className="mr-2 h-4 w-4 shrink-0" />
+                  <span className="flex min-w-0 flex-col">
+                    <span className="text-xs font-medium">Ver código completo</span>
+                    <span className="text-[10px] font-normal text-muted-foreground">
+                      Abrir la ventana con el código
+                    </span>
+                  </span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {accionesDisponibles ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8"
+                    aria-label={`Acciones para ${variable.nombre}`}
+                  >
+                    <MoreHorizontal className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48">
+                  <DropdownMenuLabel className="truncate text-[11px] font-normal text-muted-foreground">
+                    {variable.clave}
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  {puedeActualizar && (
+                    <DropdownMenuItem onSelect={() => abrirEditar(variable)}>
+                      <Pencil className="mr-2 h-3.5 w-3.5" />
+                      Editar
+                    </DropdownMenuItem>
+                  )}
+                  {puedeHistorial && (
+                    <DropdownMenuItem onSelect={() => abrirHistorial(variable)}>
+                      <History className="mr-2 h-3.5 w-3.5" />
+                      Historial
+                    </DropdownMenuItem>
+                  )}
+                  {puedeActualizar && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        onSelect={() => setEstadoPendiente(variable)}
+                        className={
+                          variable.activo ? 'text-destructive focus:text-destructive' : ''
+                        }
+                      >
+                        {variable.activo ? (
+                          <PowerOff className="mr-2 h-3.5 w-3.5" />
+                        ) : (
+                          <Power className="mr-2 h-3.5 w-3.5" />
+                        )}
+                        {variable.activo ? 'Desactivar' : 'Reactivar'}
+                      </DropdownMenuItem>
+                    </>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : (
+              <span className="w-8 text-center text-xs text-muted-foreground">—</span>
+            )}
+          </div>
+        );
+      },
+    },
+  ];
+
   const contenidoVariables = (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-end gap-2">
@@ -412,15 +704,23 @@ export function ConfiguracionVariablesPage() {
         </Button>
       </div>
 
-      <details className="group rounded-xl border border-border bg-card">
-        <summary className="cursor-pointer list-none px-4 py-3 text-sm font-medium">
-          <span className="inline-flex items-center gap-2">
-            <Code2 className="h-4 w-4 text-primary" />
-            ¿Cómo usar una variable?
-            <span className="text-[11px] font-normal text-muted-foreground">
-              Frontend, Backend, SQL e integraciones
+      <details className="group overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+        <summary className="flex cursor-pointer list-none items-center gap-3 px-3.5 py-2.5 transition-colors hover:bg-muted [&::-webkit-details-marker]:hidden">
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-background text-primary">
+            <Code2 className="h-4 w-4" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-medium leading-tight">
+              ¿Cómo usar una variable?
+            </span>
+            <span className="block truncate text-[11px] text-muted-foreground">
+              Ejemplos para Frontend, Backend, SQL Server y otros sistemas.
             </span>
           </span>
+          <span className="hidden shrink-0 items-center rounded-full border border-border bg-muted/60 px-2 py-0.5 text-[10px] font-medium text-muted-foreground sm:inline-flex">
+            Guía rápida
+          </span>
+          <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 group-open:rotate-180" />
         </summary>
         <div className="grid gap-3 border-t border-border p-4 sm:grid-cols-2 xl:grid-cols-4">
           <div className="rounded-lg border border-sky-200 bg-sky-50/40 p-3">
@@ -469,22 +769,25 @@ export function ConfiguracionVariablesPage() {
         </p>
       </details>
 
-      <div className="rounded-lg border border-border bg-card">
+      <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
         {/* Filtros */}
-        <div className="flex flex-wrap items-center gap-2 border-b border-border p-3">
-          <div className="relative min-w-[220px] flex-1">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <div className="flex flex-wrap items-center gap-2 border-b border-border bg-muted/20 p-2.5">
+          <div className="relative min-w-[240px] flex-1">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
             <Input
               value={buscar}
               onChange={(e) => setBuscar(e.target.value)}
               placeholder="Buscar por namespace, nombre o clave…"
-              className="pl-9"
+              className="h-9 border-border bg-background pl-9"
               aria-label="Buscar variables"
             />
           </div>
 
           <Select value={namespaceFiltro} onValueChange={setNamespaceFiltro}>
-            <SelectTrigger className="w-[170px]" aria-label="Filtrar por namespace">
+            <SelectTrigger
+              className="h-9 w-[170px] border-border bg-background"
+              aria-label="Filtrar por namespace"
+            >
               <SelectValue placeholder="Namespace" />
             </SelectTrigger>
             <SelectContent>
@@ -498,7 +801,10 @@ export function ConfiguracionVariablesPage() {
           </Select>
 
           <Select value={moduloFiltro} onValueChange={setModuloFiltro}>
-            <SelectTrigger className="w-[170px]" aria-label="Filtrar por módulo">
+            <SelectTrigger
+              className="h-9 w-[170px] border-border bg-background"
+              aria-label="Filtrar por módulo"
+            >
               <SelectValue placeholder="Módulo" />
             </SelectTrigger>
             <SelectContent>
@@ -512,7 +818,10 @@ export function ConfiguracionVariablesPage() {
           </Select>
 
           <Select value={tipo} onValueChange={setTipo}>
-            <SelectTrigger className="w-[160px]" aria-label="Filtrar por tipo">
+            <SelectTrigger
+              className="h-9 w-[160px] border-border bg-background"
+              aria-label="Filtrar por tipo"
+            >
               <SelectValue placeholder="Tipo" />
             </SelectTrigger>
             <SelectContent>
@@ -526,7 +835,10 @@ export function ConfiguracionVariablesPage() {
           </Select>
 
           <Select value={destino} onValueChange={setDestino}>
-            <SelectTrigger className="w-[160px]" aria-label="Filtrar por destino">
+            <SelectTrigger
+              className="h-9 w-[160px] border-border bg-background"
+              aria-label="Filtrar por destino"
+            >
               <SelectValue placeholder="Destino" />
             </SelectTrigger>
             <SelectContent>
@@ -540,7 +852,10 @@ export function ConfiguracionVariablesPage() {
           </Select>
 
           <Select value={activo} onValueChange={(valor) => setActivo(valor as FiltroActivo)}>
-            <SelectTrigger className="w-[140px]" aria-label="Filtrar por estado">
+            <SelectTrigger
+              className="h-9 w-[140px] border-border bg-background"
+              aria-label="Filtrar por estado"
+            >
               <SelectValue placeholder="Estado" />
             </SelectTrigger>
             <SelectContent>
@@ -550,24 +865,38 @@ export function ConfiguracionVariablesPage() {
             </SelectContent>
           </Select>
 
-          {hayFiltros && (
-            <Button type="button" variant="ghost" size="sm" onClick={limpiarFiltros}>
-              <X className="h-4 w-4" />
-              Limpiar
-            </Button>
-          )}
-
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            onClick={recargar}
-            disabled={cargando}
-            aria-label="Recargar variables"
-            title="Recargar"
+          <Select
+            value={actualizadoFiltro}
+            onValueChange={(valor) => setActualizadoFiltro(valor as FiltroActualizado)}
           >
-            <RefreshCw className={cargando ? 'h-4 w-4 animate-spin' : 'h-4 w-4'} />
-          </Button>
+            <SelectTrigger
+              className="h-9 w-[150px] border-border bg-background"
+              aria-label="Filtrar por fecha de actualización"
+            >
+              <SelectValue placeholder="Actualizado" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todos">Cualquier fecha</SelectItem>
+              <SelectItem value="hoy">Actualizadas hoy</SelectItem>
+              <SelectItem value="7d">Últimos 7 días</SelectItem>
+              <SelectItem value="30d">Últimos 30 días</SelectItem>
+            </SelectContent>
+          </Select>
+
+          <div className="ml-auto flex items-center gap-1.5">
+            {hayFiltros && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-9 gap-1.5 text-xs"
+                onClick={limpiarFiltros}
+              >
+                <X className="h-3.5 w-3.5" />
+                Limpiar
+              </Button>
+            )}
+          </div>
         </div>
 
         {/* Contenido */}
@@ -588,279 +917,105 @@ export function ConfiguracionVariablesPage() {
             </Button>
           </div>
         ) : variablesVisibles.length === 0 ? (
-          <EmptyState
-            icon={<Settings2 className="h-10 w-10" />}
-            title={hayFiltros ? 'Sin resultados' : 'Aún no hay variables'}
-            description={
-              hayFiltros
-                ? 'Ajusta o limpia los filtros para ver más resultados.'
-                : puedeCrear
-                  ? 'Crea la primera variable para que las aplicaciones la consuman.'
-                  : 'Aún no hay variables configuradas.'
-            }
-          />
-        ) : (
-          <div className="overflow-x-auto">
-            <Table className="min-w-[1120px]">
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="min-w-[240px]">Variable</TableHead>
-                  <TableHead>Módulo</TableHead>
-                  <TableHead>Namespace</TableHead>
-                  <TableHead>Tipo</TableHead>
-                  <TableHead className="min-w-[180px]">Valor</TableHead>
-                  <TableHead>Destinos</TableHead>
-                  <TableHead>Estado</TableHead>
-                  <TableHead>Versión</TableHead>
-                  <TableHead>Actualizado</TableHead>
-                  <TableHead className="w-[100px] text-right">Acciones</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {variablesVisibles.map((variable) => {
-                  const destinosActivos = DESTINOS.filter(
-                    (opcion) => variable[opcion.campo],
-                  );
-                  const modulo = moduloDeVariable(variable);
-
-                  return (
-                    <TableRow key={variable.idVariable}>
-                      <TableCell>
-                        <div className="flex flex-col gap-0.5">
-                          <span className="text-sm font-medium">{variable.nombre}</span>
-                          <code className="w-fit rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
-                            {variable.clave}
-                          </code>
-                          {variable.descripcion && (
-                            <span className="line-clamp-1 max-w-[320px] text-[11px] text-muted-foreground">
-                              {variable.descripcion}
-                            </span>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        {modulo ? (
-                          <Badge
-                            variant="secondary"
-                            className="whitespace-nowrap font-mono text-[10px]"
-                            title={modulo.nombre}
-                          >
-                            {modulo.clave}
-                          </Badge>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">—</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <Badge
-                          variant="outline"
-                          className="whitespace-nowrap font-mono text-[10px]"
-                        >
-                          {namespaceDeClave(variable.clave)}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className="whitespace-nowrap text-[11px]">
-                          {etiquetaTipo(variable.tipoDato)}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <code
-                          className="block max-w-[260px] truncate font-mono text-[11px] text-muted-foreground"
-                          title={resumirValor(variable.valor, 400)}
-                        >
-                          {resumirValor(variable.valor)}
-                        </code>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex flex-wrap gap-1">
-                          {destinosActivos.length > 0 ? (
-                            destinosActivos.map((opcion) => (
-                              <Badge
-                                key={opcion.clave}
-                                variant="secondary"
-                                className="text-[10px] font-normal"
-                              >
-                                {opcion.etiqueta}
-                              </Badge>
-                            ))
-                          ) : (
-                            <span className="text-xs text-muted-foreground">—</span>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge
-                          variant="outline"
-                          className={
-                            variable.activo
-                              ? 'border-emerald-500/40 text-emerald-600 dark:text-emerald-400'
-                              : 'border-border text-muted-foreground'
-                          }
-                        >
-                          {variable.activo ? 'Activa' : 'Inactiva'}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <span className="font-mono text-[11px] text-muted-foreground">
-                          v{variable.version}
-                        </span>
-                      </TableCell>
-                      <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
-                        {formatearFecha(variable.fechaModificacion, true)}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8"
-                                aria-label={`Copiar código de uso de ${variable.nombre}`}
-                                title="Copiar código de uso"
-                              >
-                                <Copy className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="w-64">
-                              <DropdownMenuLabel className="space-y-0.5">
-                                <span className="block text-xs font-medium">
-                                  Copiar código de uso
-                                </span>
-                                <span className="block truncate font-mono text-[10px] font-normal text-muted-foreground">
-                                  {variable.clave}
-                                </span>
-                              </DropdownMenuLabel>
-                              <DropdownMenuSeparator />
-                              {opcionesSnippet(variable).map((opcion) => {
-                                const Icono = ICONO_SNIPPET[opcion.tipo];
-                                return (
-                                  <DropdownMenuItem
-                                    key={opcion.tipo}
-                                    disabled={!opcion.disponible}
-                                    onSelect={() => {
-                                      if (opcion.disponible) {
-                                        void copiarCodigo(variable, opcion.tipo);
-                                      }
-                                    }}
-                                    title={
-                                      opcion.disponible
-                                        ? `Copiar ejemplo para ${opcion.etiqueta}`
-                                        : `La variable no tiene activo el destino ${opcion.etiqueta}`
-                                    }
-                                  >
-                                    <Icono className="mr-2 h-4 w-4 shrink-0" />
-                                    <span className="flex min-w-0 flex-col">
-                                      <span className="text-xs font-medium">
-                                        {opcion.etiqueta}
-                                      </span>
-                                      <span className="truncate font-mono text-[10px] font-normal text-muted-foreground">
-                                        {opcion.disponible
-                                          ? opcion.descripcion
-                                          : 'Destino no habilitado'}
-                                      </span>
-                                    </span>
-                                  </DropdownMenuItem>
-                                );
-                              })}
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-
-                          {accionesDisponibles ? (
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8"
-                                  aria-label={`Acciones para ${variable.nombre}`}
-                                >
-                                  <MoreHorizontal className="h-4 w-4" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end" className="w-48">
-                                <DropdownMenuLabel className="truncate text-[11px] font-normal text-muted-foreground">
-                                  {variable.clave}
-                                </DropdownMenuLabel>
-                                <DropdownMenuSeparator />
-                                {puedeActualizar && (
-                                  <DropdownMenuItem onSelect={() => abrirEditar(variable)}>
-                                    <Pencil className="mr-2 h-3.5 w-3.5" />
-                                    Editar
-                                  </DropdownMenuItem>
-                                )}
-                                {puedeHistorial && (
-                                  <DropdownMenuItem onSelect={() => abrirHistorial(variable)}>
-                                    <History className="mr-2 h-3.5 w-3.5" />
-                                    Historial
-                                  </DropdownMenuItem>
-                                )}
-                                {puedeActualizar && (
-                                  <>
-                                    <DropdownMenuSeparator />
-                                    <DropdownMenuItem
-                                      onSelect={() => setEstadoPendiente(variable)}
-                                      className={
-                                        variable.activo
-                                          ? 'text-destructive focus:text-destructive'
-                                          : ''
-                                      }
-                                    >
-                                      {variable.activo ? (
-                                        <PowerOff className="mr-2 h-3.5 w-3.5" />
-                                      ) : (
-                                        <Power className="mr-2 h-3.5 w-3.5" />
-                                      )}
-                                      {variable.activo ? 'Desactivar' : 'Reactivar'}
-                                    </DropdownMenuItem>
-                                  </>
-                                )}
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          ) : (
-                            <span className="w-8 text-center text-xs text-muted-foreground">—</span>
-                          )}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
+          <div className="p-4">
+            <EmptyState
+              icon={<Settings2 className="h-10 w-10" />}
+              title={hayFiltros ? 'Sin resultados' : 'Aún no hay variables'}
+              description={
+                hayFiltros
+                  ? 'Ajusta o limpia los filtros para ver más resultados.'
+                  : puedeCrear
+                    ? 'Crea la primera variable para que las aplicaciones la consuman.'
+                    : 'Aún no hay variables configuradas.'
+              }
+            />
           </div>
+        ) : (
+          <DataTable
+            columns={columnas}
+            data={variablesVisibles}
+            title="Variables"
+            subtitle={
+              hayFiltros
+                ? `${variablesVisibles.length} de ${variables.length} variables con los filtros aplicados`
+                : undefined
+            }
+            showRowCount
+            showRefreshButton
+            onRefresh={recargar}
+            collapsible={false}
+            initialSorting={[{ id: 'actualizado', desc: true }]}
+            filterConfig={{
+              tableId: 'configuracion-variables',
+              searchableColumns: [
+                'nombre',
+                'modulo',
+                'namespace',
+                'tipo',
+                'valor',
+                'destinos',
+                'estado',
+                'version',
+                'actualizado',
+              ],
+            }}
+            className="rounded-none border-0 shadow-none"
+          />
         )}
       </div>
-
-      <p className="text-[11px] text-muted-foreground">
-        {variablesVisibles.length} variable{variablesVisibles.length === 1 ? '' : 's'} mostrada
-        {variablesVisibles.length === 1 ? '' : 's'}
-        {cargando ? ' · actualizando…' : ''}
-      </p>
     </div>
   );
 
   return (
     <div className="space-y-6">
       <Tabs value={tabActiva} onValueChange={setTabActiva} className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="variables" className="gap-2">
-            <SlidersHorizontal className="h-4 w-4" />
-            Variables
-          </TabsTrigger>
-          <TabsTrigger value="modulos" className="gap-2">
-            <Boxes className="h-4 w-4" />
-            Módulos
-          </TabsTrigger>
-          {puedeApiKeys && (
-            <TabsTrigger value="integraciones" className="gap-2">
-              <KeyRound className="h-4 w-4" />
-              Integraciones
+        <div className="-mx-1 overflow-x-auto px-1 pb-1">
+          <TabsList className="h-auto w-max justify-start gap-1 rounded-xl border border-border bg-card p-1 shadow-sm">
+            <TabsTrigger
+              value="variables"
+              className="h-9 gap-2 rounded-lg px-3 text-[13px] font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground data-[state=active]:bg-background data-[state=active]:font-semibold data-[state=active]:text-foreground data-[state=active]:shadow-sm"
+            >
+              <SlidersHorizontal className="h-4 w-4" />
+              Variables
+              <span
+                className={cn(
+                  'rounded-full px-1.5 py-0.5 text-[10px] font-semibold tabular-nums',
+                  tabActiva === 'variables'
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-muted text-muted-foreground',
+                )}
+              >
+                {variables.length}
+              </span>
             </TabsTrigger>
-          )}
-        </TabsList>
+            <TabsTrigger
+              value="modulos"
+              className="h-9 gap-2 rounded-lg px-3 text-[13px] font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground data-[state=active]:bg-background data-[state=active]:font-semibold data-[state=active]:text-foreground data-[state=active]:shadow-sm"
+            >
+              <Boxes className="h-4 w-4" />
+              Módulos
+              <span
+                className={cn(
+                  'rounded-full px-1.5 py-0.5 text-[10px] font-semibold tabular-nums',
+                  tabActiva === 'modulos'
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-muted text-muted-foreground',
+                )}
+              >
+                {modulos.length}
+              </span>
+            </TabsTrigger>
+            {puedeApiKeys && (
+              <TabsTrigger
+                value="integraciones"
+                className="h-9 gap-2 rounded-lg px-3 text-[13px] font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground data-[state=active]:bg-background data-[state=active]:font-semibold data-[state=active]:text-foreground data-[state=active]:shadow-sm"
+              >
+                <KeyRound className="h-4 w-4" />
+                Integraciones
+              </TabsTrigger>
+            )}
+          </TabsList>
+        </div>
 
         <TabsContent value="variables" className="mt-0">
           {contenidoVariables}
@@ -877,7 +1032,7 @@ export function ConfiguracionVariablesPage() {
 
         {puedeApiKeys && (
           <TabsContent value="integraciones" className="mt-0">
-            <IntegracionesPanel puedeGestionar={puedeApiKeys} />
+            <IntegracionesPanel puedeGestionar={puedeApiKeys} modulos={modulos} />
           </TabsContent>
         )}
       </Tabs>

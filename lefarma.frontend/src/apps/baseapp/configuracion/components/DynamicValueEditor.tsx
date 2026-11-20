@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   AlertCircle,
   AlertTriangle,
@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { DatePicker } from '@/components/ui/date-picker';
 import { Input } from '@/components/ui/input';
 import {
   Select,
@@ -19,8 +20,9 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { TimePicker } from '@/components/ui/time-picker';
 import { cn } from '@/lib/utils';
-import { TIPOS_DATO, type JsonSchemaNodo } from '../types';
+import { TIPOS_DATO, type JsonSchemaNodo, type TipoDatoRango } from '../types';
 import {
   aDatetimeLocal,
   aFechaInput,
@@ -36,7 +38,15 @@ import {
   validarValorVariable,
   valorInicialFormulario,
 } from '../utils';
+import { JsonValueEditor } from './JsonValueEditor';
 import { ICONOS_TIPO, TONOS_TIPO } from './typeVisuals';
+
+/** Fecha local de hoy en "yyyy-MM-dd", sin desfase de zona. */
+function fechaDeHoy(): string {
+  const ahora = new Date();
+  const pad = (numero: number) => String(numero).padStart(2, '0');
+  return `${ahora.getFullYear()}-${pad(ahora.getMonth() + 1)}-${pad(ahora.getDate())}`;
+}
 
 export interface DynamicValueEditorProps {
   /** Tipo canónico o valor crudo del backend. */
@@ -128,7 +138,7 @@ export function DynamicValueEditor({
             maxLength={maxLength}
             rows={6}
             className={cn(
-              'min-h-[160px] resize-y bg-background text-sm leading-relaxed',
+              'min-h-[160px] resize-y border-border bg-background text-sm leading-relaxed',
               error && 'border-destructive focus-visible:ring-destructive/30',
             )}
           />
@@ -215,13 +225,13 @@ export function DynamicValueEditor({
     case 'fecha':
       editor = (
         <div className="space-y-1">
-          <Input
-            {...propsControl}
-            type="date"
-            value={aFechaInput(valor)}
-            onChange={(e) => actualizar(e.target.value)}
+          <DatePicker
+            value={aFechaInput(valor) || null}
+            onChange={(nueva) => actualizar(nueva ?? '')}
+            placeholder="Elegir fecha"
+            disabled={disabled}
             className={cn(
-              'h-10 max-w-xs bg-background',
+              'h-10 max-w-xs border-border bg-background font-normal',
               error && 'border-destructive focus-visible:ring-destructive/30',
             )}
           />
@@ -233,41 +243,57 @@ export function DynamicValueEditor({
     case 'hora':
       editor = (
         <div className="space-y-1">
-          <Input
-            {...propsControl}
-            type="time"
-            step={1}
-            value={aHoraInput(valor)}
-            onChange={(e) => actualizar(e.target.value)}
-            className={cn(
-              'h-10 max-w-xs bg-background font-mono',
-              error && 'border-destructive focus-visible:ring-destructive/30',
-            )}
+          <TimePicker
+            value={aHoraInput(valor) || null}
+            onValueChange={(nuevo) => actualizar(nuevo ?? '')}
+            disabled={disabled}
+            invalid={Boolean(error)}
+            className="max-w-xs"
           />
           <p className="text-[10px] text-muted-foreground">Hora del día. Sin fecha.</p>
         </div>
       );
       break;
 
-    case 'fecha_hora':
+    case 'fecha_hora': {
+      const local = aDatetimeLocal(valor);
+      const [fechaActual = '', horaActual = ''] = local ? local.split('T') : [];
+      const emitir = (fecha: string, hora: string) => {
+        if (!fecha) {
+          actualizar('');
+          return;
+        }
+        actualizar(desdeDatetimeLocal(`${fecha}T${hora || '00:00'}`));
+      };
       editor = (
         <div className="space-y-1">
-          <Input
-            {...propsControl}
-            type="datetime-local"
-            value={aDatetimeLocal(valor)}
-            onChange={(e) => actualizar(desdeDatetimeLocal(e.target.value))}
-            className={cn(
-              'h-10 max-w-sm bg-background font-mono',
-              error && 'border-destructive focus-visible:ring-destructive/30',
-            )}
-          />
+          <div className="flex flex-wrap items-center gap-2">
+            <DatePicker
+              value={fechaActual || null}
+              onChange={(nueva) => emitir(nueva ?? '', horaActual)}
+              placeholder="Elegir fecha"
+              disabled={disabled}
+              className={cn(
+                'h-10 w-52 border-border bg-background font-normal',
+                error && 'border-destructive focus-visible:ring-destructive/30',
+              )}
+            />
+            <TimePicker
+              conSegundos={false}
+              value={horaActual || null}
+              onValueChange={(nueva) => emitir(fechaActual || fechaDeHoy(), nueva ?? '')}
+              disabled={disabled}
+              invalid={Boolean(error)}
+              className="h-10 w-32"
+            />
+          </div>
           <p className="text-[10px] text-muted-foreground">
             Fecha y hora exactas; se guarda en formato ISO.
           </p>
         </div>
       );
       break;
+    }
 
     case 'seleccion':
       editor = (
@@ -294,6 +320,15 @@ export function DynamicValueEditor({
       );
       break;
 
+    case 'rango_fecha':
+    case 'rango_fecha_hora':
+    case 'rango_entero':
+    case 'rango_decimal':
+      editor = (
+        <RangoEditor tipo={t} valor={valor} disabled={disabled} onChange={actualizar} />
+      );
+      break;
+
     case 'objeto':
       editor = (
         <ObjetoEditor
@@ -308,6 +343,16 @@ export function DynamicValueEditor({
       break;
 
     case 'json':
+      editor = (
+        <JsonValueEditor
+          valor={valor}
+          disabled={disabled}
+          ejemplo={meta?.ejemplo}
+          onChange={actualizar}
+        />
+      );
+      break;
+
     default:
       editor = (
         <JsonEditor
@@ -352,6 +397,121 @@ export function DynamicValueEditor({
           {error}
         </p>
       )}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Rangos (desde / hasta)                                              */
+/* ------------------------------------------------------------------ */
+
+function RangoEditor({
+  tipo,
+  valor,
+  disabled,
+  onChange,
+}: {
+  tipo: TipoDatoRango;
+  valor: unknown;
+  disabled: boolean;
+  onChange: (valor: unknown) => void;
+}) {
+  const rango = esObjetoPlano(valor) ? valor : {};
+  const desde = rango.desde;
+  const hasta = rango.hasta;
+
+  const emitir = (campo: 'desde' | 'hasta', nuevo: unknown) => {
+    onChange({ ...rango, [campo]: nuevo });
+  };
+
+  const contenido = (campo: 'desde' | 'hasta', extremo: unknown) => {
+    if (tipo === 'rango_fecha') {
+      return (
+        <DatePicker
+          value={aFechaInput(extremo) || null}
+          onChange={(nueva) => emitir(campo, nueva ?? '')}
+          placeholder="Elegir fecha"
+          disabled={disabled}
+          className="h-10 w-52 border-border bg-background font-normal"
+        />
+      );
+    }
+
+    if (tipo === 'rango_fecha_hora') {
+      const local = aDatetimeLocal(extremo);
+      const [fecha = '', hora = ''] = local ? local.split('T') : [];
+
+      return (
+        <div className="flex flex-wrap items-center gap-2">
+          <DatePicker
+            value={fecha || null}
+            onChange={(nueva) =>
+              emitir(campo, nueva ? desdeDatetimeLocal(`${nueva}T${hora || '00:00'}`) : '')
+            }
+            placeholder="Elegir fecha"
+            disabled={disabled}
+            className="h-10 w-52 border-border bg-background font-normal"
+          />
+          <TimePicker
+            conSegundos={false}
+            value={hora || null}
+            onValueChange={(nueva) =>
+              emitir(
+                campo,
+                desdeDatetimeLocal(`${fecha || fechaDeHoy()}T${nueva || '00:00'}`),
+              )
+            }
+            disabled={disabled}
+            className="h-10 w-32"
+          />
+        </div>
+      );
+    }
+
+    const esEntero = tipo === 'rango_entero';
+
+    return (
+      <Input
+        type="number"
+        inputMode={esEntero ? 'numeric' : 'decimal'}
+        step={esEntero ? 1 : 'any'}
+        value={typeof extremo === 'number' && Number.isFinite(extremo) ? String(extremo) : ''}
+        onChange={(e) => {
+          const texto = e.target.value;
+          if (texto === '') {
+            emitir(campo, null);
+            return;
+          }
+          const numero = Number(texto);
+          emitir(campo, Number.isNaN(numero) ? texto : numero);
+        }}
+        placeholder={campo === 'desde' ? 'Desde' : 'Hasta'}
+        disabled={disabled}
+        className="h-10 w-40 border-border bg-background font-mono"
+      />
+    );
+  };
+
+  return (
+    <div className="space-y-2">
+      {(['desde', 'hasta'] as const).map((campo) => (
+        <div
+          key={campo}
+          className="grid items-center gap-2 rounded-lg border border-border bg-card/60 px-3 py-2 sm:grid-cols-[80px_1fr]"
+        >
+          <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+            {campo}
+          </span>
+          {contenido(campo, campo === 'desde' ? desde : hasta)}
+        </div>
+      ))}
+      <p className="text-[10px] text-muted-foreground">
+        {tipo === 'rango_fecha'
+          ? 'Dos fechas; el rango incluye ambos días.'
+          : tipo === 'rango_fecha_hora'
+            ? 'Dos momentos exactos; se guardan en formato ISO.'
+            : 'El valor «desde» debe ser menor o igual que «hasta».'}
+      </p>
     </div>
   );
 }
@@ -404,7 +564,7 @@ function SeleccionEditor({
       >
         <SelectTrigger
           aria-invalid={Boolean(error)}
-          className={cn(error && 'border-destructive focus:ring-destructive/30')}
+          className={cn('border-border', error && 'border-destructive focus:ring-destructive/30')}
         >
           <SelectValue placeholder="Selecciona una opción" />
         </SelectTrigger>
@@ -450,6 +610,8 @@ function ListaEditor({
   const metaItem = TIPOS_DATO.find((tipo) => tipo.valor === tipoItem);
   const IconoItem = ICONOS_TIPO[tipoItem];
   const tonoItem = metaItem ? TONOS_TIPO[metaItem.tono] : null;
+  const [indiceNuevo, setIndiceNuevo] = useState<number | null>(null);
+  const contenedores = useRef<Array<HTMLDivElement | null>>([]);
 
   const cambiarItem = (indice: number, nuevo: unknown) => {
     onChange(lista.map((item, i) => (i === indice ? nuevo : item)));
@@ -460,8 +622,26 @@ function ListaEditor({
   };
 
   const agregarItem = () => {
+    const nuevoIndice = lista.length;
     onChange([...lista, valorInicialFormulario(tipoItem)]);
+    setIndiceNuevo(nuevoIndice);
   };
+
+  useEffect(() => {
+    if (indiceNuevo === null) return;
+    const marco = requestAnimationFrame(() => {
+      const contenedor = contenedores.current[indiceNuevo];
+      if (contenedor) {
+        contenedor.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        const enfocable = contenedor.querySelector<HTMLElement>(
+          'input:not([type="hidden"]):not([disabled]), textarea:not([disabled]), select:not([disabled]), [role="combobox"]:not([disabled]), [role="switch"]:not([disabled]), button[aria-haspopup]:not([disabled])',
+        );
+        (enfocable ?? contenedor).focus({ preventScroll: true });
+      }
+      setIndiceNuevo(null);
+    });
+    return () => cancelAnimationFrame(marco);
+  }, [indiceNuevo]);
 
   return (
     <div className="space-y-3">
@@ -502,7 +682,11 @@ function ListaEditor({
           {lista.map((item, indice) => (
             <div
               key={indice}
-              className="rounded-xl border border-border bg-card p-3 shadow-sm"
+              ref={(elemento) => {
+                contenedores.current[indice] = elemento;
+              }}
+              tabIndex={-1}
+              className="scroll-mb-24 rounded-xl border border-border bg-card p-3 shadow-sm outline-none animate-in fade-in-0 slide-in-from-top-2 duration-200 focus-visible:ring-2 focus-visible:ring-ring"
             >
               <div className="mb-2 flex items-center justify-between gap-2 border-b border-border/70 pb-2">
                 <div className="flex items-center gap-2">
@@ -543,17 +727,19 @@ function ListaEditor({
         </div>
       )}
 
-      <Button
-        type="button"
-        size="sm"
-        variant="outline"
-        disabled={disabled}
-        onClick={agregarItem}
-        className="border-dashed"
-      >
-        <Plus className="h-3.5 w-3.5" />
-        Agregar elemento
-      </Button>
+      <div className="sticky bottom-0 z-10 -mx-3 bg-gradient-to-t from-card via-card to-transparent px-3 pt-3">
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          disabled={disabled}
+          onClick={agregarItem}
+          className="border-dashed"
+        >
+          <Plus className="h-3.5 w-3.5" />
+          Agregar elemento
+        </Button>
+      </div>
     </div>
   );
 }

@@ -21,7 +21,7 @@ import {
 import { cn } from '@/lib/utils';
 import {
   TIPOS_DATO,
-  TIPOS_DATO_SELECCIONABLES,
+  TIPOS_DATO_CAMPO,
   type SchemaField,
   type TipoCampoConstructor,
 } from '../types';
@@ -296,7 +296,7 @@ function CampoRow({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {TIPOS_DATO_SELECCIONABLES.map((tipo) => (
+                {TIPOS_DATO_CAMPO.map((tipo) => (
                   <SelectItem key={tipo.valor} value={tipo.valor} className="text-xs">
                     {tipo.etiqueta}
                   </SelectItem>
@@ -412,7 +412,7 @@ function CampoRow({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {TIPOS_DATO.filter((tipo) => tipo.valor !== 'lista').map((tipo) => (
+                    {TIPOS_DATO_CAMPO.map((tipo) => (
                       <SelectItem key={tipo.valor} value={tipo.valor} className="text-xs">
                         {tipo.etiqueta}
                       </SelectItem>

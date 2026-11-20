@@ -1,4 +1,4 @@
-import type { VariableConfiguracion } from './types';
+import { esTipoRango, type TipoDatoRango, type VariableConfiguracion } from './types';
 import {
   etiquetaTipo,
   itemListaDeEsquema,
@@ -37,8 +37,15 @@ export interface OpcionLenguajeApi extends LenguajeApiDefinicion {
   disponible: boolean;
 }
 
+function tipoFrontendRango(tipo: TipoDatoRango): string {
+  const base = tipo === 'rango_entero' || tipo === 'rango_decimal' ? 'number' : 'string';
+  return `{ desde: ${base}; hasta: ${base} }`;
+}
+
 function tipoFrontendBase(tipo: string): string {
   const canonico = normalizarTipoDato(tipo);
+  if (canonico && esTipoRango(canonico)) return tipoFrontendRango(canonico);
+
   switch (canonico) {
     case 'entero':
     case 'decimal':
@@ -67,8 +74,22 @@ export function tipoFrontend(variable: VariableConfiguracion): string {
   return tipoFrontendBase(variable.tipoDato);
 }
 
+function tipoBackendRango(tipo: TipoDatoRango): string {
+  const base =
+    tipo === 'rango_fecha'
+      ? 'DateOnly'
+      : tipo === 'rango_fecha_hora'
+        ? 'DateTime'
+        : tipo === 'rango_entero'
+          ? 'int'
+          : 'decimal';
+  return `(${base} Desde, ${base} Hasta)`;
+}
+
 function tipoBackendBase(tipo: string): string {
   const canonico = normalizarTipoDato(tipo);
+  if (canonico && esTipoRango(canonico)) return tipoBackendRango(canonico);
+
   switch (canonico) {
     case 'entero':
       return 'int';
@@ -143,7 +164,8 @@ function snippetSql(variable: VariableConfiguracion): string {
     variable.tipoDato === 'array' ||
     canonico === 'lista' ||
     canonico === 'objeto' ||
-    canonico === 'json'
+    canonico === 'json' ||
+    (canonico !== null && esTipoRango(canonico))
   ) {
     return `SELECT [key], [value], [type]
 FROM OPENJSON(config.fn_obtener_variable(N'${variable.clave}'));`;
