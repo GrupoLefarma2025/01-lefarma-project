@@ -61,7 +61,7 @@ export function analizarCotizacion(texto: string): ResultadoCotizacion {
  */
 export function opcionesParaEnvio(filas: FilaCotizacion[]): OpcionCotizacion[] {
   return filas.map(fila => ({
-    tipo: fila.modo === 'hotel' ? 'hotel' : 'vuelo',
+    tipo: fila.modo === 'hotel' ? 'hotel' : fila.modo === 'autobus' ? 'autobus' : 'vuelo',
     linea: fila.transportista,
     precio: fila.precio,
     moneda: fila.moneda,

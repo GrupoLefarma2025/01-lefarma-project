@@ -1404,13 +1404,20 @@ public static class CalculoCostosRuta
     public static Task<List<ViajeVuelo>> BuscarVuelosEstimadosAsync(double kmAerea, string origen, string destino, DateOnly fecha, CancellationToken ct)
     {
         var ft = 0.5 + kmAerea / 760.0;
-        var base_ = 690 + kmAerea * 1.45;
+        // Rango de planeación, no una tarifa. Se calibró con rutas domésticas
+        // reales (MEX–ZLO/MEX–MTY) para no mostrar un precio único demasiado
+        // bajo; la lista real de Kayak lo sustituye al abrir el tab de vuelo.
+        var base_ = Math.Max(1800, 1500 + kmAerea * 3.5);
+        var desde = Math.Round(base_, 2);
+        var hasta = Math.Round(base_ * 1.45, 2);
+        // El precio medio es solo para los totales de respaldo; la UI muestra
+        // el rango `desde–hasta` y lo etiqueta como estimado.
+        var precio = Math.Round((desde + hasta) / 2, 2);
         // El precio sigue siendo un estimado de fase 1. La consulta real va a
         // Kayak: Google Flights con q= alternó resultados, portada y errores en
         // las pruebas. Kayak exige código IATA y muestra la ruta/fecha.
         var url = $"https://www.kayak.com.mx/flights/{origen}-{destino}/{fecha:yyyy-MM-dd}"
                 + "?sort=bestflight_a&fs=cabin=e";
-        var precio = Math.Round(base_, 2);
         // Dos salidas estimadas (mañana y tarde): si el punto está lejos del
         // aeropuerto, el taxi de llegada puede hacer que el vuelo de las 08:00
         // ya no llegue a tiempo; el de las 06:00 absorbe ese traslado.
@@ -1419,7 +1426,7 @@ public static class CalculoCostosRuta
             {
                 var salida = fecha.ToDateTime(hora);
                 var llegada = salida.AddHours(ft);
-                return new ViajeVuelo("Vuelo (estimado)", salida, llegada, precio, precio,
+                return new ViajeVuelo("Vuelo (estimado)", salida, llegada, desde, hasta,
                     "estimado fase 1 (sin proveedor; interfaz IVuelosClient lista)",
                     url, "vuelo estimado: consulta precios reales en Kayak");
             })
@@ -1875,26 +1882,54 @@ public static class CalculoCostosRuta
                 // El taxi terminal → punto tambien cuenta para saber si la
                 // corrida llega a tiempo: una que llega 20:00 a la central y
                 // necesita 1 h de taxi no sirve para una cita a las 20:30.
-                int TaxiMin(ViajeBus v) => v.TerminalDestino is { } t
-                    ? MinutosTaxiPuntoTerminal(b, (t.Nombre, t.Latitud, t.Longitud))
-                    : 0;
-                var mejor = MejorHorario(g.ToList(), salidaPrevia, 30, deadline,
-                    v => v.Salida, v => v.Llegada.AddMinutes(TaxiMin(v)), out var saleAntes);
-                var durB = (mejor.Llegada - mejor.Salida).TotalHours;
-                var taxiDestinoMinB = TaxiMin(mejor);
-                var llegadaFinalB = mejor.Llegada.AddMinutes(taxiDestinoMinB);
-                var lateB = llegadaFinalB > deadline;
-                opts.Add(new OpCalc("bus", mejor.Linea, busEstimado ? "Estimado" : "Directo", mejor.Salida, mejor.Llegada, durB + 0.5, 30,
-                    mejor.PrecioDesde, mejor.PrecioHasta, (mejor.PrecioDesde + mejor.PrecioHasta) / 2, true,
-                    null, null, null, null, lateB, saleAntes,
-                    lateB ? (int)(llegadaFinalB - deadline).TotalMinutes : 0,
-                    mejor.Fuente, busEstimado, $"{mejor.Nota} · cotiza en el sitio/app oficial",
-                    mejor.Url,
-                    mejor.Url.Length == 0 ? ""
-                        : mejor.Url.Contains("primeraplus", StringComparison.OrdinalIgnoreCase) ? "Primera Plus" : "ClickBus",
-                    busEstimado ? "ver precios reales" : "ver costo del boleto",
-                    $"boleto {mejor.Linea} {a.Nombre} → {b.Nombre}", "",
-                    mejor.TerminalOrigen, mejor.TerminalDestino, mejor.Asientos));
+                // Si el proveedor manda la terminal sin coordenadas, se usa la
+                // del catálogo; si no, un (0,0) inventa un taxi de 6 días.
+                int TaxiMin(ViajeBus v)
+                {
+                    var terminal = TerminalConCoords(v.TerminalDestino)
+                        ?? TerminalConCoords(TerminalDto(TerminalDe("bus", b)));
+                    return terminal is { } t
+                        ? MinutosTaxiPuntoTerminal(b, (t.Nombre, t.Latitud, t.Longitud))
+                        : 0;
+                }
+
+                OpCalc CrearBus(ViajeBus viaje, string linea)
+                {
+                    var durB = (viaje.Llegada - viaje.Salida).TotalHours;
+                    var taxiDestinoMinB = TaxiMin(viaje);
+                    var llegadaFinalB = viaje.Llegada.AddMinutes(taxiDestinoMinB);
+                    var lateB = llegadaFinalB > deadline;
+                    var limite = salidaPrevia?.AddMinutes(30);
+                    var saleAntesB = limite is not null && viaje.Salida < limite;
+                    return new OpCalc("bus", linea, busEstimado ? "Estimado" : "Directo",
+                        viaje.Salida, viaje.Llegada, durB + 0.5, 30,
+                        viaje.PrecioDesde, viaje.PrecioHasta,
+                        (viaje.PrecioDesde + viaje.PrecioHasta) / 2, true,
+                        null, null, null, null, lateB, saleAntesB,
+                        lateB ? (int)(llegadaFinalB - deadline).TotalMinutes : 0,
+                        viaje.Fuente, busEstimado, $"{viaje.Nota} · cotiza en el sitio/app oficial",
+                        viaje.Url,
+                        viaje.Url.Length == 0 ? ""
+                            : viaje.Url.Contains("primeraplus", StringComparison.OrdinalIgnoreCase)
+                                ? "Primera Plus"
+                                : "ClickBus",
+                        busEstimado ? "ver precios reales" : "ver costo del boleto",
+                        $"boleto {viaje.Linea} {a.Nombre} → {b.Nombre}", "",
+                        viaje.TerminalOrigen, viaje.TerminalDestino, viaje.Asientos);
+                }
+
+                // Se envía una muestra representativa, no solo la mejor: la
+                // corrida cercana a la hora de salida y la más barata también
+                // importan. La tabla las ordena con esos criterios.
+                var ordenados = g.OrderBy(v => v.Salida).ThenBy(v => v.Llegada).ToList();
+                var corridas = SeleccionarCorridasBus(ordenados, salidaPrevia, deadline,
+                    v => v.Llegada.AddMinutes(TaxiMin(v)));
+                for (var i = 0; i < corridas.Count; i++)
+                {
+                    var corrida = corridas[i];
+                    opts.Add(CrearBus(corrida,
+                        i == 0 ? corrida.Linea : $"{corrida.Linea} {corrida.Salida:HH:mm}"));
+                }
             }
 
             var (iataO, iataD) = (keyO is not null ? Ciudades[keyO].Iata : null,
@@ -1985,6 +2020,82 @@ public static class CalculoCostosRuta
             if (iRap != iBar) opts[iRap] = opts[iRap] with { Badge = "más rápido" };
         }
         return new TramoCalc(a.Nombre, b.Nombre, km, hrs, opts.OrderBy(o => o.CostoGrupo).ToList(), ruta?.Grafica);
+    }
+
+    /// <summary>
+    /// Elige una muestra de corridas de una misma línea: la mejor para llegar
+    /// a tiempo, la más cercana a la hora de salida, la más barata y una
+    /// anterior a la ventana factible. Sin esto la tabla recibía solo una
+    /// corrida por línea y se perdían opciones que el proveedor sí tiene.
+    /// </summary>
+    internal static List<ViajeBus> SeleccionarCorridasBus(
+        List<ViajeBus> ordenados, DateTime? salidaPrevia, DateTime deadline,
+        Func<ViajeBus, DateTime> llegadaAlPunto, int maximo = 6)
+    {
+        if (ordenados.Count == 0) return [];
+
+        bool LlegaATiempo(ViajeBus v) => llegadaAlPunto(v) <= deadline;
+        bool EsTomable(ViajeBus v) =>
+            salidaPrevia is null || v.Salida >= salidaPrevia.Value.AddMinutes(30);
+
+        var tomables = ordenados.Where(EsTomable).ToList();
+        var viables = (tomables.Count > 0 ? tomables : ordenados)
+            .Where(LlegaATiempo)
+            .ToList();
+        var pool = viables.Count > 0 ? viables : (tomables.Count > 0 ? tomables : ordenados);
+
+        var mejor = MejorHorario(ordenados, salidaPrevia, 30, deadline,
+            v => v.Salida, llegadaAlPunto, out _);
+        var elegidos = new List<ViajeBus>();
+
+        bool MismaCorrida(ViajeBus a, ViajeBus b) =>
+            a.Salida == b.Salida && a.Llegada == b.Llegada
+            && Math.Abs(a.PrecioDesde - b.PrecioDesde) < 0.01;
+
+        void Agregar(ViajeBus viaje)
+        {
+            if (!elegidos.Any(v => MismaCorrida(v, viaje))) elegidos.Add(viaje);
+        }
+
+        Agregar(mejor);
+
+        var referencia = salidaPrevia?.AddMinutes(30);
+        if (referencia is not null)
+        {
+            // Cercana a la hora de salida entre las que ya se pueden tomar.
+            var cercana = (tomables.Count > 0 ? tomables : ordenados)
+                .Where(LlegaATiempo)
+                .OrderBy(v => Math.Abs((v.Salida - referencia.Value).TotalMinutes))
+                .ThenBy(v => v.PrecioDesde)
+                .FirstOrDefault();
+            if (cercana is not null) Agregar(cercana);
+
+            // Una anterior a la ventana factible: se muestra como "Sale antes"
+            // para que el viajero vea que existe, sin mezclarla con las viables.
+            var anterior = ordenados
+                .Where(v => v.Salida < referencia.Value && LlegaATiempo(v))
+                .OrderByDescending(v => v.Salida)
+                .ThenBy(v => v.PrecioDesde)
+                .FirstOrDefault();
+            if (anterior is not null) Agregar(anterior);
+        }
+
+        var barata = pool
+            .OrderBy(v => v.PrecioDesde)
+            .ThenBy(v => v.Salida)
+            .FirstOrDefault();
+        if (barata is not null) Agregar(barata);
+
+        // Vecinas inmediatas de lo elegido: una salida anterior o posterior
+        // puede ser la que el viajero realmente tome.
+        foreach (var baseViaje in elegidos.ToList())
+        {
+            var indice = ordenados.FindIndex(v => MismaCorrida(v, baseViaje));
+            if (indice > 0) Agregar(ordenados[indice - 1]);
+            if (indice >= 0 && indice < ordenados.Count - 1) Agregar(ordenados[indice + 1]);
+        }
+
+        return elegidos.Take(maximo).ToList();
     }
 
     private static T MejorHorario<T>(List<T> cands, DateTime? salidaPrevia, int overheadMin, DateTime deadline,

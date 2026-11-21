@@ -128,7 +128,7 @@ public class AprobacionesController : ControllerBase
         var opcionesElegidas = await _context.SolicitudOpciones
             .AsNoTracking()
             .Where(o => idsSolicitudes.Contains(o.IdSolicitud) && o.FueElegida)
-            .Select(o => new { o.IdSolicitud, o.Tipo, o.Precio, o.Moneda })
+            .Select(o => new { o.IdSolicitud, o.Tipo, o.Precio, o.Moneda, o.DatosJson, o.Fuente })
             .ToListAsync(ct);
         var totalPorOpciones = opcionesElegidas
             .GroupBy(o => o.IdSolicitud)
@@ -140,6 +140,18 @@ public class AprobacionesController : ControllerBase
             .ToDictionary(
                 g => g.Key,
                 g => g.Select(o => o.Tipo).ToList());
+        var preciosPendientesPorSolicitud = opcionesElegidas
+            .GroupBy(o => o.IdSolicitud)
+            .ToDictionary(
+                g => g.Key,
+                g => g.Count(o => TotalesCotizacion.VueloSinPrecioReal(
+                    o.Tipo, o.Precio, o.DatosJson, o.Fuente)));
+        var totalesPorOpciones = opcionesElegidas
+            .GroupBy(o => o.IdSolicitud)
+            .ToDictionary(
+                g => g.Key,
+                g => TotalesCotizacion.Calcular(
+                    g.Select(o => (o.Precio, o.DatosJson, o.Fuente))));
 
         // Un solo query extra al directorio para resolver los nombres de
         // todos los solicitantes de la pagina (evita N+1). Se filtra por
@@ -215,6 +227,7 @@ public class AprobacionesController : ControllerBase
         var bandeja = filas.Select(f =>
         {
             var datos = datosPorSolicitud[f.IdSolicitud];
+            var totales = TotalesCotizacion.LeerDeDatos(datos);
             var (fechaSalida, fechaRegreso) = LeerRangoViajeDesdeJson(datos);
             var persona = LeerObjeto(datos, "persona");
             // El puesto y la fecha de nacimiento son del empleado SOLICITANTE:
@@ -253,7 +266,16 @@ public class AprobacionesController : ControllerBase
                 Taxi = LeerConcepto(datos, "taxi"),
                 // El total del snapshot manda (ruta autorizada o cotizacion
                 // importada); si no existe, se usa el de las opciones elegidas.
-                Total = LeerTotalDesdeJson(datos) ?? totalPorOpciones.GetValueOrDefault(f.IdSolicitud),
+                // El desglose permite que la UI no presente una referencia
+                // estimada como si fuera precio cotizado.
+                Total = LeerTotalDesdeJson(datos)
+                    ?? totales.Total
+                    ?? totalPorOpciones.GetValueOrDefault(f.IdSolicitud),
+                TotalCotizado = totales.Cotizado
+                    ?? totalesPorOpciones.GetValueOrDefault(f.IdSolicitud).Cotizado,
+                TotalEstimado = totales.Estimado
+                    ?? totalesPorOpciones.GetValueOrDefault(f.IdSolicitud).Estimado,
+                PreciosPendientes = preciosPendientesPorSolicitud.GetValueOrDefault(f.IdSolicitud),
                 TipoTransporte = ResolverTipoTransporte(
                     datos,
                     tiposOpcionPorSolicitud.GetValueOrDefault(f.IdSolicitud)),
@@ -364,6 +386,24 @@ public class AprobacionesController : ControllerBase
             });
         }
 
+        // Un vuelo estimado no se autoriza: el estimado del motor es una
+        // referencia, no el precio de la pagina. El envio a concentrado sigue
+        // permitido (la agencia cotiza); la autorizacion exige el precio real.
+        var opcionesParaAutorizar = nuevasOpciones ?? solicitud.Opciones;
+        var vuelosPendientes = TotalesCotizacion.VuelosSinPrecioReal(opcionesParaAutorizar);
+        if (vuelosPendientes.Count > 0)
+        {
+            var lineas = string.Join(" · ", vuelosPendientes.Take(3).Select(v => v.Linea));
+            var sufijo = vuelosPendientes.Count > 3 ? "…" : string.Empty;
+            return Conflict(new ApiResponse<object>
+            {
+                Success = false,
+                Message = $"Faltan precios reales de {vuelosPendientes.Count} vuelo(s): " +
+                          $"{lineas}{sufijo}. Captura el precio de la página antes de autorizar.",
+                Data = null
+            });
+        }
+
         if (nuevasOpciones is not null)
         {
             // La cotizacion que estaba vigente se conserva ANTES de
@@ -390,9 +430,19 @@ public class AprobacionesController : ControllerBase
         // no se pierde y la pestana "Ruta autorizada" del detalle la muestra.
         var calculoAutorizado = AplicarCalculoAutorizado(solicitud, body?.Calculo);
 
+        // Los totales de la version autorizada se recalculan sobre las opciones
+        // efectivas: el aprobador pudo reemplazar la cotizacion en este mismo
+        // request. El desglose real/referencia debe seguir a esa version.
+        var opcionesAutorizadas = nuevasOpciones ?? solicitud.Opciones;
+        var totalesAutorizados = TotalesCotizacion.Calcular(opcionesAutorizadas);
+        solicitud.DatosJson = TotalesCotizacion.EscribirSplitEnDatos(
+            solicitud.DatosJson,
+            totalesAutorizados.Cotizado,
+            totalesAutorizados.Estimado);
+
         // El desglose del FOR-008 se sella con la ultima version autorizada:
         // opciones elegidas de ESTA autorizacion + ruta autorizada.
-        GuardarResumenAutorizado(solicitud, nuevasOpciones ?? solicitud.Opciones, calculoAutorizado);
+        GuardarResumenAutorizado(solicitud, opcionesAutorizadas, calculoAutorizado);
 
         solicitud.Estado = "autorizada";
         solicitud.FechaModificacion = ahora;

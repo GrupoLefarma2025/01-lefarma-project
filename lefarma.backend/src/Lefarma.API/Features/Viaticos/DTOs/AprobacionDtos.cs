@@ -185,6 +185,18 @@ public class SolicitudBandejaDto
     [JsonPropertyName("total")]
     public decimal? Total { get; set; }
 
+    /// <summary>Suma de precios reales de las opciones elegidas.</summary>
+    [JsonPropertyName("total_cotizado")]
+    public decimal? TotalCotizado { get; set; }
+
+    /// <summary>Suma de referencias (estimados/tabulador), no autorizable como real.</summary>
+    [JsonPropertyName("total_estimado")]
+    public decimal? TotalEstimado { get; set; }
+
+    /// <summary>Vuelos elegidos que aún no tienen precio real; bloquean autorizar.</summary>
+    [JsonPropertyName("precios_pendientes")]
+    public int PreciosPendientes { get; set; }
+
     [JsonPropertyName("fecha_creacion")]
     public DateTime FechaCreacion { get; set; }
 
