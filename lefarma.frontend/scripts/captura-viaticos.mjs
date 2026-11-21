@@ -238,6 +238,105 @@ function errorDePagina(texto) {
   return null;
 }
 
+function normalizarTexto(valor) {
+  return String(valor ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+}
+
+function variantesPrecio(precio) {
+  const numero = Number(precio);
+  if (!Number.isFinite(numero)) return [];
+  const fijo = numero.toFixed(2);
+  const entero = Math.round(numero).toLocaleString('en-US');
+  return [...new Set([
+    String(numero),
+    fijo,
+    entero,
+    `${entero}.00`,
+    `$${entero}`,
+    `$${entero}.00`,
+    `$${fijo}`,
+  ].map(normalizarTexto))];
+}
+
+function puntuarTarjeta(texto, item) {
+  const t = normalizarTexto(texto);
+  const tipo = normalizarTexto(item?.tipo);
+  const objetivo = normalizarTexto(item?.objetivo);
+  const tokens = normalizarTexto(item?.linea)
+    .split(' ')
+    .filter((token) => token.length >= 3);
+  const nombreHotel = tipo === 'hotel'
+    ? normalizarTexto(item?.linea).replace(/\s*\([^)]*\)\s*$/, '').trim()
+    : '';
+
+  const tokensOk = tokens.filter((token) => t.includes(token)).length;
+  const precioOk = variantesPrecio(item?.precio).some((valor) => t.includes(valor));
+  const tieneMoneda = /\$|mxn|precio/i.test(texto);
+
+  let score = 0;
+  if (objetivo && t.includes(objetivo)) score += 3;
+  score += Math.min(tokensOk, 3);
+  if (precioOk) score += 3;
+  if (item?.salida && t.includes(normalizarTexto(item.salida))) score += 1;
+  if (item?.llegada && t.includes(normalizarTexto(item.llegada))) score += 1;
+
+  // Hotel: el nombre es la señal fuerte; el precio puede ser por noche o total.
+  // Se exige moneda y un mínimo de texto para no capturar un span suelto.
+  if (tipo === 'hotel') {
+    if (texto.length < 60 || !tieneMoneda) return 0;
+    if (nombreHotel && t.includes(nombreHotel)) score += 4;
+    score += 1;
+    return (objetivo || tokensOk >= 1) && score >= 3 ? score : 0;
+  }
+
+  // Vuelo/autobús: sin precio y sin línea no se puede asegurar la tarjeta.
+  return precioOk && tokensOk > 0 ? score : 0;
+}
+
+/** Busca la tarjeta de la opción elegida, no la página completa de resultados. */
+async function buscarTarjeta(page, item) {
+  const tipo = normalizarTexto(item?.tipo);
+  if (!['vuelo', 'avion', 'autobus', 'hotel'].includes(tipo)) return null;
+
+  const selectores = tipo === 'hotel'
+    ? ['div[role="button"]', '.detail-element', '.detail-wrap', 'div', 'span']
+    : ['div.Fxw9-result-item-container', '[data-resultid]', '.detail-element', '.detail-wrap', 'div'];
+
+  const vistos = new Set();
+  let mejor = null;
+  let revisados = 0;
+  // En hotel, el contenedor más largo suele ser el listado completo; se
+  // prefiere el bloque más corto que contenga el nombre y un precio.
+  const preferirLargo = false;
+
+  for (const selector of selectores) {
+    const elementos = await page.$$(selector).catch(() => []);
+    for (const el of elementos) {
+      if (++revisados > 600) break;
+      const texto = normalizarTexto(await el.innerText().catch(() => ''));
+      if (texto.length < 20 || texto.length > 2500 || vistos.has(texto)) continue;
+      vistos.add(texto);
+
+      const score = puntuarTarjeta(texto, item);
+      if (score <= 0) continue;
+      const ganaEmpate = preferirLargo
+        ? texto.length > (mejor?.largo ?? 0)
+        : texto.length < (mejor?.largo ?? Number.POSITIVE_INFINITY);
+      if (!mejor || score > mejor.score || (score === mejor.score && ganaEmpate)) {
+        mejor = { el, score, largo: texto.length };
+      }
+    }
+    if (mejor && mejor.score >= 5) break;
+  }
+
+  return mejor?.el ?? null;
+}
+
 async function captureOne(browser, item) {
   const rawUrl = item?.url;
   const safeName = sanitizeName(item?.nombre);
@@ -258,11 +357,11 @@ async function captureOne(browser, item) {
     return { url: rawUrl, ok: false, archivo: null, error: urlRejection };
   }
 
-  // Viewport fijo y captura de la ventana (no de la pagina completa): en
-  // listados largos (ClickBus, ADO) la pagina entera sale como una tira
-  // ilegible; lo que importa es el encabezado con los primeros precios.
-  // El User-Agent del headless incluye "HeadlessChrome"; Kayak lo detecta y
-  // devuelve su pagina anti-bot. Se usa el mismo Chromium con un UA normal.
+  // Captura de la tarjeta elegida cuando la opción trae línea/precio. Si no se
+  // encuentra, se conserva la captura de la ventana de resultados como
+  // respaldo y se marca `alcance: 'resultados'`. El User-Agent del headless
+  // incluye "HeadlessChrome"; Kayak lo detecta y devuelve su pagina anti-bot.
+  // Se usa el mismo Chromium con un UA normal.
   const version = browser.version().split('.')[0];
   const userAgent =
     `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ` +
@@ -278,11 +377,16 @@ async function captureOne(browser, item) {
     const page = await ctx.newPage();
     try {
       const host = new URL(rawUrl).hostname;
-      const esperaMs = /clickbus\.com\.mx$/i.test(host)
-        ? 15000
-        : /primeraplus\.com\.mx$/i.test(host)
-          ? 10000
-          : 5000;
+      const tipo = normalizarTexto(item?.tipo);
+      const esperaMs = tipo === 'hotel'
+        ? 12000
+        : /kayak\./i.test(host)
+          ? 15000
+          : /clickbus\./i.test(host)
+            ? 15000
+            : /primeraplus\./i.test(host)
+              ? 10000
+              : 5000;
       await page.goto(rawUrl, { waitUntil: 'domcontentloaded', timeout: PAGE_TIMEOUT_MS });
       await page.waitForTimeout(esperaMs);
       await cerrarOverlays(page);
@@ -297,12 +401,28 @@ async function captureOne(browser, item) {
           error: errorPagina + warnSuffix(),
         };
       }
+
       const outPath = join(OUTPUT_DIR, `${safeName}.png`);
-      await page.screenshot({ path: outPath });
+      const tarjeta = await buscarTarjeta(page, item);
+      let alcance = 'resultados';
+      if (tarjeta) {
+        try {
+          await tarjeta.scrollIntoViewIfNeeded();
+          await page.waitForTimeout(250);
+          await tarjeta.screenshot({ path: outPath });
+          alcance = 'opcion';
+        } catch {
+          await page.screenshot({ path: outPath });
+        }
+      } else {
+        await page.screenshot({ path: outPath });
+      }
+
       return {
         url: rawUrl,
         ok: true,
         archivo: `${OUTPUT_PUBLIC_PATH}/${safeName}.png`,
+        alcance,
         error: isWhitelistEmpty() ? WHITELIST_EMPTY_WARNING : null,
       };
     } finally {

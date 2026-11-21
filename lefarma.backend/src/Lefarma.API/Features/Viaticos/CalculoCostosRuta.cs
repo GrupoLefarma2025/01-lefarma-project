@@ -177,7 +177,7 @@ public static class CalculoCostosRuta
     };
 
     /// <summary>IATA de una ciudad por nombre (ignora acentos) o null.</summary>
-    private static string? IataDeCiudad(string? nombre)
+    public static string? IataDeCiudad(string? nombre)
     {
         var buscado = NormalizarTexto(nombre ?? "");
         if (buscado.Length == 0) return null;

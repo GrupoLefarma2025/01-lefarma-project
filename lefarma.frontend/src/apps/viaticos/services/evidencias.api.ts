@@ -61,13 +61,14 @@ export const evidenciasApi = {
   /**
    * POST /viaticos/solicitudes/{id}/capturas: captura con Playwright las
    * opciones elegidas que aún no tienen PNG y las persiste. `forzar` re-captura
-   * todas. Usa el script local (Chromium), no el agente: 10 opciones pueden
-   * tardar ~2 min. El backend conserva el botón disponible si alguna falla.
+   * todas. Con `opcionId` captura solo esa opción (generar o reemplazar una).
+   * Usa el script local (Chromium), no el agente: 10 opciones pueden tardar
+   * ~2 min. El backend conserva el botón disponible si alguna falla.
    */
-  generar: async (id: number, forzar = false) =>
+  generar: async (id: number, forzar = false, opcionId?: number) =>
     API.post<ApiResponse<EvidenciasSolicitud>>(
       `${BASE}/${id}/capturas`,
-      { forzar },
+      opcionId === undefined ? { forzar } : { forzar, opcion_id: opcionId },
       { timeout: 300_000 },
     ),
 

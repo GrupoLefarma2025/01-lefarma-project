@@ -24,6 +24,16 @@ export interface DatosOpcion {
   tramo?: number;
   de?: string;
   a?: string;
+  /** `cotizado` | `estimado` | `referencia_tabulador`. */
+  tipo_precio?: string;
+  /** Referencia del motor cuando `precio` real es null. */
+  precio_estimado?: number | null;
+  /**
+   * Estado de la detección automática de precio (Fase 2):
+   * `pendiente` | `en_proceso` | `aplicado` | `sin_opcion` | `error`.
+   */
+  deteccion_estado?: string;
+  deteccion_mensaje?: string;
   [clave: string]: unknown;
 }
 
@@ -63,6 +73,12 @@ export interface Solicitud {
   fecha_creacion: string;
   fecha_modificacion: string;
   datos: unknown;
+  /** Suma de precios reales de las opciones elegidas. */
+  total_cotizado?: number | null;
+  /** Suma de referencias estimadas/tabulador. */
+  total_estimado?: number | null;
+  /** Total completo (cotizado + referencia). */
+  total?: number | null;
   opciones: SolicitudOpcion[];
   eventos: SolicitudEvento[];
   /** Sistema que originó la solicitud ('viaticos' | 'educacion_medica'). */
@@ -154,6 +170,8 @@ export interface RutaCalculadaGuardada {
     costo?: number | null;
     /** Enlace de compra de esa opción. */
     url_compra?: string | null;
+    /** Fase del viaje: separa la ida del regreso en el diagrama. */
+    fase?: 'ida' | 'regreso';
   }[];
   /** Trazado por tipo de tramo, para pintar el mapa igual que se revisó. */
   segmentos?: { tipo: 'taxi' | 'transporte' | 'carretera'; puntos: [number, number][] }[];
@@ -219,6 +237,10 @@ export interface SolicitudOrigenEmResumen {
   estado: string;
   num_puntos: number;
   total: number | null;
+  /** Solo precios reales; es lo autorizable. */
+  total_cotizado?: number | null;
+  /** Referencias estimadas/tabulador, separadas del total cotizado. */
+  total_estimado?: number | null;
   fecha_creacion: string;
   id_ruta_visitas: number[];
 }
@@ -242,4 +264,70 @@ export interface OpcionCotizacion {
   capturas: string[];
   /** Tramo al que pertenece la opción; permite comparar versiones. */
   datos?: DatosOpcion | null;
+}
+
+/** Body de PUT /viaticos/solicitudes/{id}/opciones/{idOpcion}/precio. */
+export interface PrecioRealPayload {
+  linea?: string | null;
+  precio: number;
+  moneda?: string | null;
+  fuente: string;
+  url_compra: string;
+  ruta_captura?: string | null;
+  salida?: string | null;
+  llegada?: string | null;
+}
+
+/** Precio detectado por la fuente: vuelo, autobús o hotel. */
+export interface PrecioDetectadoDto {
+  tipo: string;
+  linea: string;
+  precio: number;
+  moneda: string;
+  fuente?: string | null;
+  url_compra?: string | null;
+  detalle?: string | null;
+  salida?: string | null;
+  llegada?: string | null;
+  dias_llegada?: number;
+  duracion_min?: number | null;
+  asientos?: number | null;
+  noches?: number | null;
+  patrocinado?: boolean;
+}
+
+/** Respuesta de POST /viaticos/solicitudes/{id}/opciones/{idOpcion}/detectar-precio. */
+export interface DeteccionPrecioResponse {
+  aplicado: boolean;
+  mensaje?: string | null;
+  motivo?: string | null;
+  fuente?: string | null;
+  ruta_captura?: string | null;
+  elegido?: PrecioDetectadoDto | null;
+  opciones: PrecioDetectadoDto[];
+}
+
+/** Body de POST /viaticos/opciones/detectar-precio (vista previa del wizard). */
+export interface DeteccionPrecioPreviewPayload {
+  tipo: string;
+  linea: string;
+  url_compra: string;
+  salida?: string | null;
+  llegada?: string | null;
+  datos?: Record<string, unknown> | null;
+  solicitud_datos?: Record<string, unknown> | null;
+  /** false = solo confirmar precio; la captura se genera al guardar. */
+  capturar?: boolean;
+  /** Nombre descriptivo del PNG (folio/destino/línea). */
+  nombre?: string | null;
+}
+
+/** Respuesta de la vista previa; no persiste la cotización. */
+export interface DeteccionPrecioPreviewResponse {
+  detectado: boolean;
+  motivo?: string | null;
+  fuente?: string | null;
+  ruta_captura?: string | null;
+  elegido?: PrecioDetectadoDto | null;
+  opciones: PrecioDetectadoDto[];
 }

@@ -20,6 +20,16 @@ public class CapturaItem
 {
     public string Url { get; set; } = string.Empty;
     public string? Nombre { get; set; }
+    /// <summary>vuelo | autobus | hotel | renta | taxi...</summary>
+    public string? Tipo { get; set; }
+    /// <summary>Línea, aerolínea u hotel que debe aparecer en la tarjeta.</summary>
+    public string? Linea { get; set; }
+    /// <summary>Precio de la opción para localizar su tarjeta.</summary>
+    public decimal? Precio { get; set; }
+    public string? Salida { get; set; }
+    public string? Llegada { get; set; }
+    /// <summary>Texto adicional para desambiguar (nombre del hotel, etc.).</summary>
+    public string? Objetivo { get; set; }
 }
 
 /// <summary>Salida por URL (mismo shape que captura-viaticos.mjs).</summary>
@@ -33,6 +43,10 @@ public class CapturaResultDto
 
     [JsonPropertyName("archivo")]
     public string? Archivo { get; set; }
+
+    /// <summary>opcion (recorte de la tarjeta) | resultados (página completa).</summary>
+    [JsonPropertyName("alcance")]
+    public string? Alcance { get; set; }
 
     [JsonPropertyName("error")]
     public string? Error { get; set; }
@@ -59,6 +73,10 @@ public class CapturarEvidenciasRequest
 {
     [JsonPropertyName("forzar")]
     public bool Forzar { get; set; }
+
+    /// <summary>Si viene, captura solo esa opción (generar/reemplazar una).</summary>
+    [JsonPropertyName("opcion_id")]
+    public int? OpcionId { get; set; }
 }
 
 /// <summary>

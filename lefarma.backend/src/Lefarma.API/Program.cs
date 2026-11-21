@@ -345,6 +345,26 @@ builder.Services.Configure<CapturasSettings>(builder.Configuration.GetSection("C
 builder.Services.AddSingleton<ICapturasScriptRunner, NodeCapturasScriptRunner>();
 builder.Services.AddSingleton<CapturasService>();
 
+// Deteccion automatica de precio (vuelo, autobus u hotel): Playwright local +
+// Firecrawl de respaldo. La configuracion vive en DeteccionPrecioSettings; se
+// conserva DeteccionVuelosSettings como respaldo para despliegues viejos.
+var seccionDeteccion = builder.Configuration.GetSection("DeteccionPrecioSettings");
+if (!seccionDeteccion.GetChildren().Any())
+{
+    seccionDeteccion = builder.Configuration.GetSection("DeteccionVuelosSettings");
+}
+builder.Services.Configure<DeteccionPrecioSettings>(seccionDeteccion);
+builder.Services.AddHttpClient("firecrawl", c =>
+{
+    c.Timeout = TimeSpan.FromSeconds(120);
+});
+builder.Services.AddSingleton<IDeteccionPrecioVueloService, DeteccionPrecioVueloService>();
+builder.Services.AddSingleton<IDeteccionPrecioOtrosService, DeteccionPrecioOtrosService>();
+builder.Services.AddSingleton<IDeteccionPrecioService, DeteccionPrecioService>();
+builder.Services.AddSingleton<DeteccionPrecioPreviewGate>();
+builder.Services.AddSingleton<IDeteccionAutomaticaQueue, DeteccionAutomaticaQueue>();
+builder.Services.AddHostedService<DeteccionAutomaticaHostedService>();
+
 // Notification Services
 builder.Services.AddScoped<Lefarma.API.Domain.Interfaces.ITemplateService, TemplateService>();
 builder.Services.AddScoped<Lefarma.API.Domain.Interfaces.INotificationService, Lefarma.API.Features.Notifications.Services.NotificationService>();

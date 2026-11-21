@@ -50,6 +50,175 @@ public class CotizacionRequest
 }
 
 /// <summary>
+/// Body de PUT /api/viaticos/solicitudes/{id}/opciones/{idOpcion}/precio.
+/// Registra el precio REAL de una opcion estimada, con su captura y enlace.
+/// <c>precio</c> debe ser mayor que cero y <c>fuente</c> no puede declarar
+/// "estimado": esa capa vive en <c>datos.precio_estimado</c>.
+/// </summary>
+public class PrecioRealRequest
+{
+    [JsonPropertyName("linea")]
+    public string? Linea { get; set; }
+
+    [JsonPropertyName("precio")]
+    public decimal Precio { get; set; }
+
+    [JsonPropertyName("moneda")]
+    public string? Moneda { get; set; }
+
+    [JsonPropertyName("fuente")]
+    public string Fuente { get; set; } = string.Empty;
+
+    [JsonPropertyName("url_compra")]
+    public string? UrlCompra { get; set; }
+
+    [JsonPropertyName("ruta_captura")]
+    public string? RutaCaptura { get; set; }
+
+    [JsonPropertyName("salida")]
+    public string? Salida { get; set; }
+
+    [JsonPropertyName("llegada")]
+    public string? Llegada { get; set; }
+}
+
+/// <summary>
+/// Resultado de POST /solicitudes/{id}/opciones/{idOpcion}/detectar-precio.
+/// <c>aplicado</c> indica si la cotización se actualizó; si es false, la UI
+/// muestra <c>motivo</c> y puede abrir el respaldo manual.
+/// </summary>
+public class DeteccionPrecioResponse
+{
+    [JsonPropertyName("aplicado")]
+    public bool Aplicado { get; set; }
+
+    [JsonPropertyName("mensaje")]
+    public string? Mensaje { get; set; }
+
+    [JsonPropertyName("motivo")]
+    public string? Motivo { get; set; }
+
+    [JsonPropertyName("fuente")]
+    public string? Fuente { get; set; }
+
+    [JsonPropertyName("ruta_captura")]
+    public string? RutaCaptura { get; set; }
+
+    [JsonPropertyName("elegido")]
+    public PrecioDetectadoDto? Elegido { get; set; }
+
+    [JsonPropertyName("opciones")]
+    public List<PrecioDetectadoDto> Opciones { get; set; } = new();
+}
+
+/// <summary>
+/// Vista previa del precio de una opción que aún no está guardada. La usa el
+/// wizard al seleccionar una tarjeta; no escribe en la base de datos y devuelve
+/// la captura para que el frontend la adjunte a la opción.
+/// </summary>
+public class DeteccionPrecioPreviewRequest
+{
+    [JsonPropertyName("tipo")]
+    public string Tipo { get; set; } = string.Empty;
+
+    [JsonPropertyName("linea")]
+    public string Linea { get; set; } = string.Empty;
+
+    [JsonPropertyName("url_compra")]
+    public string? UrlCompra { get; set; }
+
+    [JsonPropertyName("salida")]
+    public string? Salida { get; set; }
+
+    [JsonPropertyName("llegada")]
+    public string? Llegada { get; set; }
+
+    [JsonPropertyName("datos")]
+    public JsonElement? Datos { get; set; }
+
+    [JsonPropertyName("solicitud_datos")]
+    public JsonElement? SolicitudDatos { get; set; }
+
+    /// <summary>
+    /// Si es false, el wizard solo confirma precios y deja la captura para el
+    /// guardado. Evita generar PNG por cada selección.
+    /// </summary>
+    [JsonPropertyName("capturar")]
+    public bool Capturar { get; set; } = true;
+
+    /// <summary>Nombre descriptivo opcional para el PNG (folio/ruta/línea).</summary>
+    [JsonPropertyName("nombre")]
+    public string? Nombre { get; set; }
+}
+
+public class DeteccionPrecioPreviewResponse
+{
+    [JsonPropertyName("detectado")]
+    public bool Detectado { get; set; }
+
+    [JsonPropertyName("motivo")]
+    public string? Motivo { get; set; }
+
+    [JsonPropertyName("fuente")]
+    public string? Fuente { get; set; }
+
+    [JsonPropertyName("ruta_captura")]
+    public string? RutaCaptura { get; set; }
+
+    [JsonPropertyName("elegido")]
+    public PrecioDetectadoDto? Elegido { get; set; }
+
+    [JsonPropertyName("opciones")]
+    public List<PrecioDetectadoDto> Opciones { get; set; } = new();
+}
+
+/// <summary>Precio detectado genérico: vuelo, autobús o hotel.</summary>
+public class PrecioDetectadoDto
+{
+    [JsonPropertyName("tipo")]
+    public string Tipo { get; set; } = string.Empty;
+
+    [JsonPropertyName("linea")]
+    public string Linea { get; set; } = string.Empty;
+
+    [JsonPropertyName("precio")]
+    public decimal Precio { get; set; }
+
+    [JsonPropertyName("moneda")]
+    public string Moneda { get; set; } = "MXN";
+
+    [JsonPropertyName("fuente")]
+    public string? Fuente { get; set; }
+
+    [JsonPropertyName("url_compra")]
+    public string? UrlCompra { get; set; }
+
+    [JsonPropertyName("detalle")]
+    public string? Detalle { get; set; }
+
+    [JsonPropertyName("salida")]
+    public string? Salida { get; set; }
+
+    [JsonPropertyName("llegada")]
+    public string? Llegada { get; set; }
+
+    [JsonPropertyName("dias_llegada")]
+    public int DiasLlegada { get; set; }
+
+    [JsonPropertyName("duracion_min")]
+    public int? DuracionMin { get; set; }
+
+    [JsonPropertyName("asientos")]
+    public int? Asientos { get; set; }
+
+    [JsonPropertyName("noches")]
+    public int? Noches { get; set; }
+
+    [JsonPropertyName("patrocinado")]
+    public bool Patrocinado { get; set; }
+}
+
+/// <summary>
 /// Body de POST /api/viaticos/solicitudes/{id}/enviar. Solo lleva el cálculo
 /// de la ruta; el estado borrador -> enviada lo pone el endpoint.
 /// </summary>
@@ -116,6 +285,14 @@ public class SolicitudOrigenEmResumenDto
     [JsonPropertyName("total")]
     public decimal? Total { get; set; }
 
+    /// <summary>Solo precios reales: es lo que se puede autorizar.</summary>
+    [JsonPropertyName("total_cotizado")]
+    public decimal? TotalCotizado { get; set; }
+
+    /// <summary>Referencias estimadas/tabulador; se muestran aparte.</summary>
+    [JsonPropertyName("total_estimado")]
+    public decimal? TotalEstimado { get; set; }
+
     [JsonPropertyName("fecha_creacion")]
     public DateTime FechaCreacion { get; set; }
 
@@ -177,6 +354,18 @@ public class SolicitudDto
 
     [JsonPropertyName("datos")]
     public JsonElement? Datos { get; set; }
+
+    /// <summary>Suma de precios reales de las opciones elegidas; null si no hay.</summary>
+    [JsonPropertyName("total_cotizado")]
+    public decimal? TotalCotizado { get; set; }
+
+    /// <summary>Suma de referencias estimadas/tabulador; null si no hay.</summary>
+    [JsonPropertyName("total_estimado")]
+    public decimal? TotalEstimado { get; set; }
+
+    /// <summary>Total completo (cotizado + referencia) para el presupuesto.</summary>
+    [JsonPropertyName("total")]
+    public decimal? Total { get; set; }
 
     [JsonPropertyName("opciones")]
     public List<SolicitudOpcionDto> Opciones { get; set; } = new();
