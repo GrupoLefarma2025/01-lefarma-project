@@ -169,6 +169,7 @@ export function CeldaCaptura({
   const estado = useCapturaAutenticada(ruta, revision);
   const [verCaptura, setVerCaptura] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const nombreArchivo = (ruta?.split('/').pop() ?? `captura-${etiqueta}.png`).split('?')[0];
 
   const botonRebuscar = onRebuscar ? (
     <Button
@@ -228,7 +229,7 @@ export function CeldaCaptura({
   }
 
   const alt = `Captura de pantalla de ${etiqueta}`;
-  const claseMiniatura = 'h-12 w-20 rounded border object-cover';
+  const claseMiniatura = 'h-12 w-20 rounded border bg-slate-50 object-contain';
 
   if (estado.error || !estado.url) {
     return (
@@ -255,7 +256,7 @@ export function CeldaCaptura({
         open={verCaptura}
         onClose={() => setVerCaptura(false)}
         src={estado.url}
-        nombre={`captura-${etiqueta}.png`}
+        nombre={nombreArchivo}
         titulo={`Captura · ${etiqueta}`}
         descargar
       />

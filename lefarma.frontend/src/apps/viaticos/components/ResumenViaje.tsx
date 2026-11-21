@@ -11,6 +11,7 @@ interface NodoRuta {
   tipo: 'origen' | 'destino' | 'regreso';
   titulo: string;
   detalles: ReactNode[];
+  fase: 'ida' | 'regreso';
   testId?: string;
 }
 
@@ -103,6 +104,7 @@ function construirNodos(datos: Pick<ResumenViajeDatos, 'origen' | 'destinos' | '
       tipo: 'origen',
       titulo: 'Origen',
       detalles: [<DetalleUbicacion key="origen" punto={datos.origen.punto} />],
+      fase: 'ida',
     },
     ...datos.destinos.map((destino, i) => ({
       id: String(destino.id ?? `destino-${i}`),
@@ -114,6 +116,7 @@ function construirNodos(datos: Pick<ResumenViajeDatos, 'origen' | 'destinos' | '
           ? [<DetalleUbicacion key={`destino-${i}-mapa`} punto={destino.punto} />]
           : []),
       ],
+      fase: 'ida' as const,
     })),
     {
       id: 'regreso',
@@ -124,6 +127,7 @@ function construirNodos(datos: Pick<ResumenViajeDatos, 'origen' | 'destinos' | '
           ? <DetalleUbicacion key="regreso" punto={datos.origen.punto} sufijo="(origen)" />
           : <DetalleUbicacion key="regreso" punto={datos.retorno.punto} usarNombre />,
       ],
+      fase: 'regreso',
       testId: 'resumen-regreso',
     },
   ];

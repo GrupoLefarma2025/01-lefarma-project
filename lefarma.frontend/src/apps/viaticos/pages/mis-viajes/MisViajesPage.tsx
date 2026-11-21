@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Camera, Clock, ExternalLink, Eye, MoreHorizontal, Pencil, RefreshCw, Route, Search, Send, Ticket, Trash2 } from 'lucide-react';
+import { BedDouble, Bus, CalendarDays, Camera, CarFront, Clock, ExternalLink, Eye, MapPin, MoreHorizontal, PanelRightClose, PanelRightOpen, Pencil, Plane, RefreshCw, Route, Send, ShieldCheck, Sparkles, Ticket, Trash2, Upload, Wallet, type LucideIcon } from 'lucide-react';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -11,7 +12,6 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { folderTabTriggerClassName } from '@/components/ui/folder-tab';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -20,7 +20,13 @@ import { useAuthStore } from '@/shared/auth/authStore';
 import { solicitudesApi } from '../../services/solicitudes.api';
 import { evidenciasApi, type DatosViaje, type EvidenciasSolicitud } from '../../services/evidencias.api';
 import { CeldaCaptura } from '../../components/celdasCotizacion';
-import { estadoTexto, precioTexto } from '../../types/aprobaciones.types';
+import {
+  esOpcionCotizada,
+  estadoTexto,
+  importeFormateado,
+  precioReferenciaOpcion,
+  SIN_PRECIO,
+} from '../../types/aprobaciones.types';
 import type {
   CalculoViaje,
   DatosOpcion,
@@ -38,10 +44,13 @@ import {
   RutaMapaDialog,
 } from '../../components/RutaMapa';
 import { BoletoViajeDialog, BotonVerBoleto } from '../../components/BoletoViajeDialog';
+import { PrecioRealDialog } from '../../components/PrecioRealDialog';
 import { ComparadorRutas } from '../../components/ComparadorRutas';
+import { GrupoRutaCollapsible } from '../../components/GrupoRutaCollapsible';
 import type { PuntoMapa, SegmentoMapa } from '../../components/rutaMapa.types';
 import { CalculosViajeModal } from '../../components/CalculosViajeModal';
 import { contarPuntos, resumenDesdeDatos } from '../../services/resumenViaje';
+import { nombreCortoOpcion } from '../../utils/nombresOpciones';
 import { horaAmPm, leerCalculoAutorizadoDesdeDatos, leerCalculoDesdeDatos } from '../../services/calculoViaje';
 import {
   ETIQUETA_PERIODO,
@@ -60,6 +69,18 @@ const TIPOS_VIAJE: { id: TipoViaje | 'todos'; etiqueta: string }[] = [
   { id: 'solicitado', etiqueta: 'Transporte solicitado' },
   { id: 'sin-clasificar', etiqueta: 'Sin clasificar' },
 ];
+
+/**
+ * Pestañas del detalle con el estado activo en color primario, igual que los
+ * catálogos y workflows. El detalle es de consulta: la pestaña activa debe
+ * leerse de un vistazo, no como una carpeta gris.
+ */
+const tabRevisionTriggerClassName = cn(
+  'gap-1.5 rounded-lg border-0 px-1.5 text-xs font-semibold leading-tight text-muted-foreground transition-colors sm:px-3 sm:text-sm',
+  'whitespace-normal sm:whitespace-nowrap',
+  'data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm',
+  'disabled:opacity-50',
+);
 
 interface FilaViaje {
   solicitud: Solicitud;
@@ -162,23 +183,51 @@ export function MisViajesPage({ hoy = new Date() }: { hoy?: Date }) {
   const [procesandoId, setProcesandoId] = useState<number | null>(null);
   const [calculo, setCalculo] = useState<Solicitud | null>(null);
 
-  const cargarSolicitudes = useCallback(async () => {
-    setCargando(true);
+  const cargarSolicitudes = useCallback(async (silencioso = false) => {
+    if (!silencioso) setCargando(true);
     setError(null);
     try {
       const res = await solicitudesApi.misSolicitudes();
       if (res.data.success) setSolicitudes(res.data.data ?? []);
-      else setError(res.data.message ?? 'No se pudieron cargar tus viajes.');
+      else if (!silencioso) setError(res.data.message ?? 'No se pudieron cargar tus viajes.');
     } catch (falla: unknown) {
-      setError(toApiError(falla).message || 'No se pudieron cargar tus viajes.');
+      if (!silencioso) setError(toApiError(falla).message || 'No se pudieron cargar tus viajes.');
     } finally {
-      setCargando(false);
+      if (!silencioso) setCargando(false);
     }
   }, []);
 
   useEffect(() => {
     void cargarSolicitudes();
   }, [cargarSolicitudes]);
+
+  const actualizarDetalle = useCallback((actualizada: Solicitud) => {
+    setDetalle(actualizada);
+  }, []);
+
+  // Fase 2: mientras el backend busca el precio real de alguna opción, la
+  // lista se refresca sola para que el total deje de ser estimado sin que el
+  // usuario recargue ni pulse nada.
+  const hayDeteccionEnCurso = useMemo(
+    () =>
+      solicitudes.some((s) =>
+        s.opciones.some(
+          (o) =>
+            o.fue_elegida
+            && (o.datos?.deteccion_estado === 'pendiente'
+              || o.datos?.deteccion_estado === 'en_proceso'),
+        ),
+      ),
+    [solicitudes],
+  );
+
+  useEffect(() => {
+    if (!hayDeteccionEnCurso) return;
+    const intervalo = window.setInterval(() => {
+      void cargarSolicitudes(true);
+    }, 8000);
+    return () => window.clearInterval(intervalo);
+  }, [hayDeteccionEnCurso, cargarSolicitudes]);
 
   // Referencia «hoy» en hora local; el rango siempre se muestra.
   const rango = rangoDelFiltro(periodo, hoy, desde, hasta);
@@ -293,10 +342,23 @@ export function MisViajesPage({ hoy = new Date() }: { hoy?: Date }) {
       {
         id: 'costo',
         header: 'Costo del viaje',
-        accessorFn: (fila) => costoViaje(fila.solicitud) ?? 0,
+        accessorFn: (fila) => fila.solicitud.total ?? costoViaje(fila.solicitud) ?? 0,
         cell: ({ row }) => {
-          const costo = costoViaje(row.original.solicitud);
-          return <span className="text-sm font-medium">{costo !== null ? mxn(costo) : '—'}</span>;
+          const solicitud = row.original.solicitud;
+          const tieneSplit =
+            solicitud.total_cotizado !== undefined || solicitud.total_estimado !== undefined;
+          const cotizado = tieneSplit ? solicitud.total_cotizado ?? null : costoViaje(solicitud);
+          const referencia = solicitud.total_estimado ?? null;
+          return (
+            <div className="flex flex-col">
+              <span className="text-sm font-medium">
+                {cotizado !== null ? mxn(cotizado) : tieneSplit ? 'Por cotizar' : '—'}
+              </span>
+              {typeof referencia === 'number' && referencia > 0 ? (
+                <span className="text-[11px] text-muted-foreground">ref. {mxn(referencia)}</span>
+              ) : null}
+            </div>
+          );
         },
       },
       {
@@ -540,7 +602,12 @@ export function MisViajesPage({ hoy = new Date() }: { hoy?: Date }) {
             <DialogDescription>Resumen capturado en la solicitud y, si existe, la cotización.</DialogDescription>
           </DialogHeader>
           {cargandoDetalle ? <p role="status">Cargando detalle…</p> : null}
-          {detalle ? <VistaDetalle solicitud={detalle} /> : null}
+          {detalle ? (
+            <VistaDetalle
+              solicitud={detalle}
+              onSolicitudActualizada={actualizarDetalle}
+            />
+          ) : null}
           <DialogFooter className="gap-2">
             {detalle?.estado === 'borrador' ? (
               <Button
@@ -682,6 +749,71 @@ function leerOpcionesOriginales(datos: unknown): SolicitudOpcion[] | null {
     }));
 }
 
+/**
+ * Fase de cada parada guardada. Los cálculos nuevos traen `fase`; los viejos
+ * solo tienen el título "Regreso" y una parada numerada. En ese caso el regreso
+ * empieza en la parada siguiente a la última visita.
+ */
+function fasesDeRuta(calculo: CalculoViaje): Array<'ida' | 'regreso'> {
+  const nodos = calculo.ruta?.nodos ?? [];
+  if (nodos.length === 0) return [];
+  const regreso = nodos.findIndex((nodo) => /^regreso$/i.test(nodo.titulo.trim()));
+  if (regreso < 0) return nodos.map(() => 'ida');
+  const ultimaParada = nodos.reduce(
+    (ultimo, nodo, i) => (/^\d+\./.test(nodo.titulo.trim()) ? i : ultimo),
+    -1,
+  );
+  const inicio = ultimaParada >= 0 && ultimaParada < regreso ? ultimaParada + 1 : regreso;
+  return nodos.map((nodo, i) => nodo.fase ?? (i >= inicio ? 'regreso' : 'ida'));
+}
+
+/** Suma el taxi elegido a la parada de su tramo (ida o regreso). */
+function enriquecerConTaxis(
+  nodos: NodoRutaTimeline[],
+  opciones: SolicitudOpcion[],
+): NodoRutaTimeline[] {
+  const taxis = opciones.filter(
+    (opcion) =>
+      opcion.fue_elegida
+      && (opcion.tipo ?? '').trim().toLowerCase() === 'taxi'
+      && typeof opcion.precio === 'number',
+  );
+  if (taxis.length === 0) return nodos;
+
+  const copia = nodos.map((nodo) => ({
+    ...nodo,
+    chips: nodo.chips ? [...nodo.chips] : [],
+  }));
+
+  for (const taxi of taxis) {
+    const tramo = typeof taxi.datos?.tramo === 'number' ? taxi.datos.tramo : null;
+    const de = typeof taxi.datos?.de === 'string' ? taxi.datos.de : '';
+    let indice = de
+      ? copia.findIndex((nodo) =>
+          nodo.detalles.some(
+            (linea) => typeof linea === 'string' && /En taxi/i.test(linea) && linea.includes(de),
+          ),
+        )
+      : -1;
+    if (indice < 0) {
+      const fase = tramo !== null && tramo > 0 ? 'regreso' : 'ida';
+      indice = copia.findIndex(
+        (nodo) =>
+          nodo.fase === fase
+          && nodo.detalles.some((linea) => typeof linea === 'string' && /En taxi/i.test(linea)),
+      );
+    }
+    if (indice < 0) continue;
+
+    const chip = `Taxi ${mxn(taxi.precio as number)}`;
+    if (!copia[indice].chips?.some((actual) => actual.startsWith('Taxi '))) {
+      copia[indice].chips = [...(copia[indice].chips ?? []), chip];
+    }
+  }
+
+  return copia;
+}
+
 /** Precio y enlace de compra del tramo como líneas del diagrama. */
 function nodosDesdeCalculo(
   calculo: CalculoViaje,
@@ -712,7 +844,8 @@ function nodosDesdeCalculo(
   };
 
   if (calculo.ruta?.nodos?.length) {
-    return calculo.ruta.nodos.map((nodo, i) => {
+    const fases = fasesDeRuta(calculo);
+    const nodos = calculo.ruta.nodos.map((nodo, i) => {
       // Los cálculos viejos no guardaron chips: se toman del tramo que
       // corresponde a la parada numerada ("1. Destino" -> tramo 1).
       const numero = /^(\d+)\./.exec(nodo.titulo.trim());
@@ -729,12 +862,14 @@ function nodosDesdeCalculo(
           : tramo ? chipsDeTramo(tramo) : undefined,
         costo: nodo.costo ?? base.costo,
         urlCompra: nodo.url_compra ?? base.url_compra,
+        fase: nodo.fase ?? fases[i],
       };
     });
+    return enriquecerConTaxis(nodos, opciones);
   }
   const primera = calculo.tramos[0];
-  return [
-    { id: 'origen', titulo: 'Origen', detalles: [primera?.de ?? '—'] },
+  const nodos = [
+    { id: 'origen', titulo: 'Origen', detalles: [primera?.de ?? '—'], fase: 'ida' as const },
     ...calculo.tramos.map((tramo, i) => {
       const costo = costoDeTramo(i + 1, costos?.tramos[i], tramo);
       const fechas = [
@@ -746,6 +881,9 @@ function nodosDesdeCalculo(
       ]
         .filter(Boolean)
         .join(' ');
+      const esRegreso = calculo.tramos.length > 1
+        && i === calculo.tramos.length - 1
+        && /regreso|origen/i.test(tramo.a);
       return {
         id: `tramo-${i}`,
         titulo: `${i + 1}. ${tramo.a}`,
@@ -753,9 +891,11 @@ function nodosDesdeCalculo(
         chips: chipsDeTramo(tramo),
         costo: costo.costo,
         urlCompra: costo.url_compra,
+        fase: esRegreso ? ('regreso' as const) : ('ida' as const),
       };
     }),
   ];
+  return enriquecerConTaxis(nodos, opciones);
 }
 
 /**
@@ -813,6 +953,147 @@ function mapaDeInicial(resumen: NonNullable<ReturnType<typeof resumenDesdeDatos>
   return { puntos, segmentos };
 }
 
+/** Tarjeta de una métrica del resumen de ruta. */
+function MetricaRuta({
+  icono: Icono,
+  etiqueta,
+  valor,
+}: {
+  icono: LucideIcon;
+  etiqueta: string;
+  valor: string;
+}) {
+  return (
+    <div className="flex items-center gap-2.5 rounded-xl border border-slate-200/80 bg-white/80 px-3 py-2">
+      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-600">
+        <Icono className="h-4 w-4" aria-hidden />
+      </span>
+      <div className="min-w-0">
+        <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+          {etiqueta}
+        </p>
+        <p className="truncate text-sm font-semibold text-slate-800">{valor}</p>
+      </div>
+    </div>
+  );
+}
+
+/** Métricas de la ruta que llenan el ancho del panel central. */
+function MetricasRuta({
+  calculo,
+  resumen,
+  opciones,
+}: {
+  calculo: CalculoViaje;
+  resumen: NonNullable<ReturnType<typeof resumenDesdeDatos>>;
+  opciones: SolicitudOpcion[];
+}) {
+  const total = totalDeOpcionesElegidas(opciones);
+  const etiquetaTotal = total.suma === null
+    ? 'Total elegido'
+    : total.totalCotizado === null
+      ? 'Total estimado'
+      : total.totalEstimado === null
+        ? 'Total cotizado'
+        : 'Total mixto';
+  const fechas = [resumen.rango.inicio, resumen.rango.fin]
+    .filter((fecha): fecha is string => Boolean(fecha))
+    .filter((fecha, indice, lista) => lista.indexOf(fecha) === indice)
+    .map((fecha) =>
+      new Date(`${fecha}T00:00:00`).toLocaleDateString('es-MX', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+      }),
+    )
+    .join(' al ');
+
+  return (
+    <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+      <MetricaRuta
+        icono={Route}
+        etiqueta="Distancia"
+        valor={calculo.km_total != null
+          ? `${calculo.km_total.toLocaleString('es-MX', { maximumFractionDigits: 1 })} km`
+          : '—'}
+      />
+      <MetricaRuta icono={Clock} etiqueta="Duración" valor={calculo.horas_total ?? '—'} />
+      <MetricaRuta icono={CalendarDays} etiqueta="Fechas" valor={fechas || '—'} />
+      <MetricaRuta
+        icono={Wallet}
+        etiqueta={etiquetaTotal}
+        valor={total.suma !== null ? mxn(total.suma) : 'Sin total'}
+      />
+    </div>
+  );
+}
+
+/**
+ * La ruta en dos columnas cuando hay regreso: usa el ancho del panel central y
+ * separa visualmente la ida del regreso. Sin regreso se queda en una columna.
+ */
+function RutaPorFases({ nodos }: { nodos: NodoRutaTimeline[] }) {
+  const ida = nodos.filter((nodo) => nodo.fase !== 'regreso');
+  const regreso = nodos.filter((nodo) => nodo.fase === 'regreso');
+  if (ida.length === 0 || regreso.length === 0) {
+    return <RutaViajeTimeline nodos={nodos} mostrarFase={false} compacto />;
+  }
+
+  return (
+    <div className="grid gap-3 xl:grid-cols-2">
+      <section className="rounded-xl border border-primary/15 bg-primary/[0.02] p-3">
+        <div className="mb-2 flex items-center gap-2">
+          <span className="h-2 w-2 rounded-full bg-primary" aria-hidden />
+          <h4 className="text-[11px] font-semibold uppercase tracking-wide text-primary">Ida</h4>
+        </div>
+        <RutaViajeTimeline nodos={ida} mostrarFase={false} compacto />
+      </section>
+      <section className="rounded-xl border border-sky-200/70 bg-sky-50/40 p-3">
+        <div className="mb-2 flex items-center gap-2">
+          <span className="h-2 w-2 rounded-full bg-sky-500" aria-hidden />
+          <h4 className="text-[11px] font-semibold uppercase tracking-wide text-sky-700">
+            Regreso
+          </h4>
+        </div>
+        <RutaViajeTimeline nodos={regreso} mostrarFase={false} compacto />
+      </section>
+    </div>
+  );
+}
+
+/** Riel del desglose cuando el revisor lo colapsa en escritorio. */
+function DesgloseColapsado({
+  total,
+  onAbrir,
+}: {
+  total: number | null;
+  onAbrir: () => void;
+}) {
+  return (
+    <aside className="hidden min-h-[320px] flex-col items-center gap-3 rounded-2xl border border-slate-200/80 bg-card p-2 shadow-sm lg:flex">
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        className="h-8 w-8"
+        onClick={onAbrir}
+        aria-label="Mostrar desglose"
+        title="Mostrar desglose"
+      >
+        <PanelRightOpen className="h-4 w-4" aria-hidden />
+      </Button>
+      <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground [writing-mode:vertical-rl]">
+        Desglose
+      </span>
+      {total !== null ? (
+        <span className="mt-auto w-full pb-1 text-center text-[10px] font-semibold tabular-nums text-slate-700">
+          {mxn(total)}
+        </span>
+      ) : null}
+    </aside>
+  );
+}
+
 /**
  * Detalle del viaje: la ruta calculada (la que manda tras el envío) y, en
  * otra pestaña, la propuesta original del wizard. La tercera pestaña muestra
@@ -825,6 +1106,7 @@ export function VistaDetalle({
   pestanaInicial,
   propuesta = null,
   onRecalcular,
+  onSolicitudActualizada,
 }: {
   solicitud: Solicitud;
   /**
@@ -844,6 +1126,8 @@ export function VistaDetalle({
   propuesta?: PropuestaRuta | null;
   /** Vuelve a calcular la ruta desde la revisión. */
   onRecalcular?: () => void;
+  /** Refresca la solicitud después de capturar un precio real. */
+  onSolicitudActualizada?: (solicitud: Solicitud) => void;
 }) {
   const resumen = resumenDesdeDatos(solicitud.datos);
   const calculo = leerCalculoDesdeDatos(solicitud.datos);
@@ -903,12 +1187,17 @@ export function VistaDetalle({
     pestanaInicial === undefined || (pestanaInicial === 'autorizada' && versionAutorizada === null)
       ? 'calculada'
       : pestanaInicial;
-  const barraAcciones = acciones ? (
-    <div
-      data-testid="acciones-detalle"
-      className="flex flex-wrap items-center justify-end gap-2 rounded-lg border bg-muted/30 p-2"
-    >
+  const [tabActiva, setTabActiva] = useState<'calculada' | 'inicial' | 'autorizada'>(tabInicial);
+  const [desgloseAbierto, setDesgloseAbierto] = useState(true);
+  const tienePanelLateral = tabActiva !== 'inicial';
+  const accionesDetalle = acciones ? (
+    <div data-testid="acciones-detalle" className="flex flex-wrap items-center justify-end gap-2">
       {acciones}
+    </div>
+  ) : null;
+  const barraAcciones = accionesDetalle ? (
+    <div className="rounded-xl border border-slate-200/80 bg-muted/20 p-2">
+      {accionesDetalle}
     </div>
   ) : null;
 
@@ -937,11 +1226,14 @@ export function VistaDetalle({
     return (
       <div className="space-y-4">
         {barraAcciones}
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_400px]">
           <div className="space-y-4">{vistaInicial}</div>
           <div className="space-y-3">
             {solicitud.opciones.length > 0 ? (
-              <DetalleOpciones solicitud={solicitud} />
+              <DetalleOpciones
+                solicitud={solicitud}
+                onSolicitudActualizada={onSolicitudActualizada}
+              />
             ) : (
               <div className="rounded-lg border border-dashed bg-card p-3 text-sm shadow-[0_2px_10px_rgba(15,23,42,0.10)]">
                 <p className="text-xs text-muted-foreground">Cotización</p>
@@ -956,26 +1248,140 @@ export function VistaDetalle({
     );
   }
 
+  const panelCalculada = (
+    <div className={cn('space-y-3', !desgloseAbierto && 'lg:hidden')}>
+      {solicitud.opciones.length > 0 ? (
+        <DetalleOpciones
+          solicitud={solicitud}
+          opcionesVista={solicitud.opciones}
+          onSolicitudActualizada={onSolicitudActualizada}
+          onCerrar={() => setDesgloseAbierto(false)}
+        />
+      ) : null}
+      <CasetasRuta calculo={calculo} />
+      {calculo.generado_en ? (
+        <p className="text-xs text-muted-foreground">
+          Calculada el {new Date(calculo.generado_en).toLocaleString('es-MX').replace(/\.$/, '')}.
+        </p>
+      ) : null}
+    </div>
+  );
+
+  const panelAutorizada = versionAutorizada ? (
+    <div className={cn('space-y-3', !desgloseAbierto && 'lg:hidden')}>
+      {versionAutorizada.opciones.length > 0 ? (
+        <div data-testid="opciones-ruta-autorizada">
+          <DetalleOpciones
+            solicitud={solicitud}
+            opcionesVista={versionAutorizada.opciones}
+            onCerrar={() => setDesgloseAbierto(false)}
+          />
+        </div>
+      ) : null}
+      <CasetasRuta calculo={versionAutorizada.calculo} />
+    </div>
+  ) : null;
+
+  const rielCalculada = !desgloseAbierto ? (
+    <DesgloseColapsado
+      total={totalDeOpcionesElegidas(solicitud.opciones).suma}
+      onAbrir={() => setDesgloseAbierto(true)}
+    />
+  ) : null;
+
+  const rielAutorizada = versionAutorizada && !desgloseAbierto ? (
+    <DesgloseColapsado
+      total={totalDeOpcionesElegidas(versionAutorizada.opciones).suma}
+      onAbrir={() => setDesgloseAbierto(true)}
+    />
+  ) : null;
+
+  const gridRuta = cn(
+    'grid items-start gap-4',
+    desgloseAbierto
+      ? 'lg:grid-cols-[minmax(0,1fr)_400px]'
+      : 'lg:grid-cols-[minmax(0,1fr)_56px]',
+  );
+
+  const botonMostrarDesglose = !desgloseAbierto ? (
+    <Button
+      type="button"
+      variant="outline"
+      size="sm"
+      className="hidden h-7 gap-1.5 rounded-lg px-2 text-xs lg:inline-flex"
+      onClick={() => setDesgloseAbierto(true)}
+    >
+      <PanelRightOpen className="h-3.5 w-3.5" aria-hidden />
+      Desglose
+    </Button>
+  ) : null;
+
   return (
-    <Tabs defaultValue={tabInicial} className="space-y-4">
-      {barraAcciones}
-      <TabsList className="h-auto w-full justify-start gap-1 overflow-x-auto rounded-none border-b bg-transparent p-0 text-muted-foreground">
-        <TabsTrigger value="calculada" className={folderTabTriggerClassName}>
-          Ruta calculada
-        </TabsTrigger>
-        <TabsTrigger value="inicial" className={folderTabTriggerClassName}>
-          Viaje inicial
-        </TabsTrigger>
-        <TabsTrigger value="autorizada" className={folderTabTriggerClassName} disabled={!versionAutorizada}>
-          Ruta autorizada
-        </TabsTrigger>
-      </TabsList>
+    <Tabs
+      value={tabActiva}
+      onValueChange={(valor) => setTabActiva(valor as 'calculada' | 'inicial' | 'autorizada')}
+      className="space-y-4"
+    >
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <TabsList className="grid h-auto min-h-11 w-full max-w-2xl grid-cols-3 gap-1 rounded-xl bg-muted/60 p-1">
+          <TabsTrigger value="calculada" className={tabRevisionTriggerClassName}>
+            <Route className="hidden h-3.5 w-3.5 sm:inline" aria-hidden />
+            Ruta calculada
+          </TabsTrigger>
+          <TabsTrigger value="inicial" className={tabRevisionTriggerClassName}>
+            <MapPin className="hidden h-3.5 w-3.5 sm:inline" aria-hidden />
+            Viaje inicial
+          </TabsTrigger>
+          <TabsTrigger
+            value="autorizada"
+            className={tabRevisionTriggerClassName}
+            disabled={!versionAutorizada}
+            title={!versionAutorizada
+              ? 'La ruta autorizada aparece cuando el concentrado autoriza el viaje.'
+              : undefined}
+          >
+            <ShieldCheck className="hidden h-3.5 w-3.5 sm:inline" aria-hidden />
+            Ruta autorizada
+          </TabsTrigger>
+        </TabsList>
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          {accionesDetalle}
+          {tienePanelLateral ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="hidden h-8 gap-1.5 rounded-lg px-2.5 text-xs lg:inline-flex"
+              onClick={() => setDesgloseAbierto((abierto) => !abierto)}
+              aria-expanded={desgloseAbierto}
+              aria-label={desgloseAbierto ? 'Ocultar desglose' : 'Mostrar desglose'}
+            >
+              {desgloseAbierto ? (
+                <PanelRightClose className="h-3.5 w-3.5" aria-hidden />
+              ) : (
+                <PanelRightOpen className="h-3.5 w-3.5" aria-hidden />
+              )}
+              {desgloseAbierto ? 'Ocultar desglose' : 'Mostrar desglose'}
+            </Button>
+          ) : null}
+        </div>
+      </div>
       <TabsContent value="calculada" className="space-y-4">
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
-          <div data-testid="diagrama-ruta-calculada" className="rounded-lg border bg-card p-4">
-            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-              <h3 className="font-semibold">Ruta del viaje</h3>
+        <MetricasRuta calculo={calculo} resumen={resumen} opciones={solicitud.opciones} />
+        <div className={gridRuta}>
+          <div
+            data-testid="diagrama-ruta-calculada"
+            className="rounded-2xl border border-slate-200/80 bg-card p-4 shadow-sm"
+          >
+            <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
+              <div>
+                <h3 className="font-semibold">Ruta del viaje</h3>
+                <p className="text-xs text-muted-foreground">
+                  Itinerario completo con paradas, costos y enlaces.
+                </p>
+              </div>
               <div className="flex flex-wrap items-center gap-2">
+                {botonMostrarDesglose}
                 {mapaCalculado.puntos.length > 0 ? (
                   <BotonVerMapa onClick={() => setMapaAbierto('calculada')} />
                 ) : (
@@ -986,48 +1392,61 @@ export function VistaDetalle({
                 <BotonVerBoleto onClick={() => setBoletoAbierto(true)} />
               </div>
             </div>
-            <RutaViajeTimeline nodos={nodosDesdeCalculo(calculo)} />
+            <RutaPorFases nodos={nodosDesdeCalculo(calculo, solicitud.opciones)} />
           </div>
-
-          <div className="space-y-3">
-            {solicitud.opciones.length > 0 ? <DetalleOpciones solicitud={solicitud} /> : null}
-            <CasetasRuta calculo={calculo} />
-            {calculo.generado_en ? (
-              <p className="text-xs text-muted-foreground">
-                Calculada el {new Date(calculo.generado_en).toLocaleString('es-MX').replace(/\.$/, '')}.
-              </p>
-            ) : null}
-          </div>
+          {panelCalculada}
+          {rielCalculada}
         </div>
       </TabsContent>
       <TabsContent value="inicial" className="space-y-4">
-        {vistaInicial}
-        <div>
-          <h3 className="mb-2 text-sm font-semibold text-muted-foreground">
-            Tramos del itinerario · distancia por carretera, tiempos y casetas
-          </h3>
-          <RutaCalculada calculo={calculo} />
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
+          <div className="space-y-4">{vistaInicial}</div>
+          <section className="rounded-2xl border border-slate-200/80 bg-card p-4 shadow-sm">
+            <h3 className="font-semibold">Tramos del itinerario</h3>
+            <p className="mb-3 text-xs text-muted-foreground">
+              Distancia por carretera, tiempos y casetas.
+            </p>
+            <RutaCalculada calculo={calculo} />
+          </section>
         </div>
       </TabsContent>
       <TabsContent value="autorizada" className="space-y-4">
         {versionAutorizada ? (
           <>
-            <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
-              <div data-testid="diagrama-ruta-autorizada" className="rounded-lg border bg-card p-4">
-                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h3 className="font-semibold">Ruta autorizada</h3>
-                    {versionAutorizada.esPropuesta ? (
-                      <Badge
-                        data-testid="badge-propuesta"
-                        variant="outline"
-                        className="border-primary/40 bg-primary/10 font-normal text-primary"
-                      >
-                        Propuesta en revisión
-                      </Badge>
-                    ) : null}
+            <MetricasRuta
+              calculo={versionAutorizada.calculo}
+              resumen={resumen}
+              opciones={versionAutorizada.opciones}
+            />
+            <div className={gridRuta}>
+              <div
+                data-testid="diagrama-ruta-autorizada"
+                className="rounded-2xl border border-slate-200/80 bg-card p-4 shadow-sm"
+              >
+                <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="font-semibold">Ruta autorizada</h3>
+                      {versionAutorizada.esPropuesta ? (
+                        <Badge
+                          data-testid="badge-propuesta"
+                          variant="outline"
+                          className="border-primary/40 bg-primary/10 font-normal text-primary"
+                        >
+                          Propuesta en revisión
+                        </Badge>
+                      ) : null}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {versionAutorizada.esPropuesta
+                        ? 'Propuesta recalculada que se autorizará si la confirmas.'
+                        : estaAutorizada
+                          ? 'Versión aprobada por el concentrado, con terminales, hotel y taxis.'
+                          : 'Ruta original que se autorizará si la confirmas.'}
+                    </p>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
+                    {botonMostrarDesglose}
                     {mapaAutorizado.puntos.length > 0 ? (
                       <BotonVerMapa onClick={() => setMapaAbierto('autorizada')} />
                     ) : null}
@@ -1046,7 +1465,7 @@ export function VistaDetalle({
                     ) : null}
                   </div>
                 </div>
-                <RutaViajeTimeline
+                <RutaPorFases
                   nodos={nodosDesdeCalculo(
                     versionAutorizada.calculo,
                     versionAutorizada.opciones,
@@ -1054,14 +1473,8 @@ export function VistaDetalle({
                   )}
                 />
               </div>
-              <div className="space-y-3">
-                {versionAutorizada.opciones.length > 0 ? (
-                  <div data-testid="opciones-ruta-autorizada">
-                    <DetalleOpciones solicitud={solicitud} opcionesVista={versionAutorizada.opciones} />
-                  </div>
-                ) : null}
-                <CasetasRuta calculo={versionAutorizada.calculo} />
-              </div>
+              {panelAutorizada}
+              {rielAutorizada}
             </div>
             {mostrarComparador ? (
               <ComparadorRutas
@@ -1117,61 +1530,64 @@ export function VistaDetalle({
 function RutaCalculada({ calculo }: { calculo: CalculoViaje }) {
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap gap-1.5">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
         {calculo.km_total != null ? (
-          <Badge variant="outline" className="gap-1 font-normal">
-            <Route className="h-3 w-3" aria-hidden />
+          <span className="inline-flex items-center gap-1">
+            <Route className="h-3.5 w-3.5" aria-hidden />
             {calculo.km_total.toLocaleString('es-MX', { maximumFractionDigits: 1 })} km
-          </Badge>
+          </span>
         ) : null}
         {calculo.horas_total ? (
-          <Badge variant="outline" className="gap-1 font-normal">
-            <Clock className="h-3 w-3" aria-hidden />
+          <span className="inline-flex items-center gap-1">
+            <Clock className="h-3.5 w-3.5" aria-hidden />
             {calculo.horas_total} con margen
-          </Badge>
+          </span>
         ) : null}
         <ModoTransporteBadge modo={calculo.modo_transporte === 'propio' ? 'propio' : 'solicitado'} />
       </div>
       <ol className="space-y-2">
         {calculo.tramos.map((tramo, i) => {
           const noAlcanza = tramo.alcanza === false;
+          const tiempos = [
+            tramo.km != null
+              ? `${tramo.km.toLocaleString('es-MX', { maximumFractionDigits: 1 })} km`
+              : '',
+            tramo.duracion ?? '',
+            tramo.duracion_con_margen ? `${tramo.duracion_con_margen} con margen` : '',
+          ].filter((parte) => parte !== '').join(' · ');
+          const horario = [
+            tramo.salida_hora
+              ? `Salida ${horaAmPm(tramo.salida_hora) ?? tramo.salida_hora}`
+              : '',
+            tramo.llegada_hora
+              ? `Llegada ${horaAmPm(tramo.llegada_hora) ?? tramo.llegada_hora}`
+              : '',
+          ].filter((parte) => parte !== '').join(' · ');
           return (
             <li
               key={`${tramo.de}-${tramo.a}-${i}`}
               className={cn(
-                'rounded-md border p-3 text-sm',
+                'rounded-xl border bg-card p-3 text-sm',
                 noAlcanza && 'border-destructive/40 bg-destructive/5',
               )}
             >
-              <div className="flex flex-wrap items-center gap-2">
-                {/* La alerta va primero: es lo único que exige acción. */}
-                {noAlcanza ? <Badge variant="destructive" className="font-normal">No alcanza la hora</Badge> : null}
-                <p className="font-medium">{i + 1}. {tramo.de} → {tramo.a}</p>
-              </div>
-              <div className="mt-1.5 flex flex-wrap gap-1.5 text-xs">
-                {tramo.km != null ? (
-                  <Badge variant="outline" className="font-normal">
-                    {tramo.km.toLocaleString('es-MX', { maximumFractionDigits: 1 })} km
-                  </Badge>
-                ) : null}
-                {tramo.duracion ? <Badge variant="outline" className="font-normal">{tramo.duracion}</Badge> : null}
-                {tramo.duracion_con_margen ? (
-                  <Badge
-                    variant="outline"
-                    className="font-normal text-muted-foreground"
-                    title="Tiempo de recorrido más el margen para no llegar justo al límite"
-                  >
-                    {tramo.duracion_con_margen} con margen
-                  </Badge>
-                ) : null}
-                {tramo.salida_hora ? (
-                  <Badge variant="outline" className="font-normal">
-                    Salida {horaAmPm(tramo.salida_hora) ?? tramo.salida_hora}
-                  </Badge>
-                ) : null}
-                {tramo.llegada_hora ? (
-                  <Badge variant="outline" className="font-normal">
-                    Llegada {horaAmPm(tramo.llegada_hora) ?? tramo.llegada_hora}
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="break-words font-medium">
+                    <span className="text-muted-foreground">{i + 1}.</span> {tramo.de}
+                    <span className="mx-1 text-muted-foreground">→</span>
+                    {tramo.a}
+                  </p>
+                  {tiempos ? (
+                    <p className="mt-1 text-xs text-muted-foreground">{tiempos}</p>
+                  ) : null}
+                  {horario ? (
+                    <p className="text-xs text-muted-foreground">{horario}</p>
+                  ) : null}
+                </div>
+                {noAlcanza ? (
+                  <Badge variant="destructive" className="shrink-0">
+                    No alcanza
                   </Badge>
                 ) : null}
               </div>
@@ -1227,16 +1643,185 @@ function DatosViajeTexto({ datos }: { datos: DatosViaje | null }) {
   ].filter((parte): parte is string => Boolean(parte));
 
   if (partes.length === 0) return null;
+  const texto = partes.join(' · ');
   return (
-    <p className="max-w-md text-[11px] leading-snug text-muted-foreground">
-      {partes.join(' · ')}
+    <p
+      className="mt-0.5 line-clamp-2 max-w-full break-words text-[10px] leading-snug text-muted-foreground"
+      title={texto}
+    >
+      {texto}
     </p>
   );
+}
+
+/** Icono del tipo de opción; lo desconocido usa el boleto genérico. */
+const ICONO_TIPO: Record<string, LucideIcon> = {
+  vuelo: Plane,
+  avion: Plane,
+  autobus: Bus,
+  hotel: BedDouble,
+  renta: CarFront,
+  auto: CarFront,
+};
+
+function iconoDeTipo(tipo: string): LucideIcon {
+  return ICONO_TIPO[(tipo ?? '').trim().toLowerCase()] ?? Ticket;
+}
+
+/** Importe limpio para el desglose: el badge/fuente ya indica si es estimado. */
+function precioDesglose(opcion: SolicitudOpcion): string {
+  if (esOpcionCotizada(opcion) && opcion.precio !== null) {
+    return importeFormateado(opcion.precio, opcion.moneda);
+  }
+  const referencia = precioReferenciaOpcion(opcion);
+  return referencia === null ? SIN_PRECIO : importeFormateado(referencia, opcion.moneda);
+}
+
+/** Subida manual de un PNG: icono compacto junto a boleto/enlace. */
+function BotonSubirCaptura({
+  etiqueta,
+  subiendo,
+  onSubir,
+}: {
+  etiqueta: string;
+  subiendo: boolean;
+  onSubir: (archivo: File) => void | Promise<void>;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  return (
+    <TooltipProvider delayDuration={150}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            className="h-6 w-6 shrink-0 border-teal-200 bg-teal-50 text-teal-700 hover:bg-teal-100 hover:text-teal-800"
+            onClick={() => inputRef.current?.click()}
+            disabled={subiendo}
+            aria-label={`Subir captura de ${etiqueta}`}
+          >
+            {subiendo ? (
+              <RefreshCw className="h-3.5 w-3.5 animate-spin" aria-hidden />
+            ) : (
+              <Upload className="h-3.5 w-3.5" aria-hidden />
+            )}
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>Subir captura (PNG)</TooltipContent>
+      </Tooltip>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/png,.png"
+        className="hidden"
+        onChange={(evento) => {
+          const archivo = evento.target.files?.[0];
+          evento.target.value = '';
+          if (archivo) void onSubir(archivo);
+        }}
+      />
+    </TooltipProvider>
+  );
+}
+
+interface GrupoOpcionesRuta {
+  clave: string;
+  etiqueta: string;
+  detalle: string | null;
+  tramo: number;
+}
+
+/** Agrupa por tramo/destino para que varios destinos no queden en una lista plana. */
+function grupoOpcionRuta(opcion: SolicitudOpcion): GrupoOpcionesRuta {
+  const de = typeof opcion.datos?.de === 'string' ? opcion.datos.de : '';
+  const a = typeof opcion.datos?.a === 'string' ? opcion.datos.a : '';
+  const tramo = typeof opcion.datos?.tramo === 'number' ? opcion.datos.tramo : 99;
+  const detalle = de && a ? `${de} → ${a}` : null;
+
+  if (tramo === 99) {
+    return { clave: 'sin-tramo', etiqueta: 'Boletos', detalle, tramo };
+  }
+  if (tramo === 0) {
+    return { clave: 'tramo-0', etiqueta: 'Ida', detalle, tramo };
+  }
+  if (/regreso|origen/i.test(a)) {
+    return { clave: `tramo-${tramo}`, etiqueta: 'Regreso', detalle, tramo };
+  }
+  return { clave: `tramo-${tramo}`, etiqueta: `Destino ${tramo + 1}`, detalle, tramo };
+}
+
+function agruparOpcionesRuta(
+  opciones: SolicitudOpcion[],
+): Array<GrupoOpcionesRuta & { opciones: SolicitudOpcion[] }> {
+  const mapa = new Map<string, GrupoOpcionesRuta & { opciones: SolicitudOpcion[] }>();
+  for (const opcion of opciones) {
+    const grupo = grupoOpcionRuta(opcion);
+    const existente = mapa.get(grupo.clave);
+    if (existente) {
+      existente.opciones.push(opcion);
+    } else {
+      mapa.set(grupo.clave, { ...grupo, opciones: [opcion] });
+    }
+  }
+  return [...mapa.values()].sort((a, b) => a.tramo - b.tramo);
+}
+
+function estiloGrupoRuta(etiqueta: string): { punto: string; texto: string } {
+  if (etiqueta === 'Regreso') return { punto: 'bg-sky-500', texto: 'text-sky-700' };
+  if (etiqueta.startsWith('Destino')) return { punto: 'bg-violet-500', texto: 'text-violet-700' };
+  if (etiqueta === 'Boletos') return { punto: 'bg-slate-400', texto: 'text-slate-600' };
+  return { punto: 'bg-primary', texto: 'text-primary' };
+}
+
+/** Opción elegida que la detección automática puede cotizar (vuelo, autobús u hotel). */
+function esDeteccionAplicable(opcion: SolicitudOpcion): boolean {
+  const tipo = (opcion.tipo ?? '').trim().toLowerCase();
+  if (!opcion.fue_elegida || !opcion.url_compra) return false;
+  if (tipo !== 'vuelo' && tipo !== 'avion' && tipo !== 'autobus' && tipo !== 'hotel') return false;
+  if (tipo === 'hotel' && /^hotel en /i.test(opcion.linea)) return false;
+  return !esOpcionCotizada(opcion);
+}
+
+/**
+ * Tipos con una tarjeta concreta en el sitio (vuelo, autobús, hotel). Taxi y
+ * renta solo tienen una página de búsqueda: para esos queda la carga manual.
+ */
+function esCapturaAutomaticaAplicable(opcion: SolicitudOpcion): boolean {
+  const tipo = (opcion.tipo ?? '').trim().toLowerCase();
+  if (!opcion.url_compra) return false;
+  if (tipo !== 'vuelo' && tipo !== 'avion' && tipo !== 'autobus' && tipo !== 'hotel') return false;
+  if (tipo === 'hotel' && /^hotel en /i.test(opcion.linea)) return false;
+  return true;
+}
+
+/** Estado visible de la detección automática de precio de una opción. */
+function EstadoDeteccion({ opcion }: { opcion: SolicitudOpcion }) {
+  if (!opcion.fue_elegida) return null;
+  const estado = opcion.datos?.deteccion_estado;
+  if (estado === 'pendiente' || estado === 'en_proceso') {
+    return (
+      <p role="status" className="text-[10px] leading-snug text-muted-foreground">
+        Buscando precio real…
+      </p>
+    );
+  }
+  if (estado === 'sin_opcion' || estado === 'error') {
+    return (
+      <p className="text-[10px] leading-snug text-amber-700">
+        {opcion.datos?.deteccion_mensaje
+          ?? 'No se pudo detectar el precio; puedes capturarlo manualmente.'}
+      </p>
+    );
+  }
+  return null;
 }
 
 function DetalleOpciones({
   solicitud,
   opcionesVista,
+  onSolicitudActualizada,
+  onCerrar,
 }: {
   solicitud: Solicitud;
   /**
@@ -1244,26 +1829,33 @@ function DetalleOpciones({
    * la solicitud, que es el comportamiento de Mis viajes.
    */
   opcionesVista?: SolicitudOpcion[];
+  /** Refresca la solicitud después de capturar el precio real de un vuelo. */
+  onSolicitudActualizada?: (solicitud: Solicitud) => void;
+  /** Colapsa el panel de desglose en escritorio. */
+  onCerrar?: () => void;
 }) {
   const opciones = opcionesVista ?? solicitud.opciones;
+  const puedeCapturarPrecio =
+    onSolicitudActualizada !== undefined
+    && (solicitud.estado === 'borrador' || solicitud.estado === 'enviada');
   const total = totalDeOpcionesElegidas(opciones);
   const elegidas = opciones.filter((o) => o.fue_elegida);
   const descartadas = opciones.filter((o) => !o.fue_elegida);
   const [boleto, setBoleto] = useState<SolicitudOpcion | null>(null);
+  const [precioReal, setPrecioReal] = useState<SolicitudOpcion | null>(null);
+  const [detectando, setDetectando] = useState<number | null>(null);
+  const [avisoDeteccion, setAvisoDeteccion] = useState<string | null>(null);
   const [subiendoCaptura, setSubiendoCaptura] = useState<number | null>(null);
+  const [capturando, setCapturando] = useState<number | null>(null);
+  const [capturaAReemplazar, setCapturaAReemplazar] = useState<SolicitudOpcion | null>(null);
   const [capturasRevision, setCapturasRevision] = useState<Record<number, number>>({});
 
   // Capturas y datos por opción: arrancan con lo que ya trae el detalle y se
-  // refrescan con GET /evidencias al abrir y con POST /buscar.
+  // refrescan con GET /evidencias al abrir y con POST /capturas.
   const [capturas, setCapturas] = useState<Record<number, string | null>>(() =>
     Object.fromEntries(opciones.map((o) => [o.id_opcion, o.ruta_captura])),
   );
   const [datos, setDatos] = useState<Record<number, DatosViaje | null>>({});
-  const [generando, setGenerando] = useState(false);
-  const [buscando, setBuscando] = useState(false);
-  const [progreso, setProgreso] = useState<{ hechas: number; total: number } | null>(null);
-  const [avisoCapturas, setAvisoCapturas] = useState<string | null>(null);
-  const hayLinks = opciones.some((o) => Boolean(o.url_compra));
 
   const aplicarEvidencias = useCallback((resultado: EvidenciasSolicitud) => {
     setCapturas((previo) => {
@@ -1297,33 +1889,83 @@ function DetalleOpciones({
     };
   }, [aplicarEvidencias, solicitud.id_solicitud]);
 
-  async function generarCapturas() {
-    setGenerando(true);
-    setAvisoCapturas(null);
+  // Fase 2: al guardar la cotización, el backend encola la detección. Aquí se
+  // refresca el detalle mientras haya opciones pendientes, sin clics.
+  const hayDeteccionPendiente = opciones.some(
+    (o) =>
+      o.fue_elegida
+      && (o.datos?.deteccion_estado === 'pendiente' || o.datos?.deteccion_estado === 'en_proceso'),
+  );
+
+  useEffect(() => {
+    if (!hayDeteccionPendiente || !onSolicitudActualizada) return;
+    let vigente = true;
+    let intentos = 0;
+    const intervalo = window.setInterval(async () => {
+      intentos += 1;
+      try {
+        const { data } = await solicitudesApi.detalle(solicitud.id_solicitud);
+        if (vigente && data.success && data.data) onSolicitudActualizada(data.data);
+      } catch {
+        /* el siguiente intento vuelve a consultar */
+      }
+      if (intentos >= 72) window.clearInterval(intervalo);
+    }, 5000);
+    return () => {
+      vigente = false;
+      window.clearInterval(intervalo);
+    };
+  }, [hayDeteccionPendiente, onSolicitudActualizada, solicitud.id_solicitud]);
+
+  /** Genera o reemplaza la captura de una sola opción. */
+  async function generarCaptura(opcion: SolicitudOpcion, reemplazar: boolean) {
+    setCapturando(opcion.id_opcion);
     try {
-      const { data } = await evidenciasApi.generar(solicitud.id_solicitud);
+      const { data } = await evidenciasApi.generar(
+        solicitud.id_solicitud,
+        reemplazar,
+        opcion.id_opcion,
+      );
       const resultado = data.data;
       aplicarEvidencias(resultado);
-      const partes = [
-        resultado.generadas > 0 ? `${resultado.generadas} nueva(s)` : null,
-        resultado.reutilizadas > 0 ? `${resultado.reutilizadas} ya estaban` : null,
-        resultado.fallidas > 0 ? `${resultado.fallidas} fallaron` : null,
-      ].filter(Boolean);
-      const resumen = partes.length > 0 ? `Capturas: ${partes.join(', ')}.` : 'Sin capturas nuevas.';
-      const primerError = resultado.opciones.find(
-        (o) => o.fue_elegida && o.error && o.error !== 'Sin captura.',
+      const nuevaCaptura = resultado.opciones.find(
+        (evidencia) => evidencia.id_opcion === opcion.id_opcion,
+      )?.ruta_captura;
+      if (nuevaCaptura) {
+        setBoleto((actual) =>
+          actual?.id_opcion === opcion.id_opcion
+            ? { ...actual, ruta_captura: nuevaCaptura }
+            : actual,
+        );
+      }
+      setCapturasRevision((previo) => ({
+        ...previo,
+        [opcion.id_opcion]: (previo[opcion.id_opcion] ?? 0) + 1,
+      }));
+
+      const error = resultado.opciones.find(
+        (evidencia) => evidencia.id_opcion === opcion.id_opcion,
       )?.error;
       if (resultado.fallidas > 0) {
-        toast.error(primerError ? `${resumen} ${primerError}` : resumen);
+        toast.error(error ?? 'No se pudo generar la captura.');
       } else {
-        toast.success(resumen);
+        toast.success(reemplazar ? 'Captura reemplazada.' : 'Captura generada.');
       }
-      if (resultado.aviso) setAvisoCapturas(resultado.aviso);
     } catch (error) {
       toast.error(toApiError(error).message);
     } finally {
-      setGenerando(false);
+      setCapturando(null);
     }
+  }
+
+  /** Sin captura genera directo; con captura pide confirmación antes de pisarla. */
+  function solicitarCaptura(opcion: SolicitudOpcion) {
+    const captura = capturas[opcion.id_opcion] ?? opcion.ruta_captura;
+    if (captura) {
+      setCapturaAReemplazar(opcion);
+      return;
+    }
+    void generarCaptura(opcion, false);
   }
 
   /** Sube un PNG tomado fuera del backend y lo asocia a la opción. */
@@ -1354,58 +1996,79 @@ function DetalleOpciones({
   }
 
   /**
-   * Pide al agente buscar las opciones una por una: cada que termina una, se
-   * pinta su captura y sus datos sin esperar a las demás.
+   * Detección bajo demanda: Playwright local y, si el sitio bloquea, Firecrawl.
+   * El backend elige la opción más barata que cumpla el horario y la aplica con
+   * su captura. Es el respaldo manual de la detección automática al guardar.
    */
-  async function buscarInformacion() {
-    const pendientes = opciones.filter((o) => Boolean(o.url_compra));
-    if (pendientes.length === 0) {
-      toast.error('Ninguna opción tiene link de compra para que el agente la busque.');
-      return;
-    }
-
-    setBuscando(true);
-    setAvisoCapturas(null);
-    setProgreso({ hechas: 0, total: pendientes.length });
-    let conDatos = 0;
-    let fallidas = 0;
+  async function detectarPrecio(opcion: SolicitudOpcion) {
+    if (detectando !== null) return;
+    setDetectando(opcion.id_opcion);
+    setAvisoDeteccion(null);
     try {
-      for (const opcion of pendientes) {
-        try {
-          const { data } = await evidenciasApi.buscar(
-            solicitud.id_solicitud,
-            opcion.id_opcion,
-          );
-          aplicarEvidencias(data.data);
-          const evidencia = data.data.opciones.find(
-            (e) => e.id_opcion === opcion.id_opcion,
-          );
-          if (evidencia?.datos) conDatos += 1;
-        } catch {
-          fallidas += 1;
-        } finally {
-          setProgreso((previo) =>
-            previo ? { hechas: previo.hechas + 1, total: previo.total } : previo,
-          );
-        }
-      }
-
-      const partes = [
-        conDatos > 0 ? `${conDatos} con datos` : null,
-        fallidas > 0 ? `${fallidas} fallaron` : null,
-      ].filter(Boolean);
-      toast.success(
-        partes.length > 0
-          ? `Búsqueda: ${partes.join(', ')}.`
-          : 'El agente no devolvió información nueva.',
+      const { data } = await solicitudesApi.detectarPrecio(
+        solicitud.id_solicitud,
+        opcion.id_opcion,
       );
+      const resultado = data.data;
+      if (!data.success || !resultado) {
+        toast.error(data.message ?? 'No se pudo detectar el precio.');
+        return;
+      }
+      if (!resultado.aplicado) {
+        const motivo =
+          resultado.motivo
+          ?? data.message
+          ?? 'No se encontró un precio que llegue a tiempo.';
+        const detectados = resultado.opciones
+          .slice(0, 3)
+          .map((opcion) => `${opcion.linea} ${mxn(opcion.precio)}`)
+          .join(' · ');
+        const aviso = detectados ? `${motivo} Detectados: ${detectados}.` : motivo;
+        setAvisoDeteccion(aviso);
+        toast.warning(aviso);
+        return;
+      }
+      toast.success(resultado.mensaje ?? 'Precio detectado y aplicado.');
+      const detalle = await solicitudesApi.detalle(solicitud.id_solicitud);
+      if (detalle.data.success && detalle.data.data) {
+        onSolicitudActualizada?.(detalle.data.data);
+      }
     } catch (error) {
-      toast.error(toApiError(error).message);
+      toast.error(toApiError(error).message || 'No se pudo detectar el precio.');
     } finally {
-      setBuscando(false);
-      setProgreso(null);
+      setDetectando(null);
     }
   }
+
+  /** Cámara solo cuando falta captura; reemplazar se hace desde el boleto. */
+  const botonCaptura = (opcion: SolicitudOpcion) => {
+    const captura = capturas[opcion.id_opcion] ?? opcion.ruta_captura;
+    if (captura || !esCapturaAutomaticaAplicable(opcion)) return null;
+    return (
+      <TooltipProvider delayDuration={150}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              className="h-6 w-6 shrink-0 border-primary/30 bg-primary/5 text-primary hover:bg-primary/10 hover:text-primary"
+              onClick={() => solicitarCaptura(opcion)}
+              disabled={capturando === opcion.id_opcion}
+              aria-label={`Generar captura de ${opcion.linea}`}
+            >
+              {capturando === opcion.id_opcion ? (
+                <RefreshCw className="h-3.5 w-3.5 animate-spin" aria-hidden />
+              ) : (
+                <Camera className="h-3.5 w-3.5" aria-hidden />
+              )}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Generar captura de esta opción</TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    );
+  };
 
   /** Botón de boleto de un renglón: abre esa opción con captura y link. */
   const botonBoleto = (opcion: SolicitudOpcion) => (
@@ -1414,9 +2077,9 @@ function DetalleOpciones({
         <TooltipTrigger asChild>
           <Button
             type="button"
-            variant="ghost"
+            variant="outline"
             size="icon"
-            className="h-6 w-6 shrink-0"
+            className="h-6 w-6 shrink-0 border-violet-200 bg-violet-50 text-violet-700 hover:bg-violet-100 hover:text-violet-800"
             aria-label={`Ver boleto de ${opcion.linea}`}
             onClick={() => setBoleto(opcion)}
           >
@@ -1439,7 +2102,12 @@ function DetalleOpciones({
       <TooltipProvider delayDuration={150}>
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button asChild variant="ghost" size="icon" className="h-6 w-6 shrink-0">
+            <Button
+              asChild
+              variant="outline"
+              size="icon"
+              className="h-6 w-6 shrink-0 border-sky-200 bg-sky-50 text-sky-700 hover:bg-sky-100 hover:text-sky-800"
+            >
               <a
                 href={opcion.url_compra}
                 target="_blank"
@@ -1456,91 +2124,258 @@ function DetalleOpciones({
     );
   };
 
-  const fila = (opcion: SolicitudOpcion) => (
-    <tr key={opcion.id_opcion} className="border-b border-border/60 last:border-0">
-      <td className="py-1 pr-3 align-top">
-        <div>{opcion.linea}</div>
-        <DatosViajeTexto datos={datos[opcion.id_opcion] ?? null} />
-      </td>
-      <td className="py-1 pr-3 align-top">
-        <CeldaCaptura
-          ruta={capturas[opcion.id_opcion] ?? opcion.ruta_captura ?? undefined}
-          etiqueta={opcion.linea}
-          onSubirCaptura={(archivo) => subirCaptura(opcion, archivo)}
-          subiendo={subiendoCaptura === opcion.id_opcion}
-          revision={capturasRevision[opcion.id_opcion] ?? 0}
-        />
-      </td>
-      <td className="whitespace-nowrap py-1 text-right align-top tabular-nums">
-        {precioTexto(opcion)}
-      </td>
-      <td className="w-8 py-0.5 pl-1 text-right align-top">{botonBoleto(opcion)}</td>
-      <td className="w-8 py-0.5 pl-1 text-right align-top">{botonComprar(opcion)}</td>
-    </tr>
-  );
+  const tarjeta = (opcion: SolicitudOpcion) => {
+    const Icono = iconoDeTipo(opcion.tipo);
+    const captura = capturas[opcion.id_opcion] ?? opcion.ruta_captura ?? undefined;
+    const nombre = nombreCortoOpcion(opcion);
+    return (
+      <li
+        key={opcion.id_opcion}
+        className="rounded-xl border border-slate-200/80 bg-white p-3 shadow-[0_1px_2px_rgba(15,23,42,0.04)]"
+      >
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <p className="flex items-start gap-1.5 text-[13px] font-medium">
+              <Icono className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
+              <span
+                className="line-clamp-2 min-w-0 break-words"
+                title={nombre !== opcion.linea ? opcion.linea : undefined}
+              >
+                {nombre}
+              </span>
+            </p>
+            {opcion.fuente ? (
+              <p
+                className="mt-0.5 line-clamp-1 break-words text-[10px] italic text-muted-foreground"
+                title={opcion.fuente}
+              >
+                {opcion.fuente}
+              </p>
+            ) : null}
+            <DatosViajeTexto datos={datos[opcion.id_opcion] ?? null} />
+            <EstadoDeteccion opcion={opcion} />
+          </div>
+          <span className="max-w-[40%] shrink-0 break-words text-right text-[13px] font-semibold tabular-nums">
+            {precioDesglose(opcion)}
+          </span>
+        </div>
 
-  return (
-    <div className="space-y-2 rounded-lg border bg-card p-3 text-sm shadow-[0_2px_10px_rgba(15,23,42,0.10)]">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-xs text-muted-foreground">Transporte y hospedaje elegidos</p>
-        {hayLinks ? (
-          <div className="flex flex-wrap items-center gap-1.5">
+        <div className="mt-2 flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <CeldaCaptura
+              ruta={captura}
+              etiqueta={opcion.linea}
+              revision={capturasRevision[opcion.id_opcion] ?? 0}
+            />
+          </div>
+          <div className="flex shrink-0 items-center gap-1">
+            {botonCaptura(opcion)}
+            <BotonSubirCaptura
+              etiqueta={opcion.linea}
+              subiendo={subiendoCaptura === opcion.id_opcion}
+              onSubir={(archivo) => subirCaptura(opcion, archivo)}
+            />
+            {botonBoleto(opcion)}
+            {botonComprar(opcion)}
+          </div>
+        </div>
+
+        {puedeCapturarPrecio && esDeteccionAplicable(opcion) ? (
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            <Button
+              type="button"
+              variant="default"
+              size="sm"
+              className="h-7 gap-1 rounded-lg px-2 text-[11px]"
+              onClick={() => void detectarPrecio(opcion)}
+              disabled={detectando !== null}
+            >
+              <Sparkles className="h-3 w-3" aria-hidden />
+              {detectando === opcion.id_opcion ? 'Detectando…' : 'Detectar precio'}
+            </Button>
             <Button
               type="button"
               variant="outline"
               size="sm"
-              className="h-7 gap-1.5 px-2 text-xs"
-              onClick={generarCapturas}
-              disabled={generando || buscando}
-              aria-label="Generar capturas de pantalla de las opciones elegidas"
-              title="Captura con Playwright las opciones elegidas; si alguna falla, el botón queda disponible para reintentar"
+              className="h-7 rounded-lg px-2 text-[11px]"
+              onClick={() => setPrecioReal(opcion)}
+              disabled={detectando !== null}
             >
-              <Camera className="h-3.5 w-3.5" aria-hidden />
-              {generando ? 'Generando capturas…' : 'Generar capturas'}
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              className="h-7 gap-1.5 px-2 text-xs"
-              onClick={buscarInformacion}
-              disabled={buscando || generando}
-              aria-label="Buscar opciones del viaje con el agente"
-            >
-              <Search className="h-3.5 w-3.5" aria-hidden />
-              {buscando
-                ? `Buscando… ${progreso?.hechas ?? 0}/${progreso?.total ?? opciones.length}`
-                : 'Buscar opciones'}
+              Capturar precio
             </Button>
           </div>
         ) : null}
-      </div>
-      {avisoCapturas ? <p className="text-xs text-amber-700">{avisoCapturas}</p> : null}
-      {elegidas.length === 0 ? (
-        <p>Sin opciones elegidas.</p>
-      ) : (
-        <table className="w-full text-sm">
-          <tbody>{elegidas.map(fila)}</tbody>
-          <tfoot>
-            <tr>
-              <td className="pt-2 align-bottom text-xs text-muted-foreground">Desglose</td>
-              <td />
-              <td className="pt-1 text-right text-2xl font-semibold tracking-tight tabular-nums">
+      </li>
+    );
+  };
+
+  const gruposElegidas = agruparOpcionesRuta(elegidas);
+  const gruposAlternativas = agruparOpcionesRuta(descartadas).map((grupo) => ({
+    ...grupo,
+    opciones: [...grupo.opciones].sort(
+      (a, b) => (a.precio ?? Number.POSITIVE_INFINITY) - (b.precio ?? Number.POSITIVE_INFINITY),
+    ),
+  }));
+
+  const filaAlternativa = (opcion: SolicitudOpcion) => {
+    const Icono = iconoDeTipo(opcion.tipo);
+    const nombre = nombreCortoOpcion(opcion);
+    return (
+      <li
+        key={opcion.id_opcion}
+        className="flex items-center gap-2 rounded-lg border border-slate-200/70 bg-white px-2.5 py-1.5"
+      >
+        <Icono className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
+        <div className="min-w-0 flex-1">
+          <div className="flex items-baseline justify-between gap-2">
+            <span
+              className="line-clamp-1 min-w-0 break-words text-[11px] font-medium"
+              title={nombre !== opcion.linea ? opcion.linea : undefined}
+            >
+              {nombre}
+            </span>
+            <span className="shrink-0 text-[11px] font-semibold tabular-nums">
+              {precioDesglose(opcion)}
+            </span>
+          </div>
+          {opcion.fuente ? (
+            <p className="line-clamp-1 text-[10px] text-muted-foreground" title={opcion.fuente}>
+              {opcion.fuente}
+            </p>
+          ) : null}
+        </div>
+        <div className="flex shrink-0 items-center gap-0.5">
+          {botonCaptura(opcion)}
+          <BotonSubirCaptura
+            etiqueta={opcion.linea}
+            subiendo={subiendoCaptura === opcion.id_opcion}
+            onSubir={(archivo) => subirCaptura(opcion, archivo)}
+          />
+          {botonBoleto(opcion)}
+          {botonComprar(opcion)}
+        </div>
+      </li>
+    );
+  };
+
+  return (
+    <div className="space-y-3 rounded-2xl border border-slate-200/80 bg-card p-4 text-sm shadow-sm">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+            Desglose
+          </p>
+          <p className="mt-0.5 text-[11px] text-muted-foreground">
+            {elegidas.length === 1 ? '1 opción elegida' : `${elegidas.length} opciones elegidas`}
+            {descartadas.length > 0
+              ? ` · ${descartadas.length} alternativa${descartadas.length === 1 ? '' : 's'}`
+              : ''}
+          </p>
+        </div>
+        <div className="flex shrink-0 items-start gap-1">
+          <div className="min-w-0 text-right">
+            {total.suma !== null ? (
+              <>
+                <p className="text-xl font-semibold tracking-tight tabular-nums">
+                  {mxn(total.suma)}
+                </p>
+                <p className="text-[10px] leading-snug text-muted-foreground">
+                  {total.totalCotizado !== null && total.totalEstimado !== null
+                    ? `Incluye cotizado ${mxn(total.totalCotizado)} + estimado ${mxn(total.totalEstimado)}`
+                    : total.totalCotizado !== null
+                      ? `Cotizado ${mxn(total.totalCotizado)}`
+                      : total.totalEstimado !== null
+                        ? `Estimado ${mxn(total.totalEstimado)}`
+                        : ''}
+                </p>
+              </>
+            ) : (
+              <p className="max-w-[200px] text-right text-[11px] leading-snug text-muted-foreground">
                 {textoTotalElegidas(total)}
-              </td>
-              <td />
-              <td />
-            </tr>
-          </tfoot>
-        </table>
+              </p>
+            )}
+          </div>
+          {onCerrar ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="-mr-1 -mt-1 hidden h-7 w-7 lg:inline-flex"
+              onClick={onCerrar}
+              aria-label="Ocultar desglose"
+              title="Ocultar desglose"
+            >
+              <PanelRightClose className="h-3.5 w-3.5" aria-hidden />
+            </Button>
+          ) : null}
+        </div>
+      </div>
+
+      <p className="text-[11px] text-muted-foreground">Transporte y hospedaje elegidos</p>
+      {detectando !== null ? (
+        <p role="status" className="text-xs text-muted-foreground">
+          Buscando el precio real en la fuente… puede tardar hasta 2 minutos. Si
+          el sitio bloquea, se intenta el respaldo Firecrawl.
+        </p>
+      ) : null}
+      {avisoDeteccion ? <p className="text-xs text-amber-700">{avisoDeteccion}</p> : null}
+      {elegidas.length === 0 ? (
+        <p className="rounded-lg border border-dashed p-3 text-muted-foreground">
+          Sin opciones elegidas.
+        </p>
+      ) : elegidas.length === 1 ? (
+        <ul className="space-y-2">{tarjeta(elegidas[0])}</ul>
+      ) : (
+        <div className="space-y-2">
+          {gruposElegidas.map((grupo, indice) => {
+            const estilo = estiloGrupoRuta(grupo.etiqueta);
+            return (
+              <GrupoRutaCollapsible
+                key={grupo.clave}
+                etiqueta={grupo.etiqueta}
+                detalle={grupo.detalle}
+                punto={estilo.punto}
+                texto={estilo.texto}
+                count={grupo.opciones.length}
+                inicialmenteAbierto={indice === 0}
+                className="border-0 bg-transparent"
+                contenidoClassName="p-0 pt-2"
+              >
+                <ul className="space-y-2">
+                  {grupo.opciones.map((opcion) => tarjeta(opcion))}
+                </ul>
+              </GrupoRutaCollapsible>
+            );
+          })}
+        </div>
       )}
       {descartadas.length > 0 ? (
         <details className="text-xs">
           <summary className="cursor-pointer text-muted-foreground">
             Alternativas descartadas ({descartadas.length})
           </summary>
-          <table className="mt-1 w-full text-xs text-muted-foreground">
-            <tbody>{descartadas.map(fila)}</tbody>
-          </table>
+          <div className="mt-2 max-h-64 space-y-2 overflow-y-auto pr-1">
+            {gruposAlternativas.map((grupo, indice) => {
+              const estilo = estiloGrupoRuta(grupo.etiqueta);
+              return (
+                <GrupoRutaCollapsible
+                  key={grupo.clave}
+                  etiqueta={grupo.etiqueta}
+                  detalle={grupo.detalle}
+                  punto={estilo.punto}
+                  texto={estilo.texto}
+                  count={grupo.opciones.length}
+                  inicialmenteAbierto={indice === 0}
+                  className="border-0 bg-transparent"
+                  contenidoClassName="border-0 p-0 pt-1"
+                >
+                  <ul className="space-y-1">
+                    {grupo.opciones.map((opcion) => filaAlternativa(opcion))}
+                  </ul>
+                </GrupoRutaCollapsible>
+              );
+            })}
+          </div>
         </details>
       ) : null}
 
@@ -1549,9 +2384,58 @@ function DetalleOpciones({
         onOpenChange={(abierto) => {
           if (!abierto) setBoleto(null);
         }}
-        titulo={`Boleto · ${boleto?.linea ?? ''}`}
+        titulo={`Boleto · ${boleto ? nombreCortoOpcion(boleto) : ''}`}
         opciones={boleto ? [boleto] : []}
+        onSolicitarCaptura={
+          boleto && esCapturaAutomaticaAplicable(boleto) ? solicitarCaptura : undefined
+        }
+        capturandoId={capturando}
       />
+
+      <AlertDialog
+        open={capturaAReemplazar !== null}
+        onOpenChange={(abierto) => {
+          if (!abierto) setCapturaAReemplazar(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reemplazar captura</AlertDialogTitle>
+            <AlertDialogDescription>
+              Ya existe una captura de {capturaAReemplazar?.linea ?? 'esta opción'}.
+              Se reemplazará por una nueva.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                const opcion = capturaAReemplazar;
+                setCapturaAReemplazar(null);
+                if (opcion) void generarCaptura(opcion, true);
+              }}
+            >
+              Reemplazar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {precioReal ? (
+        <PrecioRealDialog
+          abierto
+          onOpenChange={(abierto) => {
+            if (!abierto) setPrecioReal(null);
+          }}
+          solicitudId={solicitud.id_solicitud}
+          opcion={precioReal}
+          datosAgente={datos[precioReal.id_opcion] ?? null}
+          onGuardado={(actualizada) => {
+            setPrecioReal(null);
+            onSolicitudActualizada?.(actualizada);
+          }}
+        />
+      ) : null}
     </div>
   );
 }

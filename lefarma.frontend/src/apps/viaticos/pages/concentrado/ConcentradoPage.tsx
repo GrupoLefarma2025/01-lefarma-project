@@ -42,6 +42,7 @@ import {
 import { ConcentradoViaticosPrint } from '../costos/ConcentradoViaticosPrint';
 import { ConcentradoVuelosPrint } from '../costos/ConcentradoVuelosPrint';
 import { CalculosViajeModal } from '../../components/CalculosViajeModal';
+import { resumenDesdeDatos } from '../../services/resumenViaje';
 import { GRUPO_LABELS, type GrupoConcentrado } from '../../constants/grupos';
 import { gerenciaVisible } from '../../constants/gerencias';
 import {
@@ -882,64 +883,110 @@ export function ConcentradoPage() {
           if (!abierto) cerrarRevision();
         }}
       >
-        <DialogContent data-testid="revision-solicitud" className="max-h-[92vh] w-[90vw] max-w-[1400px] overflow-y-auto">
+        <DialogContent data-testid="revision-solicitud" className="max-h-[92vh] w-[94vw] max-w-[1500px] overflow-y-auto bg-slate-50/70 p-4 dark:bg-background sm:p-6">
           <DialogHeader>
             <DialogTitle>Revisión de la solicitud {detalle?.folio ?? (revisandoId !== null ? `#${revisandoId}` : '')}</DialogTitle>
             <DialogDescription>
-              Revisa la última ruta propuesta. Puedes recalcularla cuantas veces necesites; solo
-              se guarda cuando autorizas.
+              Revisa la ruta y autoriza la última versión. Los recálculos no se guardan
+              hasta que autorizas.
             </DialogDescription>
           </DialogHeader>
 
           {cargandoDetalle ? <p role="status">Cargando revisión…</p> : null}
-          {detalle ? (
-            <div className="space-y-3">
-              <VistaDetalle
-                solicitud={detalle}
-                modoRevision
-                pestanaInicial="autorizada"
-                propuesta={propuestaRevisada}
-                onRecalcular={
-                  filaRevisada?.estado === ESTADO_ENVIADA && puedeAutorizar
-                    ? () => setCalculoAbierto(true)
-                    : undefined
-                }
-                acciones={
-                  filaRevisada?.estado === ESTADO_ENVIADA && puedeAutorizar ? (
-                    <Button
-                      type="button"
-                      size="sm"
-                      className="gap-1.5"
-                      disabled={accionando}
-                      onClick={() => { void aprobar(); }}
-                    >
-                      <Check className="h-4 w-4" aria-hidden />
-                      {propuestaRevisada ? 'Autorizar ruta recalculada' : 'Autorizar esta ruta'}
-                    </Button>
-                  ) : undefined
-                }
-              />
-              {propuestaRevisada ? (
-                <p className="text-xs text-muted-foreground">
-                  Se autorizará la última propuesta visible en «Ruta autorizada». Los recálculos
-                  no confirmados no se guardan.
-                </p>
-              ) : null}
-              <div className="space-y-1">
-                <Label htmlFor="comentario-revision">Comentario de revisión</Label>
-                <Input
-                  id="comentario-revision"
-                  value={comentario}
-                  onChange={(e) => setComentario(e.target.value)}
-                  placeholder="Motivo u observaciones"
+          {detalle ? (() => {
+            const resumenRevision = resumenDesdeDatos(detalle.datos);
+            const rutaRevision = resumenRevision
+              ? [
+                  resumenRevision.origen.punto?.municipio
+                    ?? resumenRevision.origen.punto?.nombre,
+                  ...resumenRevision.destinos.map(
+                    (destino) =>
+                      destino.punto?.municipio
+                      ?? destino.punto?.nombre
+                      ?? destino.etiqueta
+                      ?? 'Destino',
+                  ),
+                ]
+                  .filter((parte): parte is string => Boolean(parte))
+                  .join(' → ')
+              : null;
+            const claseEstado = detalle.estado === 'enviada'
+              ? 'border-sky-200 bg-sky-50 text-sky-700'
+              : detalle.estado.startsWith('autorizada')
+                ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                : detalle.estado === 'rechazada'
+                  ? 'border-rose-200 bg-rose-50 text-rose-700'
+                  : 'border-slate-200 bg-slate-50 text-slate-600';
+            return (
+              <div className="space-y-3">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-2xl border border-slate-200/80 bg-white/80 px-3 py-2 text-xs shadow-sm">
+                  <Badge variant="outline" className={`font-normal ${claseEstado}`}>
+                    {estadoTexto(detalle.estado)}
+                  </Badge>
+                  <span className="font-medium text-slate-700">
+                    {detalle.persona_viajera ?? detalle.persona_solicitante ?? '—'}
+                  </span>
+                  {rutaRevision ? (
+                    <span className="min-w-0 break-words text-slate-500">{rutaRevision}</span>
+                  ) : null}
+                  <span className="ml-auto shrink-0 text-right">
+                    <span className="block text-[10px] uppercase tracking-wide text-muted-foreground">
+                      Total
+                    </span>
+                    <span className="font-semibold tabular-nums text-slate-700">
+                      {detalle.total != null
+                        ? importeFormateado(detalle.total, 'MXN')
+                        : 'Sin total'}
+                    </span>
+                  </span>
+                </div>
+                <VistaDetalle
+                  solicitud={detalle}
+                  modoRevision
+                  pestanaInicial="autorizada"
+                  propuesta={propuestaRevisada}
+                  onRecalcular={
+                    filaRevisada?.estado === ESTADO_ENVIADA && puedeAutorizar
+                      ? () => setCalculoAbierto(true)
+                      : undefined
+                  }
+                  acciones={
+                    filaRevisada?.estado === ESTADO_ENVIADA && puedeAutorizar ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        className="gap-1.5"
+                        disabled={accionando}
+                        onClick={() => { void aprobar(); }}
+                      >
+                        <Check className="h-4 w-4" aria-hidden />
+                        {propuestaRevisada ? 'Autorizar ruta recalculada' : 'Autorizar esta ruta'}
+                      </Button>
+                    ) : undefined
+                  }
                 />
+                {propuestaRevisada ? (
+                  <p className="text-xs text-muted-foreground">
+                    Se autorizará la última propuesta visible en «Ruta autorizada». Los recálculos
+                    no confirmados no se guardan.
+                  </p>
+                ) : null}
+                <div className="space-y-1">
+                  <Label htmlFor="comentario-revision">Comentario de revisión</Label>
+                  <Input
+                    id="comentario-revision"
+                    value={comentario}
+                    onChange={(e) => setComentario(e.target.value)}
+                    placeholder="Motivo u observaciones"
+                  />
+                </div>
+                {!puedeAutorizar ? (
+                  <p className="text-xs text-muted-foreground">Sin el permiso de autorización los botones no actúan.</p>
+                ) : null}
+                <p className="text-xs text-muted-foreground">Devolver para corrección: prototipo sin endpoint compatible en esta fase.</p>
               </div>
-              {!puedeAutorizar ? (
-                <p className="text-xs text-muted-foreground">Sin el permiso de autorización los botones no actúan.</p>
-              ) : null}
-              <p className="text-xs text-muted-foreground">Devolver para corrección: prototipo sin endpoint compatible en esta fase.</p>
-            </div>
-          ) : null}
+            );
+          })() : null}
 
           <DialogFooter className="gap-2">
             <Button
