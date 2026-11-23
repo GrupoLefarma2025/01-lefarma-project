@@ -1,6 +1,6 @@
 ---
 fecha_creacion: 2026-11-20 12:40
-fecha_modificacion: 2026-11-20 14:15
+fecha_modificacion: 2026-11-20 16:56
 resumen: Módulo Telemetría — dos fuentes separadas y un solo panel de observabilidad. Los errores del servidor ya existen en SQL Server (tabla ErrorLog, escrita por WideEventLoggingMiddleware): no se duplican, solo se consultan. Los eventos nuevos del navegador (errores de JavaScript, clics por botón, mapa de calor del puntero, scroll y tiempo en página) viajan al API en lotes diferidos y se guardan en SQL Server, en un esquema `telemetria` propio (evento_error, evento_clic, mapa_calor, visita, lote_procesado y parametro), con un servicio en segundo plano que inserta por lotes, retención configurable y el respaldo normal de la base. El navegador solo conserva un búfer temporal en IndexedDB para reenviar si se corta la red. SDK de captura con centinela de arranque en index.html, mapa de calor agregado en celdas de 32 px por vista de página, privacidad por diseño (hash con sal del usuario, sin valores de formulario ni teclas, rutas excluidas) y panel con el permiso telemetria.ver.
 ---
 
@@ -301,12 +301,15 @@ Lo que condiciona el diseño:
   `/errores-navegador/{huella}/ocurrencias`, `/botones`, `/mapa-calor`,
   `/rutas` y `/errores-servidor` (este último lee `ErrorLog` con EF y
   paginación, solo lectura).
-- Panel en `src/apps/telemetria/` como página del shell (`/telemetria`, carga
-  diferida con `lazy` + `Suspense`), con `PermissionGuard
-  require="telemetria.ver"` y enlace en `src/apps/baseapp/menuItems.tsx`. Se
+- Panel en `src/apps/telemetria/` como **pantalla propia dentro de Configuración**:
+  `/configuracion/telemetria` (carga diferida con `lazy` + `Suspense`), con
+  `PermissionGuard
+  require="telemetria.ver"`. Aparece en el sidebar de Configuración
+  (`configuracionMenuItems`) y también en el del shell (`shellMenuItems`). Se
   descartó el subárbol propio con login y `menuItems.tsx` porque el panel es
   una herramienta de administración, no un módulo de negocio con su ciclo de
-  sesión.
+  sesión. La pestaña incrustada en la pantalla de Variables se retiró a
+  petición del humano (2026-11-20): Telemetría es su propia pantalla.
 - Pestañas: **Resumen** (errores de hoy, top huellas, usuarios activos, eventos
   descartados), **Errores del navegador** (agrupados por huella, detalle con
   stack, ocurrencias y usuarios), **Errores del servidor** (la tabla existente,
@@ -454,9 +457,13 @@ con sal derivado del token), `rol`, `entorno`, `servidor`, `loteId` y la
 `huella` recalculada del error. El cliente puede mandar una `huella` estimada,
 pero la autoridad es el servidor.
 
-**`error`** — `tipoError` (`arranque`, `js`, `promesa`, `react`, `http`),
+**`error`** — `tipoError` (`arranque`, `js`, `promesa`, `react`, `http`, `red`),
 `mensaje` (≤2 048), `stack` (≤16 384), `url`, `metodoHttp`, `estadoHttp`,
 `requestId`, `navegador` y `contexto` (JSON ≤4 096; sin valores de formulario).
+`red` es el fallo en que el servidor no respondió (conexión rechazada o
+restablecida, DNS, tiempo agotado) y `http` el que sí respondió con un estado
+≥400; así el panel distingue «no hay servidor» de «el servidor rechazó la
+petición».
 
 **`clic`** — `elemento` (identidad estable), `etiqueta` (≤120), `tipoElemento`
 (`boton`, `enlace`, `menu`, `tab`, `otro`), `x` y `y` (enteros, px CSS relativos

@@ -169,12 +169,18 @@ legible; con el opt-out activo no se envía nada.
       dominante de la rejilla se elige por frecuencia; el rol viaja en cada
       evento y se puede filtrar después).
 - [x] Panel en `src/apps/telemetria/` (`types.ts`, `services/telemetriaApi.ts`,
-      `utils.ts`, `TelemetriaPage.tsx` y `components/`). Se descartó el
-      subárbol propio con `menuItems.tsx`/`TelemetriaRoutes.tsx`: el panel es
-      una página del shell (`/telemetria`) con `PermissionGuard`, y el enlace
-      vive en `src/apps/baseapp/menuItems.tsx`.
-- [x] Ruta nueva en `src/apps/baseapp/BaseAppRoutes.tsx` con carga diferida
-      (`lazy` + `Suspense`) y guarda `PermissionGuard require="telemetria.ver"`.
+      `utils.ts`, `TelemetriaPanel.tsx`, `TelemetriaPage.tsx` y `components/`).
+      Se descartó el subárbol propio con `menuItems.tsx`/`TelemetriaRoutes.tsx`:
+      el panel es una pantalla de administración, no un módulo de negocio.
+- [x] Pantalla propia en `/configuracion/telemetria`, dentro del layout de
+      Configuración, con `PermissionGuard require="telemetria.ver"` y carga
+      diferida (`lazy` + `Suspense`). Enlace en el sidebar vía
+      `src/apps/baseapp/menuItems.tsx` (visible tanto en el sidebar de
+      Configuración como en el del shell).
+- [x] La pestaña incrustada en `ConfiguracionVariablesPage` se retiró a petición
+      del humano (2026-11-20): Telemetría debía ser su propia pantalla.
+- [x] Ruta nueva en `src/apps/baseapp/BaseAppRoutes.tsx` con carga diferida y
+      guarda de permiso.
 - [x] Pestañas con el patrón de administración: `usePageTitle`, tarjetas y
       `Table` (`DataTable` no aplicaba: las filas se expanden y el mapa es una
       rejilla).
