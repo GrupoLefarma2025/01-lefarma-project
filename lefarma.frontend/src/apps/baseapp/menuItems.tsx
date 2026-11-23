@@ -26,15 +26,17 @@ export const shellMenuItems: SidebarMenuItemConfig[] = [
   {
     title: 'Telemetría',
     icon: Activity,
-    path: '/telemetria',
+    path: '/configuracion/telemetria',
     permission: { require: 'telemetria.ver' },
   },
 ];
 
 /**
  * El módulo Configuración usa su propio layout para no mezclar la navegación
- * del administrador de variables con el acceso de perfil del shell.
+ * del administrador de variables con el acceso de perfil del shell. Telemetría
+ * vive dentro de Configuración (`/configuracion/telemetria`), así que también
+ * aparece en este sidebar.
  */
 export const configuracionMenuItems: SidebarMenuItemConfig[] = shellMenuItems.filter(
-  (item) => !('path' in item) || (item.path !== '/perfil' && item.path !== '/telemetria'),
+  (item) => !('path' in item) || item.path !== '/perfil',
 );

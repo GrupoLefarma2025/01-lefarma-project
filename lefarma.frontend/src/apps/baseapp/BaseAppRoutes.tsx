@@ -87,16 +87,6 @@ export function BaseAppRoutes() {
         <Route path="/hub" element={<Home />} />
         <Route path="/perfil" element={<Profile />} />
         <Route path="/perfil/configuracion" element={<PerfilConfig />} />
-        <Route
-          path="/telemetria"
-          element={
-            <PermissionGuard require="telemetria.ver" blockedPath="/hub">
-              <Suspense fallback={<InlineLoader message="Cargando telemetría…" />}>
-                <TelemetriaPage />
-              </Suspense>
-            </PermissionGuard>
-          }
-        />
       </Route>
 
       {/* Configuración tiene su propio layout: no muestra el acceso a Perfil. */}
@@ -116,6 +106,16 @@ export function BaseAppRoutes() {
           element={
             <PermissionGuard require="configuracion.view" blockedPath="/hub">
               <ConfiguracionVariablesPage />
+            </PermissionGuard>
+          }
+        />
+        <Route
+          path="/configuracion/telemetria"
+          element={
+            <PermissionGuard require="telemetria.ver" blockedPath="/hub">
+              <Suspense fallback={<InlineLoader message="Cargando telemetría…" />}>
+                <TelemetriaPage />
+              </Suspense>
             </PermissionGuard>
           }
         />
