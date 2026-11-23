@@ -8,6 +8,10 @@ import { useEffect, useRef, useCallback } from 'react';
 import { useNotificationStore } from '@/store/notificationStore';
 import { useAuthStore } from '@/shared/auth/authStore';
 import { useConnectionStore } from '@/shared/connection/connectionStore';
+import {
+  registrarFalloDeRed,
+  registrarFalloHttp,
+} from '@/shared/telemetria/capturaErrores';
 import { navigateTo } from '@/lib/navigation';
 import type { SseEvent, UserNotification, NotificationFilter } from '@/types/notification.types';
 
@@ -34,10 +38,12 @@ interface TicketResponse {
 }
 
 async function fetchSseTicket(token: string): Promise<string | null> {
+  const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5174/api';
+  const cleanUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
+  const ticketUrl = `${cleanUrl}/notifications/ticket`;
+
   try {
-    const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5174/api';
-    const cleanUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
-    const response = await fetch(`${cleanUrl}/notifications/ticket`, {
+    const response = await fetch(ticketUrl, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -47,6 +53,11 @@ async function fetchSseTicket(token: string): Promise<string | null> {
 
     if (!response.ok) {
       // El servidor respondio: esta vivo (error de auth u otro). Resetear contador.
+      registrarFalloHttp({
+        metodo: 'POST',
+        url: ticketUrl,
+        estado: response.status,
+      });
       sseNetworkFailures = 0;
       return null;
     }
@@ -54,8 +65,13 @@ async function fetchSseTicket(token: string): Promise<string | null> {
     const data = (await response.json()) as TicketResponse;
     sseNetworkFailures = 0;
     return data.ticket ?? null;
-  } catch {
+  } catch (error) {
     // Error a nivel red (ERR_CONNECTION_REFUSED, DNS, etc.): el servidor no respondio.
+    registrarFalloDeRed({
+      metodo: 'POST',
+      url: ticketUrl,
+      detalle: error instanceof Error ? error.message : undefined,
+    });
     sseNetworkFailures++;
     if (sseNetworkFailures >= SSE_NETWORK_FAILURE_THRESHOLD) {
       useConnectionStore.getState().markLost();
@@ -133,6 +149,19 @@ export function useNotifications(options: UseNotificationsOptions = {}): UseNoti
   const handleError = useCallback(() => {
     const es = eventSourceRef.current;
     if (!es) return;
+
+    registrarFalloDeRed({
+      metodo: 'GET',
+      url: SSE_NOTIFICATIONS_URL,
+      detalle:
+        es.readyState === EventSource.CLOSED
+          ? 'el servidor cerró el stream'
+          : 'el navegador reintenta el stream',
+      contexto: JSON.stringify({
+        reintentos: reconnectAttemptsRef.current,
+        estado: es.readyState,
+      }),
+    });
 
     // Solo contar si el servidor CERRÓ la conexion (error real, no reconexion automatica)
     if (es.readyState === EventSource.CLOSED) {

@@ -31,6 +31,44 @@ function recortar(texto: string | undefined, maximo: number): string | undefined
   return texto.length > maximo ? texto.slice(0, maximo) : texto;
 }
 
+/**
+ * Contexto que acompaña a TODO error, aunque el origen no aporte nada: la
+ * pantalla, el tamaño de la ventana, el idioma y la zona horaria explican la
+ * mayoría de los fallos que solo se ven en la máquina de una persona.
+ */
+function contextoDeLaVista(): Record<string, unknown> {
+  const conexion = (
+    navigator as Navigator & { connection?: { effectiveType?: string } }
+  ).connection;
+
+  return {
+    vista: rutaActual(),
+    viewport: `${window.innerWidth}x${window.innerHeight}`,
+    pantalla: `${window.screen.width}x${window.screen.height}`,
+    idioma: navigator.language,
+    zona: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    red: conexion?.effectiveType ?? null,
+  };
+}
+
+/** Une el contexto de la vista con el específico del error (el específico manda). */
+export function combinarContexto(extra?: string): string {
+  const base = contextoDeLaVista();
+  if (extra) {
+    try {
+      const propio: unknown = JSON.parse(extra);
+      if (propio && typeof propio === 'object' && !Array.isArray(propio)) {
+        Object.assign(base, propio as Record<string, unknown>);
+      } else {
+        base.detalle = extra.slice(0, 500);
+      }
+    } catch {
+      base.detalle = extra.slice(0, 500);
+    }
+  }
+  return JSON.stringify(base).slice(0, 4096);
+}
+
 async function registrar(datos: DatosError): Promise<void> {
   if (!TELEMETRIA_ACTIVA) {
     return;
@@ -64,7 +102,7 @@ async function registrar(datos: DatosError): Promise<void> {
       estadoHttp: datos.estadoHttp,
       requestId: recortar(datos.requestId, 100),
       navegador: navegadorResumido(),
-      contexto: recortar(datos.contexto, 4096),
+      contexto: combinarContexto(datos.contexto),
     });
 
     pedirEnvio();
@@ -197,6 +235,30 @@ export function registrarFalloHttp(fallo: FalloHttp): void {
     metodoHttp: fallo.metodo.toUpperCase(),
     estadoHttp: fallo.estado,
     requestId: fallo.requestId,
+  });
+}
+
+export interface FalloDeRed {
+  metodo?: string;
+  url: string;
+  detalle?: string;
+  contexto?: string;
+}
+
+/**
+ * Fallo sin respuesta del servidor: conexión rechazada, restablecida, DNS,
+ * tiempo agotado o bloqueo del navegador. Antes no quedaba registrado en
+ * ningún sitio y es justo el que explica el aviso de «sin conexión».
+ */
+export function registrarFalloDeRed(fallo: FalloDeRed): void {
+  const metodo = (fallo.metodo || 'GET').toUpperCase();
+  const detalle = fallo.detalle ? ` — ${fallo.detalle}` : '';
+  void registrar({
+    tipoError: 'red',
+    mensaje: `No se pudo conectar con ${metodo} ${fallo.url}${detalle}`.slice(0, 2048),
+    url: fallo.url,
+    metodoHttp: metodo,
+    contexto: fallo.contexto,
   });
 }
 

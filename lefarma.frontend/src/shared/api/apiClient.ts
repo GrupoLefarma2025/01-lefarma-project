@@ -4,7 +4,10 @@ import { useAuthStore } from '@/shared/auth/authStore';
 import { ApiError } from '@/types/api.types';
 import { navigateTo } from '@/lib/navigation';
 import { useConnectionStore } from '@/shared/connection/connectionStore';
-import { registrarFalloHttp } from '@/shared/telemetria/capturaErrores';
+import {
+  registrarFalloDeRed,
+  registrarFalloHttp,
+} from '@/shared/telemetria/capturaErrores';
 
 
 const baseURL = import.meta.env.VITE_API_URL || '/api';
@@ -110,6 +113,16 @@ apiClient.interceptors.response.use(
         originalRequest.headers.Authorization = `Bearer ${newToken}`;
         return apiClient(originalRequest);
       } catch (refreshError) {
+        // La sesión existía y el servidor la rechazó: queda en telemetría para
+        // poder distinguir «sesión expirada» de «sin conexión».
+        if (authService.getRefreshToken()) {
+          registrarFalloHttp({
+            metodo: originalRequest?.method ?? 'get',
+            url: `${originalRequest?.baseURL ?? ''}${originalRequest?.url ?? ''}`,
+            estado: 401,
+          });
+        }
+
         useAuthStore.getState().logout();
         refreshSubscribers = [];
 
@@ -129,6 +142,15 @@ apiClient.interceptors.response.use(
 
     const estado = error.response?.status;
     const urlPeticion = originalRequest?.url ?? '';
+    const esTelemetria = urlPeticion.includes('/telemetria/');
+    if (!estado && !esTelemetria) {
+      // Sin respuesta: conexión rechazada, restablecida, DNS o tiempo agotado.
+      registrarFalloDeRed({
+        metodo: originalRequest?.method ?? 'get',
+        url: `${originalRequest?.baseURL ?? ''}${urlPeticion}`,
+        detalle: error.code || error.message,
+      });
+    }
     if (estado && estado >= 400 && !urlPeticion.includes('/telemetria/')) {
       registrarFalloHttp({
         metodo: originalRequest?.method ?? 'get',

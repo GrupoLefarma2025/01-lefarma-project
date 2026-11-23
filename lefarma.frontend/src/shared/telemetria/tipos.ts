@@ -6,7 +6,13 @@
 
 export type TipoEvento = 'error' | 'clic' | 'mapa_calor' | 'visita';
 
-export type TipoError = 'arranque' | 'js' | 'promesa' | 'react' | 'http';
+export type TipoError =
+  | 'arranque'
+  | 'js'
+  | 'promesa'
+  | 'react'
+  | 'http'
+  | 'red';
 
 interface EventoBase {
   tipo: TipoEvento;

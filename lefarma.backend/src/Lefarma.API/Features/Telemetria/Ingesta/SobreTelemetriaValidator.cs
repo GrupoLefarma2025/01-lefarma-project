@@ -47,7 +47,7 @@ public sealed class SobreTelemetriaValidator : AbstractValidator<SobreTelemetria
 public sealed class EventoTelemetriaValidator : AbstractValidator<EventoTelemetriaDto>
 {
     private static readonly string[] Tipos = ["error", "clic", "mapa_calor", "visita"];
-    private static readonly string[] TiposError = ["arranque", "js", "promesa", "react", "http"];
+    private static readonly string[] TiposError = ["arranque", "js", "promesa", "react", "http", "red"];
 
     public EventoTelemetriaValidator()
     {

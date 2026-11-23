@@ -1,5 +1,10 @@
 import type { SseEventType, SseConnectionState, SseEvent } from '@/types/sse.types';
 
+import {
+  registrarFalloDeRed,
+  registrarFalloHttp,
+} from '@/shared/telemetria/capturaErrores';
+
 const API_BASE = import.meta.env.VITE_API_URL || '/api';
 const SSE_URL = `${API_BASE}/auth/sse`;
 const SSE_TICKET_URL = `${API_BASE}/auth/sse-ticket`;
@@ -38,16 +43,31 @@ function getStoredToken(): string | null {
  * Authorization (nunca en la URL) y el EventSource solo recibe el ticket.
  */
 async function requestSseTicket(token: string): Promise<string> {
-  const response = await fetch(SSE_TICKET_URL, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${token}`,
-      Accept: 'application/json',
-    },
-    cache: 'no-store',
-  });
+  let response: Response;
+  try {
+    response = await fetch(SSE_TICKET_URL, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: 'application/json',
+      },
+      cache: 'no-store',
+    });
+  } catch (error) {
+    registrarFalloDeRed({
+      metodo: 'POST',
+      url: SSE_TICKET_URL,
+      detalle: error instanceof Error ? error.message : undefined,
+    });
+    throw error;
+  }
 
   if (!response.ok) {
+    registrarFalloHttp({
+      metodo: 'POST',
+      url: SSE_TICKET_URL,
+      estado: response.status,
+    });
     throw new Error(`No se pudo obtener el ticket SSE (HTTP ${response.status}).`);
   }
 
@@ -226,6 +246,13 @@ class SseService {
   }
 
   private handleError(): void {
+    registrarFalloDeRed({
+      metodo: 'GET',
+      url: SSE_URL,
+      detalle: 'el navegador perdió la conexión del stream',
+      contexto: JSON.stringify({ intento: this.reconnectAttempts + 1 }),
+    });
+
     this.updateState({
       isConnected: false,
       error: 'Connection lost',
