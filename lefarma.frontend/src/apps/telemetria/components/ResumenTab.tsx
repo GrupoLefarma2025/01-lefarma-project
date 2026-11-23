@@ -21,7 +21,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { telemetriaApi } from '../services/telemetriaApi';
+import { telemetriaApi, diagnosticoApi } from '../services/telemetriaApi';
 import type { EstadoTelemetria, ResumenTelemetria } from '../types';
 import { fechaHora, numero, porcentaje, recortar } from '../utils';
 
@@ -57,25 +57,54 @@ export function ResumenTab({ desde, hasta }: Props) {
     void cargar();
   }, [cargar]);
 
+  // TEMPORAL: se deja a la vista el estado de la carga mientras se investiga
+  // por qué la pestaña se veía vacía. Se retira al confirmar la causa.
+  const diagnostico = (
+    <p className="rounded border border-dashed border-amber-500 bg-amber-50 p-2 text-xs text-amber-900">
+      DIAG · cargando={String(cargando)} · error={error ?? '—'} · resumen=
+      {resumen ? `${resumen.erroresPeriodo} errores / ${resumen.clicsPeriodo} clics` : 'null'} ·
+      desde={String(desde)} · hasta={String(hasta)} · err={diagnosticoApi.ultimoError || '—'}
+      <br />
+      raw={diagnosticoApi.ultimoCuerpo || '(sin respuesta)'}
+    </p>
+  );
+
   if (cargando) {
     return (
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {[0, 1, 2, 3].map((indice) => (
-          <Skeleton key={indice} className="h-28 w-full" />
-        ))}
+      <div className="space-y-3">
+        {diagnostico}
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          {[0, 1, 2, 3].map((indice) => (
+            <Skeleton key={indice} className="h-28 w-full" />
+          ))}
+        </div>
       </div>
     );
   }
 
   if (error) {
     return (
-      <Card>
-        <CardContent className="py-8 text-center text-sm text-destructive">{error}</CardContent>
-      </Card>
+      <div className="space-y-3">
+        {diagnostico}
+        <Card>
+          <CardContent className="py-8 text-center text-sm text-destructive">{error}</CardContent>
+        </Card>
+      </div>
     );
   }
 
-  if (!resumen) return null;
+  if (!resumen) {
+    return (
+      <div className="space-y-3">
+        {diagnostico}
+        <Card>
+          <CardContent className="py-8 text-center text-sm text-muted-foreground">
+            No hay datos de telemetría para el periodo seleccionado.
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   const datosGrafica = resumen.topErrores.slice(0, 8).map((item) => ({
     nombre: recortar(item.mensaje, 44),
@@ -84,6 +113,7 @@ export function ResumenTab({ desde, hasta }: Props) {
 
   return (
     <div className="space-y-4">
+      {diagnostico}
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <TarjetaIndicador
           titulo="Errores hoy"
