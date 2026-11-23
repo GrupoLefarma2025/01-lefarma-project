@@ -2533,18 +2533,24 @@ export default function AutorizacionesOC() {
                               className="h-7 gap-1.5 text-xs"
                               onClick={async (e) => {
                                 e.stopPropagation();
+                                // El navegador propone document.title como nombre del PDF al imprimir/guardar.
+                                const tituloOriginal = document.title;
+                                const nombreArchivo = selectedOrden.folio || `OC-${selectedOrden.idOrden}`;
                                 // Esperar a que las firmas (blobs autenticados) estén cargadas
                                 await waitForPrintImages('#orden-compra-pdf-print');
                                 const handleBeforePrint = () => {
+                                  document.title = nombreArchivo;
                                   document.body.classList.add('print-orden');
                                 };
                                 const handleAfterPrint = () => {
+                                  document.title = tituloOriginal;
                                   document.body.classList.remove('print-orden');
                                   window.removeEventListener('beforeprint', handleBeforePrint);
                                   window.removeEventListener('afterprint', handleAfterPrint);
                                 };
                                 window.addEventListener('beforeprint', handleBeforePrint);
                                 window.addEventListener('afterprint', handleAfterPrint);
+                                document.title = nombreArchivo;
                                 window.print();
                               }}
                             >
