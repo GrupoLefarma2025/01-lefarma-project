@@ -1,19 +1,13 @@
 /* eslint-disable react-refresh/only-export-components */
 import { type ReactNode, type ReactElement } from 'react';
 import { Navigate, Route, useLocation } from 'react-router-dom';
-import { Loader2 } from 'lucide-react';
 import { ProtectedRoute, PublicOnlyRoute } from '@/routes/LandingRoute';
 import { useAuthStore } from '@/shared/auth/authStore';
 import { authService } from '@/shared/auth/authService';
 import { MultiStepLogin } from '@/components/baseapp/MultiStepLogin';
+import { PageLoader } from '@/components/ui/page-loader';
 import BlockedPage from '@/pages/auth/BlockedPage';
 import NotFound from '@/pages/NotFound';
-
-const PageLoader = () => (
-  <div className="flex h-screen w-full items-center justify-center">
-    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-  </div>
-);
 
 /**
  * Nombre visible de cada app en su login (esquina inferior derecha, junto a

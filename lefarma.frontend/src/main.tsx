@@ -9,10 +9,17 @@ import './index_educacion_medica.css'
 
 import App from './App.tsx'
 import { iniciarTelemetria } from './shared/telemetria/iniciarTelemetria'
+import { useAuthStore } from './shared/auth/authStore'
 
 // Antes de montar React: captura errores de arranque, clics y puntero desde el
 // primer instante y guarda los eventos en el navegador.
 iniciarTelemetria()
+
+// Hidratar la sesión ANTES del primer render: los guards (RequireAuth,
+// ProtectedRoute, PublicOnlyRoute) deciden con isInitialized/isAuthenticated
+// en ese primer render. Hacerlo en un efecto (como antes) dejaba el primer
+// frame con isAuthenticated=false y producía el destello de login al recargar.
+useAuthStore.getState().initialize()
 
 const rootElement = document.getElementById('root')
 if (!rootElement) {

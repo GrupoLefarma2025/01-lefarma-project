@@ -1,7 +1,6 @@
 import { useEffect } from 'react';
 import { BrowserRouter, useNavigate } from 'react-router-dom';
 import { BaseAppRoutes } from './apps/baseapp/BaseAppRoutes';
-import { useAuthStore } from '@/shared/auth/authStore';
 import { useConfigStore } from './store/configStore';
 import { Toaster } from '@/components/ui/sonner';
 import { AutoVerify } from '@/components/AutoVerify';
@@ -22,13 +21,8 @@ function NavigationRegistrar() {
 
 
 function App() {
-  const initialize = useAuthStore((state) => state.initialize);
   const tema = useConfigStore((state) => state.ui.tema);
   const setTema = useConfigStore((state) => state.setTema);
-
-  useEffect(() => {
-    initialize();
-  }, [initialize]);
 
   useEffect(() => {
     if (tema) {

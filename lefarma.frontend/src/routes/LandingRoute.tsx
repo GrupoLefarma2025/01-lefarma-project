@@ -1,13 +1,7 @@
-﻿import { Navigate, Outlet, useLocation } from 'react-router-dom';
-import { Loader2 } from 'lucide-react';
+import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuthStore } from '@/shared/auth/authStore';
+import { PageLoader } from '@/components/ui/page-loader';
 import Hero from '@/pages/Hero';
-
-const PageLoader = () => (
-  <div className="flex h-screen w-full items-center justify-center">
-    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-  </div>
-);
 
 export interface LandingRouteProps {
   /**

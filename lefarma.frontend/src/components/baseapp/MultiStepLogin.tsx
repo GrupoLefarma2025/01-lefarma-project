@@ -16,6 +16,7 @@ import {
 import { Lock, User, AlertCircle, ArrowLeft, CheckCircle } from 'lucide-react';
 import logoEstatico from '@/assets/logo.png';
 import { StepIndicator } from '@/components/baseapp/StepIndicator';
+import { PageLoader } from '@/components/ui/page-loader';
 
 export interface MultiStepLoginProps {
   /**
@@ -83,6 +84,7 @@ export function MultiStepLogin({
     pendingUsername,
     isLoading,
     isAuthenticated,
+    isInitialized,
     loginStepOne,
     loginStepTwo,
     resetLoginFlow,
@@ -199,6 +201,12 @@ export function MultiStepLogin({
     setSelectedDomain('');
     setError('');
   }, [resetLoginFlow]);
+
+  // No pintar el formulario de credenciales cuando todavía no se sabe si hay
+  // sesión (F5 con token en localStorage) ni cuando ya la hay: en ambos casos
+  // el efecto de arriba navega al destino, y sin este guard la tarjeta se
+  // alcanza a ver un instante (destello de login al recargar).
+  if (!isInitialized || isAuthenticated) return <PageLoader />;
 
   return (
     <div

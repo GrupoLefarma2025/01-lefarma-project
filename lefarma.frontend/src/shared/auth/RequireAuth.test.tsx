@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import type { ReactNode } from 'react';
 
@@ -53,7 +53,27 @@ function renderGuard(initialPath: string, props: { children?: ReactNode; loginPa
 describe('RequireAuth — app-routing guard', () => {
   beforeEach(() => {
     localStorage.clear();
-    useAuthStore.setState({ isAuthenticated: false });
+    useAuthStore.setState({ isInitialized: true, isAuthenticated: false });
+  });
+
+  it('Scenario: waits for session hydration instead of bouncing to login (F5 flash)', () => {
+    // Estado del primer render tras un F5 con sesión guardada: el store aún no
+    // ha hidratado. El guard debe esperar, NO redirigir a /login (eso pintaba
+    // la tarjeta de login un instante antes de volver a la pantalla).
+    useAuthStore.setState({ isInitialized: false, isAuthenticated: false });
+
+    renderGuard('/perfil', {});
+
+    expect(screen.queryByText('LOGIN_DESTINATION')).not.toBeInTheDocument();
+    expect(screen.queryByText('secret-dashboard')).not.toBeInTheDocument();
+
+    // Al hidratar la sesión, el subárbol protegido entra sin pasar por login.
+    act(() => {
+      useAuthStore.setState({ isInitialized: true, isAuthenticated: true });
+    });
+
+    expect(screen.getByText('secret-dashboard')).toBeInTheDocument();
+    expect(screen.queryByText('LOGIN_DESTINATION')).not.toBeInTheDocument();
   });
 
   it('Scenario: Unauthenticated user is redirected to login via <Navigate>', () => {

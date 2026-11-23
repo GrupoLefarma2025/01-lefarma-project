@@ -1,10 +1,17 @@
 import { type ReactNode } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '@/shared/auth/authStore';
+import { PageLoader } from '@/components/ui/page-loader';
 
 /**
  * Guard de ruta para el shell del base-app raíz y cualquier subárbol de app
  * montado.
+ *
+ * Mientras el authStore no ha hidratado la sesión desde `localStorage`
+ * (`isInitialized === false`) el guard renderiza un loader en lugar de decidir:
+ * un F5 con sesión válida NO debe rebotar a login (era el destello de login al
+ * recargar). Mismo patrón que `ProtectedRoute`, `PublicOnlyRoute` y
+ * `AppSubtreeIndex`.
  *
  * Cuando la sesión NO está autenticada, el guard renderiza un `<Navigate>` al
  * `loginPath` configurado, preservando el destino deseado vía un query param
@@ -34,7 +41,12 @@ export interface RequireAuthProps {
 
 export function RequireAuth({ children, loginPath = '/login' }: RequireAuthProps) {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const isInitialized = useAuthStore((state) => state.isInitialized);
   const location = useLocation();
+
+  // Esperar la hidratación: decidir con el valor inicial (`false`) rebotaría a
+  // login al recargar con una sesión válida.
+  if (!isInitialized) return <PageLoader />;
 
   if (!isAuthenticated) {
     // Redirección in-app dentro del shell de bundle único.

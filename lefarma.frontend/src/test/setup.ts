@@ -2,6 +2,51 @@ import '@testing-library/jest-dom/vitest';
 import { afterEach, vi } from 'vitest';
 import { cleanup } from '@testing-library/react';
 
+// Node >= 22 expone un `localStorage` experimental como global que devuelve
+// `undefined` cuando no se arranca con --localstorage-file, y ese getter tapa
+// el Storage real de jsdom. Sin reemplazo, `localStorage.clear()` de los tests
+// falla con "Cannot read properties of undefined" (Node 26 / vitest 3).
+class MemoryStorage {
+  private store = new Map<string, string>();
+
+  get length() {
+    return this.store.size;
+  }
+
+  clear() {
+    this.store.clear();
+  }
+
+  getItem(key: string) {
+    return this.store.get(key) ?? null;
+  }
+
+  key(index: number) {
+    return Array.from(this.store.keys())[index] ?? null;
+  }
+
+  removeItem(key: string) {
+    this.store.delete(key);
+  }
+
+  setItem(key: string, value: string) {
+    this.store.set(key, String(value));
+  }
+}
+
+if (!globalThis.localStorage) {
+  Object.defineProperty(globalThis, 'localStorage', {
+    value: new MemoryStorage() as unknown as Storage,
+    configurable: true,
+  });
+}
+if (!globalThis.sessionStorage) {
+  Object.defineProperty(globalThis, 'sessionStorage', {
+    value: new MemoryStorage() as unknown as Storage,
+    configurable: true,
+  });
+}
+
 // Desmontar los componentes renderizados por RTL entre tests para mantener el DOM aislado.
 afterEach(() => {
   cleanup();

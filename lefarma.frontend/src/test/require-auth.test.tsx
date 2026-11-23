@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom';
 import type { ReactNode } from 'react';
@@ -265,7 +265,23 @@ function renderGuard(initialPath: string, props: { children?: ReactNode; loginPa
 describe('RequireAuth — subtree-aware redirect', () => {
   beforeEach(() => {
     localStorage.clear();
-    useAuthStore.setState({ isAuthenticated: false });
+    useAuthStore.setState({ isInitialized: true, isAuthenticated: false });
+  });
+
+  it('waits for hydration and does not redirect a stored session to login', () => {
+    // F5 con sesión en localStorage: el primer render ocurre antes de hidratar.
+    useAuthStore.setState({ isInitialized: false, isAuthenticated: false });
+    renderGuard('/perfil', {});
+
+    expect(screen.queryByText('LOGIN_DESTINATION')).not.toBeInTheDocument();
+    expect(screen.queryByText('PROTECTED_SURFACE')).not.toBeInTheDocument();
+
+    act(() => {
+      useAuthStore.setState({ isInitialized: true, isAuthenticated: true });
+    });
+
+    expect(screen.getByText('PROTECTED_SURFACE')).toBeInTheDocument();
+    expect(screen.queryByText('LOGIN_DESTINATION')).not.toBeInTheDocument();
   });
 
   it('redirects unauthenticated session to default /login via <Navigate>', () => {
