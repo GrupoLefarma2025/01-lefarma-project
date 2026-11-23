@@ -60,6 +60,29 @@ For multi-step tasks, state a brief plan:
 
 Strong success criteria let you loop independently. Weak criteria ("make it work") require constant clarification.
 
+## 5. Cero comentarios en el código propio
+
+**El código se explica con nombres, no con comentarios.** No escribas comentarios
+en el código: ni de línea, ni de bloque, ni documentación `///` en C#. Aplica a
+código nuevo, refactorizaciones y limpiezas (la regla se cumplió a todo el
+proyecto en el commit `28229ce8`).
+
+- Nada de comentarios explicativos, `TODO`, `FIXME`, separadores del tipo
+  `// ----------` ni doc-comments. Si algo necesita explicación, va en
+  `lefarma.docs/` o en el mensaje del commit, no dentro del archivo.
+- Al quitar el único contenido de un bloque (`catch`, `if`), no lo rellenes con
+  un comentario: elimina el bloque si sobra, o deja el `catch {}` vacío (el
+  proyecto ya permite `allowEmptyCatch`).
+
+Excepciones: solo comentarios funcionales para una herramienta.
+
+- Directivas que el compilador o los linters necesitan: `// @ts-expect-error`,
+  `// @ts-ignore`, `// @ts-nocheck`, `// eslint-disable-next-line`,
+  `/* eslint-disable */`, `// @vite-ignore`, `// prettier-ignore`,
+  `/* __PURE__ */`, `/// <reference ...>`.
+- Cabeceras de los scripts de `lefarma.database/`, que documentan migraciones ya
+  aplicadas.
+
 ---
 
 # Lefarma Project — Agent Reference
