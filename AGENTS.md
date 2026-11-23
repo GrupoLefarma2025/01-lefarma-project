@@ -83,6 +83,32 @@ Excepciones: solo comentarios funcionales para una herramienta.
 - Cabeceras de los scripts de `lefarma.database/`, que documentan migraciones ya
   aplicadas.
 
+## 6. Verificación de tests: se miden, no se dan por buenos
+
+Los tests del proyecto **no se borran** para «testear con IA». La medición de
+Stryker (23-nov-2026) sobre `lefarma.frontend/src/apps/viaticos/services/calculoViaje.ts`
+con los tests de viáticos dio 857 mutantes, 362 muertos y 315 vivos: **42 % global
+y 53 % sobre el código cubierto**. Cobertura alta no es protección real.
+
+Reglas al escribir o tocar tests:
+
+- **Mutación puntual antes de dar por buena una prueba**: invertir una comparación,
+  cambiar `&&` por `||`, quitar un `?.`, mover un decimal o un literal de dinero.
+  Si el test sigue verde, no prueba nada; reescribe el caso.
+- **Revisión adversarial**: al revisar código con tests, dos pasadas independientes
+  (una en contexto nuevo, sin la conversación que lo escribió) y un juez que acepta
+  o rechaza cada fallo; por cada fallo aceptado se exige un test que falle sin el
+  arreglo.
+- **Lógica pura con property-based** (`fast-check` dentro de Vitest): invariantes
+  (el total es la suma de sus partes, nunca negativo, el orden se conserva), no
+  solo ejemplos sueltos.
+- **Nada de tests espejo**: los fixtures salen de datos reales; repetir la
+  implementación en el test no detecta errores.
+- **No «arregles» un test cambiando la expectativa** para que pase. Si el
+  comportamiento cambió de verdad, se actualiza el test y se explica en el commit.
+- Si al cerrar una tarea falla un test ajeno al cambio, se dice en el resultado; no
+  se ignora ni se borra.
+
 ---
 
 # Lefarma Project — Agent Reference
