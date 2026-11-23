@@ -764,6 +764,58 @@ app.MapControllers();
 // Redirige cualquier petición no manejada al index.html para que el router de tu frontend se encargue
 app.MapFallbackToFile("/index.html");
 
+// Calentamiento de base de datos en segundo plano. La primera petición que toca
+// SQL paga el arranque en frío de EF y del pool: se midieron ~10 s justo después
+// de cada reinicio del API, y durante esa ventana el navegador encolaba las
+// peticiones y la SPA llegaba a creerse desconectada. Se lanza después de
+// arrancar para no retrasar la escucha y nunca tumba el proceso.
+app.Lifetime.ApplicationStarted.Register(() =>
+{
+    _ = Task.Run(async () =>
+    {
+        try
+        {
+            using var scope = app.Services.CreateScope();
+
+            // 1) Contextos de datos: construir el modelo de EF es el coste grande
+            //    del primer acceso (se midieron ~6.6 s en la primera consulta a
+            //    Asokam desde el middleware de desarrollo). Se fuerza aquí y se
+            //    deja una conexión lista en el pool. Cada contexto va por separado
+            //    para que un fallo de uno no impida calentar el otro.
+            foreach (var tipoContexto in new[]
+            {
+                typeof(Lefarma.API.Infrastructure.Data.ApplicationDbContext),
+                typeof(Lefarma.API.Infrastructure.Data.AsokamDbContext),
+            })
+            {
+                try
+                {
+                    var contexto = (DbContext)scope.ServiceProvider.GetRequiredService(tipoContexto);
+                    _ = contexto.Model;
+                    await contexto.Database.OpenConnectionAsync(CancellationToken.None);
+                    await contexto.Database.CloseConnectionAsync();
+                }
+                catch (Exception ex)
+                {
+                    app.Logger.LogWarning(ex, "Calentamiento de {Contexto} falló.", tipoContexto.Name);
+                }
+            }
+
+            // 2) Contexto de telemetría: compila la consulta de la sal y la deja
+            //    cacheada para los eventos reales.
+            var atribucion = scope.ServiceProvider
+                .GetRequiredService<Lefarma.API.Features.Telemetria.Ingesta.IAtribucionUsuario>();
+            await atribucion.ObtenerHashAsync("calentamiento", CancellationToken.None);
+        }
+        catch (Exception ex)
+        {
+            app.Logger.LogWarning(
+                ex,
+                "Calentamiento de base de datos falló; la primera petición pagará el arranque en frío.");
+        }
+    });
+});
+
 app.Run();
 
 // Hace Program accesible a Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactory<Program>
