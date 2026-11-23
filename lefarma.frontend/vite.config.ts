@@ -1,6 +1,7 @@
 import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import fs from 'fs'
+import http from 'http'
 import path from 'path'
 
 // https://vitejs.dev/config/
@@ -51,8 +52,16 @@ export default defineConfig(({ mode }) => {
     },
     proxy: {
       '/api': {
-        target: 'http://localhost:5174',
+        // 127.0.0.1 y no «localhost»: en Windows localhost puede resolverse a
+        // ::1 primero y Kestrel escucha sólo IPv4, así que el proxy esperaba
+        // una conexión que no llegaba y la petición se quedaba colgada.
+        target: 'http://127.0.0.1:5174',
         changeOrigin: true,
+        // Sin keep-alive al backend: cuando el API se reinicia, un socket del
+        // pool queda medio abierto y la petición se queda «pending» hasta
+        // agotar las seis conexiones del navegador (lo que hacía creer que la
+        // aplicación se había caído).
+        agent: new http.Agent({ keepAlive: false }),
       },
     },
   },
