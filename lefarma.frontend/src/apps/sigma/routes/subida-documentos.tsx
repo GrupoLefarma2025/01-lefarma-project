@@ -83,6 +83,19 @@ interface FileWithMetadata {
   archivoSoporte?: File;
 }
 
+// Caracteres que un nombre de archivo no admite en Windows (los de control tampoco).
+const CARACTERES_NO_VALIDOS_EN_NOMBRE = '<>:"/\\|?*';
+
+const limpiarNombreArchivo = (valor: string) =>
+  Array.from(valor)
+    .filter(
+      (caracter) =>
+        caracter.charCodeAt(0) >= 0x20 &&
+        !CARACTERES_NO_VALIDOS_EN_NOMBRE.includes(caracter)
+    )
+    .join("")
+    .replace(/[. ]+$/, "");
+
 export default function SubidaDocumentos() {
   const navigate = useNavigate();
   const [files, setFiles] = useState<FileWithMetadata[]>([]);
@@ -327,11 +340,12 @@ export default function SubidaDocumentos() {
     }
 
     const currentFile = tempFiles[currentFileIndex];
+    const nombreLimpio = limpiarNombreArchivo(customName ?? "").trim();
 
     // Agregar el archivo
     const fileWithMetadata: FileWithMetadata = {
       file: currentFile,
-      customName: customName || currentFile.name,
+      customName: nombreLimpio || currentFile.name,
       observations: observations.trim(),
       correoCC: correoCC.trim(),
       tieneDocumentoSoporte,
@@ -425,7 +439,6 @@ export default function SubidaDocumentos() {
 
             // Enviar notificación por email si hay correos CC y se obtuvo el ID del documento
             if (documentId && fileWithMeta.correoCC) {
-              console.log(`Enviando notificación para documento ${documentId} con CC: ${fileWithMeta.correoCC}`);
               sendEmailNotificationInBackground(documentId, true);
             }
           } catch (error) {
@@ -504,15 +517,11 @@ export default function SubidaDocumentos() {
   };
 
   const handlePreview = async (document: Document, mostrarDocumentoSoporte?: boolean) => {
-    console.log("subida handlePreview: Document ID:", document.id);
-    console.log("subida handlePreview: Document object:", document);
-    
     // Si no se especifica mostrarDocumentoSoporte, usar false por defecto (documento original)
     const showSupport = mostrarDocumentoSoporte !== undefined 
       ? mostrarDocumentoSoporte 
       : false;
     
-    console.log("subida handlePreview: mostrarDocumentoSoporte:", showSupport);
     setLoadingDocumentId(document.id);
     try {
       if (previewUrlRef.current) {
@@ -521,7 +530,6 @@ export default function SubidaDocumentos() {
       }
 
       const fetchUrl = `/sigma/pdf-signature/pdf/${document.id}?descargar=true&mostrarDocumentoSoporte=${showSupport}`;
-      console.log("subida handlePreview: Fetching from URL:", fetchUrl);
 
       const blob = await getBlob(fetchUrl);
       if (!blob || blob.size === 0) {
@@ -571,8 +579,6 @@ export default function SubidaDocumentos() {
     }
 
     try {
-      console.log("handleDelete: Deleting document:", document.id);
-
       await del<{ success: boolean }>(
         `/sigma/pdf-signature/eliminar-documento/${document.id}`
       );
@@ -931,7 +937,16 @@ export default function SubidaDocumentos() {
                   )}
                   placeholder="Ej: Contrato de servicios 2024"
                   autoFocus
+                  onInput={(e) => {
+                    const limpio = limpiarNombreArchivo(e.currentTarget.value);
+                    if (limpio !== e.currentTarget.value) {
+                      e.currentTarget.value = limpio;
+                    }
+                  }}
                 />
+                <p className="text-[11px] text-muted-foreground">
+                  No se permiten los caracteres &lt; &gt; : " / \ | ? *
+                </p>
               </div>
               <div className="grid gap-3">
                 <Label htmlFor="observations">

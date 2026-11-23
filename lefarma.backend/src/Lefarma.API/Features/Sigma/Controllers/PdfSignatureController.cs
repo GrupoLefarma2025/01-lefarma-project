@@ -195,6 +195,17 @@ public sealed class PdfSignatureController : ControllerBase
         try
         {
             var nombreSolicitado = string.IsNullOrWhiteSpace(nombre) ? archivo.FileName : nombre.Trim();
+
+            // Un nombre de archivo físico no admite estos caracteres; se rechaza antes de guardarlo.
+            if (nombreSolicitado.IndexOfAny(['<', '>', ':', '"', '/', '\\', '|', '?', '*']) >= 0)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "El nombre del archivo no puede contener los caracteres < > : \" / \\ | ? *."
+                });
+            }
+
             var nombreArchivo = Path.GetFileName(nombreSolicitado);
             if (!nombreArchivo.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase))
             {
