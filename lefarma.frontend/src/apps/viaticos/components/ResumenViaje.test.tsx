@@ -45,14 +45,15 @@ const base: ResumenViajeDatos = {
 describe('ResumenViaje', () => {
   it('muestra estado/municipio y coordenadas del origen, sin el nombre genérico', () => {
     render(<ResumenViaje {...base} />);
-    const origen = screen.getByText('Origen').parentElement!;
+    // La fila del título lleva el chip de fase (Ida); la parada completa es el li.
+    const origen = screen.getByText('Origen').closest('li')!;
     expect(origen).toHaveTextContent('Tlalpan, Ciudad de México · 19.48239, -99.10327');
     expect(screen.queryByText(/Punto seleccionado en mapa/)).not.toBeInTheDocument();
   });
 
   it('el regreso se titula Regreso y, si vuelve al origen, muestra ubicación, coordenadas y (origen)', () => {
     render(<ResumenViaje {...base} />);
-    const regreso = screen.getByText('Regreso').parentElement!;
+    const regreso = screen.getByTestId('resumen-regreso').closest('li')!;
     expect(regreso).toHaveTextContent('Tlalpan, Ciudad de México · 19.48239, -99.10327 (origen)');
   });
 
@@ -63,7 +64,7 @@ describe('ResumenViaje', () => {
         retorno={{ destino: 'otro', punto: { nombre: 'Hotel Central', latitud: 19.43, longitud: -99.13, municipio: 'Cuauhtémoc', estado: 'Ciudad de México' } }}
       />,
     );
-    const regreso = screen.getByText('Regreso').parentElement!;
+    const regreso = screen.getByTestId('resumen-regreso').closest('li')!;
     expect(regreso).toHaveTextContent('Cuauhtémoc, Ciudad de México · 19.43000, -99.13000');
   });
 

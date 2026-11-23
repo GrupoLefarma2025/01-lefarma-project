@@ -808,7 +808,7 @@ export function ConcentradoPage() {
           if (!abierto) cerrarRevision();
         }}
       >
-        <DialogContent data-testid="revision-solicitud" className="max-h-[92vh] w-[90vw] max-w-[1400px] overflow-y-auto">
+        <DialogContent data-testid="revision-solicitud" className="max-h-[92vh] w-[94vw] max-w-[1500px] overflow-y-auto bg-slate-50/70 p-4 dark:bg-background sm:p-6">
           <DialogHeader>
             <DialogTitle>Detalle de la solicitud {detalle?.folio ?? (revisandoId !== null ? `#${revisandoId}` : '')}</DialogTitle>
             <DialogDescription>

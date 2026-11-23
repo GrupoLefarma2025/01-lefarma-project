@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Info } from 'lucide-react';
+import { Info, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   Table,
@@ -25,6 +25,10 @@ export interface TablaOpcionesProps {
   /** Clave de la fila elegida (id de la oferta); se resalta en la tabla. */
   opcionElegidaId?: string | null;
   onElegir?: (oferta: CostosRutaOferta) => void;
+  /** Id de la oferta cuyo precio real se está confirmando (vista previa). */
+  precioEnCursoId?: string | null;
+  /** Aviso por oferta cuando la vista previa no pudo confirmar el precio. */
+  avisoPrecio?: Record<string, string>;
 }
 
 const SIN_URL =
@@ -202,7 +206,7 @@ function etiquetaTipoPrecio(oferta: CostosRutaOferta): string {
   return 'Estimado';
 }
 
-export function TablaOpciones({ titulo, ofertas, opcionElegidaId, onElegir }: TablaOpcionesProps) {
+export function TablaOpciones({ titulo, ofertas, opcionElegidaId, onElegir, precioEnCursoId, avisoPrecio }: TablaOpcionesProps) {
   // Sin capturas automaticas: la busqueda real se pide fila por fila con Volver a buscar.
   const capturas = Object.fromEntries(capturasPorUrl) as Record<string, string>;
   // Capturas pedidas con "Volver a buscar" en esta sesion, por id de oferta.
@@ -390,6 +394,20 @@ export function TablaOpciones({ titulo, ofertas, opcionElegidaId, onElegir }: Ta
                     {o.proveedor ? ` · ${o.proveedor}` : ''}
                     {o.disponibilidad ? ` · ${o.disponibilidad}` : ''}
                   </div>
+                  {precioEnCursoId === o.id ? (
+                    <div
+                      role="status"
+                      className="mt-1 inline-flex items-center gap-1 text-xs text-muted-foreground"
+                    >
+                      <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
+                      Confirmando precio real…
+                    </div>
+                  ) : null}
+                  {avisoPrecio?.[o.id] ? (
+                    <div className="mt-1 max-w-[220px] text-xs text-amber-700">
+                      {avisoPrecio[o.id]}
+                    </div>
+                  ) : null}
                 </TableCell>
                 <TableCell>
                   <CeldaCaptura

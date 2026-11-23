@@ -94,7 +94,8 @@ describe('CeldaCaptura', () => {
     fireEvent.click(miniatura.closest('button')!);
 
     expect((await screen.findAllByText('Captura · Volaris')).length).toBeGreaterThan(0);
-    expect(await screen.findByAltText('captura-Volaris.png')).toBeInTheDocument();
+    // El visor usa el nombre real del archivo en la ruta, no un nombre sintético.
+    expect(await screen.findByAltText('uno.png')).toBeInTheDocument();
   });
 
   it('una revisión nueva vuelve a pedir la captura aunque la ruta no cambie', async () => {

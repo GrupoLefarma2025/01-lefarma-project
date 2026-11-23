@@ -54,7 +54,8 @@ export function AprobacionesBandejaTable({
         <TableBody>
           {solicitudes.map((solicitud) => {
             // El backend solo autoriza 'enviada' (409 en cualquier otro estado).
-            const autorizable = solicitud.estado === ESTADO_ENVIADA;
+            const pendientes = solicitud.precios_pendientes ?? 0;
+            const autorizable = solicitud.estado === ESTADO_ENVIADA && pendientes === 0;
             const autorizando = autorizandoId === solicitud.id_solicitud;
             return (
               <TableRow key={solicitud.id_solicitud}>
@@ -67,7 +68,32 @@ export function AprobacionesBandejaTable({
                 <TableCell className="text-sm">{solicitud.periodo || '—'}</TableCell>
                 <TableCell className="text-sm">{solicitud.destino ?? '—'}</TableCell>
                 <TableCell className="text-right text-sm tabular-nums">
-                  {solicitud.total === null ? '—' : MONEDA.format(solicitud.total)}
+                  <div className="flex flex-col items-end gap-0.5">
+                    {(() => {
+                      const tieneSplit =
+                        solicitud.total_cotizado !== undefined || solicitud.total_estimado !== undefined;
+                      const principal = tieneSplit ? solicitud.total_cotizado ?? null : solicitud.total;
+                      return (
+                        <span>
+                          {principal === null
+                            ? tieneSplit
+                              ? 'Por cotizar'
+                              : '—'
+                            : MONEDA.format(principal)}
+                        </span>
+                      );
+                    })()}
+                    {typeof solicitud.total_estimado === 'number' && solicitud.total_estimado > 0 ? (
+                      <span className="text-[11px] text-muted-foreground">
+                        ref. {MONEDA.format(solicitud.total_estimado)}
+                      </span>
+                    ) : null}
+                    {pendientes > 0 ? (
+                      <Badge variant="secondary" className="whitespace-nowrap font-normal">
+                        Precio pendiente
+                      </Badge>
+                    ) : null}
+                  </div>
                 </TableCell>
                 <TableCell>
                   <Badge
@@ -87,7 +113,9 @@ export function AprobacionesBandejaTable({
                         title={
                           autorizable
                             ? `Autorizar la solicitud ${solicitud.id_solicitud}`
-                            : `Solo se autorizan solicitudes en estado 'enviada' (esta está en '${solicitud.estado}')`
+                            : pendientes > 0
+                              ? `Faltan precios reales de ${pendientes} vuelo${pendientes === 1 ? '' : 's'}. Captúralos antes de autorizar.`
+                              : `Solo se autorizan solicitudes en estado 'enviada' (esta está en '${solicitud.estado}')`
                         }
                       >
                         {autorizando ? 'Autorizando...' : 'Autorizar'}

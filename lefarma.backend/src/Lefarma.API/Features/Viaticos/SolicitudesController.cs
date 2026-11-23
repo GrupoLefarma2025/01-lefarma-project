@@ -12,6 +12,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
+using Microsoft.Extensions.DependencyInjection;
 using Swashbuckle.AspNetCore.Annotations;
 
 namespace Lefarma.API.Features.Viaticos;
@@ -568,19 +569,29 @@ public class SolicitudesController : ControllerBase
             .ToListAsync(ct);
 
         var data = solicitudes
-            .Select(s => new SolicitudOrigenEmResumenDto
+            .Select(s =>
             {
-                IdSolicitud = s.IdSolicitud,
-                Folio = s.Folio,
-                Estado = s.Estado,
-                NumPuntos = s.NumPuntos,
-                Total = LeerTotalDeDatos(s.DatosJson) ?? CalcularTotalOpciones(s),
-                FechaCreacion = s.FechaCreacion,
-                IdRutaVisitas = s.OrigenEmVisitas
-                    .Where(l => l.IdRuta == idRuta)
-                    .Select(l => l.IdRutaVisita)
-                    .OrderBy(id => id)
-                    .ToList(),
+                var totales = TotalesCotizacion.Calcular(s.Opciones);
+                var guardados = TotalesCotizacion.LeerDeDatos(s.DatosJson);
+                return new SolicitudOrigenEmResumenDto
+                {
+                    IdSolicitud = s.IdSolicitud,
+                    Folio = s.Folio,
+                    Estado = s.Estado,
+                    NumPuntos = s.NumPuntos,
+                    Total = guardados.Total
+                        ?? LeerTotalDeDatos(s.DatosJson)
+                        ?? totales.Total
+                        ?? CalcularTotalOpciones(s),
+                    TotalCotizado = totales.Cotizado ?? guardados.Cotizado,
+                    TotalEstimado = totales.Estimado ?? guardados.Estimado,
+                    FechaCreacion = s.FechaCreacion,
+                    IdRutaVisitas = s.OrigenEmVisitas
+                        .Where(l => l.IdRuta == idRuta)
+                        .Select(l => l.IdRutaVisita)
+                        .OrderBy(id => id)
+                        .ToList(),
+                };
             })
             .ToList();
 
@@ -885,15 +896,25 @@ public class SolicitudesController : ControllerBase
             return Forbid();
         }
 
-        // 2.1) Persistir el total del wizard en datos.total. Aprobaciones y el
-        // resumen de cotizaciones por ruta lo leen de ahi (ADR-00014).
+        // 2.1) Persistir el desglose calculado por el SERVIDOR desde las
+        // opciones: un estimado nunca se suma como precio real (ver
+        // TotalesCotizacion). El `total` completo que manda el cliente se
+        // conserva porque puede incluir conceptos del motor (gasolina,
+        // casetas, comida) que no son opciones; si no llega, se usa la suma.
+        var totales = TotalesCotizacion.Calcular(nuevasOpciones);
+        decimal? totalCliente = null;
         if (request.Cotizacion.ValueKind == JsonValueKind.Object
             && request.Cotizacion.TryGetProperty("total", out var totalEl)
             && totalEl.ValueKind == JsonValueKind.Number
-            && totalEl.TryGetDecimal(out var total))
+            && totalEl.TryGetDecimal(out var totalLeido))
         {
-            solicitud.DatosJson = ConTotalEnDatos(solicitud.DatosJson, total);
+            totalCliente = totalLeido;
         }
+        solicitud.DatosJson = TotalesCotizacion.EscribirEnDatos(
+            solicitud.DatosJson,
+            totales.Cotizado,
+            totales.Estimado,
+            totalCliente ?? totales.Total);
 
         // 3) Reemplazar las opciones existentes (regla de UX: la última cotización gana).
         if (solicitud.Opciones.Count > 0)
@@ -952,7 +973,32 @@ public class SolicitudesController : ControllerBase
 
         solicitud.FechaModificacion = ahora;
         AplicarCalculo(solicitud, request.Calculo);
+
+        // Fase 2: las opciones que aún no tienen precio real se marcan para
+        // que el detalle muestre "buscando precio" mientras el worker las
+        // procesa. Solo se marca si la cola está registrada; en pruebas o en
+        // un host sin worker, la opción conserva su estado y el respaldo
+        // manual sigue disponible.
+        var cola = HttpContext.RequestServices.GetService<IDeteccionAutomaticaQueue>();
+        if (cola is not null)
+        {
+            foreach (var nueva in nuevasOpciones.Where(EsCandidataDeteccion))
+            {
+                nueva.DatosJson = TotalesCotizacion.MarcarEstadoDeteccion(
+                    nueva.DatosJson, "pendiente");
+            }
+        }
+
         await _context.SaveChangesAsync(ct);
+
+        if (cola is not null)
+        {
+            foreach (var nueva in nuevasOpciones.Where(EsCandidataDeteccion))
+            {
+                await cola.EnqueueAsync(
+                    new DeteccionAutomaticaJob(id, nueva.IdOpcion, userId), ct);
+            }
+        }
 
         // Recargar con las nuevas opciones para responder con el detalle completo.
         var recargada = await _context.Solicitudes
@@ -966,6 +1012,210 @@ public class SolicitudesController : ControllerBase
         {
             Success = true,
             Message = $"Cotización persistida ({nuevasOpciones.Count} opción(es)).",
+            Data = dto
+        });
+    }
+
+    // ----------------------------------------------------------------
+    // PUT /api/viaticos/solicitudes/{id}/opciones/{idOpcion}/precio
+    // ----------------------------------------------------------------
+    [HttpPut("solicitudes/{id:int}/opciones/{idOpcion:int}/precio")]
+    [SwaggerOperation(
+        Summary = "Registrar el precio real de una opción cotizada",
+        Description = "Convierte una opción estimada en cotizada: exige precio > 0, " +
+                      "fuente real (sin 'estimado'), URL http/https y una captura ya " +
+                      "generada o subida. Recalcula total_cotizado/total_estimado/total " +
+                      "y deja el evento 'precio_real_capturado'.")]
+    [SwaggerResponse(200, "Precio real registrado", typeof(ApiResponse<SolicitudDto>))]
+    [SwaggerResponse(400, "Precio, fuente, URL o captura inválidos")]
+    [SwaggerResponse(403, "No es el dueño y no tiene viaticos.ver_todos")]
+    [SwaggerResponse(404, "Solicitud u opción no encontrada")]
+    [SwaggerResponse(409, "La solicitud ya no está en borrador o enviada")]
+    public async Task<IActionResult> RegistrarPrecioReal(
+        [FromRoute] int id,
+        [FromRoute] int idOpcion,
+        [FromBody] PrecioRealRequest? request,
+        CancellationToken ct)
+    {
+        if (!User.TienePermiso(Permissions.Viaticos.Solicitar))
+        {
+            return Forbid();
+        }
+        if (request is null)
+        {
+            return BadRequest(new ApiResponse<object>
+            {
+                Success = false,
+                Message = "Body requerido con el precio real."
+            });
+        }
+
+        var userId = User.GetUserId();
+        if (userId <= 0)
+        {
+            return Unauthorized(new ApiResponse<object>
+            {
+                Success = false,
+                Message = "Token sin id de usuario válido."
+            });
+        }
+
+        var solicitud = await _context.Solicitudes
+            .Include(s => s.Opciones)
+            .Include(s => s.Eventos)
+            .FirstOrDefaultAsync(s => s.IdSolicitud == id && s.Activo, ct);
+        if (solicitud is null)
+        {
+            return NotFound(new ApiResponse<object>
+            {
+                Success = false,
+                Message = "Solicitud no encontrada."
+            });
+        }
+
+        var esVerTodos = User.TienePermiso(Permissions.Viaticos.VerTodos);
+        if (solicitud.IdUsuarioSolicitante != userId && !esVerTodos)
+        {
+            return Forbid();
+        }
+
+        if (solicitud.Estado is not (EstadoBorrador or EstadoEnviada))
+        {
+            return Conflict(new ApiResponse<object>
+            {
+                Success = false,
+                Message = $"La solicitud está en estado '{solicitud.Estado}'. " +
+                          "El precio real solo se captura en borrador o enviada."
+            });
+        }
+
+        var opcion = solicitud.Opciones.FirstOrDefault(o => o.IdOpcion == idOpcion);
+        if (opcion is null)
+        {
+            return NotFound(new ApiResponse<object>
+            {
+                Success = false,
+                Message = $"La opción {idOpcion} no pertenece a la solicitud {id}."
+            });
+        }
+
+        var ahora = DateTime.UtcNow;
+
+        if (request.Precio <= 0m || request.Precio > 1_000_000m)
+        {
+            return BadRequest(new ApiResponse<object>
+            {
+                Success = false,
+                Message = "El precio real debe ser mayor que 0 y menor o igual a 1,000,000."
+            });
+        }
+
+        var linea = request.Linea?.Trim() ?? string.Empty;
+        if (linea.Length == 0
+            || linea.Contains("estimado", StringComparison.OrdinalIgnoreCase))
+        {
+            return BadRequest(new ApiResponse<object>
+            {
+                Success = false,
+                Message = "Indica la aerolínea o línea real; no puede quedar como 'estimado'."
+            });
+        }
+
+        var fuente = request.Fuente?.Trim() ?? string.Empty;
+        if (fuente.Length == 0
+            || fuente.Contains("estimado", StringComparison.OrdinalIgnoreCase))
+        {
+            return BadRequest(new ApiResponse<object>
+            {
+                Success = false,
+                Message = "La fuente del precio real es obligatoria y no puede declarar 'estimado'."
+            });
+        }
+
+        var url = request.UrlCompra?.Trim();
+        if (string.IsNullOrWhiteSpace(url)
+            || !Uri.TryCreate(url, UriKind.Absolute, out var uri)
+            || (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
+        {
+            return BadRequest(new ApiResponse<object>
+            {
+                Success = false,
+                Message = "La URL de compra debe ser http/https y no puede quedar vacía."
+            });
+        }
+
+        var rutaCaptura = string.IsNullOrWhiteSpace(request.RutaCaptura)
+            ? opcion.RutaCaptura?.Trim()
+            : request.RutaCaptura.Trim();
+        if (string.IsNullOrWhiteSpace(rutaCaptura)
+            || !rutaCaptura.StartsWith(CapturasService.CarpetaPublica + "/", StringComparison.Ordinal)
+            || rutaCaptura.Contains("..", StringComparison.Ordinal))
+        {
+            return BadRequest(new ApiResponse<object>
+            {
+                Success = false,
+                Message = "El precio real exige una captura de la página. " +
+                          "Genera o sube la captura antes de guardarlo."
+            });
+        }
+
+        var precioAnterior = opcion.Precio;
+        opcion.Linea = linea;
+        opcion.Precio = request.Precio;
+        opcion.Moneda = string.IsNullOrWhiteSpace(request.Moneda)
+            ? "MXN"
+            : request.Moneda.Trim().ToUpperInvariant();
+        opcion.UrlCompra = url;
+        opcion.Fuente = fuente;
+        opcion.RutaCaptura = rutaCaptura;
+        opcion.CapturadaEn = ahora;
+        opcion.DatosJson = TotalesCotizacion.MarcarPrecioReal(
+            opcion.DatosJson, request.Salida, request.Llegada, ahora, userId);
+        opcion.DatosJson = TotalesCotizacion.MarcarEstadoDeteccion(
+            opcion.DatosJson, "aplicado");
+
+        var totales = TotalesCotizacion.Calcular(solicitud.Opciones);
+        solicitud.DatosJson = TotalesCotizacion.EscribirEnDatos(
+            solicitud.DatosJson, totales.Cotizado, totales.Estimado, totales.Total);
+        solicitud.FechaModificacion = ahora;
+
+        _context.SolicitudEventos.Add(new SolicitudEvento
+        {
+            IdSolicitud = id,
+            Tipo = "precio_real_capturado",
+            PayloadJson = JsonSerializer.Serialize(new
+            {
+                id_opcion = opcion.IdOpcion,
+                tipo = opcion.Tipo,
+                linea = opcion.Linea,
+                precio_anterior = precioAnterior,
+                precio = opcion.Precio,
+                moneda = opcion.Moneda,
+                fuente,
+                url_compra = url,
+                ruta_captura = rutaCaptura,
+            }),
+            IdUsuario = userId,
+            FechaCreacion = ahora,
+        });
+
+        await _context.SaveChangesAsync(ct);
+
+        var recargada = await _context.Solicitudes
+            .Include(s => s.Opciones)
+            .Include(s => s.Eventos)
+            .AsNoTracking()
+            .FirstAsync(s => s.IdSolicitud == id, ct);
+
+        var dto = MapearDto(
+            recargada,
+            opciones: true,
+            eventos: true,
+            nombreCreador: await NombreCreadorAsync(recargada.IdUsuarioCreacion, ct));
+        return Ok(new ApiResponse<SolicitudDto>
+        {
+            Success = true,
+            Message = $"Precio real registrado para {opcion.Linea}.",
             Data = dto
         });
     }
@@ -1201,8 +1451,47 @@ public class SolicitudesController : ControllerBase
             }
         }
 
+        var totales = TotalesCotizacion.Calcular(s.Opciones);
+        var totalGuardado = TotalesCotizacion.LeerDeDatos(datos).Total;
+
+        // Kayak devuelve enlaces de sesión (/book/flight) que caducan. Al leer
+        // el detalle se cambian por la búsqueda estable de la ruta y fecha; el
+        // mismo mapa corrige los enlaces anidados del snapshot (ruta y tramos).
+        var enlaces = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var opcionesDto = new List<SolicitudOpcionDto>();
+        if (opciones)
+        {
+            foreach (var o in s.Opciones.OrderBy(o => o.IdOpcion))
+            {
+                var urlCompra = EnlacesCompra.Canonicalizar(o.UrlCompra, datos, o.DatosJson);
+                if (!string.IsNullOrWhiteSpace(o.UrlCompra)
+                    && !string.IsNullOrWhiteSpace(urlCompra)
+                    && !string.Equals(o.UrlCompra, urlCompra, StringComparison.Ordinal))
+                {
+                    enlaces[o.UrlCompra] = urlCompra;
+                }
+                opcionesDto.Add(new SolicitudOpcionDto
+                {
+                    IdOpcion = o.IdOpcion,
+                    Tipo = o.Tipo,
+                    Linea = o.Linea,
+                    Precio = o.Precio,
+                    Moneda = o.Moneda,
+                    UrlCompra = urlCompra,
+                    Fuente = o.Fuente,
+                    FueElegida = o.FueElegida,
+                    RutaCaptura = o.RutaCaptura,
+                    Datos = ParsearJsonTolerante(o.DatosJson),
+                });
+            }
+            datos = EnlacesCompra.ReemplazarEnlaces(datos, enlaces);
+        }
+
         return new SolicitudDto
         {
+            TotalCotizado = totales.Cotizado,
+            TotalEstimado = totales.Estimado,
+            Total = totalGuardado ?? totales.Total,
             IdSolicitud = s.IdSolicitud,
             IdUsuarioSolicitante = s.IdUsuarioSolicitante,
             Periodo = s.Periodo,
@@ -1219,23 +1508,7 @@ public class SolicitudesController : ControllerBase
             FechaCreacion = s.FechaCreacion,
             FechaModificacion = s.FechaModificacion,
             Datos = datos,
-            Opciones = opciones
-                ? s.Opciones
-                    .OrderBy(o => o.IdOpcion)
-                    .Select(o => new SolicitudOpcionDto
-                    {
-                        IdOpcion = o.IdOpcion,
-                        Tipo = o.Tipo,
-                        Linea = o.Linea,
-                        Precio = o.Precio,
-                        Moneda = o.Moneda,
-                        UrlCompra = o.UrlCompra,
-                        Fuente = o.Fuente,
-                        FueElegida = o.FueElegida,
-                        RutaCaptura = o.RutaCaptura,
-                        Datos = ParsearJsonTolerante(o.DatosJson),
-                    }).ToList()
-                : new List<SolicitudOpcionDto>(),
+            Opciones = opcionesDto,
             Eventos = eventos
                 ? s.Eventos
                     .OrderBy(ev => ev.FechaCreacion)
@@ -1325,29 +1598,27 @@ public class SolicitudesController : ControllerBase
     /// cuando la cotización no persistió `datos.total` (p. ej. cotizaciones
     /// capturadas por la API antes de ADR-00014).
     /// </summary>
+    /// <summary>
+    /// Opción que la Fase 2 debe intentar cotizar: elegida, con URL y aún sin
+    /// precio real. Incluye vuelos estimados, autobuses estimados y hoteles de
+    /// tabulador; los precios reales (cotizado) no se vuelven a consultar.
+    /// </summary>
+    private static bool EsCandidataDeteccion(SolicitudOpcion opcion) =>
+        opcion.FueElegida
+        && TotalesCotizacion.EsTipoDetectable(opcion.Tipo)
+        && !string.IsNullOrWhiteSpace(opcion.UrlCompra)
+        && !TotalesCotizacion.EsCotizada(opcion)
+        // Un hotel "de referencia" no identifica un hotel concreto: no hay
+        // tarjeta que buscar. Se deja como referencia y se captura a mano.
+        && !(string.Equals(opcion.Tipo?.Trim(), "hotel", StringComparison.OrdinalIgnoreCase)
+             && opcion.Linea.StartsWith("Hotel en ", StringComparison.OrdinalIgnoreCase));
+
     private static decimal? CalcularTotalOpciones(Solicitud s)
     {
         var elegidas = s.Opciones
             .Where(o => o.FueElegida && o.Precio.HasValue)
             .Sum(o => o.Precio!.Value);
         return elegidas > 0 ? elegidas : null;
-    }
-
-    /// <summary>Agrega/reemplaza `total` en datos_json sin perder el resto del snapshot.</summary>
-    private static string ConTotalEnDatos(string datosJson, decimal total)
-    {
-        Dictionary<string, JsonElement>? datos = null;
-        try
-        {
-            datos = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(datosJson);
-        }
-        catch (JsonException)
-        {
-            // Si el snapshot no es un objeto válido, se reemplaza por uno mínimo.
-        }
-        datos ??= new Dictionary<string, JsonElement>();
-        datos["total"] = JsonSerializer.SerializeToElement(total);
-        return JsonSerializer.Serialize(datos);
     }
 
     /// <summary>

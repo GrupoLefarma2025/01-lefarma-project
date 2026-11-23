@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { CalendarDays, Car, ChevronLeft, ChevronRight, Clock, Search } from 'lucide-react';
+import { CalendarDays, Car, ChevronLeft, ChevronRight, Clock, Loader2, Search } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -15,8 +15,8 @@ import {
 } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { toApiError } from '@/utils/errors';
-import { TablaOpciones } from './TablaOpciones';
 import { ResumenRutaModal, type PuntoRutaResumen, type SegmentoRuta } from './ResumenRutaModal';
+import { OpcionesTransporte, type TipoTransporte } from './OpcionesTransporte';
 import type { NodoRutaTimeline } from './RutaViajeTimeline';
 import { ModoTransporteBadge } from './ModoTransporteBadge';
 import { DireccionTramo } from './DireccionTramo';
@@ -55,11 +55,12 @@ import { generarCapturasEnSegundoPlano } from '../services/evidencias.api';
 import type {
   CostosRutaCasetaDisponibilidad,
   CostosRutaHotel,
+  CostosRutaOferta,
   CostosRutaResponse,
   EstadoCasetasSct,
   PuntoSeleccion,
 } from '../types/costosRuta.types';
-import type { CalculoViaje, PropuestaRuta, Solicitud } from '../types/solicitud.types';
+import type { CalculoViaje, PrecioDetectadoDto, PropuestaRuta, Solicitud } from '../types/solicitud.types';
 
 function mxn(n: number): string {
   return n.toLocaleString('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 });
@@ -145,6 +146,152 @@ async function resolverPuntosGenericos(solicitud: Solicitud): Promise<Solicitud>
   };
 }
 
+/** "10/12 08:00" o "2026-11-20T08:00" -> "08:00". */
+function horaDeTexto(texto: string | null | undefined): string | null {
+  if (!texto) return null;
+  const match = texto.match(/(\d{1,2}:\d{2})/);
+  if (!match) return null;
+  return match[1].padStart(5, '0');
+}
+
+/** Nombre legible para el PNG: folio, destino, línea y tipo. */
+function nombreCapturaPreview(
+  folio: string | null | undefined,
+  idSolicitud: number,
+  destino: string | null | undefined,
+  linea: string | null | undefined,
+  tipo: string,
+): string {
+  const limpiar = (valor: string | null | undefined) => (valor ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 40);
+  return [folio || `VIA-${idSolicitud}`, limpiar(destino), limpiar(linea), tipo]
+    .filter(Boolean)
+    .join('-');
+}
+
+/** Reemplaza la hora (y opcionalmente el día) de "dd/MM HH:mm". */
+function reemplazarHoraTexto(texto: string, hora: string | null, dias = 0): string {
+  if (!hora) return texto;
+  const match = texto.match(/^(\d{1,2})\/(\d{1,2})\s+(\d{1,2}:\d{2})$/);
+  if (!match) return texto.replace(/\d{1,2}:\d{2}/, hora);
+  const fecha = new Date(2026, Number(match[2]) - 1, Number(match[1]) + dias);
+  return `${String(fecha.getDate()).padStart(2, '0')}/${String(fecha.getMonth() + 1).padStart(2, '0')} ${hora}`;
+}
+
+/** Reemplaza la hora (y opcionalmente el día) de una fecha ISO del motor. */
+function reemplazarHoraIso(
+  iso: string | null | undefined,
+  hora: string | null,
+  dias = 0,
+): string | null {
+  if (!iso || !hora) return iso ?? null;
+  const match = iso.match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}:\d{2})/);
+  if (!match) return iso;
+  const fecha = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]) + dias);
+  const anio = fecha.getFullYear();
+  const mes = String(fecha.getMonth() + 1).padStart(2, '0');
+  const dia = String(fecha.getDate()).padStart(2, '0');
+  return `${anio}-${mes}-${dia}T${hora}:00`;
+}
+
+/** "Ciudad de México, Ciudad de México" -> "Ciudad de México". */
+function nombreCorto(nombre: string): string {
+  const [municipio, estado] = nombre.split(',').map((parte) => parte.trim());
+  if (municipio && estado && municipio.toLowerCase() !== estado.toLowerCase()) {
+    return `${municipio}, ${estado}`;
+  }
+  return municipio || nombre;
+}
+
+function sumarDiasIso(fecha: string, dias: number): string {
+  const base = new Date(`${fecha}T12:00:00`);
+  base.setDate(base.getDate() + dias);
+  const anio = base.getFullYear();
+  const mes = String(base.getMonth() + 1).padStart(2, '0');
+  const dia = String(base.getDate()).padStart(2, '0');
+  return `${anio}-${mes}-${dia}`;
+}
+
+function duracionEntre(salida: string, llegada: string, dias: number): number | null {
+  const salidaPartes = salida.split(':').map(Number);
+  const llegadaPartes = llegada.split(':').map(Number);
+  if (salidaPartes.length !== 2 || llegadaPartes.length !== 2) return null;
+  const salidaMin = salidaPartes[0] * 60 + salidaPartes[1];
+  const llegadaMin = llegadaPartes[0] * 60 + llegadaPartes[1];
+  let diferencia = llegadaMin - salidaMin;
+  if (diferencia < 0) diferencia += 24 * 60;
+  return diferencia + Math.max(0, dias) * 24 * 60;
+}
+
+function minutosDeHora(hora: string | null | undefined): number | null {
+  if (!hora) return null;
+  const partes = hora.split(':').map(Number);
+  if (partes.length !== 2 || !Number.isFinite(partes[0]) || !Number.isFinite(partes[1])) return null;
+  return partes[0] * 60 + partes[1];
+}
+
+/**
+ * Convierte una oferta estimada en cotizada con el precio que devolvió la
+ * vista previa. Conserva la proporción grupo/persona que traía el motor.
+ */
+function fusionarOferta(
+  oferta: CostosRutaOferta,
+  detectado: PrecioDetectadoDto,
+  rutaCaptura: string | null,
+): CostosRutaOferta {
+  const precio = detectado.precio;
+  const factor = oferta.costoPorPersona > 0 ? precio / oferta.costoPorPersona : 0;
+  const costoGrupo = factor > 0 && oferta.costoGrupo > 0
+    ? Math.round(oferta.costoGrupo * factor * 100) / 100
+    : precio;
+  const costoPorPersona = factor > 0
+    ? Math.round(oferta.costoPorPersona * factor * 100) / 100
+    : precio;
+  const salida = detectado.salida ?? null;
+  const llegada = detectado.llegada ?? null;
+  const dias = detectado.dias_llegada ?? 0;
+  return {
+    ...oferta,
+    precioTxt: `${mxn(precio)}${oferta.porPersona ? ' /persona' : ''}`,
+    costoGrupo,
+    costoPorPersona,
+    estimado: false,
+    tipoPrecio: 'cotizado',
+    fuente: detectado.fuente ?? oferta.fuente,
+    proveedor: detectado.fuente ?? oferta.proveedor,
+    capturas: rutaCaptura ? [rutaCaptura] : oferta.capturas,
+    rutaCaptura: rutaCaptura ?? oferta.rutaCaptura,
+    linea: /estimad/i.test(oferta.linea) && detectado.linea ? detectado.linea : oferta.linea,
+    salidaTxt: reemplazarHoraTexto(oferta.salidaTxt, salida),
+    llegadaTxt: reemplazarHoraTexto(oferta.llegadaTxt, llegada, dias),
+    salida: reemplazarHoraIso(oferta.salida, salida),
+    llegada: reemplazarHoraIso(oferta.llegada, llegada, dias),
+  };
+}
+
+/** Convierte un hotel de referencia/estimado en cotizado con el total real. */
+function fusionarHotel(
+  hotel: CostosRutaHotel,
+  detectado: PrecioDetectadoDto,
+  rutaCaptura: string | null,
+): CostosRutaHotel {
+  const noches = hotel.noches > 0 ? hotel.noches : (detectado.noches ?? 1);
+  return {
+    ...hotel,
+    precioTotal: detectado.precio,
+    precioNoche: Math.round((detectado.precio / Math.max(1, noches)) * 100) / 100,
+    tipoPrecio: 'cotizado',
+    fuente: detectado.fuente ?? hotel.fuente,
+    proveedor: detectado.fuente ?? hotel.proveedor,
+    capturas: rutaCaptura ? [rutaCaptura] : hotel.capturas,
+    rutaCaptura: rutaCaptura ?? hotel.rutaCaptura,
+  };
+}
+
 export function CalculosViajeModal({
   solicitud,
   open,
@@ -185,6 +332,16 @@ export function CalculosViajeModal({
   const [enviando, setEnviando] = useState(false);
   const [resumenAbierto, setResumenAbierto] = useState(false);
   const [progreso, setProgreso] = useState(0);
+  const [precioEnCurso, setPrecioEnCurso] = useState<string | null>(null);
+  const [avisoPrecio, setAvisoPrecio] = useState<Record<string, string>>({});
+  const [hotelPrecioEnCurso, setHotelPrecioEnCurso] = useState<string | null>(null);
+  const [avisoHotel, setAvisoHotel] = useState<Record<string, string>>({});
+  const [cargandoVuelos, setCargandoVuelos] = useState<Record<number, boolean>>({});
+  const [avisoVuelos, setAvisoVuelos] = useState<Record<number, string>>({});
+  const abortPrecioRef = useRef<AbortController | null>(null);
+  const abortHotelRef = useRef<AbortController | null>(null);
+  const abortVuelosRef = useRef<AbortController | null>(null);
+  const vuelosCargadosRef = useRef<Set<number>>(new Set());
   const buscadosRef = useRef<Set<number>>(new Set());
   const hotelesBuscadosRef = useRef<Set<number>>(new Set());
   const hotelRutaSeqRef = useRef<Record<number, number>>({});
@@ -227,6 +384,19 @@ export function CalculosViajeModal({
     setBuscando(null);
     setProgreso(0);
     setResolucion(null);
+    setPrecioEnCurso(null);
+    setAvisoPrecio({});
+    setHotelPrecioEnCurso(null);
+    setAvisoHotel({});
+    setCargandoVuelos({});
+    setAvisoVuelos({});
+    abortPrecioRef.current?.abort();
+    abortHotelRef.current?.abort();
+    abortVuelosRef.current?.abort();
+    abortPrecioRef.current = null;
+    abortHotelRef.current = null;
+    abortVuelosRef.current = null;
+    vuelosCargadosRef.current.clear();
     buscadosRef.current.clear();
     hotelesBuscadosRef.current.clear();
     hotelRutaSeqRef.current = {};
@@ -256,6 +426,11 @@ export function CalculosViajeModal({
   }, [open, solicitud?.id_solicitud]);
 
   const tramo: TramoViaje | undefined = tramos[paso];
+  const salidaReferencia = tramo?.desde.fecha && tramo?.desde.hora
+    ? `${tramo.desde.fecha}T${tramo.desde.hora}`
+    : null;
+  const kmTramo = tramo ? distanciaKm(tramo.desde.punto, tramo.hasta.punto) : 0;
+  const modoInicial: TipoTransporte = kmTramo >= 300 ? 'avion' : 'bus';
   const resultadoActual = resultados[paso];
   const persona = resultadoActual?.resultados[0];
   const propuesta = resultadoActual?.propuestas[0];
@@ -385,6 +560,18 @@ export function CalculosViajeModal({
       : paso === 0 || tramo?.esRegreso
         ? incumple
         : false);
+  // Si el destino se alcanza el mismo día y hay otro punto al día siguiente,
+  // la noche se configura en el tramo siguiente (noche después). Sirve para
+  // avisar que la estancia se captura más adelante; la casilla sigue
+  // disponible en este tramo para no perder la captura de "noche antes".
+  const siguienteTramo = tramos[paso + 1] ?? null;
+  const hotelEnSiguienteTramo = !esCarro
+    && paso === 0
+    && Boolean(tramo)
+    && Boolean(siguienteTramo)
+    && tramo!.desde.fecha === tramo!.hasta.fecha
+    && Boolean(tramo!.hasta.fecha && siguienteTramo!.hasta.fecha)
+    && siguienteTramo!.hasta.fecha > tramo!.hasta.fecha;
   // En transporte solicitado el hotel se puede activar en cualquier tramo: la
   // etiqueta ya dice si es noche antes o después. En carro se mantiene la
   // sugerencia anterior para no alterar ese flujo.
@@ -475,6 +662,7 @@ export function CalculosViajeModal({
     const vistos = new Set<string>();
     let ultimaClave = '';
     let paradas = 0;
+    let faseActual: 'ida' | 'regreso' = 'ida';
 
     const agregarPunto = (
       lat: number,
@@ -511,6 +699,7 @@ export function CalculosViajeModal({
         chips,
         costo: importes?.costo ?? null,
         urlCompra: importes?.urlCompra ?? null,
+        fase: faseActual,
       });
     };
     const agregarSegmento = (
@@ -536,6 +725,7 @@ export function CalculosViajeModal({
       ofertaCalculada(resultados[indice], seleccion[indice] ?? null) ?? null;
 
     tramos.forEach((tramo, indice) => {
+      faseActual = tramo.esRegreso ? 'regreso' : 'ida';
       const hotelRuta = !esCarro ? hotelRutas[indice] : undefined;
       const hotel = hotelElegidoDeTramo(indice);
       const origen: [number, number] = [tramo.desde.punto.latitud, tramo.desde.punto.longitud];
@@ -547,7 +737,6 @@ export function CalculosViajeModal({
         const posicion = hotelRuta.posicion;
         const destino: [number, number] = [tramo.hasta.punto.latitud, tramo.hasta.punto.longitud];
         const personaHotel = hotelRuta.respuesta.resultados[0];
-        const tramoLargo = personaHotel?.tramos[posicion === 'antes' ? 0 : 1];
         const larga = ofertaLargaHotel(
           hotelRuta.respuesta,
           posicion,
@@ -1004,12 +1193,497 @@ export function CalculosViajeModal({
     if (!open || esCarro || !usarHotelDelPaso || hotelElegidoDelPaso) return;
     if (!hotelDelPaso || buscando !== null || buscandoRutaHotel !== null) return;
     const primero = hotelesDelPaso.find((hotel) => hotelTieneCoordenadas(hotel)) ?? hotelesDelPaso[0];
-    if (primero) void elegirHotel(paso, primero);
+    if (primero) {
+      void elegirHotel(paso, primero);
+      void detectarPrecioHotel(paso, primero);
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, esCarro, usarHotelDelPaso, hotelElegidoDelPaso, hotelDelPaso, hotelesDelPaso, buscando, buscandoRutaHotel, paso]);
 
+  /**
+   * Vista previa al seleccionar una opción: no bloquea el guardado. Si tarda
+   * más de 30 s se avisa, y a los 75 s el backend/axios corta y se deja el
+   * estimado para que la cola lo confirme después de guardar.
+   */
+  async function detectarPrecioOferta(indice: number, oferta: CostosRutaOferta) {
+    if (!solicitud) return;
+    const tipo = oferta.modo === 'avion' ? 'vuelo' : oferta.modo === 'bus' ? 'autobus' : null;
+    const url = oferta.comprar?.url;
+    if (!tipo || !url || oferta.tipoPrecio === 'cotizado') return;
+
+    abortPrecioRef.current?.abort();
+    const controller = new AbortController();
+    abortPrecioRef.current = controller;
+    setPrecioEnCurso(oferta.id);
+    setAvisoPrecio((previo) => {
+      const copia = { ...previo };
+      delete copia[oferta.id];
+      return copia;
+    });
+
+    const avisoLento = window.setTimeout(() => {
+      if (controller.signal.aborted) return;
+      setAvisoPrecio((previo) => ({
+        ...previo,
+        [oferta.id]: 'Seguimos consultando; puedes guardar y se actualizará solo.',
+      }));
+    }, 30_000);
+
+    try {
+      const { data } = await solicitudesApi.detectarPrecioPreview(
+        {
+          tipo,
+          linea: oferta.linea,
+          url_compra: url,
+          salida: horaDeTexto(oferta.salidaTxt) ?? horaDeTexto(oferta.salida ?? null),
+          llegada: horaDeTexto(oferta.llegadaTxt) ?? horaDeTexto(oferta.llegada ?? null),
+          capturar: false,
+          nombre: nombreCapturaPreview(
+            solicitud.folio,
+            solicitud.id_solicitud,
+            oferta.a ?? tramos[indice]?.hasta.nombre,
+            oferta.linea,
+            tipo,
+          ),
+          datos: {
+            tramo: oferta.tramo ?? indice,
+            minutos_taxi_destino: oferta.minutosTaxiDestino ?? oferta.minutosTaxi ?? 0,
+            tipo_precio: oferta.tipoPrecio ?? 'estimado',
+          },
+          solicitud_datos: (solicitud.datos as Record<string, unknown> | null | undefined) ?? null,
+        },
+        controller.signal,
+      );
+
+      if (controller.signal.aborted) return;
+
+      const resultado = data.data;
+      if (!data.success || !resultado?.detectado || !resultado.elegido) {
+        const motivo = resultado?.motivo
+          ?? data.message
+          ?? 'No se pudo confirmar el precio; se usará el estimado.';
+        setAvisoPrecio((previo) => ({ ...previo, [oferta.id]: motivo }));
+        return;
+      }
+
+      setAvisoPrecio((previo) => {
+        const copia = { ...previo };
+        delete copia[oferta.id];
+        return copia;
+      });
+      aplicarPrecioDetectado(oferta, resultado.elegido, resultado.ruta_captura ?? null);
+    } catch (falla: unknown) {
+      if (controller.signal.aborted) return;
+      const mensaje = toApiError(falla).message
+        || 'No se pudo confirmar el precio; se usará el estimado.';
+      setAvisoPrecio((previo) => ({ ...previo, [oferta.id]: mensaje }));
+    } finally {
+      window.clearTimeout(avisoLento);
+      if (abortPrecioRef.current === controller) {
+        abortPrecioRef.current = null;
+        setPrecioEnCurso(null);
+      }
+    }
+  }
+
+  /** Cambia el precio de la oferta en todos los tramos que la contengan. */
+  function aplicarPrecioDetectado(
+    oferta: CostosRutaOferta,
+    detectado: PrecioDetectadoDto,
+    rutaCaptura: string | null,
+  ) {
+    const actualizar = (respuesta: CostosRutaResponse): CostosRutaResponse => ({
+      ...respuesta,
+      resultados: respuesta.resultados.map((resultado) => ({
+        ...resultado,
+        tramos: resultado.tramos.map((tramo) => ({
+          ...tramo,
+          opciones: tramo.opciones.map((opcion) => (
+            opcion.id === oferta.id ? fusionarOferta(opcion, detectado, rutaCaptura) : opcion
+          )),
+        })),
+      })),
+    });
+
+    setResultados((previo) => Object.fromEntries(
+      Object.entries(previo).map(([clave, respuesta]) => [clave, actualizar(respuesta)]),
+    ));
+    setHotelRutas((previo) => Object.fromEntries(
+      Object.entries(previo).map(([clave, ruta]) => [
+        clave,
+        { ...ruta, respuesta: actualizar(ruta.respuesta) },
+      ]),
+    ));
+  }
+
+  function elegirOferta(indice: number, oferta: CostosRutaOferta) {
+    setSeleccion((seleccionPrevia) => ({ ...seleccionPrevia, [indice]: oferta.id }));
+    void detectarPrecioOferta(indice, oferta);
+  }
+
+  async function detectarPrecioHotel(indice: number, hotel: CostosRutaHotel) {
+    if (!solicitud) return;
+    const url = hotel.link;
+    const nombre = (hotel.nombre ?? hotel.lugar ?? '').trim();
+    if (!url
+        || nombre.length < 3
+        || nombre.toLowerCase().startsWith('hotel en ')
+        || hotel.tipoPrecio === 'cotizado') {
+      return;
+    }
+
+    abortHotelRef.current?.abort();
+    const controller = new AbortController();
+    abortHotelRef.current = controller;
+    const clave = claveHotel(hotel);
+    setHotelPrecioEnCurso(clave);
+    setAvisoHotel((previo) => {
+      const copia = { ...previo };
+      delete copia[clave];
+      return copia;
+    });
+
+    const avisoLento = window.setTimeout(() => {
+      if (controller.signal.aborted) return;
+      setAvisoHotel((previo) => ({
+        ...previo,
+        [clave]: 'Seguimos consultando; puedes guardar y se actualizará solo.',
+      }));
+    }, 30_000);
+
+    try {
+      const { data } = await solicitudesApi.detectarPrecioPreview(
+        {
+          tipo: 'hotel',
+          linea: nombre,
+          url_compra: url,
+          capturar: false,
+          nombre: nombreCapturaPreview(
+            solicitud.folio,
+            solicitud.id_solicitud,
+            hotel.ciudad ?? tramos[indice]?.hasta.nombre,
+            nombre,
+            'hotel',
+          ),
+          datos: {
+            tramo: indice,
+            tipo_precio: hotel.tipoPrecio ?? 'estimado',
+          },
+          solicitud_datos: (solicitud.datos as Record<string, unknown> | null | undefined) ?? null,
+        },
+        controller.signal,
+      );
+
+      if (controller.signal.aborted) return;
+
+      const resultado = data.data;
+      if (!data.success || !resultado?.detectado || !resultado.elegido) {
+        const motivo = resultado?.motivo
+          ?? data.message
+          ?? 'No se pudo confirmar el precio del hotel; se usará la referencia.';
+        setAvisoHotel((previo) => ({ ...previo, [clave]: motivo }));
+        return;
+      }
+
+      setAvisoHotel((previo) => {
+        const copia = { ...previo };
+        delete copia[clave];
+        return copia;
+      });
+      aplicarHotelDetectado(indice, hotel, resultado.elegido, resultado.ruta_captura ?? null);
+    } catch (falla: unknown) {
+      if (controller.signal.aborted) return;
+      const mensaje = toApiError(falla).message
+        || 'No se pudo confirmar el precio del hotel; se usará la referencia.';
+      setAvisoHotel((previo) => ({ ...previo, [clave]: mensaje }));
+    } finally {
+      window.clearTimeout(avisoLento);
+      if (abortHotelRef.current === controller) {
+        abortHotelRef.current = null;
+        setHotelPrecioEnCurso(null);
+      }
+    }
+  }
+
+  function aplicarHotelDetectado(
+    indice: number,
+    hotel: CostosRutaHotel,
+    detectado: PrecioDetectadoDto,
+    rutaCaptura: string | null,
+  ) {
+    const clave = claveHotel(hotel);
+    setHotelResultados((previo) => {
+      const respuesta = previo[indice];
+      if (!respuesta) return previo;
+      return {
+        ...previo,
+        [indice]: {
+          ...respuesta,
+          resultados: respuesta.resultados.map((resultado) => ({
+            ...resultado,
+            hotelesPropuestos: resultado.hotelesPropuestos.map((propuesto) => (
+              claveHotel(propuesto) === clave
+                ? fusionarHotel(propuesto, detectado, rutaCaptura)
+                : propuesto
+            )),
+          })),
+        },
+      };
+    });
+  }
+
+  function opcionesDelPaso(indice: number): CostosRutaOferta[] {
+    const rutaHotel = hotelRutas[indice];
+    if (rutaHotel) {
+      const posicion = rutaHotel.posicion;
+      return rutaHotel.respuesta.resultados[0]?.tramos[
+        posicion === 'antes' ? 0 : 1
+      ]?.opciones ?? [];
+    }
+    return resultados[indice]?.resultados[0]?.tramos.flatMap((tramo) => tramo.opciones) ?? [];
+  }
+
+  /**
+   * Convierte una opción real de Kayak en la misma forma que usa el motor.
+   * Conserva terminales y taxis de la oferta base; el precio y los horarios
+   * son los detectados.
+   */
+  function mapearVueloReal(
+    detectado: PrecioDetectadoDto,
+    base: CostosRutaOferta,
+    indice: number,
+    tramoActual: TramoViaje,
+    captura: string | null,
+  ): CostosRutaOferta {
+    const salida = detectado.salida ?? '';
+    const llegada = detectado.llegada ?? '';
+    const dias = detectado.dias_llegada ?? 0;
+    const salidaIso = salida && tramoActual.desde.fecha
+      ? `${tramoActual.desde.fecha}T${salida}:00`
+      : base.salida ?? '';
+    const fechaLlegada = tramoActual.desde.fecha
+      ? sumarDiasIso(tramoActual.desde.fecha, dias)
+      : (base.llegada?.slice(0, 10) ?? '');
+    const llegadaIso = llegada && fechaLlegada
+      ? `${fechaLlegada}T${llegada}:00`
+      : base.llegada ?? '';
+    const salidaTxt = salida && tramoActual.desde.fecha
+      ? `${tramoActual.desde.fecha.slice(8, 10)}/${tramoActual.desde.fecha.slice(5, 7)} ${salida}`
+      : base.salidaTxt;
+    const llegadaTxt = llegada && fechaLlegada
+      ? `${fechaLlegada.slice(8, 10)}/${fechaLlegada.slice(5, 7)} ${llegada}`
+      : base.llegadaTxt;
+    const minutosVuelo = duracionEntre(salida, llegada, dias) ?? detectado.duracion_min ?? 0;
+    const antes = base.minutosAntes ?? 0;
+    const despues = base.minutosDespues ?? 0;
+    const puertaMin = minutosVuelo + antes + despues;
+    const limite = tramoActual.hasta.fecha && tramoActual.hasta.hora
+      ? new Date(`${tramoActual.hasta.fecha}T${tramoActual.hasta.hora}:00`)
+      : null;
+    const llegadaConTaxi = llegadaIso ? new Date(llegadaIso) : null;
+    if (llegadaConTaxi && base.minutosTaxiDestino) {
+      llegadaConTaxi.setMinutes(llegadaConTaxi.getMinutes() + base.minutosTaxiDestino);
+    }
+    const tarde = Boolean(limite && llegadaConTaxi && llegadaConTaxi > limite);
+    const minutosTarde = tarde && limite && llegadaConTaxi
+      ? Math.round((llegadaConTaxi.getTime() - limite.getTime()) / 60000)
+      : 0;
+    const salidaMin = minutosDeHora(salida);
+    const origenMin = minutosDeHora(tramoActual.desde.hora);
+    const salidaMasTemprana = origenMin === null
+      ? null
+      : origenMin + (base.minutosTaxiOrigen ?? 0) + (base.minutosAntes ?? 0);
+    const saleAntes = salidaMin !== null
+      && salidaMasTemprana !== null
+      && salidaMin < salidaMasTemprana;
+    const aerolinea = (detectado.linea || base.linea)
+      .replace(/\s+\d{1,2}:\d{2}.*$/, '')
+      .trim() || base.linea;
+
+    return {
+      ...base,
+      id: `real-${indice}-${base.id}-${salida}-${llegada}`,
+      modo: 'avion',
+      linea: aerolinea,
+      servicio: 'Real',
+      salidaTxt,
+      llegadaTxt,
+      salida: salidaIso,
+      llegada: llegadaIso,
+      duracion: duracionTexto(puertaMin),
+      puertaAPuertaH: Math.round((puertaMin / 60) * 100) / 100,
+      precioTxt: `${mxn(detectado.precio)} MXN${base.porPersona ? ' /persona' : ''}`,
+      porPersona: base.porPersona,
+      costoGrupo: detectado.precio,
+      costoPorPersona: detectado.precio,
+      aTiempo: !tarde && !saleAntes,
+      llegaTarde: tarde,
+      minutosTarde,
+      noTomable: saleAntes,
+      badge: 'Real',
+      nota: 'Precio real detectado en Kayak',
+      fuente: detectado.fuente ?? 'kayak.com.mx',
+      estimado: false,
+      tipoPrecio: 'cotizado',
+      proveedor: 'Kayak',
+      disponibilidad: 'Precio real',
+      disponibilidadDetalle: 'Detectado en Kayak',
+      comprar: {
+        ...base.comprar,
+        url: detectado.url_compra ?? base.comprar.url,
+        accion: base.comprar.accion || 'Comprar',
+        fecha: tramoActual.desde.fecha || base.comprar.fecha,
+      },
+      rutaCaptura: captura ?? base.rutaCaptura,
+      capturas: captura ? [captura] : base.capturas,
+    };
+  }
+
+  function reemplazarOfertasVuelo(indice: number, sourceId: string, reales: CostosRutaOferta[]) {
+    const actualizar = (respuesta: CostosRutaResponse): CostosRutaResponse => ({
+      ...respuesta,
+      resultados: respuesta.resultados.map((resultado) => ({
+        ...resultado,
+        tramos: resultado.tramos.map((tramo) => {
+          if (!tramo.opciones.some((opcion) => opcion.id === sourceId)) return tramo;
+          return {
+            ...tramo,
+            opciones: [
+              ...tramo.opciones.filter((opcion) => opcion.modo !== 'avion'),
+              ...reales,
+            ],
+          };
+        }),
+      })),
+    });
+
+    setResultados((previo) => Object.fromEntries(
+      Object.entries(previo).map(([clave, respuesta]) => [clave, actualizar(respuesta)]),
+    ));
+    setHotelRutas((previo) => Object.fromEntries(
+      Object.entries(previo).map(([clave, ruta]) => [
+        clave,
+        { ...ruta, respuesta: actualizar(ruta.respuesta) },
+      ]),
+    ));
+  }
+
+  /**
+   * Pide a Kayak la lista real de vuelos del tramo. Una sola consulta por
+   * tramo; el tab de avión muestra "Confirmando…" hasta que llega.
+   */
+  async function cargarVuelosReales(indice: number) {
+    if (!solicitud || vuelosCargadosRef.current.has(indice) || cargandoVuelos[indice]) return;
+    const tramoActual = tramos[indice];
+    if (!tramoActual) return;
+    const opciones = opcionesDelPaso(indice);
+    const base = opciones.find((oferta) => oferta.modo === 'avion' && oferta.comprar?.url);
+    if (!base?.comprar?.url) return;
+
+    abortVuelosRef.current?.abort();
+    const controller = new AbortController();
+    abortVuelosRef.current = controller;
+    setCargandoVuelos((previo) => ({ ...previo, [indice]: true }));
+    setAvisoVuelos((previo) => {
+      const copia = { ...previo };
+      delete copia[indice];
+      return copia;
+    });
+
+    try {
+      const { data } = await solicitudesApi.detectarPrecioPreview(
+        {
+          tipo: 'vuelo',
+          linea: base.linea,
+          url_compra: base.comprar.url,
+          salida: horaDeTexto(base.salidaTxt) ?? horaDeTexto(base.salida ?? null),
+          llegada: horaDeTexto(base.llegadaTxt) ?? horaDeTexto(base.llegada ?? null),
+          capturar: false,
+          nombre: nombreCapturaPreview(
+            solicitud.folio,
+            solicitud.id_solicitud,
+            base.a ?? tramoActual.hasta.nombre,
+            base.linea,
+            'vuelos',
+          ),
+          datos: {
+            tramo: base.tramo ?? indice,
+            minutos_taxi_destino: base.minutosTaxiDestino ?? base.minutosTaxi ?? 0,
+            tipo_precio: base.tipoPrecio ?? 'estimado',
+          },
+          solicitud_datos: (solicitud.datos as Record<string, unknown> | null | undefined) ?? null,
+        },
+        controller.signal,
+      );
+
+      if (controller.signal.aborted) return;
+
+      const resultado = data.data;
+      const realesDto = (resultado?.opciones ?? []).filter((opcion) => !opcion.patrocinado);
+      // Aunque no haya un vuelo "elegido" a tiempo, la consulta puede traer
+      // opciones reales (tarde). Se muestran para que el usuario decida; solo
+      // se exige que haya captura de evidencia.
+      if (!data.success || realesDto.length === 0) {
+        const motivo = resultado?.motivo
+          ?? data.message
+          ?? 'No se pudo consultar Kayak; se usan precios estimados.';
+        setAvisoVuelos((previo) => ({ ...previo, [indice]: motivo }));
+        vuelosCargadosRef.current.add(indice);
+        return;
+      }
+
+      const reales = realesDto.map((detectado) => (
+        mapearVueloReal(detectado, base, indice, tramoActual, resultado.ruta_captura ?? null)
+      ));
+      reemplazarOfertasVuelo(indice, base.id, reales);
+      vuelosCargadosRef.current.add(indice);
+      setSeleccion((previo) => {
+        const elegido = previo[indice];
+        const eraVueloBase = Boolean(elegido) && opciones.some(
+          (oferta) => oferta.id === elegido && oferta.modo === 'avion',
+        );
+        if (!eraVueloBase) return previo;
+        const copia = { ...previo };
+        delete copia[indice];
+        return copia;
+      });
+    } catch (falla: unknown) {
+      if (controller.signal.aborted) return;
+      const mensaje = toApiError(falla).message
+        || 'No se pudo consultar Kayak; se usan precios estimados.';
+      setAvisoVuelos((previo) => ({ ...previo, [indice]: mensaje }));
+      vuelosCargadosRef.current.add(indice);
+    } finally {
+      if (abortVuelosRef.current === controller) {
+        abortVuelosRef.current = null;
+        setCargandoVuelos((previo) => ({ ...previo, [indice]: false }));
+      }
+    }
+  }
+
+  function reintentarVuelos(indice: number) {
+    vuelosCargadosRef.current.delete(indice);
+    abortVuelosRef.current?.abort();
+    abortVuelosRef.current = null;
+    setCargandoVuelos((previo) => ({ ...previo, [indice]: false }));
+    void cargarVuelosReales(indice);
+  }
+
   async function enviar() {
     if (!solicitudActiva || !resultadoActual) return;
+
+    // Si una vista previa sigue en curso, se cancela: el guardado no espera y
+    // la cola del backend confirmará el precio de la opción persistida.
+    abortPrecioRef.current?.abort();
+    abortHotelRef.current?.abort();
+    abortVuelosRef.current?.abort();
+    abortPrecioRef.current = null;
+    abortHotelRef.current = null;
+    abortVuelosRef.current = null;
+    setPrecioEnCurso(null);
+    setHotelPrecioEnCurso(null);
+    setCargandoVuelos((previo) => ({ ...previo, [paso]: false }));
+
     if (!esCarro) {
       for (let indice = 0; indice < tramos.length; indice += 1) {
         if (usarHotel[indice] !== true) continue;
@@ -1084,6 +1758,7 @@ export function CalculosViajeModal({
           chips: n.chips ?? [],
           costo: n.costo ?? null,
           url_compra: n.urlCompra ?? null,
+          fase: n.fase,
         })),
         segmentos: cadenaResumen.segmentos.map((s) => ({
           tipo: s.tipo,
@@ -1142,7 +1817,7 @@ export function CalculosViajeModal({
           </DialogTitle>
           <DialogDescription>
             {tramo
-              ? `Paso ${paso + 1} de ${tramos.length}: ${paso === 0 ? 'Origen' : tramo.desde.nombre} → ${tramo.esRegreso ? 'Regreso' : tramo.hasta.nombre}`
+              ? `Paso ${paso + 1} de ${tramos.length}. Elige el transporte y revisa el precio antes de enviar.`
               : modo === 'autorizar'
                 ? 'Calcula cada tramo y revisa esta nueva versión antes de autorizarla.'
                 : 'Calcula cada tramo y envía la solicitud al concentrado.'}
@@ -1164,8 +1839,8 @@ export function CalculosViajeModal({
               >
                 <DireccionTramo
                   compacto
-                  desde={i === 0 ? 'Origen' : t.desde.nombre}
-                  hasta={t.esRegreso ? 'Regreso' : t.hasta.nombre}
+                  desde={i === 0 ? 'Origen' : nombreCorto(t.desde.nombre)}
+                  hasta={t.esRegreso ? 'Regreso' : nombreCorto(t.hasta.nombre)}
                 />
               </button>
             ))}
@@ -1177,6 +1852,9 @@ export function CalculosViajeModal({
             <h3 className="flex flex-wrap items-center gap-2 text-sm font-semibold">
               <span className="text-muted-foreground">Tramo {paso + 1}:</span>
               <DireccionTramo desde={tramo.desde.nombre} hasta={tramo.hasta.nombre} />
+              <Badge variant="outline" className="rounded-full">
+                {tramo.esRegreso ? 'Regreso' : 'Ida'}
+              </Badge>
             </h3>
 
             <div data-testid="calculos-viaje-layout" className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
@@ -1446,12 +2124,25 @@ export function CalculosViajeModal({
                   </div>
                 ) : hotelRutaDelPaso && tramoLargoHotel ? (
                   <>
+                    <p className="text-sm font-semibold text-foreground">
+                      Opciones {tramoLargoHotel.from} → {tramoLargoHotel.to}
+                    </p>
                     {tramoLargoHotel.opciones.length > 0 ? (
-                      <TablaOpciones
-                        titulo={`Opciones ${tramoLargoHotel.from} → ${tramoLargoHotel.to}`}
-                        ofertas={tramoLargoHotel.opciones.slice(0, 8)}
+                      <OpcionesTransporte
+                        key={`hotel-${paso}`}
+                        ofertas={tramoLargoHotel.opciones}
                         opcionElegidaId={seleccion[paso] ?? null}
-                        onElegir={(oferta) => setSeleccion((s) => ({ ...s, [paso]: oferta.id }))}
+                        onElegir={(oferta) => elegirOferta(paso, oferta)}
+                        modoInicial={modoInicial}
+                        salidaReferencia={salidaReferencia}
+                        cargando={cargandoVuelos[paso] ?? false}
+                        aviso={avisoVuelos[paso] ?? null}
+                        precioEnCursoId={precioEnCurso}
+                        avisoPrecio={avisoPrecio}
+                        onSolicitarReales={(tipo) => {
+                          if (tipo === 'avion') void cargarVuelosReales(paso);
+                        }}
+                        onReintentar={() => reintentarVuelos(paso)}
                       />
                     ) : <p className="text-sm text-muted-foreground">Sin opciones para la ruta con hotel.</p>}
 
@@ -1511,19 +2202,22 @@ export function CalculosViajeModal({
                     })()}
                   </>
                 ) : (
-                  persona.tramos.map((subtramo, i) => (
-                    <div key={`${subtramo.from}-${subtramo.to}-${i}`} className="space-y-1">
-                      <p className="text-xs font-medium">{subtramo.from} → {subtramo.to}</p>
-                      {subtramo.opciones.length > 0 ? (
-                        <TablaOpciones
-                          titulo={`Opciones ${subtramo.from} → ${subtramo.to}`}
-                          ofertas={subtramo.opciones.slice(0, 8)}
-                          opcionElegidaId={i === 0 ? seleccion[paso] ?? null : null}
-                          onElegir={(oferta) => setSeleccion((s) => ({ ...s, [paso]: oferta.id }))}
-                        />
-                      ) : <p className="text-sm text-muted-foreground">Sin opciones para este subtramo.</p>}
-                    </div>
-                  ))
+                  <OpcionesTransporte
+                    key={`tramo-${paso}`}
+                    ofertas={opcionesDelPaso(paso)}
+                    opcionElegidaId={seleccion[paso] ?? null}
+                    onElegir={(oferta) => elegirOferta(paso, oferta)}
+                    modoInicial={modoInicial}
+                    salidaReferencia={salidaReferencia}
+                    cargando={cargandoVuelos[paso] ?? false}
+                    aviso={avisoVuelos[paso] ?? null}
+                    precioEnCursoId={precioEnCurso}
+                    avisoPrecio={avisoPrecio}
+                    onSolicitarReales={(tipo) => {
+                      if (tipo === 'avion') void cargarVuelosReales(paso);
+                    }}
+                    onReintentar={() => reintentarVuelos(paso)}
+                  />
                 )}
 
                 {!esCarro && propuestaActiva && propuestaActiva.incumplimientos.length > 0 ? (
@@ -1540,6 +2234,14 @@ export function CalculosViajeModal({
                   </div>
                 ) : null}
 
+                {hotelEnSiguienteTramo ? (
+                  <p className="rounded-md border border-sky-200 bg-sky-50 p-2 text-xs text-sky-800">
+                    La estancia de esta noche se configura en el siguiente tramo:
+                    {' '}
+                    del {fechaCorta(tramo?.hasta.fecha ?? '') ?? 'día de llegada'}
+                    {' '}al {fechaCorta(siguienteTramo?.hasta.fecha ?? '') ?? 'día siguiente'}.
+                  </p>
+                ) : null}
                 {mostrarHotel ? (
                   <div className="space-y-2 rounded-md border border-amber-300 bg-amber-50 p-2">
                     <label className="flex items-center gap-2 text-sm text-amber-900">
@@ -1605,14 +2307,19 @@ export function CalculosViajeModal({
                         </div>
                       ) : hotelDelPaso ? (
                         <div className="space-y-1">
-                          {hotelesDelPaso.map((hotel) => (
-                            <label key={claveHotel(hotel)} className="flex cursor-pointer items-start gap-2 rounded border bg-white p-2 text-xs">
+                          {hotelesDelPaso.map((hotel) => {
+                            const claveHotelActual = claveHotel(hotel);
+                            return (
+                            <label key={claveHotelActual} className="flex cursor-pointer items-start gap-2 rounded border bg-white p-2 text-xs">
                               <input
                                 type="radio"
                                 name={`hotel-${paso}`}
                                 className="mt-0.5"
-                                checked={hotelElegidoDelPaso === claveHotel(hotel)}
-                                onChange={() => { void elegirHotel(paso, hotel); }}
+                                checked={hotelElegidoDelPaso === claveHotelActual}
+                                onChange={() => {
+                                  void elegirHotel(paso, hotel);
+                                  void detectarPrecioHotel(paso, hotel);
+                                }}
                               />
                               <span className="flex-1">
                                 <span className="font-medium">{hotel.nombre ?? hotel.lugar}</span>
@@ -1639,6 +2346,17 @@ export function CalculosViajeModal({
                                     : ''}
                                   {hotel.disponibilidad ? ` · ${hotel.disponibilidad}` : ''}
                                 </span>
+                                {hotelPrecioEnCurso === claveHotelActual ? (
+                                  <span role="status" className="mt-1 flex items-center gap-1 text-[11px] text-muted-foreground">
+                                    <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
+                                    Confirmando precio real…
+                                  </span>
+                                ) : null}
+                                {avisoHotel[claveHotelActual] ? (
+                                  <span className="mt-1 block text-[11px] text-amber-700">
+                                    {avisoHotel[claveHotelActual]}
+                                  </span>
+                                ) : null}
                               </span>
                               <span className="flex gap-2">
                                 {hotel.link ? (
@@ -1660,7 +2378,8 @@ export function CalculosViajeModal({
                                 ) : null}
                               </span>
                             </label>
-                          ))}
+                            );
+                          })}
                           {(() => {
                             const esTransporte = ofertaLargaActual?.modo === 'bus' || ofertaLargaActual?.modo === 'avion';
                             if (!esTransporte) return null;

@@ -119,6 +119,12 @@ const formatearTotal = (total: number | null) =>
     ? 'Sin cotización'
     : new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(total);
 
+/** El monto autorizable es el cotizado; la referencia va aparte. */
+const totalPrincipalCotizacion = (cotizacion: SolicitudOrigenEmResumen): number | null =>
+  cotizacion.total_cotizado !== undefined || cotizacion.total_estimado !== undefined
+    ? cotizacion.total_cotizado ?? null
+    : cotizacion.total;
+
 const rutaCotizacion = (idSolicitud: number, estado: string) =>
   estado === 'borrador' ? `/viaticos/solicitud/${idSolicitud}` : '/viaticos/mis-viajes';
 
@@ -826,10 +832,15 @@ export default function MiPlaneacionPage() {
                               {cotizacion.id_ruta_visitas.length === 1 ? '' : 's'}
                             </span>
                             <span
-                              className="ml-auto font-medium"
-                              title="Incluye transporte y hospedaje cotizados; no comidas ni extras."
+                              className="ml-auto text-right font-medium"
+                              title="Cotizado = precios reales; referencia = estimados del motor (no autorizables como reales)."
                             >
-                              {formatearTotal(cotizacion.total)}
+                              {formatearTotal(totalPrincipalCotizacion(cotizacion))}
+                              {typeof cotizacion.total_estimado === 'number' && cotizacion.total_estimado > 0 ? (
+                                <span className="block text-[11px] font-normal text-muted-foreground">
+                                  ref. {formatearTotal(cotizacion.total_estimado)}
+                                </span>
+                              ) : null}
                             </span>
                             <Button
                               variant="outline"

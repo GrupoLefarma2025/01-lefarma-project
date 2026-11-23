@@ -45,6 +45,12 @@ export interface SolicitudBandeja {
   comida?: number | null;
   taxi?: number | null;
   total: number | null;
+  /** Suma de precios reales de las opciones elegidas. */
+  total_cotizado?: number | null;
+  /** Suma de referencias estimadas/tabulador (no autorizable como real). */
+  total_estimado?: number | null;
+  /** Vuelos elegidos sin precio real: bloquean la autorización. */
+  precios_pendientes?: number;
   /**
    * Medio de transporte ya resuelto por el servidor: `aereo`, `autobus`,
    * `propio`, `solicitado` o `sin-clasificar`. El wizard no escribe
@@ -207,11 +213,61 @@ export function importeFormateado(valor: number, moneda: string | null): string 
   }).format(valor);
 }
 
-/** Importe en es-MX, o `SIN_PRECIO` cuando la opcion es un estimado. */
+/**
+ * Tipo de precio efectivo de una opción. Si el backend no lo guardó, una
+ * fuente que declara "estimado" sigue siendo referencia; el resto se asume
+ * cotizado (así vienen las cotizaciones importadas antes de este contrato).
+ */
+export function tipoPrecioOpcion(
+  opcion: Pick<SolicitudOpcion, 'datos' | 'fuente'>,
+): string {
+  const guardado = opcion.datos?.tipo_precio;
+  if (typeof guardado === 'string' && guardado.trim() !== '') {
+    return guardado.trim().toLowerCase();
+  }
+  return /estimad/i.test(opcion.fuente ?? '') ? 'estimado' : 'cotizado';
+}
+
+/** Solo un precio real cuenta para autorizar. */
+export function esOpcionCotizada(
+  opcion: Pick<SolicitudOpcion, 'datos' | 'fuente'>,
+): boolean {
+  return tipoPrecioOpcion(opcion) === 'cotizado';
+}
+
+/** Referencia estimada; nunca se suma al total cotizado. */
+export function precioReferenciaOpcion(
+  opcion: Pick<SolicitudOpcion, 'precio' | 'datos' | 'fuente'>,
+): number | null {
+  const guardado = opcion.datos?.precio_estimado;
+  if (typeof guardado === 'number' && Number.isFinite(guardado)) return guardado;
+  if (!esOpcionCotizada(opcion) && typeof opcion.precio === 'number' && Number.isFinite(opcion.precio)) {
+    return opcion.precio;
+  }
+  return null;
+}
+
+/** Vuelo elegido sin precio real: bloquea la autorización en el backend. */
+export function esVueloPendientePrecio(
+  opcion: Pick<SolicitudOpcion, 'tipo' | 'fue_elegida' | 'precio' | 'datos' | 'fuente'>,
+): boolean {
+  const tipo = (opcion.tipo ?? '').trim().toLowerCase();
+  if (!opcion.fue_elegida || (tipo !== 'vuelo' && tipo !== 'avion')) return false;
+  return !esOpcionCotizada(opcion) || opcion.precio === null;
+}
+
+/**
+ * Importe para la tabla: el precio real si existe; si no, la referencia
+ * marcada como estimada (nunca un precio real aparente).
+ */
 export function precioTexto(opcion: SolicitudOpcion): string {
-  return opcion.precio === null
+  if (esOpcionCotizada(opcion) && opcion.precio !== null) {
+    return importeFormateado(opcion.precio, opcion.moneda);
+  }
+  const referencia = precioReferenciaOpcion(opcion);
+  return referencia === null
     ? SIN_PRECIO
-    : importeFormateado(opcion.precio, opcion.moneda);
+    : `Referencia ${importeFormateado(referencia, opcion.moneda)} (estimado)`;
 }
 
 /** "linea · $1,200.00": identifica la partida dentro del rastro. */

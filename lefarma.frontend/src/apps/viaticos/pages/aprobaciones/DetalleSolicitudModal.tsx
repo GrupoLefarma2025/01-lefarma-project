@@ -17,7 +17,11 @@ import { solicitudesApi } from '../../services/solicitudes.api';
 import {
   PERMISO_AJUSTAR,
   VARIANTE_POR_ESTADO,
+  esOpcionCotizada,
+  esVueloPendientePrecio,
   estadoTexto,
+  precioReferenciaOpcion,
+  precioTexto,
   type SolicitudBandeja,
 } from '../../types/aprobaciones.types';
 import type { Solicitud, SolicitudOpcion } from '../../types/solicitud.types';
@@ -44,48 +48,74 @@ import EditorAjustes from './EditorAjustes';
  * `capturas[]` viaja solo en el body de PUT y no vuelve en el GET.
  */
 
-/** Misma regla que analizadorCotizacion.ts: sin precio o marcado estimado. */
+/** Sin precio real o marcado como estimado/referencia. */
 const esEstimado = (opcion: SolicitudOpcion): boolean =>
-  opcion.precio === null || opcion.datos?.tipo_precio === 'estimado';
+  !esOpcionCotizada(opcion) || opcion.precio === null;
 
 export interface TotalElegidas {
-  /** Suma de las elegidas con precio; null cuando no se puede sumar. */
+  /** Suma completa (cotizado + referencia); null cuando no se puede sumar. */
   suma: number | null;
-  /** Moneda de la suma, solo si todas las elegidas cotizadas comparten una. */
+  /** Solo precios reales: es lo autorizable. */
+  totalCotizado: number | null;
+  /** Referencias estimadas/tabulador, nunca autorizables como reales. */
+  totalEstimado: number | null;
+  /** Moneda de la suma, solo si todas las elegidas con importe comparten una. */
   moneda: string | null;
   monedasDistintas: string[];
   contadas: number;
   sinPrecio: number;
   totalElegidas: number;
+  /** Vuelos elegidos sin precio real; el backend bloquea la autorización. */
+  vuelosPendientes: number;
 }
 
 /**
  * Total de las opciones ELEGIDAS. Las descartadas se ignoran por completo: no
- * se suman, no se mezclan por moneda ni entran en el conteo.
+ * se suman, no se mezclan por moneda ni entran en el conteo. Un precio real
+ * (`cotizado`) y una referencia (`estimado`) se acumulan por separado.
  */
 export function totalDeOpcionesElegidas(opciones: SolicitudOpcion[]): TotalElegidas {
   const elegidas = opciones.filter((opcion) => opcion.fue_elegida);
-  const conPrecio = elegidas.filter((opcion) => opcion.precio !== null);
-  const monedas = [...new Set(conPrecio.map((opcion) => opcion.moneda ?? 'MXN'))];
+  const conImporte = elegidas.flatMap((opcion) => {
+    const real = esOpcionCotizada(opcion) && typeof opcion.precio === 'number'
+      ? opcion.precio
+      : null;
+    const referencia = real === null ? precioReferenciaOpcion(opcion) : null;
+    const importe = real ?? referencia;
+    return importe === null
+      ? []
+      : [{ opcion, importe, real: real !== null }];
+  });
+  const monedas = [...new Set(conImporte.map(({ opcion }) => opcion.moneda ?? 'MXN'))];
+  const sumar = (real: boolean) => {
+    const importes = conImporte.filter((item) => item.real === real).map((item) => item.importe);
+    return importes.length === 0 ? null : importes.reduce((total, valor) => total + valor, 0);
+  };
 
   // Con más de una moneda el total en una sola cifra sería una mentira.
-  const suma = conPrecio.length === 0 || monedas.length > 1
+  const totalCotizado = monedas.length > 1 ? null : sumar(true);
+  const totalEstimado = monedas.length > 1 ? null : sumar(false);
+  const suma = totalCotizado === null && totalEstimado === null
     ? null
-    : conPrecio.reduce((acumulado, opcion) => acumulado + (opcion.precio ?? 0), 0);
+    : (totalCotizado ?? 0) + (totalEstimado ?? 0);
 
   return {
     suma,
+    totalCotizado,
+    totalEstimado,
     moneda: monedas.length === 1 ? monedas[0] : null,
     monedasDistintas: monedas,
-    contadas: conPrecio.length,
-    sinPrecio: elegidas.length - conPrecio.length,
+    contadas: conImporte.length,
+    sinPrecio: elegidas.length - conImporte.length,
     totalElegidas: elegidas.length,
+    vuelosPendientes: elegidas.filter(esVueloPendientePrecio).length,
   };
 }
 
 /**
- * Texto del total. Nunca devuelve `$0.00` cuando lo que falta es información:
- * un estimado sin proveedor de precios se declara estimado.
+ * Texto del total. Nunca devuelve `$0.00` cuando lo que falta es información.
+ * Si hay precios reales y referencias, muestra "Cotizado · Referencia" para
+ * que un estimado no vuelva a parecer el importe autorizable.
  */
 export function textoTotalElegidas(total: TotalElegidas): string {
   if (total.totalElegidas === 0) return 'Sin total: la solicitud no tiene opciones elegidas.';
@@ -95,14 +125,29 @@ export function textoTotalElegidas(total: TotalElegidas): string {
   if (total.suma === null) {
     return `No sumable: las opciones elegidas mezclan ${total.monedasDistintas.join(' y ')}.`;
   }
-  const importe = new Intl.NumberFormat('es-MX', {
+
+  const formato = (valor: number) => new Intl.NumberFormat('es-MX', {
     style: 'currency',
     currency: total.moneda ?? 'MXN',
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
-  }).format(total.suma);
-  if (total.sinPrecio === 0) return importe;
-  return `${importe} (parcial: ${total.sinPrecio} de ${total.totalElegidas} elegidas sin precio de proveedor)`;
+  }).format(valor);
+
+  let texto: string;
+  if (total.totalCotizado !== null && total.totalEstimado !== null) {
+    texto = `Cotizado: ${formato(total.totalCotizado)} · Referencia: ${formato(total.totalEstimado)}`;
+  } else if (total.totalCotizado !== null) {
+    texto = formato(total.totalCotizado);
+  } else {
+    texto = `Referencia: ${formato(total.totalEstimado ?? 0)} · Por cotizar`;
+  }
+
+  if (total.vuelosPendientes > 0) {
+    texto += ` · ${total.vuelosPendientes} vuelo${total.vuelosPendientes === 1 ? '' : 's'} por cotizar`;
+  } else if (total.sinPrecio > 0) {
+    texto += ` (parcial: ${total.sinPrecio} de ${total.totalElegidas} elegidas sin precio de proveedor)`;
+  }
+  return texto;
 }
 
 /** `datos_json` llega como `unknown`; solo se lee `destino`, igual que el backend. */
@@ -112,15 +157,7 @@ function destinoDesdeDatos(datos: unknown): string | null {
   return typeof destino === 'string' && destino.trim() !== '' ? destino : null;
 }
 
-const precio = (opcion: SolicitudOpcion): string =>
-  opcion.precio === null
-    ? 'Estimado · sin precio de proveedor'
-    : new Intl.NumberFormat('es-MX', {
-        style: 'currency',
-        currency: opcion.moneda ?? 'MXN',
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-      }).format(opcion.precio);
+const precio = (opcion: SolicitudOpcion): string => precioTexto(opcion);
 
 const SIN_URL_COMPRA =
   'Esta opción se ofreció sin URL de compra: la fuente no trajo un enlace real. Pide la cotización al proveedor.';
@@ -319,6 +356,17 @@ export function DetalleSolicitudModal({ solicitud, abierta, onCerrar }: DetalleS
                 </dd>
               </div>
             </dl>
+
+            {total.vuelosPendientes > 0 ? (
+              <p
+                data-testid="precios-pendientes"
+                className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900"
+              >
+                Faltan precios reales de {total.vuelosPendientes} vuelo
+                {total.vuelosPendientes === 1 ? '' : 's'}. La autorización está bloqueada
+                hasta capturarlos con su evidencia.
+              </p>
+            ) : null}
 
             {opciones.length === 0 ? (
               <p

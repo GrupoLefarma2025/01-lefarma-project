@@ -238,6 +238,22 @@ public class CapturasController : ControllerBase
         var forzar = request?.Forzar ?? false;
         var opciones = solicitud!.Opciones.OrderBy(o => o.IdOpcion).ToList();
 
+        // Captura de una sola opción: se usa para el botón por tarjeta y para
+        // reemplazar una captura existente con confirmación en la UI.
+        if (request?.OpcionId is int soloOpcion)
+        {
+            var opcionSola = opciones.FirstOrDefault(o => o.IdOpcion == soloOpcion);
+            if (opcionSola is null)
+            {
+                return NotFound(new ApiResponse<object>
+                {
+                    Success = false,
+                    Message = $"La opcion {soloOpcion} no pertenece al viaje.",
+                });
+            }
+            opciones = new List<SolicitudOpcion> { opcionSola };
+        }
+
         // La captura masiva es para la evidencia de la solicitud, no para el
         // menu completo de alternativas: si el viajero ya marco opciones, solo
         // se capturan esas. Si no hay ninguna marcada, se conserva el comportamiento
@@ -275,7 +291,16 @@ public class CapturasController : ControllerBase
                     Url = o.UrlCompra!,
                     // Nombre deterministico: re-capturar sobreescribe el mismo
                     // PNG en vez de acumular archivos huerfanos.
-                    Nombre = $"viaje{solicitud.IdSolicitud}-op{o.IdOpcion}",
+                    Nombre = CapturasService.NombreSugerido(
+                        solicitud.Folio,
+                        solicitud.IdSolicitud,
+                        o.IdOpcion,
+                        CapturasService.DestinoDeDatos(o.DatosJson),
+                        o.Linea),
+                    Tipo = o.Tipo,
+                    Linea = o.Linea,
+                    Precio = o.Precio,
+                    Objetivo = o.Linea,
                 })
                 .ToList();
 
@@ -301,6 +326,7 @@ public class CapturasController : ControllerBase
 
                 opcion.RutaCaptura = captura.Archivo;
                 opcion.CapturadaEn = DateTime.UtcNow;
+                opcion.DatosJson = TotalesCotizacion.MarcarAlcanceCaptura(opcion.DatosJson, captura.Alcance);
                 generadas++;
             }
 

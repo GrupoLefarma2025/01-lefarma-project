@@ -98,6 +98,65 @@ public class CapturasService
     public const int MaxUrls = 10;
 
     /// <summary>
+    /// Nombre de archivo legible para una captura: folio, opción, destino y
+    /// línea. El script lo vuelve a sanear; aquí se limita a 80 caracteres para
+    /// no chocar con el límite de ruta de Windows.
+    /// </summary>
+    public static string NombreSugerido(
+        string? folio,
+        int idSolicitud,
+        int idOpcion,
+        string? destino,
+        string? linea,
+        string? sufijo = null)
+    {
+        var partes = new List<string>
+        {
+            string.IsNullOrWhiteSpace(folio) ? $"viaje{idSolicitud}" : folio.Trim(),
+            $"op{idOpcion}",
+        };
+        if (!string.IsNullOrWhiteSpace(destino)) partes.Add(destino.Trim());
+        if (!string.IsNullOrWhiteSpace(linea)) partes.Add(linea.Trim());
+        if (!string.IsNullOrWhiteSpace(sufijo)) partes.Add(sufijo.Trim());
+
+        var crudo = string.Join("-", partes);
+        var limpio = new StringBuilder(crudo.Length);
+        foreach (var caracter in crudo)
+        {
+            if (char.IsAsciiLetterOrDigit(caracter))
+            {
+                limpio.Append(caracter);
+            }
+            else if (limpio.Length > 0 && limpio[^1] != '-')
+            {
+                limpio.Append('-');
+            }
+        }
+        var nombre = limpio.ToString().Trim('-');
+        if (nombre.Length == 0) nombre = $"viaje{idSolicitud}-op{idOpcion}";
+        return nombre.Length <= 80 ? nombre : nombre[..80];
+    }
+
+    /// <summary>Destino guardado en <c>datos_json</c> de la opción (campo "a").</summary>
+    public static string? DestinoDeDatos(string? datosJson)
+    {
+        if (string.IsNullOrWhiteSpace(datosJson)) return null;
+        try
+        {
+            using var doc = JsonDocument.Parse(datosJson);
+            return doc.RootElement.ValueKind == JsonValueKind.Object
+                && doc.RootElement.TryGetProperty("a", out var destino)
+                && destino.ValueKind == JsonValueKind.String
+                ? destino.GetString()
+                : null;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
     /// Dominios PROHIBIDOS por plan. Se aplican SIEMPRE, tenga o no lista
     /// blanca poblada: si el operador los incluye explicito en
     /// <see cref="CapturasSettings.WhitelistDomains"/>, el servicio los rechaza
@@ -298,6 +357,17 @@ public class CapturasService
     }
 
     /// <summary>
+    /// Captura una sola opción con el script local y devuelve su resultado. La
+    /// usan la detección (para reemplazar la página completa por la tarjeta
+    /// elegida) y la captura manual por opción.
+    /// </summary>
+    public async Task<CapturaResultDto?> CapturarOpcionAsync(CapturaItem item, CancellationToken ct)
+    {
+        var resultado = await CapturarAsync(new[] { item }, ct, forzarScript: true);
+        return resultado.Results.FirstOrDefault();
+    }
+
+    /// <summary>
     /// Captura con el script local de Playwright (captura-viaticos.mjs). Se usa
     /// en <c>Modo=script</c> y como fallback cuando el agente no logra una URL.
     /// </summary>
@@ -321,7 +391,17 @@ public class CapturasService
         }
 
         var inputJson = JsonSerializer.Serialize(
-            items.Select(i => new { url = i.Url, nombre = i.Nombre ?? "" }).ToList());
+            items.Select(i => new
+            {
+                url = i.Url,
+                nombre = i.Nombre ?? "",
+                tipo = i.Tipo ?? "",
+                linea = i.Linea ?? "",
+                precio = i.Precio,
+                salida = i.Salida ?? "",
+                llegada = i.Llegada ?? "",
+                objetivo = i.Objetivo ?? "",
+            }).ToList());
 
         var run = await _runner.RunAsync(_scriptPath, inputJson, _settings.HardTimeoutSeconds, ct);
 
@@ -360,6 +440,8 @@ public class CapturasService
                     Ok = el.TryGetProperty("ok", out var o) && o.ValueKind == JsonValueKind.True,
                     Archivo = el.TryGetProperty("archivo", out var a) && a.ValueKind == JsonValueKind.String
                         ? a.GetString() : null,
+                    Alcance = el.TryGetProperty("alcance", out var al) && al.ValueKind == JsonValueKind.String
+                        ? al.GetString() : null,
                     Error = el.TryGetProperty("error", out var er) && er.ValueKind == JsonValueKind.String
                         ? er.GetString() : null,
                 });
@@ -800,6 +882,14 @@ public class CapturasService
         if (h.StartsWith("www.", StringComparison.Ordinal)) h = h[4..];
         return h;
     }
+
+    /// <summary>
+    /// Dominios que el plan prohíbe scrapear (p. ej. Booking/Expedia). La
+    /// detección de precios usa la misma lista que las capturas para no abrir
+    /// por otra vía lo que el producto decidió no consultar.
+    /// </summary>
+    public static bool EsDominioProhibido(string host) =>
+        HardBannedDomains.Contains(NormalizeHost(host));
 
     /// <summary>
     /// Bloquea destinos de intranet: loopback, link-local (incluye el host de
