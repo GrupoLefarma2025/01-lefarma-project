@@ -1,5 +1,10 @@
 import { create } from 'zustand';
 
+import {
+  registrarFalloDeRed,
+  registrarFalloHttp,
+} from '@/shared/telemetria/capturaErrores';
+
 export type ConnectionStatus = 'connected' | 'lost';
 
 interface ConnectionState {
@@ -29,6 +34,7 @@ let countdownHandle: ReturnType<typeof setInterval> | null = null;
 let attempt = 0;
 let manualRetry = false;
 let probing = false;
+let verifying = false;
 
 function getNextDelay(): number {
   return attempt < BACKOFF_STEPS.length ? BACKOFF_STEPS[attempt] : CAP_DELAY_MS;
@@ -48,9 +54,9 @@ function clearTimers() {
 // El probe usa fetch a propósito: no pasa por los interceptores de axios (auth,
 // refresh, cancelación). Si dependiera de ellos, un fallo del propio cliente
 // HTTP dejaría el overlay pegado aunque el servidor ya estuviera respondiendo.
-async function probe(): Promise<boolean> {
+async function probe(timeoutMs: number = HEALTH_TIMEOUT_MS): Promise<boolean> {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), HEALTH_TIMEOUT_MS);
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const response = await fetch(HEALTH_URL, {
       method: 'GET',
@@ -58,8 +64,22 @@ async function probe(): Promise<boolean> {
       signal: controller.signal,
       headers: { Accept: 'application/json' },
     });
+    if (!response.ok) {
+      registrarFalloHttp({
+        metodo: 'GET',
+        url: HEALTH_URL,
+        estado: response.status,
+      });
+    }
     return response.ok;
-  } catch {
+  } catch (error) {
+    // Cada intento fallido del sondeo queda en telemetría: es la evidencia
+    // de qué URL y qué fallo dejaron la aplicación «desconectada».
+    registrarFalloDeRed({
+      metodo: 'GET',
+      url: HEALTH_URL,
+      detalle: error instanceof Error ? error.message : undefined,
+    });
     return false;
   } finally {
     clearTimeout(timeout);
@@ -74,8 +94,11 @@ export const useConnectionStore = create<ConnectionState>((set, get) => ({
 
   markLost: () => {
     if (get().status === 'lost') return;
-    set({ status: 'lost', retryCount: 0 });
-    get().startHealthCheck();
+    // Antes de bloquear toda la interfaz se comprueba /health: dos peticiones
+    // fallidas (un timeout, un 502 del proxy de desarrollo) no significan que
+    // el servidor esté caído, y el aviso a pantalla completa era la causa más
+    // visible de «la aplicación se cae» con el API sano y respondiendo en 0 ms.
+    void confirmarDesconexion(set, get);
   },
 
   markConnected: () => {
@@ -151,6 +174,39 @@ async function runProbe(set: (partial: Partial<ConnectionState>) => void, get: (
     scheduleNext(set, get);
   } finally {
     probing = false;
+  }
+}
+
+/**
+ * Confirma con /health que el servidor está realmente inalcanzable antes de
+ * pintar el aviso a pantalla completa. Mientras la sonda responde, la
+ * aplicación sigue usable; si el servidor contesta, no se bloquea nada.
+ */
+async function confirmarDesconexion(
+  set: (partial: Partial<ConnectionState>) => void,
+  get: () => ConnectionState,
+) {
+  if (verifying) return;
+  verifying = true;
+  try {
+    if (await probe()) {
+      get().markConnected();
+      return;
+    }
+    // Un segundo intento corto: el navegador sólo abre seis conexiones por
+    // origen y dos las ocupan los streams SSE, así que una sonda puede quedarse
+    // sin turno aunque el servidor esté respondiendo. Sin este reintento, una
+    // ráfaga de peticiones pintaba el aviso de «desconectado» sin que hubiera
+    // ninguna caída detrás.
+    await new Promise((resolve) => setTimeout(resolve, 800));
+    if (await probe(3000)) {
+      get().markConnected();
+      return;
+    }
+    set({ status: 'lost', retryCount: 0 });
+    get().startHealthCheck();
+  } finally {
+    verifying = false;
   }
 }
 

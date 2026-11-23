@@ -16,6 +16,13 @@ const resetConnection = () => {
   });
 };
 
+/** Deja correr la verificación que markLost hace contra /health. */
+const confirmar = async () => {
+  await vi.advanceTimersByTimeAsync(0);
+  await vi.advanceTimersByTimeAsync(800);
+  await vi.advanceTimersByTimeAsync(1);
+};
+
 describe('connectionStore', () => {
   let fetchMock: ReturnType<typeof vi.fn>;
 
@@ -32,16 +39,39 @@ describe('connectionStore', () => {
     vi.unstubAllGlobals();
   });
 
-  it('vuelve a conectado cuando el reintento encuentra el servidor', async () => {
+  it('no bloquea la aplicación si /health responde aunque fallen otras peticiones', async () => {
     fetchMock.mockResolvedValue({ ok: true });
 
     state().markLost();
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(state().status).toBe('connected');
+  });
+
+  it('muestra el aviso cuando /health tampoco responde', async () => {
+    fetchMock.mockRejectedValue(new Error('offline'));
+
+    state().markLost();
+    await confirmar();
+
+    expect(state().status).toBe('lost');
+    expect(state().secondsUntilRetry).toBe(3);
+  });
+
+  it('vuelve a conectado cuando el reintento encuentra el servidor', async () => {
+    fetchMock
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValue({ ok: true });
+
+    state().markLost();
+    await confirmar();
     expect(state().status).toBe('lost');
     expect(state().secondsUntilRetry).toBe(3);
 
     await vi.advanceTimersByTimeAsync(3000);
 
-    expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(state().status).toBe('connected');
   });
 
@@ -49,33 +79,35 @@ describe('connectionStore', () => {
     fetchMock.mockRejectedValue(new Error('offline'));
 
     state().markLost();
+    await confirmar();
+    const sondeosIniciales = fetchMock.mock.calls.length;
 
     await vi.advanceTimersByTimeAsync(3000);
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls.length).toBe(sondeosIniciales + 1);
     expect(state().retryCount).toBe(1);
     expect(state().secondsUntilRetry).toBe(6);
 
     await vi.advanceTimersByTimeAsync(6000);
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls.length).toBe(sondeosIniciales + 2);
     expect(state().retryCount).toBe(2);
     expect(state().secondsUntilRetry).toBe(10);
 
     await vi.advanceTimersByTimeAsync(10000);
-    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock.mock.calls.length).toBe(sondeosIniciales + 3);
     expect(state().secondsUntilRetry).toBe(15);
 
     await vi.advanceTimersByTimeAsync(15000);
-    expect(fetchMock).toHaveBeenCalledTimes(4);
+    expect(fetchMock.mock.calls.length).toBe(sondeosIniciales + 4);
     expect(state().secondsUntilRetry).toBe(15);
 
     expect(state().status).toBe('lost');
   });
 
   it('usa fetch directo, sin cabecera de autorización ni interceptores', async () => {
-    fetchMock.mockResolvedValue({ ok: true });
+    fetchMock.mockRejectedValue(new Error('offline'));
 
     state().markLost();
-    await vi.advanceTimersByTimeAsync(3000);
+    await vi.advanceTimersByTimeAsync(0);
 
     const [url, options] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toMatch(/\/health$/);
@@ -87,26 +119,32 @@ describe('connectionStore', () => {
     fetchMock.mockRejectedValue(new Error('offline'));
 
     state().markLost();
+    await confirmar();
+    const sondeosIniciales = fetchMock.mock.calls.length;
+
     state().retryNow();
 
     expect(state().secondsUntilRetry).toBe(0);
 
     await vi.advanceTimersByTimeAsync(1);
 
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls.length).toBe(sondeosIniciales + 1);
     expect(state().retryCount).toBe(1);
   });
 
   it('reintenta al instante cuando el navegador avisa de que hay red', async () => {
-    fetchMock.mockResolvedValue({ ok: true });
+    fetchMock
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValue({ ok: true });
     const stopWatchers = startConnectivityWatchers();
 
     state().markLost();
+    await confirmar();
 
     window.dispatchEvent(new Event('online'));
     await vi.advanceTimersByTimeAsync(1);
 
-    expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(state().status).toBe('connected');
 
     stopWatchers();
