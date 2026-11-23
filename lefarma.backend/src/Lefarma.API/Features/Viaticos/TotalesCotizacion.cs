@@ -6,37 +6,18 @@ using Lefarma.API.Domain.Entities.Viaticos;
 
 namespace Lefarma.API.Features.Viaticos;
 
-/// <summary>
-/// Reglas de precio de una cotizacion de viaticos.
-///
-/// <c>precio</c> es SIEMPRE el precio real de la pagina o proveedor. Un
-/// estimado del motor (formula de vuelo, tarifa de taxi, tabulador de hotel)
-/// no es un precio cotizado: su valor vive en <c>datos.precio_estimado</c> y
-/// se suma aparte para mostrarse como referencia. La autorizacion solo puede
-/// usar el total cotizado; el vuelo elegido que siga sin precio real bloquea
-/// la autorizacion (ver <c>AprobacionesController</c>).
-/// </summary>
 public static class TotalesCotizacion
 {
     public const string TipoCotizado = "cotizado";
     public const string TipoEstimado = "estimado";
     public const string TipoReferenciaTabulador = "referencia_tabulador";
 
-    /// <summary>
-    /// Suma de las opciones ELEGIDAS. <c>cotizado</c> solo cuenta precios
-    /// reales; <c>estimado</c> cuenta la referencia. Las opciones sin importe
-    /// quedan fuera: no se inventa un cero.
-    /// </summary>
     public static (decimal? Cotizado, decimal? Estimado, decimal? Total) Calcular(
         IEnumerable<SolicitudOpcion> opciones) =>
         Calcular(opciones
             .Where(o => o.FueElegida)
             .Select(o => (o.Precio, o.DatosJson, o.Fuente)));
 
-    /// <summary>
-    /// Misma regla sobre una proyeccion (bandeja): se usa cuando las opciones
-    /// ya vienen filtradas por <c>fue_elegida</c>.
-    /// </summary>
     public static (decimal? Cotizado, decimal? Estimado, decimal? Total) Calcular(
         IEnumerable<(decimal? Precio, string? DatosJson, string? Fuente)> opciones)
     {
@@ -61,10 +42,6 @@ public static class TotalesCotizacion
         return (cotizado, estimado, total);
     }
 
-    /// <summary>
-    /// Vuelos elegidos que aun no tienen precio real. Se calcula sobre la
-    /// version que se va a autorizar (opciones nuevas o las vigentes).
-    /// </summary>
     public static List<SolicitudOpcion> VuelosSinPrecioReal(IEnumerable<SolicitudOpcion> opciones) =>
         opciones
             .Where(o => o.FueElegida
@@ -74,14 +51,9 @@ public static class TotalesCotizacion
     public static bool EsVuelo(string? tipo) =>
         NormalizarTipo(tipo) is "vuelo" or "avion";
 
-    /// <summary>Tipo con detección automática de precio: vuelo, autobús u hotel.</summary>
     public static bool EsTipoDetectable(string? tipo) =>
         NormalizarTipo(tipo) is "vuelo" or "avion" or "autobus" or "hotel";
 
-    /// <summary>
-    /// Tipo en minúsculas y sin acentos, para comparar "Autobús"/"autobus" y
-    /// "Avión"/"avion" sin depender de cómo lo escribió el proveedor.
-    /// </summary>
     public static string NormalizarTipo(string? tipo)
     {
         var descompuesto = (tipo ?? string.Empty).Trim().ToLowerInvariant().Normalize(NormalizationForm.FormD);
@@ -94,10 +66,6 @@ public static class TotalesCotizacion
         return builder.ToString();
     }
 
-    /// <summary>
-    /// Vuelo elegido que no puede autorizarse: no es cotizado o le falta el
-    /// importe real. Se usa tanto en la entidad como en las proyecciones.
-    /// </summary>
     public static bool VueloSinPrecioReal(
         string? tipo,
         decimal? precio,
@@ -105,11 +73,6 @@ public static class TotalesCotizacion
         string? fuente = null) =>
         EsVuelo(tipo) && (!EsCotizada(datosJson, fuente) || precio is null);
 
-    /// <summary>
-    /// Una opcion es cotizada cuando su <c>datos.tipo_precio</c> es
-    /// <c>cotizado</c> o no existe (cotizaciones importadas antes de este
-    /// contrato). Si la fuente se declara estimada, nunca cuenta como real.
-    /// </summary>
     public static bool EsCotizada(SolicitudOpcion opcion) =>
         EsCotizada(opcion.DatosJson, opcion.Fuente);
 
@@ -125,12 +88,9 @@ public static class TotalesCotizacion
         var guardado = LeerPrecioEstimado(opcion.DatosJson);
         if (guardado is not null) return guardado;
 
-        // Filas legadas guardaban el estimado en `precio` (taxis/renta antes
-        // de separar las capas). Se rescata como referencia, jamas como real.
         return opcion.Precio;
     }
 
-    /// <summary>Lee <c>total_cotizado</c>, <c>total_estimado</c> y <c>total</c> de datos_json.</summary>
     public static (decimal? Cotizado, decimal? Estimado, decimal? Total) LeerDeDatos(JsonElement? datos)
     {
         if (datos is not { ValueKind: JsonValueKind.Object } raiz) return (null, null, null);
@@ -154,11 +114,6 @@ public static class TotalesCotizacion
         }
     }
 
-    /// <summary>
-    /// Escribe los tres totales sin perder el resto del snapshot (calculo,
-    /// destinos, origen, etc.). Los valores nulos se escriben como null para
-    /// que el frontend distinga "sin cotizacion" de un cero inventado.
-    /// </summary>
     public static string EscribirEnDatos(
         string? datosJson,
         decimal? cotizado,
@@ -171,10 +126,6 @@ public static class TotalesCotizacion
         return raiz.ToJsonString();
     }
 
-    /// <summary>
-    /// Actualiza solo el desglose real/referencia y deja intacto el total que
-    /// ya traia el snapshot (p. ej. el presupuesto con conceptos del motor).
-    /// </summary>
     public static string EscribirSplitEnDatos(
         string? datosJson,
         decimal? cotizado,
@@ -191,7 +142,6 @@ public static class TotalesCotizacion
         raiz["total_estimado"] = estimado is null ? null : JsonValue.Create(estimado.Value);
     }
 
-    /// <summary>Estado de la detección automática en la cola de Fase 2.</summary>
     public static string MarcarEstadoDeteccion(string? datosJson, string estado, string? mensaje = null)
     {
         var raiz = ParsearObjeto(datosJson);
@@ -202,11 +152,6 @@ public static class TotalesCotizacion
         return raiz.ToJsonString();
     }
 
-    /// <summary>
-    /// Indica si la captura es de la tarjeta de la opción o de la página de
-    /// resultados. Así el detalle no presenta una captura general como si
-    /// fuera la evidencia exacta de la opción.
-    /// </summary>
     public static string MarcarAlcanceCaptura(string? datosJson, string? alcance)
     {
         if (string.IsNullOrWhiteSpace(alcance)) return datosJson ?? "{}";
@@ -216,10 +161,6 @@ public static class TotalesCotizacion
         return raiz.ToJsonString();
     }
 
-    /// <summary>
-    /// Sella el precio detectado por la cola (vuelo, autobús o hotel) y las
-    /// alternativas que devolvió la fuente. No sustituye la captura.
-    /// </summary>
     public static string MarcarDeteccionGenerica(
         string? datosJson,
         PrecioDetectado elegido,
@@ -250,10 +191,6 @@ public static class TotalesCotizacion
         return raiz.ToJsonString();
     }
 
-    /// <summary>
-    /// Marca una opcion con su precio real. Conserva <c>precio_estimado</c> (la
-    /// referencia que se mostraba) y deja rastro de quien lo capturo y cuando.
-    /// </summary>
     public static string MarcarPrecioReal(
         string? datosJson,
         string? salida,
@@ -280,7 +217,6 @@ public static class TotalesCotizacion
             }
             catch (JsonException)
             {
-                // Snapshot invalido: se reemplaza por uno minimo sin romper.
             }
         }
         return new JsonObject();
@@ -331,11 +267,6 @@ public static class TotalesCotizacion
             : null;
     }
 
-    /// <summary>
-    /// El estimado puede venir como numero o como texto numerico (filas viejas
-    /// escritas por el wizard). Solo se usa para la referencia, nunca para el
-    /// total cotizado.
-    /// </summary>
     private static decimal? LeerDecimalTolerante(JsonElement objeto, string clave)
     {
         if (!objeto.TryGetProperty(clave, out var valor)) return null;

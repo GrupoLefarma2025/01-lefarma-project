@@ -1,6 +1,5 @@
 import type { PuntoSeleccion } from '../types/costosRuta.types';
 
-/** Destino mínimo que necesita el resumen (compatible con DestinoV2 y con datos guardados). */
 export interface ResumenDestino {
   id?: string | number;
   etiqueta?: string;
@@ -11,7 +10,6 @@ export interface ResumenDestino {
   saleHora?: string;
 }
 
-/** Datos que pinta el resumen del viaje (paso 7 del wizard y detalle en Mis viajes). */
 export interface ResumenViajeDatos {
   motivo: string;
   modoTransporte: 'propio' | 'solicitado';
@@ -46,11 +44,6 @@ function comoPunto(v: unknown): PuntoSeleccion | null {
   };
 }
 
-/**
- * Reconstruye el resumen desde el snapshot `datos` guardado por el wizard.
- * Devuelve `null` cuando el documento no es `solicitud-v2` (flujo legado),
- * para que el llamador decida el fallback.
- */
 export function resumenDesdeDatos(datos: unknown): ResumenViajeDatos | null {
   const d = comoObjeto(datos);
   if (!d || d.version !== 'solicitud-v2' || !Array.isArray(d.destinos)) return null;
@@ -97,7 +90,6 @@ export function resumenDesdeDatos(datos: unknown): ResumenViajeDatos | null {
   };
 }
 
-/** Cantidad de puntos a visitar (destinos) guardados en el snapshot. */
 export function contarPuntos(datos: unknown): number {
   const d = comoObjeto(datos);
   return Array.isArray(d?.destinos) ? d.destinos.length : 0;

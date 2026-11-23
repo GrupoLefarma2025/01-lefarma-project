@@ -6,13 +6,8 @@ using Lefarma.API.Shared.Errors;
 
 namespace Lefarma.API.Features.Configuracion;
 
-/// <summary>
-/// Validador recursivo del valor de una variable de configuración contra su tipo de dato
-/// y el subconjunto de JSON Schema declarado en <c>esquema_json</c>.
-/// </summary>
 public static class ConfiguracionValueValidator
 {
-    /// <summary>Profundidad máxima permitida para esquemas y valores anidados.</summary>
     public const int ProfundidadMaxima = 32;
 
     private static readonly TimeSpan RegexTimeout = TimeSpan.FromMilliseconds(250);
@@ -45,10 +40,6 @@ public static class ConfiguracionValueValidator
         "string", "number", "integer", "boolean", "object", "array", "null"
     ];
 
-    /// <summary>
-    /// Valida el valor de la variable. Devuelve los errores con la ruta exacta del campo
-    /// (por ejemplo <c>valor.configuracion.correo</c>).
-    /// </summary>
     public static ErrorOr<Success> Validar(
         string? tipoDato,
         JsonElement valor,
@@ -99,7 +90,6 @@ public static class ConfiguracionValueValidator
             : Result.Success;
     }
 
-    /// <summary>Valida la estructura del esquema (subconjunto de JSON Schema).</summary>
     public static ErrorOr<Success> ValidarEsquema(JsonElement esquema, string ruta = "esquema")
     {
         if (esquema.ValueKind == JsonValueKind.Null || esquema.ValueKind == JsonValueKind.Undefined)
@@ -214,10 +204,6 @@ public static class ConfiguracionValueValidator
         }
     }
 
-    /// <summary>
-    /// Valida un rango: objeto con <c>desde</c> y <c>hasta</c> obligatorios, cada uno del
-    /// tipo base del rango, y con <c>desde</c> menor o igual que <c>hasta</c>.
-    /// </summary>
     private static ErrorOr<Success> ValidarRango(string tipo, JsonElement valor, string ruta)
     {
         if (valor.ValueKind != JsonValueKind.Object)

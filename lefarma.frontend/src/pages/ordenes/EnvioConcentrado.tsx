@@ -53,8 +53,6 @@ import { fetchFirmaObjectUrl, firmasEndpoints } from '@/services/firmas.service'
 import { waitForPrintImages } from '@/utils/waitForPrintImages';
 import { areaDocumento } from '@/utils/datosSolicitanteDocumento';
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
 interface EnvioConcentradoItemResult {
   idOrden: number;
   folio: string;
@@ -76,8 +74,6 @@ interface Proveedor {
   rfc?: string;
   cuentasFormaPago?: ProveedorCuentaBancaria[];
 }
-
-// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function fmtMoney(n: number) {
   return n.toLocaleString('es-MX', {
@@ -112,8 +108,6 @@ function getGroupLabel(orden: OrdenCompraResponse, agrupacion: AgrupacionKey): s
   }
 }
 
-// ─── Component ────────────────────────────────────────────────────────────────
-
 const AGRUPACIONES: Array<{ value: AgrupacionKey; label: string }> = [
   { value: 'sucursal', label: 'Sucursal' },
   { value: 'empresa', label: 'Empresa' },
@@ -142,8 +136,6 @@ export default function EnvioConcentrado() {
   const [activeTab, setActiveTab] = useState<'gastos' | 'viaticos'>('gastos');
   const [refreshToken, setRefreshToken] = useState(0);
 
-  // ── Fetch órdenes pendientes de envío concentrado ────────────────────────
-  // Estado PREPARACION_GAF (id_estado = 11) - paso que tiene envia_concentrado
   const ESTADO_ENVIO_CONCENTRADO = 11;
 
   const fetchOrdenes = async () => {
@@ -155,8 +147,6 @@ export default function EnvioConcentrado() {
       );
       const data = res.data.data ?? [];
 
-      // Un gasto que ya está en el concentrado de viáticos no debe volver a
-      // aparecer en el concentrado de gastos.
       let foliosViatico = new Set<string>();
       try {
         const macroRes = await API.get<ApiResponse<MacroViatico[]>>(
@@ -166,7 +156,6 @@ export default function EnvioConcentrado() {
           (macroRes.data.data ?? []).map((fila) => fila.folio.trim())
         );
       } catch {
-        // Si no se puede consultar viáticos, se muestran todas las órdenes.
       }
 
       const visibles = data.filter(
@@ -193,7 +182,6 @@ export default function EnvioConcentrado() {
     setRefreshToken((token) => token + 1);
   };
 
-  // ── Selección ─────────────────────────────────────────────────────────────
   const toggleSelect = (id: number) => {
     setSelected((prev) => {
       const next = new Set(prev);
@@ -214,7 +202,6 @@ export default function EnvioConcentrado() {
   const allSelected = ordenes.length > 0 && selected.size === ordenes.length;
   const someSelected = selected.size > 0 && !allSelected;
 
-  // ── Órdenes seleccionadas para el PDF ────────────────────────────────────
   const ordenesSeleccionadas = useMemo(
     () => ordenes.filter((o) => selected.has(o.idOrden)),
     [ordenes, selected]
@@ -228,13 +215,10 @@ export default function EnvioConcentrado() {
   const isSingleOrden = ordenesSeleccionadas.length === 1;
   const singleOrden = isSingleOrden ? ordenesSeleccionadas[0] : null;
 
-  // Firmas del concentrado: se descargan como blobs autenticados y siempre
-  // corresponden a los firmantes fijos, sin depender del usuario logueado.
-  const REVISO_USUARIO_ID = 73; // Marco Polo
-  const AUTORIZO_USUARIO_ID = 63; // Diego
+  const REVISO_USUARIO_ID = 73; 
+  const AUTORIZO_USUARIO_ID = 63; 
   const [firmaRevisoUrl, setFirmaRevisoUrl] = useState<string | undefined>(undefined);
   const [firmaAutorizoUrl, setFirmaAutorizoUrl] = useState<string | undefined>(undefined);
-  // Precarga: generarPdfBlob espera a que ambas firmas estén resueltas.
   const firmasListasRef = useRef<Promise<void>>(Promise.resolve());
 
   useEffect(() => {
@@ -260,7 +244,6 @@ export default function EnvioConcentrado() {
     };
   }, []);
 
-  // ── Nombres completos de Revisó (73) y Autorizó (63) para etiquetas ──────
   const [nombresFirmas, setNombresFirmas] = useState<{ reviso?: string; autorizo?: string }>({});
 
   useEffect(() => {
@@ -272,15 +255,12 @@ export default function EnvioConcentrado() {
         );
         if (cancelled) return;
         const users = res.data?.data ?? [];
-        // El NombreCompleto de Asokam trae prefijo numérico ('44 Marco Polo...') → se limpia
         const nombreLimpio = (s?: string) => s?.replace(/^\d+\s+/, '');
 setNombresFirmas({
-        // IdUsuario de Asokam: 73 = Marco Polo (Revisó), 63 = Diego (Autorizó)
         reviso: nombreLimpio(users.find((u) => u.idUsuario === 73)?.nombreCompleto),
         autorizo: nombreLimpio(users.find((u) => u.idUsuario === 63)?.nombreCompleto),
       });
       } catch {
-        // silent fail: las etiquetas quedan sin nombre
       }
     })();
     return () => {
@@ -288,7 +268,6 @@ setNombresFirmas({
     };
   }, []);
 
-  // ── Proveedor (con cuentas bancarias) para el PDF individual ────────────
   const [proveedoresMap, setProveedoresMap] = useState<Map<number, Proveedor>>(new Map());
 
   useEffect(() => {
@@ -308,7 +287,6 @@ setNombresFirmas({
           setProveedoresMap(m);
         }
       } catch {
-        // silent fail
       }
     })();
     return () => {
@@ -316,14 +294,12 @@ setNombresFirmas({
     };
   }, [singleOrden?.idProveedor]);
 
-  // ── Vista previa / Imprimir PDF ──────────────────────────────────────────
   const handlePrint = async () => {
     if (ordenesSeleccionadas.length === 0) return;
     try {
       const pdfBlob = await generarPdfBlob();
       const url = URL.createObjectURL(pdfBlob);
 
-      // Abrir visor de impresión nativo del navegador con el PDF
       const iframe = document.createElement('iframe');
       iframe.style.position = 'fixed';
       iframe.style.left = '-9999px';
@@ -335,7 +311,6 @@ setNombresFirmas({
       iframe.onload = () => {
         iframe.contentWindow?.focus();
         iframe.contentWindow?.print();
-        // Limpiar después de unos segundos
         setTimeout(() => {
           if (iframe.parentNode) {
             document.body.removeChild(iframe);
@@ -351,11 +326,8 @@ setNombresFirmas({
   };
 
   async function generarPdfBlob(): Promise<Blob> {
-    // Precarga: sin URLs públicas las firmas se descargan como blobs; hay que
-    // esperar a que estén resueltas antes de armar/capturar el PDF.
     await firmasListasRef.current;
 
-    // Single orden: html2canvas → jsPDF portrait
     if (isSingleOrden) {
       const portalEl = document.getElementById('envio-concentrado-pdf-portal');
       if (portalEl) {
@@ -374,7 +346,6 @@ setNombresFirmas({
         if (imgH <= pdfH) {
           pdf.addImage(imgData, 'PNG', 0, 0, imgW, imgH);
         } else {
-          // Multi-page
           let heightLeft = imgH;
           let position = 0;
           pdf.addImage(imgData, 'PNG', 0, position, imgW, imgH);
@@ -387,10 +358,6 @@ setNombresFirmas({
           }
         }
 
-        // html2canvas rasterizes the React component to an image — no text layer.
-        // PyMuPDF's search_for('#firmad') can't find text inside images, so the
-        // Python signature replacer fails with ERROR_KEYWORD_NOT_FOUND.
-        // Overlay invisible (white) #firmad text at the Visto Bueno box position.
         const scaleMm = imgW / canvas.width;
         const firmadYImage = imgH - 40 * scaleMm;
         const firmadPage = Math.floor(firmadYImage / pdfH);
@@ -405,7 +372,6 @@ setNombresFirmas({
       }
     }
 
-    // Multiple ordenes: jsPDF landscape concentrado
     return generarConcentradoPDF({
       ordenes: ordenesSeleccionadas,
       agrupacion,
@@ -417,11 +383,7 @@ setNombresFirmas({
     });
   }
 
-  // ── Vista previa del concentrado (varias órdenes) ────────────────────────
-  // Se renderiza el mismo componente que se usa para imprimir, contenido al
-  // ancho del panel (nunca en el portal oculto, que crecía sin límite).
-
-  const handleSimularEnvio = async () => {
+const handleSimularEnvio = async () => {
     if (ordenesSeleccionadas.length === 0) return;
     setEnviando(true);
     try {
@@ -486,11 +448,9 @@ setNombresFirmas({
     }
   };
 
-  // ─────────────────────────────────────────────────────────────────────────
-
-  return (
+return (
     <div className="flex flex-col h-full gap-4 p-4">
-      {/* ── Encabezado ── */}
+      {}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold tracking-tight">Envío Concentrado</h1>
@@ -537,7 +497,7 @@ setNombresFirmas({
           className={cn('flex-1 min-h-0', activeTab !== 'gastos' && 'hidden')}
         >
           <div className="flex flex-col h-full gap-4">
-      {/* ── Resultado del envío ── */}
+      {}
       {(envioResult || envioError) && (
         <div
           className={cn(
@@ -586,12 +546,12 @@ setNombresFirmas({
         </div>
       )}
 
-      {/* ── Layout principal: tabla izquierda + preview derecha ── */}
+      {}
       <div className="flex gap-4 flex-1 min-h-0">
 
-        {/* ── Panel izquierdo: tabla ── */}
+        {}
         <div className="flex flex-col gap-3 w-[55%] min-w-0">
-          {/* Toolbar */}
+          {}
           <div className="flex items-center gap-3 bg-muted/40 border rounded-lg px-3 py-2">
             <div className="flex items-center gap-1.5 text-sm font-medium">
               <LayoutGrid className="h-4 w-4 text-muted-foreground" />
@@ -622,7 +582,7 @@ setNombresFirmas({
             </div>
           </div>
 
-          {/* Tabla */}
+          {}
           <div className="border rounded-lg overflow-auto flex-1">
             {loading ? (
               <div className="flex items-center justify-center h-40 text-sm text-muted-foreground">
@@ -709,7 +669,7 @@ setNombresFirmas({
             )}
           </div>
 
-          {/* Barra de totales seleccionados */}
+          {}
           {selected.size > 0 && (
             <div className="flex items-center justify-between border rounded-lg px-4 py-2.5 bg-primary/5 border-primary/20">
               <div className="text-sm">
@@ -723,9 +683,9 @@ setNombresFirmas({
           )}
         </div>
 
-        {/* ── Panel derecho: vista previa ── */}
+        {}
         <div className="flex flex-col gap-3 flex-1 min-w-0">
-          {/* Header del panel */}
+          {}
           <div className="flex items-center justify-between bg-muted/40 border rounded-lg px-3 py-2">
             <span className="text-sm font-medium text-muted-foreground">Vista previa del PDF</span>
             <div className="flex gap-2">
@@ -751,7 +711,7 @@ setNombresFirmas({
             </div>
           </div>
 
-          {/* Preview del documento */}
+          {}
           <div className="flex-1 border rounded-lg overflow-auto bg-zinc-100 dark:bg-zinc-900 p-3">
             {ordenesSeleccionadas.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-2">
@@ -805,7 +765,7 @@ setNombresFirmas({
         </TabsContent>
       </Tabs>
 
-      {/* ── Dialog de previsualización antes de enviar ── */}
+      {}
       <Dialog open={showPreviewDialog} onOpenChange={setShowPreviewDialog}>
         <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col" showCloseButton={!enviando}>
           <DialogHeader>
@@ -866,11 +826,7 @@ setNombresFirmas({
                 archivoSoporte && "border-green-500 bg-green-50 file:text-green-700 hover:border-green-600"
               )}
             />
-            {/* {archivoSoporte && (
-              <span className="text-xs text-muted-foreground truncate max-w-[180px]">
-                {archivoSoporte.name}
-              </span>
-            )} */}
+            {}
             {archivoSoporte && (
               <Button
                 type="button"
@@ -930,17 +886,7 @@ setNombresFirmas({
             >
               Cancelar
             </Button>
-            {/* <Button
-              variant="secondary"
-              onClick={async () => {
-                await handleSimularEnvio();
-              }}
-              disabled={enviando}
-              className="gap-1.5"
-            >
-              <Download className="h-4 w-4" />
-              {enviando ? 'Generando…' : 'Simular envío'}
-            </Button> */}
+            {}
             <Button
               onClick={async () => {
                 await handleEnviar();
@@ -955,7 +901,7 @@ setNombresFirmas({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      {/* Vista previa del PDF de soporte */}
+      {}
       <FileViewer
         localFile={archivoSoporte}
         open={verSoporte}
@@ -964,10 +910,7 @@ setNombresFirmas({
 
       {createPortal(
         <div id="envio-concentrado-pdf-portal" style={{ position: 'fixed', left: '-9999px', top: 0 }}>
-          {/* Solo el concentrado individual se captura con html2canvas desde este
-              portal. El de varias órdenes se arma con jsPDF y su tabla mide
-              ~11900px de ancho mínimo: dentro de este portal (position:fixed sin
-              ancho) crecía más allá del viewport y tapaba la pantalla. */}
+          {}
           {isSingleOrden && singleOrden && (
             <OrdenCompraConcentradoPDF
               orden={singleOrden}

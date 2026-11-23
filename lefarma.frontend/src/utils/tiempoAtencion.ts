@@ -1,11 +1,3 @@
-/**
- * Cálculo de tiempo de atención para las órdenes de compra.
- *
- * El tiempo real es la diferencia natural entre dos fechas. El tiempo laboral
- * solo considera los minutos que caen dentro del horario de oficina:
- * lunes a viernes de 8:00 a 18:30.
- */
-
 export const HORARIO_LABORAL = {
   horaInicio: 8,
   minutoInicio: 0,
@@ -45,7 +37,6 @@ const finJornada = (fecha: Date): Date =>
     0
   );
 
-/** Milisegundos transcurridos dentro del horario laboral (L-V, 8:00-18:30). */
 export function calcularTiempoLaboralMs(desde: Date, hasta: Date): number {
   if (
     Number.isNaN(desde.getTime()) ||
@@ -92,10 +83,6 @@ export function calcularTiempoAtencion(desde: Date, hasta: Date): TiempoAtencion
   };
 }
 
-/**
- * Formatea una duración en días, horas, minutos y, opcionalmente, segundos.
- * Ejemplos: "2 min", "1 h 5 min", "2 d 13 h 32 min".
- */
 export function formatDuracion(ms: number, conSegundos = false): string {
   const totalSegundos = Math.max(0, Math.floor((Number.isNaN(ms) ? 0 : ms) / 1000));
   const dias = Math.floor(totalSegundos / 86_400);

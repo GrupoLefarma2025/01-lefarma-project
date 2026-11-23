@@ -4,12 +4,6 @@ using System.Text.RegularExpressions;
 
 namespace Lefarma.API.Features.Viaticos;
 
-/// <summary>
-/// Parser de hoteles de Google Hotels. Solo considera la tarjeta cuyo nombre
-/// coincide con el hotel que se está cotizando; si no aparece, no se aplica
-/// nada. Google Hotels muestra el precio por noche en la tarjeta; se
-/// multiplica por las noches salvo que la tarjeta declare "total".
-/// </summary>
 public static class HotelesParser
 {
     private static readonly Regex Precio = new(
@@ -70,11 +64,6 @@ public static class HotelesParser
             .ToList();
     }
 
-    /// <summary>
-    /// Variante para el markdown de Firecrawl: Google Hotels publica el nombre
-    /// del hotel y el precio en líneas separadas. Se empareja cada precio con
-    /// el nombre inmediatamente anterior y se aplica la misma regla de noches.
-    /// </summary>
     public static List<PrecioDetectado> ParsearMarkdown(
         string markdown,
         string objetivo,
@@ -145,9 +134,6 @@ public static class HotelesParser
                 Noches: nochesEfectivas));
         }
 
-        // Respaldo: Google a veces publica el nombre y el precio en la misma
-        // línea ("Hotel Colonial · $1,500"). Se usa solo si el emparejamiento
-        // por líneas separadas no encontró nada.
         if (opciones.Count == 0)
         {
             for (var i = 0; i < lineas.Count; i++)

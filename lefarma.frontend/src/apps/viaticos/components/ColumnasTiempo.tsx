@@ -8,21 +8,14 @@ export interface ColumnasTiempoProps {
   hora: string;
   minuto: string;
   onOpcion: (parte: 'hora' | 'minuto', valor: string) => void;
-  /**
-   * Hora mínima elegible (por ejemplo, la hora actual cuando la fecha es
-   * hoy). Deshabilita horas anteriores a `hora` y, cuando la hora elegida es
-   * esa misma, los minutos anteriores a `minuto`.
-   */
   minimo?: { hora: string; minuto: string } | null;
 }
 
-/** Parte 'HH:mm' en hora/minuto; lo inválido o vacío queda sin elegir. */
 export function partirHoraMinuto(value: string): { hora: string; minuto: string } {
   const match = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(value);
   return match ? { hora: match[1], minuto: match[2] } : { hora: '', minuto: '' };
 }
 
-/** Muestra 'HH:mm' de 24h en 12h con AM/PM. Lo inválido se devuelve intacto. */
 export function formatoHora12h(value: string): string {
   const match = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(value);
   if (!match) return value;
@@ -32,12 +25,6 @@ export function formatoHora12h(value: string): string {
   return `${String(h12).padStart(2, '0')}:${match[2]} ${periodo}`;
 }
 
-/**
- * Dos columnas con ajuste por snap (hora 00–23, minutos 00–59) para elegir
- * hora. Al montarse se centran en el valor actual (sin desplazamiento
- * animado: respuesta instantánea y sin mareo). La decisión de qué hacer con
- * la opción (completar, cerrar, etc.) es del padre vía `onOpcion`.
- */
 export function ColumnasTiempo({ hora, minuto, onOpcion, minimo }: ColumnasTiempoProps) {
   const columnaHora = useRef<HTMLDivElement>(null);
   const columnaMinutos = useRef<HTMLDivElement>(null);

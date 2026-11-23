@@ -5,16 +5,15 @@ import type { UIPresetId, VisualPreferences, ComponentPreferences } from '@/type
 import { UI_PRESETS } from '@/constants/uiPresets';
 import { useAuthStore } from '@/shared/auth/authStore';
 
-
 const DEFAULT_UI_CONFIG: UIConfig = {
   tema: 'light',
-  presetId: 'estandar', // NUEVO
-  visual: { // NUEVO
+  presetId: 'estandar', 
+  visual: { 
     densidad: 'comodo',
     fontSize: 'medium',
     animations: true,
   },
-  componentes: { // NUEVO
+  componentes: { 
     tables: {
       density: 'standard',
       defaultPageSize: 20,
@@ -44,12 +43,11 @@ const DEFAULT_SISTEMA_INFO: SistemaInfo = {
   gitCommit: import.meta.env.VITE_GIT_COMMIT,
 };
 
-// Configuración global por defecto (valores iniciales, después vendrían del backend)
 const DEFAULT_GLOBAL_CONFIG: ConfiguracionGlobal = {
-  sessionTimeout: 480, // 8 horas
-  sessionWarning: 10, // 10 minutos antes
+  sessionTimeout: 480, 
+  sessionWarning: 10, 
 
-  maxFileSize: 10, // 10 MB
+  maxFileSize: 10, 
   allowedFileTypes: ['.pdf', '.xlsx', '.xls', '.jpg', '.jpeg', '.png', '.doc', '.docx'],
 
   defaultCurrency: 'MXN',
@@ -58,7 +56,7 @@ const DEFAULT_GLOBAL_CONFIG: ConfiguracionGlobal = {
   defaultPageSize: 20,
 
   notificacionesEnabled: true,
-  notificacionesJobSchedule: '0 8 * * *', // 8:00 AM diario
+  notificacionesJobSchedule: '0 8 * * *', 
 
   tipoCambioDefecto: 24.50,
   impuestoPorDefecto: 15.0,
@@ -69,7 +67,7 @@ const DEFAULT_GLOBAL_CONFIG: ConfiguracionGlobal = {
   passwordRequireNumbers: true,
   passwordRequireSpecialChars: true,
   maxLoginAttempts: 5,
-  lockoutDuration: 15, // 15 minutos
+  lockoutDuration: 15, 
 
   metadata: {
     updatedAt: new Date().toISOString(),
@@ -77,11 +75,9 @@ const DEFAULT_GLOBAL_CONFIG: ConfiguracionGlobal = {
   },
 };
 
-// Función de utilidad para aplicar preferencias visuales vía variables CSS
 const applyVisualPreferences = (visual: VisualPreferences) => {
   const root = document.documentElement;
 
-  // Escala de fuente
   const fontScales: Record<VisualPreferences['fontSize'], number> = {
     small: 0.875,
     medium: 1,
@@ -89,14 +85,12 @@ const applyVisualPreferences = (visual: VisualPreferences) => {
   };
   root.style.setProperty('--font-scale', fontScales[visual.fontSize].toString());
 
-  // Factor de espaciado
   const spacingFactors: Record<VisualPreferences['densidad'], number> = {
     compacto: 0.75,
     comodo: 1,
   };
   root.style.setProperty('--spacing-factor', spacingFactors[visual.densidad].toString());
 
-  // Animaciones
   if (!visual.animations) {
     root.setAttribute('data-no-animations', 'true');
     root.style.setProperty('--transition-duration', '0ms');
@@ -126,7 +120,6 @@ export const useConfigStore = create<ConfigState>()(
           ui: { ...state.ui, tema },
         }));
 
-        // Aplicar tema inmediatamente
         const htmlElement = document.documentElement;
 
         if (tema === 'dark') {
@@ -136,7 +129,6 @@ export const useConfigStore = create<ConfigState>()(
           htmlElement.classList.remove('dark');
           localStorage.setItem('theme', 'light');
         } else {
-          // system
           localStorage.removeItem('theme');
           const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
           if (prefersDark) {
@@ -279,7 +271,7 @@ export const useConfigStore = create<ConfigState>()(
       partialize: (state) => ({
         ui: state.ui,
         perfil: state.perfil,
-      }), // No persistir sistema (se lee de env vars) ni globalConfig (vendría del backend)
+      }), 
       merge: (persistedState, currentState) => {
         const persisted = persistedState as ConfigState;
         return ({

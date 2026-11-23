@@ -3,21 +3,13 @@ using Lefarma.API.Domain.Firmas;
 
 namespace Lefarma.UnitTests;
 
-/// <summary>
-/// Pruebas del estado derivado del historial de eventos de firma (firma_control JSON):
-/// subidas, cambio habilitado (un solo uso) y solicitud pendiente.
-/// </summary>
 public class FirmaControlTests
 {
     private static readonly DateTime Ahora = new(2026, 9, 24, 12, 0, 0, DateTimeKind.Utc);
     private const int Usuario = 10;
     private const int Rh = 45;
 
-    // ---------------------------------------------------------------------
-    // Parse / Serialize
-    // ---------------------------------------------------------------------
-
-    [Fact]
+[Fact]
     public void Parse_NuloOVacio_HistorialVacio()
     {
         FirmaControl.Parse(null).Subidas.Should().Be(0);
@@ -48,11 +40,7 @@ public class FirmaControlTests
         reparsed.UltimaHabilitacion!.IdUsuario.Should().Be(Rh);
     }
 
-    // ---------------------------------------------------------------------
-    // Subidas
-    // ---------------------------------------------------------------------
-
-    [Fact]
+[Fact]
     public void Subidas_CuentaSoloEventosSubida()
     {
         var control = new FirmaControl();
@@ -63,11 +51,7 @@ public class FirmaControlTests
         control.Subidas.Should().Be(2);
     }
 
-    // ---------------------------------------------------------------------
-    // CambioHabilitado (un solo uso, consumo implícito)
-    // ---------------------------------------------------------------------
-
-    [Fact]
+[Fact]
     public void CambioHabilitado_SinEventos_EsFalse()
     {
         new FirmaControl().CambioHabilitado.Should().BeFalse();
@@ -106,11 +90,7 @@ public class FirmaControlTests
         control.CambioHabilitado.Should().BeFalse("eliminar también consume la habilitación");
     }
 
-    // ---------------------------------------------------------------------
-    // SolicitudPendiente
-    // ---------------------------------------------------------------------
-
-    [Fact]
+[Fact]
     public void SolicitudPendiente_TrasSolicitud_EsTrue()
     {
         var control = new FirmaControl();
@@ -133,30 +113,22 @@ public class FirmaControlTests
         control.CambioHabilitado.Should().BeTrue();
     }
 
-    // ---------------------------------------------------------------------
-    // Ciclo de vida completo
-    // ---------------------------------------------------------------------
-
-    [Fact]
+[Fact]
     public void CicloDeVida_Subir_Solicitar_Habilitar_Cambiar_VuelveABloquear()
     {
         var control = new FirmaControl();
 
-        // 1) Subida inicial (libre)
         FirmaCambioPolicy.PuedeGuardar(control.Subidas, control.CambioHabilitado).Should().BeTrue();
         control.AgregarSubida(Usuario, Ahora);
 
-        // 2) Reemplazo sin habilitación → bloqueado; el usuario solicita
         FirmaCambioPolicy.PuedeGuardar(control.Subidas, control.CambioHabilitado).Should().BeFalse();
         control.AgregarSolicitud(Usuario, Ahora);
         control.SolicitudPendiente.Should().BeTrue();
 
-        // 3) RH habilita → atiende la solicitud y permite un cambio
         control.AgregarHabilitacion(Rh, Ahora);
         control.SolicitudPendiente.Should().BeFalse();
         FirmaCambioPolicy.PuedeGuardar(control.Subidas, control.CambioHabilitado).Should().BeTrue();
 
-        // 4) El usuario cambia la firma → se consume y vuelve a bloquear
         control.AgregarSubida(Usuario, Ahora);
         FirmaCambioPolicy.PuedeGuardar(control.Subidas, control.CambioHabilitado).Should().BeFalse();
     }

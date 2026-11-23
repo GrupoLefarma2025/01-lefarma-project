@@ -4,34 +4,15 @@ import logoAsokam from '@/assets/logo_7.png';
 import { GRUPO_LABELS, type GrupoConcentrado } from '../../constants/grupos';
 import { gerenciaVisible, GERENCIA_SIN_ASIGNAR } from '../../constants/gerencias';
 
-/**
- * Concentrado de viaticos FOR-008 sobre DATOS PERSISTIDOS.
- *
- * A diferencia de `CostosViaticosPrint`, este componente NO lee nada del estado
- * en memoria del wizard: recibe las solicitudes ya resueltas por el contenedor
- * (la bandeja de `aprobacionesApi`), asi que recargar la pagina no pierde el
- * concentrado. Por eso es puramente presentacional y no hace fetch: quien lo
- * monta decide de donde salen los datos y en que orden.
- */
-
 const UNKNOWN = '—';
 
-/** Estados que el concentrado imprime; el resto no llega al formato. */
 const ESTADOS_AUTORIZADOS = ['autorizada', 'autorizada_con_ajustes'] as const;
 
-/**
- * Una fila del concentrado. Comparte la identidad de la fila de la bandeja
- * (`SolicitudBandeja`) y agrega el desglose por concepto que exige el FOR-008.
- * `null` en cualquier importe es celda vacia en el concentrado, nunca cero.
- */
 export interface SolicitudConcentrado {
   id_solicitud: number;
   nombre_solicitante: string;
-  /** Gerencia con la que se capturó (Descentralizado / IMSS / IMSS Bienestar). */
   gerencia?: string | null;
-  /** `autorizada` o `autorizada_con_ajustes` para que la fila se imprima. */
   estado: string;
-  /** Rango del viaje tal como lo guarda la solicitud: "05/10/2026 AL 09/10/2026". */
   fecha: string;
   origen: string | null;
   destino: string | null;
@@ -45,7 +26,6 @@ export interface SolicitudConcentrado {
   total: number | null;
 }
 
-/** Columnas numericas del FOR-008, en el orden en que se imprimen. */
 export type ConceptoConcentrado =
   | 'autobus'
   | 'avion'
@@ -55,8 +35,6 @@ export type ConceptoConcentrado =
   | 'comida'
   | 'taxi'
   | 'total';
-
-
 
 const money = (n: number | null) =>
   n === null
@@ -70,10 +48,6 @@ const border: CSSProperties = {
   overflowWrap: 'anywhere',
 };
 
-/**
- * Paleta del formato original (ejemplo.xlsx, ASK-ADM-FOR-008): encabezados de
- * la tabla en azul claro y el bloque de firmas en azul marino con letra blanca.
- */
 const NAVY = '#1f3864';
 const HEADER_FILL = '#dbe5f1';
 
@@ -100,7 +74,6 @@ const firmaAccionStyle: CSSProperties = {
   textAlign: 'center',
 };
 
-/** Banda que separa los bloques del concentrado (una por gerencia o persona). */
 const grupoStyle: CSSProperties = {
   ...border,
   background: '#e8eef7',
@@ -130,11 +103,6 @@ const tableStyle: CSSProperties = {
   tableLayout: 'fixed',
 };
 
-/**
- * Firmas del renglon de autorizacion del concentrado: tres REVISO y un
- * AUTORIZO. Se comparten con el formato «Solicitud de avión» porque el bloque
- * de firmas es el mismo en ambos formatos (ver `ConcentradoVuelosPrint`).
- */
 const REVISORES: [string, string, string][] = [
   ['REVISÓ', 'Coordinador Administrativo', 'Erick Israel Aguilera Diaz'],
   ['REVISÓ', 'Gerente General', 'Luis Pozo  Urquizo'],
@@ -142,17 +110,12 @@ const REVISORES: [string, string, string][] = [
   ['AUTORIZÓ', 'Dirección Corporativa', 'Lic. Héctor Vélez Rivera'],
 ];
 
-/** Fecha de emission en ISO corto (yyyy-MM-dd), en hora local. */
 function hoyIso(): string {
   const d = new Date();
   const dos = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${dos(d.getMonth() + 1)}-${dos(d.getDate())}`;
 }
 
-/**
- * Solo las filas autorizadas y solo si el backend trajo importes de al menos
- * una columna: una columna sin ningun dato conocido no se inventa en cero.
- */
 function sumaColumna(filas: SolicitudConcentrado[], concepto: ConceptoConcentrado): number | null {
   const conocidos = filas
     .map(f => f[concepto])
@@ -160,11 +123,6 @@ function sumaColumna(filas: SolicitudConcentrado[], concepto: ConceptoConcentrad
   return conocidos.length ? conocidos.reduce((a, b) => a + b, 0) : null;
 }
 
-/**
- * Bloque de firmas del concentrado (REVISÓ/AUTORIZÓ). Es el mismo en el FOR-008
- * y en el formato «Solicitud de avión», por eso vive aquí y se reutiliza. Sin
- * `filas` usa los revisores fijos del formato.
- */
 export function Firmas({
   filas = REVISORES,
 }: { filas?: [string, string, string][] } = {}) {
@@ -198,11 +156,6 @@ export function Firmas({
   );
 }
 
-/**
- * Reglas de impresion del concentrado. Se declaran aqui y no en la hoja de
- * estilos compartida porque son del portal FOR-008 y no deben afectar al
- * FOR-007 del wizard.
- */
 const PRINT_CSS = `
 @page concentrado-viaticos { size: A4 landscape; margin: 10mm; }
 .concentrado-viaticos { page: concentrado-viaticos; font: 10px Arial, sans-serif; color: #000; background: #fff; }
@@ -218,23 +171,11 @@ const PRINT_CSS = `
 }`;
 
 interface Props {
-  /** Solicitudes ya cargadas; por defecto el componente filtra las no autorizadas. */
   solicitudes: SolicitudConcentrado[];
-  /** Nombre del responsable o gerencia responsable del concentrado. */
   nombreResponsable?: string | null;
   gerencia?: string;
-  /** Fecha de emision; por defecto hoy en yyyy-MM-dd. */
   fecha?: string;
-  /**
-   * Filtrar solo las autorizadas (documento oficial FOR-008). El concentrado de
-   * revision lo apaga para imprimir exactamente lo que la persona tiene
-   * filtrado en pantalla, aunque todavia no este autorizado.
-   */
   soloAutorizadas?: boolean;
-  /**
-   * Parte la tabla en bloques con encabezado y subtotal. `ninguna` imprime el
-   * formato clasico de una sola tabla (comportamiento historico).
-   */
   grupoPor?: GrupoConcentrado;
 }
 
@@ -260,8 +201,6 @@ export function ConcentradoViaticosPrint({
     'total',
   ];
 
-  // El orden de llegada manda: quien monta el componente ya ordeno por el
-  // criterio elegido. Aqui solo se corta en bloques contiguos.
   const grupos: Array<{ grupo: string | null; filas: SolicitudConcentrado[] }> =
     grupoPor === 'ninguna'
       ? [{ grupo: null, filas }]

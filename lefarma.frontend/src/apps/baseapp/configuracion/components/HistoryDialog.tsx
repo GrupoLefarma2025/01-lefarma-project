@@ -119,7 +119,6 @@ export function HistoryDialog({
     return () => controller.abort();
   }, [cargar]);
 
-  // El listado devuelve resúmenes; el detalle (snapshots) se pide por entrada.
   useEffect(() => {
     if (seleccionada === null) return;
 
@@ -269,7 +268,7 @@ export function HistoryDialog({
           />
         ) : (
           <div className="grid gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
-            {/* Timeline */}
+            {}
             <div className="lg:max-h-[65vh] lg:overflow-y-auto lg:pr-1">
               <ol className="relative space-y-1 border-l border-border pl-4">
                 {entradas.map((item) => {
@@ -317,7 +316,7 @@ export function HistoryDialog({
               </ol>
             </div>
 
-            {/* Detalle */}
+            {}
             <div className="min-w-0 space-y-3 lg:max-h-[65vh] lg:overflow-y-auto lg:pr-1">
               {entrada && (
                 <>

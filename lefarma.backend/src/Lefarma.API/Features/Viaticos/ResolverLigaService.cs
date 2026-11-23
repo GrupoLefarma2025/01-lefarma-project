@@ -2,31 +2,14 @@ using Microsoft.Extensions.Caching.Memory;
 
 namespace Lefarma.API.Features.Viaticos;
 
-// Resuelve ligas cortas de mapas (Google Maps/OSM) a su URL final: la app
-// móvil de Google Maps comparte enlaces cortos (maps.app.goo.gl) y el
-// navegador no puede seguirlos por CORS. La entrada debe ser una liga corta
-// https de la lista blanca y CADA salto se valida contra los dominios de
-// mapas permitidos (anti-SSRF), con máximo de saltos y sin leer cuerpos, para
-// no convertirse en un proxy abierto; el User-Agent va configurado en el
-// cliente nombrado "enlaces" de Program.cs (con AllowAutoRedirect=false: las
-// redirecciones se siguen a mano) y el resultado se cachea 6 h.
 public static class ResolverLigaService
 {
     private const int MaxSaltos = 5;
     private static readonly TimeSpan CacheDuracion = TimeSpan.FromHours(6);
     private static readonly TimeSpan TimeoutUpstream = TimeSpan.FromSeconds(8);
-    // Ligas cortas que el frontend puede mandar (debe coincidir con su lista).
     private static readonly string[] HostsCortos = ["maps.app.goo.gl", "goo.gl", "g.co", "osm.org"];
-    // Dominios donde aterrizan las ligas cortas; se aceptan subdominios
-    // (www.google.com, maps.google.com.mx, consent.google.com, ...).
     private static readonly string[] DominiosDestino = ["google.com", "google.com.mx", "openstreetmap.org", "apple.com"];
 
-    /// <summary>
-    /// Sigue la liga hasta su URL final. Devuelve null cuando no se pudo
-    /// resolver (liga muerta, demasiados saltos o error de red) y lanza
-    /// ArgumentException si la URL no es una liga corta permitida o si algún
-    /// salto apunta fuera de los dominios de mapas permitidos.
-    /// </summary>
     public static async Task<string?> ResolverAsync(
         HttpClient http, IMemoryCache cache, string? url, CancellationToken ct)
     {
@@ -63,27 +46,25 @@ public static class ResolverLigaService
                 cache.Set(claveCache, final, CacheDuracion);
                 return final;
             }
-            return null; // Demasiados saltos.
+            return null; 
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
-            throw; // El cliente se fue: no fabricar un 502.
+            throw; 
         }
         catch (ArgumentException)
         {
-            throw; // Host no permitido a mitad de la cadena: 400.
+            throw; 
         }
         catch
         {
-            return null; // La liga no se pudo resolver: el controller responde 502.
+            return null; 
         }
     }
 
-    /// <summary>Entrada: liga corta https conocida.</summary>
     private static bool HostCorto(Uri uri) =>
         uri.Scheme == Uri.UriSchemeHttps && HostsCortos.Contains(uri.Host.ToLowerInvariant());
 
-    /// <summary>Salto: liga corta o subdominio de los dominios de mapas permitidos.</summary>
     private static bool HostPermitido(Uri uri)
     {
         if (uri.Scheme != Uri.UriSchemeHttps) return false;

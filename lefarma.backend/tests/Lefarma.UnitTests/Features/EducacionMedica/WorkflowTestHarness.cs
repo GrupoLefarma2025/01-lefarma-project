@@ -12,12 +12,6 @@ using Moq;
 
 namespace Lefarma.UnitTests.Features.EducacionMedica;
 
-/// <summary>
-/// Motor de workflow REAL (WorkflowEngine + WorkflowRepository) sobre una BD InMemory con los
-/// procesos de Educación Médica sembrados: workflows LINEALES por gerencia con el patrón
-/// Creada -> firmas -> Cerrada/Rechazada/Cancelada (ADR-00006), ruteo por mappings de scope
-/// TIPO_GERENCIA, para probar los servicios.
-/// </summary>
 internal sealed class WorkflowTestHarness
 {
     public required ApplicationDbContext Context { get; init; }
@@ -26,7 +20,6 @@ internal sealed class WorkflowTestHarness
     public required WorkflowEngine Engine { get; init; }
     public required Mock<IJefeInmediatoResolver> JefeResolverMock { get; init; }
 
-    // Selección (IMSS = principal; Desc. para el ruteo por gerencia)
     public required Workflow WfSeleccion { get; init; }
     public required Workflow WfSeleccionDesc { get; init; }
     public Dictionary<string, int> PasosSeleccion { get; } = new();
@@ -34,13 +27,11 @@ internal sealed class WorkflowTestHarness
     public Dictionary<string, int> PasosSeleccionDesc { get; } = new();
     public Dictionary<string, int> AccionesSeleccionDesc { get; } = new();
 
-    // Rutas (IMSS = principal; Desc. solo para el resolver)
     public required Workflow WfRutas { get; init; }
     public required Workflow WfRutasDesc { get; init; }
     public Dictionary<string, int> PasosRutas { get; } = new();
     public Dictionary<string, int> AccionesRutas { get; } = new();
 
-    // Matriz de talleres (IMSS = principal; Desc. para el resolver y la bandeja)
     public required Workflow WfMatriz { get; init; }
     public required Workflow WfMatrizDesc { get; init; }
     public Dictionary<string, int> PasosMatriz { get; } = new();
@@ -67,7 +58,6 @@ internal sealed class WorkflowTestHarness
             .Options;
         var asokam = new AsokamDbContext(asokamOptions);
 
-        // CodigoProceso es requerido por la configuración EF (los tipos EM son por proceso).
         const string procesoEm = CodigoProceso.EDUCACION_MEDICA_SELECCION;
         var tipoEnviar = new WorkflowTipoAccion { Codigo = "ENVIAR", Nombre = "Envío", CambiaEstado = true, Activo = true, CodigoProceso = procesoEm };
         var tipoAutorizar = new WorkflowTipoAccion { Codigo = "AUTORIZAR", Nombre = "Autorización", CambiaEstado = true, Activo = true, CodigoProceso = procesoEm };
@@ -89,8 +79,6 @@ internal sealed class WorkflowTestHarness
             estadoPreparacion, estadoRevisionDirector);
         context.SaveChanges();
 
-        // ----- Selección · 'Selección mensual - IMSS'
-        //       Creada -> Firma GG -> Firma GV IMSS -> Cerrada / Rechazada / Cancelada -----
         var wfSelImss = NuevoWorkflow(context, "Selección mensual - IMSS", CodigoProceso.EDUCACION_MEDICA_SELECCION);
         var siCreada = NuevoPaso(context, wfSelImss.IdWorkflow, 0, "Creada", estadoCreada.IdEstado, esInicio: true);
         var siGg = NuevoPaso(context, wfSelImss.IdWorkflow, 10, "Firma Gerencia General", estadoRevision.IdEstado, requiereFirma: true);
@@ -110,7 +98,6 @@ internal sealed class WorkflowTestHarness
         var accSiGvRechazar = NuevaAccion(context, siGv.IdPaso, siRech.IdPaso, tipoRechazar.IdTipoAccion);
         context.SaveChanges();
 
-        // ----- Selección · 'Selección mensual - Descentralizado' -----
         var wfSelDesc = NuevoWorkflow(context, "Selección mensual - Descentralizado", CodigoProceso.EDUCACION_MEDICA_SELECCION);
         var sdCreada = NuevoPaso(context, wfSelDesc.IdWorkflow, 0, "Creada", estadoCreada.IdEstado, esInicio: true);
         var sdGg = NuevoPaso(context, wfSelDesc.IdWorkflow, 10, "Firma Gerencia General", estadoRevision.IdEstado, requiereFirma: true);
@@ -129,8 +116,6 @@ internal sealed class WorkflowTestHarness
         var accSdGvRechazar = NuevaAccion(context, sdGv.IdPaso, sdRech.IdPaso, tipoRechazar.IdTipoAccion);
         context.SaveChanges();
 
-        // ----- Rutas · 'Rutas - IMSS'
-        //       Creada -> Firma GV IMSS -> CA -> DC -> Cerrada / Rechazada / Cancelada -----
         var wfRutImss = NuevoWorkflow(context, "Rutas - IMSS", CodigoProceso.EDUCACION_MEDICA_RUTAS);
         var riCreada = NuevoPaso(context, wfRutImss.IdWorkflow, 0, "Creada", estadoCreada.IdEstado, esInicio: true);
         var riGv = NuevoPaso(context, wfRutImss.IdWorkflow, 10, "Firma Gerente de Ventas - IMSS", estadoRevision.IdEstado, requiereFirma: true);
@@ -153,14 +138,11 @@ internal sealed class WorkflowTestHarness
         var accRiDcRechazar = NuevaAccion(context, riDc.IdPaso, riRech.IdPaso, tipoRechazar.IdTipoAccion);
         context.SaveChanges();
 
-        // ----- Rutas · 'Rutas - Descentralizado' (para el resolver) -----
         var wfRutDesc = NuevoWorkflow(context, "Rutas - Descentralizado", CodigoProceso.EDUCACION_MEDICA_RUTAS);
         var rdCreada = NuevoPaso(context, wfRutDesc.IdWorkflow, 0, "Creada", estadoCreada.IdEstado, esInicio: true);
         var rdGv = NuevoPaso(context, wfRutDesc.IdWorkflow, 10, "Firma Gerente de Ventas - Descentralizado", estadoRevision.IdEstado, requiereFirma: true);
         context.SaveChanges();
 
-        // ----- Matriz · 'Matriz de talleres - IMSS'
-        //       Creada -> Firma GV IMSS -> Costos AEM -> CA -> DC -> Cerrada / Rechazada / Cancelada -----
         var wfMatImss = NuevoWorkflow(context, "Matriz de talleres - IMSS", CodigoProceso.EDUCACION_MEDICA_MATRIZ);
         var miCreada = NuevoPaso(context, wfMatImss.IdWorkflow, 0, "Creada", estadoCreada.IdEstado, esInicio: true);
         var miGv = NuevoPaso(context, wfMatImss.IdWorkflow, 10, "Firma Gerente de Ventas - IMSS", estadoRevision.IdEstado, requiereFirma: true);
@@ -187,13 +169,11 @@ internal sealed class WorkflowTestHarness
         var accMiDcRechazar = NuevaAccion(context, miDc.IdPaso, miR.IdPaso, tipoRechazar.IdTipoAccion);
         context.SaveChanges();
 
-        // ----- Matriz · 'Matriz de talleres - Descentralizado' (para el resolver) -----
         var wfMatDesc = NuevoWorkflow(context, "Matriz de talleres - Descentralizado", CodigoProceso.EDUCACION_MEDICA_MATRIZ);
         var mdCreada = NuevoPaso(context, wfMatDesc.IdWorkflow, 0, "Creada", estadoCreada.IdEstado, esInicio: true);
         var mdGv = NuevoPaso(context, wfMatDesc.IdWorkflow, 10, "Firma Gerente de Ventas - Descentralizado", estadoRevision.IdEstado, requiereFirma: true);
         context.SaveChanges();
 
-        // Participantes (usuarios directos)
         context.WorkflowParticipantes.AddRange(
             new WorkflowParticipante { IdPaso = siGg.IdPaso, IdUsuario = 10, Activo = true },
             new WorkflowParticipante { IdPaso = siGv.IdPaso, IdUsuario = 20, Activo = true },
@@ -209,7 +189,6 @@ internal sealed class WorkflowTestHarness
             new WorkflowParticipante { IdPaso = miDc.IdPaso, IdUsuario = 50, Activo = true });
         context.SaveChanges();
 
-        // Navegaciones en memoria para el resolver (los servicios resuelven pasos iniciales y acciones)
         wfSelImss.Pasos = [siCreada, siGg, siGv, siFin, siRech, siCan];
         siCreada.AccionesOrigen = [accSiEnviar, accSiCancelar];
         siGg.AccionesOrigen = [accSiGgAutorizar, accSiGgDevolver, accSiGgRechazar, accSiGgCancelar];
@@ -401,7 +380,6 @@ internal sealed class WorkflowTestHarness
         return accion;
     }
 
-    /// <summary>Mock del resolver: elige la variante por el scope TIPO_GERENCIA (1 = IMSS, 2 = Descentralizado).</summary>
     public Mock<IWorkflowResolver> CreateResolverMock()
     {
         var mock = new Mock<IWorkflowResolver>();
@@ -424,10 +402,6 @@ internal sealed class WorkflowTestHarness
 
     private int _siguienteIdRolPermiso = 9000;
 
-    /// <summary>
-    /// Otorga permisos a un usuario en Asokam (rol sintético + RolPermiso), para las
-    /// validaciones finas de servicio (p. ej. puede_ajustar, captura asistida).
-    /// </summary>
     public void OtorgarPermiso(int idUsuario, params string[] codigosPermiso)
     {
         var idRol = _siguienteIdRolPermiso++;

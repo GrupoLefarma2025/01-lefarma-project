@@ -4,42 +4,25 @@ import { FileSignature, History, Loader2, Printer, Send } from 'lucide-react';
 import { etiquetaEstadoDominio } from './seleccionUtils';
 
 interface DocumentoHeaderCardProps {
-  /** Título del documento, p. ej. "Rutas v2" o "Selección Septiembre 2026". */
   titulo: string;
-  /** Línea secundaria (gerencia, período, resumen...). */
   detalle?: ReactNode;
-  /** Nombre del paso actual del workflow. */
   pasoNombre?: string | null;
-  /** Estado del workflow (catálogo `config.workflow_estados`): nombre y color. */
   estadoNombre?: string | null;
   estadoColor?: string | null;
-  /** Estado de dominio como respaldo si no hay nombre del catálogo. */
   estadoFallback?: string | null;
-  /**
-   * Muestra el botón "Firmar": solo en las vistas especializadas (Rutas y
-   * Selección Mensual) y solo cuando el usuario tiene acciones disponibles.
-   * Al pulsarlo se abre el modal de acciones (DocumentoFirmaModal).
-   */
   showFirmar?: boolean;
   textoFirmar?: string;
   tipoAccion?: 'firmar' | 'enviar';
   onFirmar?: () => void;
   firmando?: boolean;
   firmarDeshabilitado?: boolean;
-  /** Muestra el botón "Historial" (bitácora del documento) junto a Firmar. */
   showImprimir?: boolean;
   onImprimir?: () => void;
   showHistorial?: boolean;
   onHistorial?: () => void;
-  /** Clases de fondo del card (tinte suave por vista); default: bg-card. */
   fondoClase?: string;
 }
 
-/**
- * Encabezado de documento compartido por las vistas especializadas de Educación
- * Médica (mismo patrón que `SolicitudHeaderCard` de RH): título, paso actual,
- * estado con nombre y color del catálogo, y — cuándo aplica — el botón Firmar.
- */
 export function DocumentoHeaderCard({
   titulo,
   detalle,

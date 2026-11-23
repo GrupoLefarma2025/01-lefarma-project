@@ -86,11 +86,8 @@ interface CalendarioInspectorProps {
   sugerencia?: SugerenciaEspecialista | null;
   aplicandoSugerencia?: boolean;
   onAplicarSugerencia?: (sugerencia: SugerenciaEspecialista) => void;
-  /** La matriz general está fuera de Creada: la captura de talleres está cerrada. */
   capturaBloqueada?: boolean;
-  /** Vista multi-gerencia: solo consulta, sin acciones de edición. */
   soloLectura?: boolean;
-  /** La versión de rutas seleccionada está archivada/cancelada/rechazada. */
   rutaSoloLectura?: boolean;
   onAbrirMatriz?: () => void;
 }

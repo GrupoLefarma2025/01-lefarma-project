@@ -7,9 +7,6 @@ using Microsoft.AspNetCore.Mvc;
 using Swashbuckle.AspNetCore.Annotations;
 
 namespace Lefarma.API.Features.Auth;
-/// <summary>
-/// Controller for authentication operations including two-step login flow.
-/// </summary>
 [Route("api/auth")]
 [ApiController]
 [EndpointGroupName("Auth")]
@@ -29,12 +26,6 @@ public class AuthController : ControllerBase
         _sseTicketService = sseTicketService;
     }
 
-    /// <summary>
-    /// Step 1: Find user in Active Directory and get available domains.
-    /// </summary>
-    /// <param name="request">The login step one request containing username.</param>
-    /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>Available domains for the user.</returns>
     [AllowAnonymous]
     [HttpPost("login-step-one")]
     [SwaggerOperation(
@@ -60,12 +51,6 @@ public class AuthController : ControllerBase
         }));
     }
 
-    /// <summary>
-    /// Step 2: Authenticate user with credentials and create session.
-    /// </summary>
-    /// <param name="request">The login step two request with credentials and domain.</param>
-    /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>Login response with tokens and user info.</returns>
     [AllowAnonymous]
     [HttpPost("login-step-two")]
     [SwaggerOperation(
@@ -92,12 +77,6 @@ public class AuthController : ControllerBase
         }));
     }
 
-    /// <summary>
-    /// Refresh access token using refresh token.
-    /// </summary>
-    /// <param name="request">The refresh token request.</param>
-    /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>New login response with fresh tokens.</returns>
     [AllowAnonymous]
     [HttpPost("refresh")]
     [SwaggerOperation(
@@ -120,12 +99,6 @@ public class AuthController : ControllerBase
         }));
     }
 
-    /// <summary>
-    /// Logout user by revoking tokens.
-    /// </summary>
-    /// <param name="request">Optional logout request with refresh token.</param>
-    /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>Logout response.</returns>
     [AllowAnonymous]
     [HttpPost("logout")]
     [SwaggerOperation(
@@ -147,10 +120,6 @@ public class AuthController : ControllerBase
         }));
     }
 
-/// <summary>
-    /// Genera un ticket de corta duración para establecer la conexión SSE.
-    /// Evita enviar el JWT completo en la URL del EventSource.
-    /// </summary>
     [Authorize]
     [HttpPost("sse-ticket")]
     [SwaggerOperation(
@@ -170,9 +139,6 @@ public class AuthController : ControllerBase
         return Ok(new { ticket, expiresInSeconds = 300 });
     }
 
-    /// <summary>
-    /// SSE endpoint for real-time user synchronization.
-    /// </summary>
     [AllowAnonymous]
     [HttpGet("sse")]
     [SwaggerOperation(
@@ -184,7 +150,6 @@ public class AuthController : ControllerBase
     {
         int userId;
 
-        // Si ya viene un JWT valido (por ejemplo, una prueba con curl), se usa.
         var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier);
         if (userIdClaim != null && int.TryParse(userIdClaim.Value, out var authenticatedUserId))
         {
@@ -211,11 +176,9 @@ public class AuthController : ControllerBase
 
     private string? GetClientIpAddress()
     {
-        // Check for forwarded headers first (when behind proxy/load balancer)
         var forwardedFor = Request.Headers["X-Forwarded-For"].FirstOrDefault();
         if (!string.IsNullOrEmpty(forwardedFor))
         {
-            // Take the first IP in the chain (original client)
             var ip = forwardedFor.Split(',').FirstOrDefault()?.Trim();
             if (!string.IsNullOrEmpty(ip))
             {
@@ -223,14 +186,12 @@ public class AuthController : ControllerBase
             }
         }
 
-        // Check X-Real-IP header
         var realIp = Request.Headers["X-Real-IP"].FirstOrDefault();
         if (!string.IsNullOrEmpty(realIp))
         {
             return realIp;
         }
 
-        // Fall back to connection remote IP
         return HttpContext.Connection.RemoteIpAddress?.ToString();
     }
 }

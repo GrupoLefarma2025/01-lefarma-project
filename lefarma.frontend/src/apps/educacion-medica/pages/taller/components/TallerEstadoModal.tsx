@@ -36,11 +36,6 @@ interface TallerEstadoModalProps {
   onChanged: () => void;
 }
 
-/**
- * Máquina de estados del taller (ADR-00008): stepper + solo transiciones permitidas
- * por rol/estado; Cancelado exige motivo. El historial completo vive en el modal
- * de historial.
- */
 export function TallerEstadoModal({ open, onClose, taller, onChanged }: TallerEstadoModalProps) {
   const user = useAuthStore((s) => s.user);
   const [nuevoEstado, setNuevoEstado] = useState('');
@@ -76,7 +71,6 @@ export function TallerEstadoModal({ open, onClose, taller, onChanged }: TallerEs
       const res = await educacionMedicaApi.talleres.estados(idTaller);
       if (res.data.success) setHistorial(res.data.data ?? []);
     } catch {
-      // El historial es informativo; el modal de historial muestra el error.
     } finally {
       setLoadingHistorial(false);
     }
@@ -124,7 +118,6 @@ export function TallerEstadoModal({ open, onClose, taller, onChanged }: TallerEs
   const indiceActual = taller ? PASOS.indexOf(taller.estado) : -1;
   const cancelado = taller?.estado === 'Cancelado';
 
-  // Sugerencia el día del taller (decisión #10): el sistema destaca "Iniciar" cuando fecha_taller = hoy.
   const hoy = new Date();
   const hoyIso = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-${String(
     hoy.getDate()
@@ -153,7 +146,7 @@ export function TallerEstadoModal({ open, onClose, taller, onChanged }: TallerEs
     >
       {taller && (
         <div className="space-y-5">
-          {/* Stepper del taller (decisión #14) */}
+          {}
           <div className="flex flex-wrap items-center gap-2">
             {PASOS.map((paso, idx) => {
               const activo = !cancelado && idx === indiceActual;

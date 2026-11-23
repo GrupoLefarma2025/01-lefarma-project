@@ -5,17 +5,16 @@ import { Slider } from '@/components/ui/slider';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
-
 export function AdvancedConfigUI() {
   const { ui, updateVisualPreferences, updateComponentPreferences, setPreset } = useConfigStore();
 
   return (
     <div className="space-y-6 pt-4">
-      {/* Preferencias Visuales */}
+      {}
       <div className="space-y-4">
         <h3 className="text-sm font-semibold">Preferencias Visuales</h3>
 
-        {/* Densidad */}
+        {}
         <div className="flex items-center justify-between">
           <div className="space-y-0.5">
             <Label>Densidad de Interfaz</Label>
@@ -39,7 +38,7 @@ export function AdvancedConfigUI() {
           </Select>
         </div>
 
-        {/* Tamaño de Fuente */}
+        {}
         <div className="flex items-center justify-between">
           <div className="space-y-0.5">
             <Label>Tamaño de Fuente</Label>
@@ -62,7 +61,7 @@ export function AdvancedConfigUI() {
           </Select>
         </div>
 
-        {/* Animaciones */}
+        {}
         <div className="flex items-center justify-between">
           <div className="space-y-0.5">
             <Label>Animaciones</Label>
@@ -77,11 +76,11 @@ export function AdvancedConfigUI() {
         </div>
       </div>
 
-      {/* Configuración de Componentes */}
+      {}
       <div className="space-y-4 pt-4 border-t">
         <h3 className="text-sm font-semibold">Componentes</h3>
 
-        {/* Tablas */}
+        {}
         <div className="space-y-3">
           <Label>Densidad de Tablas</Label>
           <div className="grid grid-cols-3 gap-2">
@@ -105,7 +104,7 @@ export function AdvancedConfigUI() {
           </div>
         </div>
 
-        {/* Items por página */}
+        {}
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <Label>Items por página (por defecto)</Label>
@@ -127,7 +126,7 @@ export function AdvancedConfigUI() {
           />
         </div>
 
-        {/* Sidebar */}
+        {}
         <div className="flex items-center justify-between">
           <div className="space-y-0.5">
             <Label>Sidebar</Label>
@@ -154,7 +153,7 @@ export function AdvancedConfigUI() {
         </div>
       </div>
 
-      {/* Botón Reset */}
+      {}
       <div className="pt-4 border-t">
         <Button
           variant="outline"

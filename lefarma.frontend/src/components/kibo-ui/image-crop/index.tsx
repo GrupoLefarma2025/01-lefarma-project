@@ -173,7 +173,6 @@ export const ImageCrop = ({
     onChange?.(pixelCrop, percentCrop);
   };
 
-  // biome-ignore lint/suspicious/useAwait: "onComplete is async"
   const handleComplete = async (
     pixelCrop: PixelCrop,
     percentCrop: PercentCrop
@@ -337,7 +336,6 @@ export const ImageCropReset = ({
   );
 };
 
-// Conserva el componente Cropper original por compatibilidad hacia atrás
 export type CropperProps = Omit<ReactCropProps, "onChange"> & {
   file: File;
   maxImageSize?: number;

@@ -113,7 +113,6 @@ describe('MisAutorizacionesIncidenciasBadge', () => {
     await user.click(pill);
 
     expect(await screen.findByText('Desglose por empleado')).toBeInTheDocument();
-    // Cada empleado aparece en el desglose y en el detalle.
     expect(screen.getAllByText('Ana Subordinada')).toHaveLength(2);
     expect(screen.getAllByText('Beto Subordinado')).toHaveLength(2);
     expect(screen.getByText('SOL-INC-1')).toBeInTheDocument();

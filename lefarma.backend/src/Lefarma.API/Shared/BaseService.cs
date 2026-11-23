@@ -2,9 +2,6 @@ using Lefarma.API.Shared.Extensions;
 using Lefarma.API.Shared.Logging;
 
 namespace Lefarma.API.Shared.Services;
-/// <summary>
-/// Clase base para servicios que proporciona funcionalidad común de enriquecimiento de WideEvent.
-/// </summary>
 public abstract class BaseService
 {
     private readonly IWideEventAccessor _wideEventAccessor;
@@ -15,9 +12,6 @@ public abstract class BaseService
         _wideEventAccessor = wideEventAccessor;
     }
 
-    /// <summary>
-    /// Enriquece el WideEvent actual con información del contexto de la operación.
-    /// </summary>
     protected void EnrichWideEvent(
         string action,
         int? entityId = null,
@@ -59,7 +53,6 @@ public abstract class BaseService
         if (deleteFailed == true)
             context["deleteFailed"] = true;
 
-        // exception tiene prioridad sobre error string: extrae mensaje y stack trace
         if (exception != null)
         {
             context["error"] = exception.GetDetailedMessage();
@@ -71,7 +64,6 @@ public abstract class BaseService
             context["error"] = error;
         }
 
-        // Merge additional context
         if (additionalContext != null)
         {
             foreach (var kvp in additionalContext)

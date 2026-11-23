@@ -115,7 +115,6 @@ export default function SucursalesList() {
         setEmpresas(response.data.data || []);
       }
     } catch {
-      // silencioso — el select quedará vacío
     }
   };
 

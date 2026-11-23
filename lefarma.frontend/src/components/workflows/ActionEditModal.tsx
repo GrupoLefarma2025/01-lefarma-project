@@ -38,7 +38,6 @@ export function ActionEditModal({ workflow, accion, open, setOpen, onSave }: Act
 
   useEffect(() => {
     if (accion) {
-      // Encontrar el paso origen de esta acción
       const pasoOrigen = workflow.pasos.find((p: WorkflowPaso) => 
         p.acciones?.some((a: WorkflowAccion) => a.idAccion === accion.idAccion)
       );
@@ -72,7 +71,6 @@ export function ActionEditModal({ workflow, accion, open, setOpen, onSave }: Act
           setTiposAccionList(res.data.data || []);
         }
       } catch {
-        // silent fail
       }
     };
     loadTipos();
@@ -127,7 +125,7 @@ export function ActionEditModal({ workflow, accion, open, setOpen, onSave }: Act
       }
     >
       <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Tipo de Acción */}
+        {}
         <div className="space-y-2">
           <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             Tipo de Acción *
@@ -155,7 +153,7 @@ export function ActionEditModal({ workflow, accion, open, setOpen, onSave }: Act
           </p>
         </div>
 
-        {/* Paso Origen */}
+        {}
         <div className="space-y-2">
           <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             Paso Origen *
@@ -190,7 +188,7 @@ export function ActionEditModal({ workflow, accion, open, setOpen, onSave }: Act
           </p>
         </div>
 
-        {/* Paso Destino */}
+        {}
         <div className="space-y-2">
           <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             Paso Destino *
@@ -225,7 +223,7 @@ export function ActionEditModal({ workflow, accion, open, setOpen, onSave }: Act
           </p>
         </div>
 
-        {/* Envia Concentrado */}
+        {}
         <div className="flex items-center gap-3 p-3 rounded-lg border border-border bg-muted/30">
           <Checkbox
             id="envia-concentrado"
@@ -242,7 +240,7 @@ export function ActionEditModal({ workflow, accion, open, setOpen, onSave }: Act
           </div>
         </div>
 
-        {/* Activo */}
+        {}
         <div className="flex items-center gap-3 p-3 rounded-lg border border-border bg-muted/30">
           <Checkbox
             id="accion-activa"
@@ -259,7 +257,7 @@ export function ActionEditModal({ workflow, accion, open, setOpen, onSave }: Act
           </div>
         </div>
 
-        {/* Preview */}
+        {}
         {formData.idPasoOrigen > 0 && formData.idPasoDestino > 0 && (
           <div className="p-4 rounded-lg border border-border bg-muted/30">
             <p className="text-xs font-semibold text-muted-foreground mb-2">VISTA PREVIA</p>

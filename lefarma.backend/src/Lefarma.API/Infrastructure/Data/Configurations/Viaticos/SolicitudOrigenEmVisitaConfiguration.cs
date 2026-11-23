@@ -4,11 +4,6 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace Lefarma.API.Infrastructure.Data.Configurations.Viaticos;
 
-/// <summary>
-/// Mapeo de la tabla liga [viaticos].[solicitud_origen_em_visita] (ADR-00014).
-/// `id_ruta`/`id_ruta_visita` son referencias lógicas a educacion_medica; no
-/// se declara FK física para no acoplar el despliegue de los módulos.
-/// </summary>
 public class SolicitudOrigenEmVisitaConfiguration : IEntityTypeConfiguration<SolicitudOrigenEmVisita>
 {
     public void Configure(EntityTypeBuilder<SolicitudOrigenEmVisita> builder)

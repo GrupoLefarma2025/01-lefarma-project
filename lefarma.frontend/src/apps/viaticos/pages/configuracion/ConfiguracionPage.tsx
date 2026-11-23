@@ -12,7 +12,6 @@ import {
   type ConfigViaticos,
 } from '../../services/configViaticos';
 
-/** Pantalla de configuración del módulo de viáticos (se guarda en el navegador). */
 export function ConfiguracionPage() {
   usePageTitle('Configuración de viáticos', 'Viáticos');
   const [config, setConfig] = useState<ConfigViaticos>(leerConfigViaticos);

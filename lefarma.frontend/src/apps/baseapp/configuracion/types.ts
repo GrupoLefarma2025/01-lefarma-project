@@ -1,18 +1,7 @@
-/**
- * Tipos del módulo Configuración (variables globales e integraciones).
- *
- * El backend devuelve `tipoDato` como texto libre; la UI trabaja con estos
- * valores canónicos y `normalizarTipoDato()` tolera alias/legado.
- */
-
 export interface ApiErrorLocal {
   message: string;
   statusCode?: number;
 }
-
-/* ------------------------------------------------------------------ */
-/* Tipos de dato                                                       */
-/* ------------------------------------------------------------------ */
 
 export type TipoDatoConfig =
   | 'texto_corto'
@@ -50,11 +39,8 @@ export interface TipoDatoDefinicion {
   valor: TipoDatoConfig;
   etiqueta: string;
   descripcion: string;
-  /** Explicación funcional para elegir el tipo correcto. */
   explicacion: string;
-  /** Valor de referencia mostrado como ayuda, nunca como valor inicial. */
   ejemplo: string;
-  /** Control que verá el usuario al capturar el valor. */
   editor: string;
   tono: TonoTipo;
 }
@@ -206,12 +192,10 @@ export const TIPOS_DATO: TipoDatoDefinicion[] = [
   },
 ];
 
-/** Tipos que se eligen como base; la lista se activa con una casilla. */
 export const TIPOS_DATO_SELECCIONABLES = TIPOS_DATO.filter(
   (tipo) => tipo.valor !== 'lista',
 );
 
-/** Tipos con forma de rango: se guardan como `{ desde, hasta }`. */
 export const TIPOS_DATO_RANGO = [
   'rango_fecha',
   'rango_fecha_hora',
@@ -227,10 +211,6 @@ export function esTipoRango(
   return Boolean(tipo) && (TIPOS_DATO_RANGO as readonly string[]).includes(tipo as string);
 }
 
-/**
- * Tipos que puede tener un campo del constructor de objetos. Los rangos y la
- * lista solo se eligen como tipo principal de la variable.
- */
 export const TIPOS_DATO_CAMPO = TIPOS_DATO.filter(
   (tipo) => tipo.valor !== 'lista' && !esTipoRango(tipo.valor),
 );
@@ -239,10 +219,6 @@ export const ETIQUETA_TIPO: Record<string, string> = Object.fromEntries(
   TIPOS_DATO.map((t) => [t.valor, t.etiqueta]),
 );
 
-/**
- * Valores canónicos que persiste el backend
- * (`ConfiguracionTiposDato`). La UI usa nombres en español y traduce al enviar.
- */
 export const TIPO_DATO_BACKEND: Record<TipoDatoConfig, string> = {
   texto_corto: 'string',
   texto_largo: 'text',
@@ -261,10 +237,6 @@ export const TIPO_DATO_BACKEND: Record<TipoDatoConfig, string> = {
   lista: 'array',
   json: 'json',
 };
-
-/* ------------------------------------------------------------------ */
-/* Destinos                                                            */
-/* ------------------------------------------------------------------ */
 
 export type DestinoConfig = 'backend' | 'frontend' | 'sql' | 'integraciones';
 
@@ -308,10 +280,6 @@ export const DESTINOS: DestinoDefinicion[] = [
   },
 ];
 
-/* ------------------------------------------------------------------ */
-/* DTOs                                                                */
-/* ------------------------------------------------------------------ */
-
 export interface VariableConfiguracion {
   idVariable: number;
   clave: string;
@@ -328,17 +296,14 @@ export interface VariableConfiguracion {
   version: number;
   fechaCreacion: string;
   fechaModificacion: string;
-  /** Módulo dueño de la variable (prefijo de la clave). */
   idModulo: number | null;
 }
 
-/** Módulo de configuración: agrupa variables y define el prefijo de su clave. */
 export interface ModuloConfig {
   idModulo: number;
   clave: string;
   nombre: string;
   descripcion: string | null;
-  /** Color hex #rrggbb para identificarlo en la pantalla principal. */
   color: string | null;
   activo: boolean;
   totalVariables: number;
@@ -346,10 +311,6 @@ export interface ModuloConfig {
   fechaModificacion: string;
 }
 
-/**
- * Entrada de bitácora tal como la devuelve el listado del backend
- * (`BitacoraResumenResponse`). Los snapshots solo llegan en el detalle.
- */
 export interface BitacoraVariable {
   idBitacora: number;
   idVariable?: number;
@@ -357,7 +318,6 @@ export interface BitacoraVariable {
   idOperacion?: string;
   accion: string;
   idBitacoraOrigen: number | null;
-  /** El backend expone `fechaCreacion`; `fecha` se conserva por compatibilidad. */
   fecha?: string;
   fechaCreacion?: string;
   idUsuario: number | null;
@@ -365,7 +325,6 @@ export interface BitacoraVariable {
   datosNuevos?: unknown;
 }
 
-/** Detalle completo de una revisión (`BitacoraDetalleResponse`). */
 export interface BitacoraDetalle extends BitacoraVariable {
   idOperacion: string;
   datosAnteriores: unknown | null;
@@ -384,13 +343,8 @@ export interface IntegracionCliente {
 }
 
 export interface IntegracionCreada extends IntegracionCliente {
-  /** La llave completa solo llega en la respuesta de creación. */
   llave: string;
 }
-
-/* ------------------------------------------------------------------ */
-/* Payloads                                                            */
-/* ------------------------------------------------------------------ */
 
 export interface CrearVariablePayload {
   clave: string;
@@ -411,14 +365,12 @@ export interface CrearModuloPayload {
   clave: string;
   nombre: string;
   descripcion: string | null;
-  /** Si es null, el backend asigna un color al azar. */
   color: string | null;
 }
 
 export interface ActualizarModuloPayload {
   nombre: string;
   descripcion: string | null;
-  /** Si es null, se conserva el color actual. */
   color: string | null;
 }
 
@@ -459,10 +411,6 @@ export interface FiltrosVariables {
   activo?: boolean | '';
 }
 
-/* ------------------------------------------------------------------ */
-/* JSON Schema (subconjunto que consume el constructor visual)         */
-/* ------------------------------------------------------------------ */
-
 export interface JsonSchemaNodo {
   type?: 'string' | 'number' | 'integer' | 'boolean' | 'object' | 'array' | string;
   title?: string;
@@ -477,31 +425,20 @@ export interface JsonSchemaNodo {
   [clave: string]: unknown;
 }
 
-/**
- * Tipo de un campo del constructor de objetos. Comparte los valores con
- * `TipoDatoConfig`; el constructor solo ofrece los de `TIPOS_DATO_CAMPO`.
- */
 export type TipoCampoConstructor = TipoDatoConfig;
 
-/** Modelo editable del constructor de objetos (solo UI, no se envía). */
 export interface SchemaField {
   id: string;
   nombre: string;
   tipo: TipoCampoConstructor;
-  /** Convierte el campo en una lista del tipo seleccionado. */
   esLista?: boolean;
   obligatorio: boolean;
   descripcion?: string;
   opciones?: string[];
-  /** Compatibilidad con el modelo anterior de listas. */
   itemTipo?: TipoCampoConstructor;
   campos?: SchemaField[];
   clavesAdicionales?: boolean;
 }
-
-/* ------------------------------------------------------------------ */
-/* Permisos                                                            */
-/* ------------------------------------------------------------------ */
 
 export const PERMISOS_CONFIGURACION = {
   ver: 'configuracion.view',

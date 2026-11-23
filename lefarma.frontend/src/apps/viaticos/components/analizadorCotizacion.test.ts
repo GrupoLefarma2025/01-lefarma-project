@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import { desgloseConceptos } from './analizadorCotizacion';
 import type { FilaCotizacion } from '../types/cotizacion.types';
 
-/** Fila de cotizacion completa; cada caso cambia solo lo que le importa. */
 const fila = (parcial: Partial<FilaCotizacion>): FilaCotizacion => ({
   clave: 'fila',
   modo: 'avion',
@@ -55,7 +54,6 @@ describe('desgloseConceptos', () => {
     ]);
 
     expect(desglose.avion).toBeNull();
-    // El unico concepto con dato tambien es desconocido: total es null.
     expect(desglose.total).toBeNull();
   });
 
@@ -98,12 +96,10 @@ describe('desgloseConceptos', () => {
     });
     expect(desglose.comida).toBe(0);
     expect(desglose.taxi).toBeNull();
-    // Unico concepto conocido: comida 0. Conocido, asi que el total no es null.
     expect(desglose.total).toBe(0);
   });
 
   it('el hospedaje del motor es respaldo del cotizado de pi, nunca un segundo sumando', () => {
-    // Sin hotel de pi: manda la tarifa tabulador del motor.
     const soloMotor = desgloseConceptos([fila({ modo: 'avion', precio: 1000, seleccionada: true })], {
       gasolina: null,
       casetas: null,
@@ -114,8 +110,6 @@ describe('desgloseConceptos', () => {
     expect(soloMotor.hospedaje).toBe(1500);
     expect(soloMotor.total).toBe(2500);
 
-    // Con hotel cotizado y elegido: gana el precio real de pi, sin sumar el
-    // estimado tabulador del motor encima.
     const conPi = desgloseConceptos([fila({ modo: 'hotel', precio: 3180, seleccionada: true })], {
       gasolina: null,
       casetas: null,

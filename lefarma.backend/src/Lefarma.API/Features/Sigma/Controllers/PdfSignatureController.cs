@@ -9,13 +9,6 @@ using Microsoft.Net.Http.Headers;
 
 namespace Lefarma.API.Features.Sigma.Controllers;
 
-/// <summary>
-/// Puerto de <c>PdfSignatureModule</c> (core-manager, <c>/asokam/pdf-signature</c>):
-/// lecturas, escrituras y verificación de los PDFs que consume la bandeja de SIGMA.
-/// Las escrituras ejecutan el mismo script Python de estampado del proyecto original,
-/// pero conectado a la base configurada en <c>AsokamConnection</c> (AsokamDev en
-/// desarrollo, Asokam en producción), sin depender del sitio externo <c>sisco2-1</c>.
-/// </summary>
 [ApiController]
 [Route("api/sigma/pdf-signature")]
 [Authorize]
@@ -38,7 +31,6 @@ public sealed class PdfSignatureController : ControllerBase
         _log = log;
     }
 
-    /// <summary>Listado de documentos con los mismos filtros que el servicio original.</summary>
     [HttpGet("listar-documento")]
     public async Task<IActionResult> Listar(
         [FromQuery] bool soloActivos = true,
@@ -106,10 +98,6 @@ public sealed class PdfSignatureController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// Devuelve el binario del documento (autorizado si existe). <paramref name="mostrarDocumentoSoporte"/>
-    /// sirve el anexo de soporte cuando el documento lo tiene ligado.
-    /// </summary>
     [HttpGet("pdf/{id:guid}")]
     [AllowAnonymous]
     public async Task<IActionResult> Pdf(
@@ -140,8 +128,6 @@ public sealed class PdfSignatureController : ControllerBase
                 return NotFound(new { success = false, message = "PDF no disponible" });
             }
 
-            // El nombre del archivo puede traer acentos (p. ej. «Autorización»); Kestrel
-            // rechaza caracteres no ASCII en cabeceras, así que se codifica con RFC 5987.
             var nombreArchivo = documento.NombreArchivo ?? $"documento_{id}.pdf";
             var disposicion = new ContentDispositionHeaderValue(descargar ? "attachment" : "inline");
             disposicion.SetHttpFileName(nombreArchivo);
@@ -163,10 +149,6 @@ public sealed class PdfSignatureController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// Sube un PDF al repositorio de Asokam (sp_GestionarDocumento, operación 1) y
-    /// comprueba con el script de firma que contenga el texto que se sustituye.
-    /// </summary>
     [HttpPost("subir-documento")]
     [Consumes("multipart/form-data")]
     [RequestSizeLimit(LimiteSubidaBytes)]
@@ -196,7 +178,6 @@ public sealed class PdfSignatureController : ControllerBase
         {
             var nombreSolicitado = string.IsNullOrWhiteSpace(nombre) ? archivo.FileName : nombre.Trim();
 
-            // Un nombre de archivo físico no admite estos caracteres; se rechaza antes de guardarlo.
             if (nombreSolicitado.IndexOfAny(['<', '>', ':', '"', '/', '\\', '|', '?', '*']) >= 0)
             {
                 return BadRequest(new
@@ -293,10 +274,6 @@ public sealed class PdfSignatureController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// Autoriza un PDF: el script de firma lo estampa y actualiza el binario autorizado;
-    /// después se registra el usuario, el motivo y el SHA-256 (sp_GestionarDocumento, operación 2).
-    /// </summary>
     [HttpPost("autorizar-documento")]
     public async Task<IActionResult> Autorizar(
         [FromBody] AutorizarRechazarPdfRequest peticion,
@@ -382,7 +359,6 @@ public sealed class PdfSignatureController : ControllerBase
         }
     }
 
-    /// <summary>Rechaza un documento (sp_GestionarDocumento, operación 3).</summary>
     [HttpPost("rechazar-documento")]
     public async Task<IActionResult> Rechazar(
         [FromBody] AutorizarRechazarPdfRequest peticion,
@@ -439,7 +415,6 @@ public sealed class PdfSignatureController : ControllerBase
         }
     }
 
-    /// <summary>Eliminación lógica: marca el documento como inactivo.</summary>
     [HttpDelete("eliminar-documento/{id:guid}")]
     public async Task<IActionResult> Eliminar(Guid id, CancellationToken ct)
     {
@@ -469,10 +444,6 @@ public sealed class PdfSignatureController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// Verifica que un PDF coincide con el SHA-256 registrado al autorizarlo.
-    /// Es el endpoint público al que apuntan los enlaces de validación.
-    /// </summary>
     [HttpPost("verificar-documento/{id:guid}")]
     [AllowAnonymous]
     [Consumes("multipart/form-data")]

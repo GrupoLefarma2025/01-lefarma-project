@@ -17,24 +17,17 @@ public class SeleccionMensualDto
     public DateTime? FirmaGgFecha { get; set; }
     public int TotalHospitales { get; set; }
     public int TotalRegiones { get; set; }
-    /// <summary>Existe al menos una propuesta de rutas (cualquier versión) para esta selección; habilita el acceso directo a Planificación de rutas.</summary>
     public bool TieneRutas { get; set; }
 
-    /// <summary>Fecha de creación del registro (columna Fecha del listado).</summary>
     public DateTime FechaCreacion { get; set; }
     public int? IdWorkflow { get; set; }
     public int? IdPasoActual { get; set; }
-    /// <summary>Estado del workflow (config.workflow_estados); mismo criterio que RH y la bandeja.</summary>
     public int? IdEstado { get; set; }
     public string? EstadoNombre { get; set; }
     public string? EstadoColor { get; set; }
-    /// <summary>Nombre del paso actual del workflow (columna Etapa del listado).</summary>
     public string? PasoActualNombre { get; set; }
-    /// <summary>Nombre del usuario creador (columna Creado por del listado).</summary>
     public string? NombreUsuarioCreacion { get; set; }
-    /// <summary>Acciones del motor disponibles para el usuario en el paso actual; vacío si no es su turno.</summary>
     public List<AccionDisponibleResponse> Acciones { get; set; } = [];
-    /// <summary>Indica si el documento admite edición en su paso actual y estado (sin considerar permisos del usuario).</summary>
     public bool PermiteEdicion { get; set; }
 }
 
@@ -55,16 +48,13 @@ public class SeleccionHospitalDto
     public decimal? LongitudSnapshot { get; set; }
     public int? IdRegion { get; set; }
     public string? NombreRegion { get; set; }
-    /// <summary>Equipo de pareo de la región del hospital (solo lectura; se asigna a nivel región).</summary>
     public int? IdEquipo { get; set; }
     public int? IdEjecutivo { get; set; }
     public string? NombreEjecutivo { get; set; }
     public int? IdEspecialista { get; set; }
     public string? NombreEspecialista { get; set; }
     public decimal? ScoreSugerencia { get; set; }
-    /// <summary>Origen de la asignación de región en la agrupación: null = región de catálogo (o alta manual) | "GPS" = fallback por centroide.</summary>
     public string? Origen { get; set; }
-    /// <summary>Cómo se agregó el hospital a la selección: "Manual" | "Sugerencia" (derivado de id_ranking_ejecucion).</summary>
     public string? TipoAlta { get; set; }
 }
 
@@ -87,11 +77,6 @@ public class SeleccionRegionDto
     public bool AdvertenciaMinimo { get; set; }
 }
 
-/// <summary>
-/// Hospital que pertenece a otra seleccion (otra gerencia, vigencia solapada)
-/// y esta cerca de algun hospital de la seleccion actual: por distancia
-/// (<= radio_clustering_km), mismo estado o misma ciudad. Uso: coordinacion de viajes.
-/// </summary>
 public class HospitalCercanoOtraSeleccionDto
 {
     public int IdSeleccionHospitalAjeno { get; set; }
@@ -118,7 +103,6 @@ public class SeleccionDetalleDto : SeleccionMensualDto
 
 public class CrearSeleccionMensualRequest
 {
-    /// <summary>Mes de planeación en formato YYYY-MM. Si viene, sustituye las fechas manuales y debe ser futuro.</summary>
     [RegularExpression(@"^\d{4}-(0[1-9]|1[0-2])$", ErrorMessage = "El periodo debe tener formato YYYY-MM.")]
     public string? Periodo { get; set; }
 
@@ -166,7 +150,6 @@ public class AsignarEjecutivoRegionRequest
 
 public class AsignarEjecutivoHospitalRequest
 {
-    /// <summary>Ejecutivo que cubre el hospital; NULL = heredar del ejecutivo de la región.</summary>
     public int? IdEjecutivo { get; set; }
 }
 

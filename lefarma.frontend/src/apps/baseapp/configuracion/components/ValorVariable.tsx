@@ -23,7 +23,6 @@ function fechaCorta(valor: string): string {
   return `${dia}/${mes}/${anio}`;
 }
 
-/** Agrupa los miles sin tocar los decimales (12.345,67 → 12,345.67). */
 function formatearNumero(texto: string): string {
   if (!/^-?\d+(\.\d+)?$/.test(texto)) return texto;
   const [entero, decimales] = texto.split('.');
@@ -48,7 +47,6 @@ const MESES_CORTOS = [
   'DIC',
 ];
 
-/** Icono de calendario tipo iOS: mes en la cabecera y día en grande. */
 function MiniCalendario({ fecha, conHora = false }: { fecha: Date; conHora?: boolean }) {
   const h24 = fecha.getHours();
   const h12 = h24 % 12 === 0 ? 12 : h24 % 12;
@@ -82,10 +80,8 @@ function MiniCalendario({ fecha, conHora = false }: { fecha: Date; conHora?: boo
   );
 }
 
-/** Cuántos elementos de una lista se muestran antes de los puntos suspensivos. */
 const MAX_ELEMENTOS_VISIBLES = 3;
 
-/** Tope de filas que se pintan en el tooltip; copiar incluye la lista completa. */
 const MAX_ELEMENTOS_TOOLTIP = 200;
 
 interface PartesHora {
@@ -93,7 +89,6 @@ interface PartesHora {
   minutos: string;
 }
 
-/** Píldora con la hora en formato de 12 h y el sufijo AM/PM. */
 function PildoraHora({ partes, className }: { partes: PartesHora; className?: string }) {
   const h12 = partes.h24 % 12 === 0 ? 12 : partes.h24 % 12;
   return (
@@ -111,7 +106,6 @@ function PildoraHora({ partes, className }: { partes: PartesHora; className?: st
   );
 }
 
-/** Fecha (sin hora) o ISO con hora → Date en hora local. */
 function fechaDeValor(valor: string, soloFecha: boolean): Date | null {
   if (soloFecha) {
     const [anio, mes, dia] = valor.slice(0, 10).split('-').map(Number);
@@ -123,14 +117,12 @@ function fechaDeValor(valor: string, soloFecha: boolean): Date | null {
   return Number.isNaN(fecha.getTime()) ? null : fecha;
 }
 
-/** Tipo de los elementos declarado en el esquema de una lista. */
 function tipoElementoDeEsquema(esquema: unknown): string | null {
   const nodo = esquema as JsonSchemaNodo | null | undefined;
   const items = nodo?.type === 'array' ? nodo.items : undefined;
   return items && typeof items === 'object' ? tipoEditorDeEsquema(items) : null;
 }
 
-/** Primer elemento de una lista, formateado según el tipo del esquema. */
 function valorElemento(elemento: unknown, tipoElemento: string | null): string {
   if (elemento === null || elemento === undefined) return '—';
   if (tipoElemento === 'booleano') {
@@ -151,7 +143,6 @@ function horaCorta(valor: string): string {
   return horas && minutos ? `${horas}:${minutos}` : valor;
 }
 
-/** "HH:mm" o "HH:mm:ss" → hora de 24 h y minutos; null si no se puede leer. */
 function partesHora(valor: string): PartesHora | null {
   const coincidencia = valor.match(/^(\d{1,2}):(\d{2})/);
   if (!coincidencia) return null;
@@ -160,10 +151,6 @@ function partesHora(valor: string): PartesHora | null {
   return { h24, minutos: coincidencia[2] };
 }
 
-/**
- * Vista rápida del valor de una variable según su tipo: un interruptor para
- * booleanos, conteo y primer elemento para listas, JSON resumido, etc.
- */
 export function ValorVariable({ variable, className }: ValorVariableProps) {
   const tipo = normalizarTipoDato(variable.tipoDato);
   const valor = variable.valor;
@@ -355,7 +342,6 @@ export function ValorVariable({ variable, className }: ValorVariableProps) {
     try {
       completo = JSON.stringify(valor, null, 2);
     } catch {
-      /* se queda el resumen */
     }
     return (
       <code

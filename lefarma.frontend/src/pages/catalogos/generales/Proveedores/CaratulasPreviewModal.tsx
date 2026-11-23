@@ -15,10 +15,6 @@ import { ApiResponse } from '@/types/api.types';
 import { toApiError } from '@/utils/errors';
 import { toast } from 'sonner';
 
-/**
- * One carátula per account, as returned by
- * GET /api/catalogos/Proveedores/{id}/caratulas.
- */
 interface CaratulaCuenta {
   cuentaId: number;
   ultimos4: string;
@@ -29,11 +25,6 @@ export interface CaratulasPreviewModalProps {
   proveedorId: number;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /**
-   * Optional callback that opens the shared fullscreen viewer for a carátula URL.
-   * When omitted, preview buttons are disabled. Reusing the parent viewer keeps a
-   * single source of truth for the fullscreen overlay (see design §6).
-   */
   onPreview?: (url: string) => void;
 }
 
@@ -44,10 +35,6 @@ const buildFullUrl = (relativePath: string) => {
   return `${apiUrl}/media/archivos/${relativePath}`;
 };
 
-/**
- * Lists every carátula a supplier holds (one per account). Empty state, loading
- * and error states included. Replaces the legacy single-thumbnail row cell.
- */
 export function CaratulasPreviewModal({
   proveedorId,
   open,

@@ -125,7 +125,6 @@ export default function Dashboard() {
   usePageTitle('Dashboard', 'Pagina principal');
   
   const puedeVerPresupuesto = usePermission({ require: 'dashboard.puede_ver_presupuesto' });
-  // const puedeVerTodas = usePermission({ require: 'orden_compra.puede_ver_todas_las_ordenes' });
   const { fmt } = useCurrency();
 
   const [stats, setStats] = useState<DashboardStatsResponse | null>(null);
@@ -256,7 +255,7 @@ export default function Dashboard() {
     <div className="space-y-5 pb-10">
       <Loader show={isLoading} />
 
-      {/* ── 1. KPIs (8 tarjetas, 2 filas x 4) ── */}
+      {}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {isLoading ? (
           Array.from({ length: 8 }).map((_, i) => (
@@ -273,16 +272,16 @@ export default function Dashboard() {
             <KpiCard label="En Firma" value={cards?.enFirmas ?? 0} color="orange" description="En proceso de autorizacion" icon={<Clock className="h-4 w-4" />} />
             <KpiCard label="Revision Director" value={cards?.revisionDirector ?? 0} color="pink" description="Pendientes de revision del director" icon={<CheckCircle2 className="h-4 w-4" />} />
             <KpiCard label="Vencidas / Alerta" value={cards?.vencidas ?? 0} color="amber" description="Ordenes con fecha limite vencida" icon={<Calendar className="h-4 w-4" />} />
-            {/* SEGUNDA FILA - OCULTA */}
-            {/* <KpiCard label="Cerradas" value={cards?.cerradas ?? 0} color="emerald" description="Ciclo completo, ordenes cerradas/pagadas" icon={<CheckCircle2 className="h-4 w-4" />} /> */}
-            {/* <KpiCard label="Canceladas" value={cards?.canceladas ?? 0} color="slate" description="Ordenes canceladas por el usuario" icon={<XCircle className="h-4 w-4" />} /> */}
-            {/* <KpiCard label="Rechazadas" value={cards?.rechazadas ?? 0} color="red" description="Rechazadas en alguna firma" icon={<AlertCircle className="h-4 w-4" />} /> */}
-            {/* <KpiCard label="Total Creadas (Mes)" value={cards?.totalCreadasMes ?? 0} color="indigo" description="Total de ordenes creadas este mes" icon={<TrendingUp className="h-4 w-4" />} /> */}
+            {}
+            {}
+            {}
+            {}
+            {}
           </>
         )}
       </div>
 
-      {/* ── 2. TOTALES + GASTO + PRESUPUESTO ── */}
+      {}
       <div className="grid grid-cols-1 lg:grid-cols-10 gap-5">
         <Card className={`rounded-xl shadow-sm ${puedeVerPresupuesto ? 'lg:col-span-4' : 'lg:col-span-4'}`}>
           <CardHeader className="pb-2">
@@ -386,7 +385,7 @@ export default function Dashboard() {
         )}
       </div>
 
-      {/* ── 3. ULTIMAS ORDENES (60%) + ACTIVIDAD RECIENTE (40%) ── */}
+      {}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
         <Card className="rounded-xl shadow-sm lg:col-span-3">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -443,7 +442,7 @@ export default function Dashboard() {
         </Card>
   </PermissionElement>
       </div>
-      {/* ── MODAL: Todas las Ordenes ── */}
+      {}
       <Dialog open={ordenesModalOpen} onOpenChange={setOrdenesModalOpen}>
         <DialogContent className="max-w-5xl max-h-[85vh] flex flex-col">
           <DialogTitle className="text-lg font-bold">Todas las Ordenes</DialogTitle>

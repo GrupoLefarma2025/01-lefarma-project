@@ -21,7 +21,6 @@ public class ProviderAuthorizationWorkflowHandler : IWorkflowActionHandler
 
     public async Task<HandlerResult> ProcessAsync(WorkflowHandlerContext ctx, string? configJson)
     {
-        // Garantizar que no llegue una entidad incompatible, solo ordenes de compra
         if (ctx.TipoEntidad != CodigoProceso.ORDEN_COMPRA)
             return HandlerResult.Fail("Regla solo aplica a órdenes de compra.");
 

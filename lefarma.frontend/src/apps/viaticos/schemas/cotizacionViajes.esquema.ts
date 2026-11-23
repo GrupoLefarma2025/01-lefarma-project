@@ -1,15 +1,5 @@
 import type { Esquema } from '../components/validadorCotizacion';
 
-/**
- * Copia ejecutable del contrato oficial
- * lefarma.docs/viaticos/schemas/cotizacion-viajes.schema.json.
- *
- * El navegador no puede leer ese JSON en runtime, asi que el importador
- * (ImportarCotizacion.tsx) valida contra esta copia. Solo se omiten las
- * anotaciones ($schema, $id, title, description, format) que el validador de
- * ./validadorCotizacion.ts no evalua. ImportarCotizacion.test.tsx falla si la
- * copia deja de coincidir con el schema oficial.
- */
 export const esquemaCotizacionViajes: Esquema = {
   type: 'object',
   additionalProperties: false,

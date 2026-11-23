@@ -19,19 +19,10 @@ import { useState } from 'react';
 import CambiarUbicacionModal from './CambiarUbicacionModal';
 import { NotificationBell } from '@/components/notifications/NotificationBell';
 
-
 export interface HeaderProps {
-  /**
-   * Show empresa/sucursal/area context info and the "Cambiar Ubicación"
-   * modal. CxP sets true (3-step login collects context); RH and other
-   * apps default false (no context).
-   */
   showContext?: boolean;
-  /** Configuración page path (e.g. "/cxp/configuracion"). Omit to hide. */
   configPath?: string;
-  /** Muestra el botón del manual de ayuda cuando el módulo tiene PDF. */
   showHelp?: boolean;
-  /** Abre el manual de ayuda del módulo. */
   onOpenHelp?: () => void;
 }
 
@@ -53,9 +44,6 @@ export const Header = ({ showContext = false, configPath, showHelp = false, onOp
   const navigate = useNavigate();
   const [modalOpen, setModalOpen] = useState(false);
 
-  // Área y puesto visibles provienen de Asistencias.dbo.vwEmpleados (vía
-  // /profile). El área del catálogo CxP queda como respaldo cuando el usuario
-  // no tiene fila de empleado.
   const areaMostrada = areaEmpleado || area?.nombre || null;
   const puestoMostrado = puestoEmpleado?.trim() || null;
 
@@ -69,7 +57,6 @@ export const Header = ({ showContext = false, configPath, showHelp = false, onOp
 
   const handleLogout = async () => {
     await logout();
-    // logout() ya hace redirect a /login, no necesitamos navegar aquí
   };
 
   const getThemeIcon = () => {
@@ -83,22 +70,15 @@ export const Header = ({ showContext = false, configPath, showHelp = false, onOp
     }
   };
 
-  // Solo CxP (showContext) cuenta la firma legacy: el aviso "Sin firma digital"
-  // sale únicamente si no hay firma RH ni legacy. Otras apps no cambian.
   const sinFirma = showContext
     ? hasFirma === false && hasFirmaLegacy === false
     : hasFirma === false;
 
   return (
     <header className={`h-16 bg-card grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-4 px-4 sm:px-6 ${sinFirma ? 'border-b-2 border-amber-400 dark:border-amber-500' : 'border-b border-border'}`}>
-      {/*
-        Tres zonas en columnas iguales a los lados y el título al centro, para
-        que el título de la página nunca se encime con el contexto de ubicación
-        (empresa/sucursal/área/puesto). El contexto trunca con elipsis cuando no
-        cabe y va soltando datos en pantallas angostas.
-      */}
+      {}
 
-      {/* Izquierda: toggle del sidebar + contexto de ubicación (solo apps con contexto, p. ej. CxP) */}
+      {}
       <div className="flex min-w-0 items-center gap-4 overflow-hidden">
         <SidebarTrigger className="shrink-0" />
 
@@ -136,7 +116,7 @@ export const Header = ({ showContext = false, configPath, showHelp = false, onOp
         )}
       </div>
 
-      {/* Centro: Título de la página (solo md+) */}
+      {}
       {title ? (
         <div className="hidden min-w-0 max-w-[40vw] text-center md:block">
           <p className="truncate text-sm font-semibold text-foreground leading-tight" title={title}>{title}</p>
@@ -148,7 +128,7 @@ export const Header = ({ showContext = false, configPath, showHelp = false, onOp
         <div className="hidden md:block" />
       )}
 
-   {/* Lado derecho: aviso de firma + Tema + Notificaciones + Menú de usuario */}
+   {}
       <div className="flex min-w-0 items-center justify-end gap-2">
         {sinFirma && (
           <div className="hidden md:flex shrink-0 items-center gap-1.5 rounded-full border border-amber-400 dark:border-amber-500/60 bg-amber-50 dark:bg-amber-500/10 px-2.5 py-0.5 text-xs text-amber-700 dark:text-amber-400">
@@ -169,7 +149,7 @@ export const Header = ({ showContext = false, configPath, showHelp = false, onOp
           </Button>
         )}
 
-        {/* Theme Dropdown */}
+        {}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" className="h-9 w-9">
@@ -196,10 +176,10 @@ export const Header = ({ showContext = false, configPath, showHelp = false, onOp
           </DropdownMenuContent>
         </DropdownMenu>
 
-        {/* Notification Bell - always visible */}
+        {}
         <NotificationBell onError={(error) => console.error('Notification error:', error)} />
 
-        {/* User Menu - avatar only (compact) */}
+        {}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full">
@@ -209,7 +189,7 @@ export const Header = ({ showContext = false, configPath, showHelp = false, onOp
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
-            {/* User Info */}
+            {}
             <DropdownMenuLabel className="flex flex-col gap-1">
               <span className="font-medium">{user?.nombre || user?.username}</span>
               <span className="text-xs font-normal text-muted-foreground">{user?.correo}</span>
@@ -220,7 +200,7 @@ export const Header = ({ showContext = false, configPath, showHelp = false, onOp
 
             <DropdownMenuSeparator />
 
-            {/* Current Location Info (mobile-friendly) */}
+            {}
              {showContext && (
             <div className="px-2 py-1.5 text-xs text-muted-foreground space-y-1">
               <div className="flex items-center gap-2">
@@ -255,7 +235,7 @@ export const Header = ({ showContext = false, configPath, showHelp = false, onOp
 
             {showContext && <DropdownMenuSeparator />}
 
-            {/* Actions */}
+            {}
             {configPath && (
               <DropdownMenuItem onClick={() => navigate(configPath)}>
                 <User className="mr-2 h-4 w-4" />

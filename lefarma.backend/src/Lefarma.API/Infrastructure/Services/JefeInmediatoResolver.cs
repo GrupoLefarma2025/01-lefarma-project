@@ -11,7 +11,7 @@ namespace Lefarma.API.Infrastructure.Services
 {
     public class JefeInmediatoResolver : IJefeInmediatoResolver
     {
-        private const int MaxNivel = 5; // hoy la vista tiene 5 niveles; cambiar aquí si crece
+        private const int MaxNivel = 5; 
 
         private readonly AsistenciasDbContext _asistenciasContext;
         private readonly ApplicationDbContext _context;
@@ -47,7 +47,7 @@ namespace Lefarma.API.Infrastructure.Services
                 .ToListAsync(ct);
 
             if (config.Count == 0)
-                return true; // sin configuracion: aplican todos los niveles de la cadena
+                return true; 
 
             return config.FirstOrDefault(c => c.Nivel == nivel)?.Aplica ?? false;
         }
@@ -58,11 +58,9 @@ namespace Lefarma.API.Infrastructure.Services
                     if (nivel < 1 || nivel > MaxNivel)
                         return new(null, MotivoOmisionJefe.CadenaRota);
 
-                    // 1. Check del empleado
                     if (!await AplicaNivelJefeAsync(idUsuarioCreador, nivel, ct))
                         return new(null, MotivoOmisionJefe.ConfigNoAplica);
 
-                    // 2. Override explícito (prevalece sobre la vista)
                     var over = await _context.EmpleadoJefesOverride
                         .AsNoTracking()
                 .Where(o => o.IdUsuario == idUsuarioCreador && o.Nivel == nivel && o.Activo)
@@ -80,17 +78,14 @@ namespace Lefarma.API.Infrastructure.Services
                 return new (over, null);
             }
 
-            // 3. Cadena (columna aplanada de la vista)
             var nominaJefe = await ResolverNominaJefeAsync(idUsuarioCreador, nivel, ct);
             if (!nominaJefe.HasValue)
                 return new (null, MotivoOmisionJefe.CadenaRota);
 
-            // 4. Usuario en el sistema
             var idUsuarioJefe = await _empleadoRepository.ResolverIdUsuarioPorNominaAsync(nominaJefe.Value, ct);
             if (!idUsuarioJefe.HasValue)
                 return new (null, MotivoOmisionJefe.SinUsuario);
 
-            // 5. Exclusión por workflow
             var excluido2 = await _context.WorkflowJefesExcluidos
                 .AsNoTracking()
                 .AnyAsync(x => x.IdWorkflow == idWorkflow && x.Activo && x.IdUsuarioJefe == idUsuarioJefe.Value, ct);
@@ -100,7 +95,6 @@ namespace Lefarma.API.Infrastructure.Services
             return new (idUsuarioJefe, null);
         }
 
-        /// <summary>Lee la nómina del jefe del nivel N desde la columna aplanada de la vista.</summary>
         private async Task<long?> ResolverNominaJefeAsync(
             int idUsuarioCreador, int nivel, CancellationToken ct)
         {
@@ -133,7 +127,6 @@ namespace Lefarma.API.Infrastructure.Services
             if (creadorList.Count == 0)
                 return new Dictionary<int, int>();
 
-            // Overrides de nivel 1
             var overrides = await _context.EmpleadoJefesOverride
                 .AsNoTracking()
                 .Where(o => o.Activo && o.Nivel == 1 && creadorList.Contains(o.IdUsuario))

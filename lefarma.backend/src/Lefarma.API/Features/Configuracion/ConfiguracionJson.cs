@@ -3,10 +3,6 @@ using System.Text.Json;
 
 namespace Lefarma.API.Features.Configuracion;
 
-/// <summary>
-/// Utilidades para convertir entre el JSON almacenado en la base de datos
-/// y los <see cref="JsonElement"/> que expone la API.
-/// </summary>
 public static class ConfiguracionJson
 {
     private static JsonElement Nulo()
@@ -15,7 +11,6 @@ public static class ConfiguracionJson
         return documento.RootElement.Clone();
     }
 
-    /// <summary>Parsea un JSON; si viene vacío o corrupto devuelve el literal null.</summary>
     public static JsonElement Parsear(string? json)
     {
         if (string.IsNullOrWhiteSpace(json))
@@ -34,7 +29,6 @@ public static class ConfiguracionJson
         }
     }
 
-    /// <summary>Parsea el esquema; null cuando no existe o es el literal null.</summary>
     public static JsonElement? ParsearEsquema(string? json)
     {
         if (string.IsNullOrWhiteSpace(json))
@@ -46,7 +40,6 @@ public static class ConfiguracionJson
         return elemento.ValueKind == JsonValueKind.Null ? null : elemento;
     }
 
-    /// <summary>Serializa un elemento como JSON compacto (canónico).</summary>
     public static string Canonicalizar(JsonElement valor)
     {
         using var memoria = new MemoryStream();
@@ -61,7 +54,6 @@ public static class ConfiguracionJson
         return Encoding.UTF8.GetString(memoria.ToArray());
     }
 
-    /// <summary>Normaliza un elemento opcional: Undefined pasa a null.</summary>
     public static JsonElement? Normalizar(JsonElement? elemento)
         => elemento is { ValueKind: not JsonValueKind.Undefined } ? elemento : null;
 }

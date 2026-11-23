@@ -10,12 +10,6 @@ import {
   type SolicitudConcentrado,
 } from './ConcentradoViaticosPrint';
 
-/**
- * El fixture viene del concentrado real de 20 viajes de octubre 2026. Se proyecta
- * a la fila que el componente consume (datos persistidos de la bandeja) sin
- * tocar ni un importe: si el formato deja de cuadrar, el test falla en vez de
- * maquillar los numeros.
- */
 function fila(viaje: ViajeOctubre2026): SolicitudConcentrado {
   return {
     id_solicitud: viaje.no,
@@ -47,7 +41,6 @@ function renderConcentrado(solicitudes: SolicitudConcentrado[] = Solicitudes) {
   );
 }
 
-/** La tabla de datos: la de `aria-label` propio, sin encabezado ni firmas. */
 function tablaDatos(container: HTMLElement): HTMLElement {
   return container.querySelector(
     '[aria-label="Concentrado de viáticos autorizados"]',
@@ -62,7 +55,6 @@ describe('ConcentradoViaticosPrint FOR-008 sobre datos persistidos', () => {
     const cuerpo = tablaDatos(container).querySelector('tbody')!;
     const filas = within(cuerpo as HTMLElement).getAllByRole('row');
     expect(filas).toHaveLength(20);
-    // La fila de totales vive en tfoot, fuera del cuerpo de datos.
     expect(tablaDatos(container).querySelector('tfoot tr')).toBeTruthy();
   });
 
@@ -85,7 +77,6 @@ describe('ConcentradoViaticosPrint FOR-008 sobre datos persistidos', () => {
       tablaDatos(container).querySelector('tfoot tr')! as HTMLElement,
     ).getAllByRole('cell');
     expect(totales[0]).toHaveTextContent('Total');
-    // orden: Autobus, Avion, Gasolina, Casetas, Hospedaje, Comida, Taxi, Total
     expect(totales[1]).toHaveTextContent(dinero(TOTALES_OCTUBRE_2026.autobus));
     expect(totales[2]).toHaveTextContent(dinero(TOTALES_OCTUBRE_2026.avion));
     expect(totales[5]).toHaveTextContent(dinero(TOTALES_OCTUBRE_2026.hospedaje));
@@ -93,13 +84,12 @@ describe('ConcentradoViaticosPrint FOR-008 sobre datos persistidos', () => {
     expect(totales[7]).toHaveTextContent(dinero(TOTALES_OCTUBRE_2026.taxi));
     expect(totales[8]).toHaveTextContent(dinero(TOTALES_OCTUBRE_2026.total));
 
-    // Los valores exactos que deben salir impresos, no solo la suma del fixture.
     expect(totales.map(c => c.textContent)).toEqual([
       'Total',
       '$16,481.00',
       '$137,630.00',
-      '—', // Gasolina: el fixture no trae vehiculo propio
-      '—', // Casetas
+      '—', 
+      '—', 
       '$52,896.00',
       '$25,100.00',
       '$44,250.00',
@@ -110,15 +100,13 @@ describe('ConcentradoViaticosPrint FOR-008 sobre datos persistidos', () => {
   it('cada fila imprime el importe del viaje y una celda vacia no se vuelve cero', () => {
     const { container } = renderConcentrado();
     const filas = within(tablaDatos(container).querySelector('tbody')! as HTMLElement).getAllByRole('row');
-    // El viaje 1 no tiene hospedaje: celda vacia (—), nunca $0.00.
-    // Columnas: No., Solicitante, Fecha, Origen, Destino | 8 conceptos (13 hojas).
     const viaje1 = within(filas[0]).getAllByRole('cell');
     expect(viaje1).toHaveLength(13);
-    expect(viaje1[5]).toHaveTextContent('$600.00'); // Autobus
-    expect(viaje1[6]).toHaveTextContent('—'); // Avion: viaje de solo autobus
-    expect(viaje1[9]).toHaveTextContent('—'); // Hospedaje: salida de un dia
-    expect(viaje1[11]).toHaveTextContent('$1,060.00'); // Taxi
-    expect(viaje1[12]).toHaveTextContent('$2,110.00'); // Total
+    expect(viaje1[5]).toHaveTextContent('$600.00'); 
+    expect(viaje1[6]).toHaveTextContent('—'); 
+    expect(viaje1[9]).toHaveTextContent('—'); 
+    expect(viaje1[11]).toHaveTextContent('$1,060.00'); 
+    expect(viaje1[12]).toHaveTextContent('$2,110.00'); 
     expect(container).not.toHaveTextContent('$0.00');
   });
 
@@ -126,9 +114,6 @@ describe('ConcentradoViaticosPrint FOR-008 sobre datos persistidos', () => {
     const { container } = renderConcentrado();
     const tabla = tablaDatos(container);
 
-    // Columnas hoja del encabezado: su primera fila cubre el ancho completo, asi
-    // que la suma de sus colSpan (cada rowSpan aporta 1 hoja) es el total. Esta
-    // es LA comparacion que faltaba: antes el encabezado tenia 13 y el cuerpo 14.
     const primeraFilaEncabezado = tabla.querySelectorAll('thead tr')[0];
     const columnasEncabezado = Array.from(primeraFilaEncabezado.querySelectorAll('th')).reduce(
       (total, th) => total + (Number(th.getAttribute('colspan')) || 1),
@@ -144,7 +129,6 @@ describe('ConcentradoViaticosPrint FOR-008 sobre datos persistidos', () => {
       0,
     );
 
-    // 5 de texto + Transporte (2) + Automóvil propio (2) + 4 sueltas = 13.
     expect(columnasEncabezado).toBe(13);
     expect(columnasCuerpo).toBe(columnasEncabezado);
     expect(columnasPie).toBe(columnasEncabezado);
@@ -179,7 +163,7 @@ describe('ConcentradoViaticosPrint FOR-008 sobre datos persistidos', () => {
       'CDMX',
       'CANCÚN',
       '$100.00',
-      '—', // Avion: null del servidor, celda vacia
+      '—', 
       '$300.00',
       '$400.00',
       '$500.00',
@@ -246,8 +230,6 @@ describe('ConcentradoViaticosPrint FOR-008 sobre datos persistidos', () => {
     expect(css).toContain('@page concentrado-viaticos { size: A4 landscape; margin: 10mm; }');
     expect(css).toContain('thead { display: table-header-group; }');
     expect(css).toContain('break-inside: avoid');
-    // Patron presentacional: sin barra de navegacion ni botones, y sin datos
-    // del wizard en memoria (todo entra por props).
     expect(container.querySelector('button')).toBeNull();
     expect(container.querySelector('nav')).toBeNull();
   });
@@ -259,7 +241,6 @@ describe('ConcentradoViaticosPrint FOR-008 sobre datos persistidos', () => {
       primera.container.querySelector('article')!.textContent,
     );
     expect(segunda.container).toHaveTextContent('$276,357.00');
-    // Orden invertido de entrada invierte la numeracion, sin mutar la entrada.
     const invertido = renderConcentrado([...Solicitudes].reverse());
     const filas = within(tablaDatos(invertido.container).querySelector('tbody')! as HTMLElement)
       .getAllByRole('row');
@@ -269,11 +250,6 @@ describe('ConcentradoViaticosPrint FOR-008 sobre datos persistidos', () => {
     );
   });
 
-  /**
-   * Selección mixta del concentrado: dos autorizadas y una enviada. La enviada
-   * no puede llegar al documento oficial, pero sí a la vista previa de la
-   * selección cuando quien monta apaga el filtro.
-   */
   const seleccionMixta: SolicitudConcentrado[] = [
     {
       id_solicitud: 101,
@@ -337,14 +313,13 @@ describe('ConcentradoViaticosPrint FOR-008 sobre datos persistidos', () => {
     expect(container).toHaveTextContent('AUTORIZADA DOS');
     expect(container).not.toHaveTextContent('ENVIADA TRES');
 
-    // El pie suma exactamente las dos filas impresas, no la selección completa.
     const totales = within(
       tablaDatos(container).querySelector('tfoot tr')! as HTMLElement,
     ).getAllByRole('cell');
-    expect(totales[1]).toHaveTextContent('$100.00'); // Autobus
-    expect(totales[2]).toHaveTextContent('$200.00'); // Avion
-    expect(totales[7]).toHaveTextContent('$30.00'); // Taxi: solo de la segunda
-    expect(totales[8]).toHaveTextContent('$525.00'); // 185 + 340, nunca 900
+    expect(totales[1]).toHaveTextContent('$100.00'); 
+    expect(totales[2]).toHaveTextContent('$200.00'); 
+    expect(totales[7]).toHaveTextContent('$30.00'); 
+    expect(totales[8]).toHaveTextContent('$525.00'); 
     expect(totales[8]).not.toHaveTextContent('1,425');
   });
 
@@ -361,15 +336,14 @@ describe('ConcentradoViaticosPrint FOR-008 sobre datos persistidos', () => {
     const filas = within(cuerpo).getAllByRole('row');
     expect(filas).toHaveLength(3);
     expect(within(filas[2]).getAllByRole('cell')[1]).toHaveTextContent('ENVIADA TRES');
-    // Null sigue siendo celda vacía, nunca $0.00.
     expect(within(filas[2]).getAllByRole('cell')[6]).toHaveTextContent('—');
     expect(container).not.toHaveTextContent('$0.00');
 
     const totales = within(
       tablaDatos(container).querySelector('tfoot tr')! as HTMLElement,
     ).getAllByRole('cell');
-    expect(totales[7]).toHaveTextContent('$930.00'); // Taxi: 10 + 20 + 900
-    expect(totales[8]).toHaveTextContent('$1,425.00'); // 185 + 340 + 900
+    expect(totales[7]).toHaveTextContent('$930.00'); 
+    expect(totales[8]).toHaveTextContent('$1,425.00'); 
   });
 
   it('la agrupación y los subtotales solo cuentan las filas impresas', () => {
@@ -382,7 +356,6 @@ describe('ConcentradoViaticosPrint FOR-008 sobre datos persistidos', () => {
       />,
     );
     const cuerpo = tablaDatos(container).querySelector('tbody')! as HTMLElement;
-    // La enviada es de IMSS: el bloque solo declara la autorizada.
     expect(cuerpo).toHaveTextContent(/Gerencia: IMSS · 1 solicitud/i);
     expect(cuerpo).toHaveTextContent(/Gerencia: IMSS Bienestar · 1 solicitud/i);
     const subtotales = cuerpo.querySelectorAll('.concentrado-subtotal-grupo');
@@ -419,7 +392,6 @@ describe('ConcentradoViaticosPrint FOR-008 sobre datos persistidos', () => {
     expect(subtotales[0]).toHaveTextContent(dinero(totalImss));
     expect(subtotales[1]).toHaveTextContent(dinero(Solicitudes[2].total ?? 0));
 
-    // La numeracion sigue siendo continua entre bloques (1..3).
     const numeros = within(cuerpo)
       .getAllByRole('row')
       .filter((fila) => fila.classList.contains('concentrado-grupo') === false)

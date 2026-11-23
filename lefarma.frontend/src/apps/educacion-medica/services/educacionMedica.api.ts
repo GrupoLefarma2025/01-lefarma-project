@@ -565,7 +565,6 @@ export const educacionMedicaApi = {
       API.put<ApiResponse<Taller>>(`${BASE}/talleres/${idTaller}`, payload),
     eliminar: (idTaller: number) =>
       API.delete<ApiResponse<unknown>>(`${BASE}/talleres/${idTaller}`),
-    // Impartición (ADR-00008)
     material: (idTaller: number) =>
       API.get<ApiResponse<TallerMaterial | null>>(`${BASE}/talleres/${idTaller}/material`),
     guardarMaterial: (idTaller: number, payload: GuardarTallerMaterialRequest) =>
@@ -608,7 +607,6 @@ export const educacionMedicaApi = {
       API.get<ApiResponse<TallerDocumentoAsistencia>>(
         `${BASE}/talleres/${idTaller}/documento-asistencia`
       ),
-    // Solicitudes de cambio del equipo (ADR-00010)
     crearSolicitudCambio: (idTaller: number, payload: CrearSolicitudCambioRequest) =>
       API.post<ApiResponse<TallerSolicitudCambio>>(
         `${BASE}/talleres/${idTaller}/solicitudes-cambio`,

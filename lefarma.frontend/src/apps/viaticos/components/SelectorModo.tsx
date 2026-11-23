@@ -16,12 +16,6 @@ export interface SelectorModoProps {
   className?: string;
 }
 
-/**
- * Control segmentado sobre el ToggleGroup de shadcn (Radix, `type="single"`):
- * una opción siempre queda activa, se opera con clic, Tab y flechas, y expone
- * el patrón radiogroup (`aria-checked`). Contenedor compacto en naranja tenue
- * con la opción activa en blanco; sin bordes truncos.
- */
 export function SelectorModo({ ariaLabel, value, onChange, options, disabled, className }: SelectorModoProps) {
   const elegida = options.find((o) => o.id === value) ?? null;
   return (
@@ -31,8 +25,6 @@ export function SelectorModo({ ariaLabel, value, onChange, options, disabled, cl
         aria-label={ariaLabel}
         value={value}
         onValueChange={(id) => {
-          // En modo single, pulsar la activa limpia el valor: se ignora para
-          // que siempre quede una opción elegida.
           if (id) onChange(id);
         }}
         disabled={disabled}

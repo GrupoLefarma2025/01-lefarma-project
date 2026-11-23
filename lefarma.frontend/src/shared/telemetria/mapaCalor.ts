@@ -8,14 +8,6 @@ import {
 import { encolar } from './colaEventos';
 import { pedirEnvio } from './emisor';
 
-/**
- * Mapa de calor agregado en el navegador. No se envía ni un solo movimiento: se
- * cuenta en celdas de 32 px por visita de página y se manda como una rejilla de
- * enteros cada 30 segundos, al ocultar la pestaña o al cambiar de ruta.
- *
- * Es una aproximación de dónde está el puntero, no de dónde mira la persona.
- */
-
 const MAXIMO_COLUMNAS = 80;
 const MAXIMO_FILAS = 400;
 const INTERVALO_EMISION_MS = 30_000;

@@ -17,12 +17,10 @@ using Lefarma.API.Domain.Entities.Telemetria;
 namespace Lefarma.API.Infrastructure.Data {
 public class ApplicationDbContext : DbContext
     {
-        // Constructor del ApplicationDbContext
         public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : base(options)
         {
         }
 
-        // DbSets - Catalogos
         public DbSet<Empresa> Empresas { get; set; }
         public DbSet<Sucursal> Sucursales { get; set; }
         public DbSet<TipoDia> TiposDia { get; set; }
@@ -33,7 +31,6 @@ public class ApplicationDbContext : DbContext
         public DbSet<UsuarioDetalle> UsuariosDetalle { get; set; }
         public DbSet<FormaPago> FormasPago { get; set; }
 
-        // DbSets - Config (Motor de Workflows)
         public DbSet<Workflow> Workflows { get; set; }
         public DbSet<WorkflowPaso> WorkflowPasos { get; set; }
         public DbSet<WorkflowParticipante> WorkflowParticipantes { get; set; }
@@ -59,13 +56,11 @@ public class ApplicationDbContext : DbContext
         public DbSet<WorkflowTipoAccion> WorkflowTiposAccion { get; set; }
         public DbSet<UsuarioAlcanceEmpresa> UsuariosAlcanceEmpresa { get; set; }
 
-        // DbSets - Configuración (variables globales)
         public DbSet<ConfigVariable> ConfigVariables { get; set; }
         public DbSet<ConfigVariableBitacora> ConfigVariablesBitacora { get; set; }
         public DbSet<ConfigIntegracion> ConfigIntegraciones { get; set; }
         public DbSet<ConfigModulo> ConfigModulos { get; set; }
 
-        // DbSets - Telemetría (errores del navegador, clics y mapa de calor)
         public DbSet<LoteTelemetriaProcesado> TelemetriaLotesProcesados { get; set; }
         public DbSet<EventoErrorTelemetria> TelemetriaErrores { get; set; }
         public DbSet<EventoClicTelemetria> TelemetriaClics { get; set; }
@@ -73,14 +68,12 @@ public class ApplicationDbContext : DbContext
         public DbSet<VisitaTelemetria> TelemetriaVisitas { get; set; }
         public DbSet<ParametroTelemetria> TelemetriaParametros { get; set; }
 
-        // DbSets - Operaciones
         public DbSet<OrdenCompra> OrdenesCompra { get; set; }
         public DbSet<OrdenCompraPartida> OrdenesCompraPartidas { get; set; }
         public DbSet<Pago> Pagos { get; set; }
         public DbSet<Comprobacion> Comprobaciones { get; set; }
         public DbSet<EnvioConcentrado> EnviosConcentrado { get; set; }
 
-        // DbSets - Rh
         public DbSet<SolicitudPersonal> SolicitudesPersonal { get; set; }
         public DbSet<SolicitudPersonalDetalle> SolicitudesPersonalDetalle { get; set; }
         public DbSet<EnvioSolicitud> EnviosSolicitudes { get; set; }
@@ -91,7 +84,6 @@ public class ApplicationDbContext : DbContext
         public DbSet<DiaHabil> DiasHabiles { get; set; }
         public DbSet<SaldoVacacionesAnual> SaldosVacacionesAnuales { get; set; }
 
-        // DbSets - Educación Médica
         public DbSet<HospitalExtension> HospitalesExtension { get; set; }
         public DbSet<RegionCatalogo> RegionesCat { get; set; }
         public DbSet<RegionEstado> RegionesEstados { get; set; }
@@ -127,7 +119,6 @@ public class ApplicationDbContext : DbContext
         public DbSet<MatrizIndividual> MatricesIndividuales { get; set; }
         public DbSet<MatrizGeneral> MatricesGenerales { get; set; }
 
-        // DbSets - Catalogos Nuevos (Sistema CxP)
         public DbSet<Proveedor> Proveedores { get; set; }
         public DbSet<ProveedorDetalle> ProveedoresDetalle { get; set; }
         public DbSet<ProveedorFormaPagoCuenta> ProveedoresFormasPagoCuentas { get; set; }
@@ -143,7 +134,6 @@ public class ApplicationDbContext : DbContext
         public DbSet<TipoImpuesto> TiposImpuesto { get; set; }
         public DbSet<Moneda> Monedas { get; set; }
 
-        // DbSets - Auth/Identity
         public DbSet<Usuario> Usuarios { get; set; }
         public DbSet<Rol> Roles { get; set; }
         public DbSet<Permiso> Permisos { get; set; }
@@ -155,48 +145,37 @@ public class ApplicationDbContext : DbContext
         public DbSet<DominioConfig> DominioConfigs { get; set; }
         public DbSet<AuditLog> AuditLogs { get; set; }
 
-        // DbSets - Logging
         public DbSet<ErrorLog> ErrorLogs { get; set; }
         public DbSet<BusinessAuditLog> BusinessAuditLogs { get; set; }
 
-        // DbSets - Notifications
         public DbSet<Notification> Notifications { get; set; }
         public DbSet<NotificationChannel> NotificationChannels { get; set; }
         public DbSet<UserNotification> UserNotifications { get; set; }
 
-        // DbSets - Views (read-only)
         public DbSet<VwDirectorioActivo> VwDirectorioActivo { get; set; }
 
-        // DbSets - Help System
         public DbSet<HelpModule> HelpModules { get; set; }
         public DbSet<HelpArticle> HelpArticles { get; set; }
         public DbSet<HelpImage> HelpImages { get; set; }
 
-        // DbSets - Viáticos (wizard de solicitudes)
     public DbSet<Solicitud> Solicitudes { get; set; }
     public DbSet<SolicitudOpcion> SolicitudOpciones { get; set; }
     public DbSet<SolicitudOrigenEmVisita> SolicitudOrigenEmVisitas { get; set; }
         public DbSet<SolicitudAjuste> SolicitudAjustes { get; set; }
         public DbSet<SolicitudEvento> SolicitudEventos { get; set; }
 
-        // DbSets - Archivos
         public DbSet<Archivo> Archivos { get; set; }
         public DbSet<ArchivoEliminado> ArchivosEliminados { get; set; }
 
-        // DbSets - Comprobantes
         public DbSet<Comprobante> Comprobantes { get; set; }
         public DbSet<ComprobantePartida> ComprobantesPartidas { get; set; }
 
-        // Configuración mediante Fluent API
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
 
-            // Aplicar todas las configuraciones automáticamente
-            // Encuentra y aplica TODAS las clases que implementen IEntityTypeConfiguration<T>
             modelBuilder.ApplyConfigurationsFromAssembly(Assembly.GetExecutingAssembly());
 
-            // FK explícitas para OrdenCompra — evita shadow properties de EF Core
             modelBuilder.Entity<OrdenCompra>()
                 .HasOne(o => o.Empresa)
                 .WithMany()

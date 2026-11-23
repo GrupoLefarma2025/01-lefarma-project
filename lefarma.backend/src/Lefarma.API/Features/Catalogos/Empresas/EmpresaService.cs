@@ -34,7 +34,6 @@ public class EmpresaService : BaseService, IEmpresaService
             {
                 var empresasQuery = _empresaRepository.GetQueryable();
 
-                // Aplicar filtros
                 if (!string.IsNullOrWhiteSpace(query.Nombre))
                 {
                     empresasQuery = empresasQuery.Where(e => e.Nombre.Contains(query.Nombre));
@@ -55,7 +54,6 @@ public class EmpresaService : BaseService, IEmpresaService
                     empresasQuery = empresasQuery.Where(e => e.Activo == query.Activo.Value);
                 }
 
-                // Aplicar ordenamiento
                 empresasQuery = query.OrderBy?.ToLower() switch
                 {
                     "nombre" => query.OrderDirection?.ToLower() == "desc"
@@ -96,7 +94,6 @@ public class EmpresaService : BaseService, IEmpresaService
                 var result = await _empresaRepository.GetByIdAsync(id);
                 if (result == null)
                 {
-                    //_logger.LogWarning("Empresa con ID {IdEmpresa} no encontrada", id);
                     EnrichWideEvent(action: "GetById", entityId: id, notFound: true);
                     return CommonErrors.NotFound("empresa", id.ToString());
                 }
@@ -107,7 +104,6 @@ public class EmpresaService : BaseService, IEmpresaService
             }
             catch (Exception ex)
             {
-                //_logger.LogError(ex, "Error al obtener empresa {IdEmpresa}", id);
                 EnrichWideEvent(action: "GetById", entityId: id, exception: ex);
                 return CommonErrors.DatabaseError($"obtener la empresa");
             }
@@ -120,7 +116,6 @@ public class EmpresaService : BaseService, IEmpresaService
                 var existeNombre = await _empresaRepository.ExistsAsync(s => s.Nombre == request.Nombre);
                 if (existeNombre)
                 {
-                    //_logger.LogWarning("Intento de crear empresa con nombre duplicado: {EmpresaNombre}", request.Nombre);
                     EnrichWideEvent(action: "Create", nombre: request.Nombre, duplicate: true);
                     return CommonErrors.AlreadyExists("empresa", "nombre", request.Nombre);
                 }
@@ -171,7 +166,6 @@ public class EmpresaService : BaseService, IEmpresaService
             }
             catch (Exception ex)
             {
-                //_logger.LogError(ex, "Error inesperado al crear empresa: {EmpresaNombre}", request.Nombre);
                 EnrichWideEvent(action: "Create", nombre: request.Nombre, exception: ex);
                 return CommonErrors.InternalServerError($"Error inesperado al crear la empresa.");
             }
@@ -184,7 +178,6 @@ public class EmpresaService : BaseService, IEmpresaService
                 var empresa = await _empresaRepository.GetByIdAsync(id);
                 if (empresa == null)
                 {
-                    //_logger.LogWarning("Intento de actualizar empresa inexistente: {IdEmpresa}", id);
                     EnrichWideEvent(action: "Update", entityId: id, notFound: true);
                     return CommonErrors.NotFound("empresa", id.ToString());
                 }
@@ -192,7 +185,6 @@ public class EmpresaService : BaseService, IEmpresaService
                 var existeNombre = await _empresaRepository.ExistsAsync(s => s.Nombre == request.Nombre && s.IdEmpresa != id);
                 if (existeNombre)
                 {
-                    //_logger.LogWarning("Intento de actualizar empresa con nombre duplicado: {EmpresaNombre}", request.Nombre);
                     EnrichWideEvent(action: "Update", entityId: id, nombre: request.Nombre, duplicate: true);
                     return CommonErrors.AlreadyExists("empresa", "nombre", request.Nombre);
                 }
@@ -203,7 +195,6 @@ public class EmpresaService : BaseService, IEmpresaService
                 empresa.Descripcion = request.Descripcion;
                 empresa.DescripcionNormalizada = StringExtensions.RemoveDiacritics(request.Descripcion);
                 empresa.Clave = request.Clave;
-                // Solo actualizar RFC si viene vacío (frontend lo limpió) o si cambió
                 if (!string.IsNullOrWhiteSpace(request.RFC) || empresa.RFC != request.RFC)
                 {
                     empresa.RFC = request.RFC;
@@ -236,7 +227,6 @@ public class EmpresaService : BaseService, IEmpresaService
                 if (ex.InnerException is Microsoft.Data.SqlClient.SqlException sqlEx
                     && (sqlEx.Number == 2601 || sqlEx.Number == 2627))
                 {
-                    // Violación de llave única
                     var message = sqlEx.Message;
                     if (message.Contains("RFC") || message.Contains("rfc"))
                         return CommonErrors.AlreadyExists("empresa", "rfc", request.RFC ?? "");
@@ -250,7 +240,6 @@ public class EmpresaService : BaseService, IEmpresaService
             }
             catch (Exception ex)
             {
-                //_logger.LogError(ex, "Error inesperado al actualizar empresa: {IdEmpresa}", id);
                 EnrichWideEvent(action: "Update", entityId: id, exception: ex);
                 return CommonErrors.InternalServerError($"Error inesperado al actualizar la empresa.");
             }
@@ -263,7 +252,6 @@ public class EmpresaService : BaseService, IEmpresaService
                 var empresa = await _empresaRepository.GetByIdAsync(id);
                 if (empresa == null)
                 {
-                    //_logger.LogWarning("Intento de eliminar empresa inexistente: {IdEmpresa}", id);
                     EnrichWideEvent(action: "Delete", entityId: id, notFound: true);
                     return CommonErrors.NotFound("empresa", id.ToString());
                 }
@@ -271,7 +259,6 @@ public class EmpresaService : BaseService, IEmpresaService
                 var eliminado = await _empresaRepository.DeleteAsync(empresa);
                 if (!eliminado)
                 {
-                    //_logger.LogWarning("No se pudo eliminar empresa: {IdEmpresa}", id);
                     EnrichWideEvent(action: "Delete", entityId: id, deleteFailed: true);
                     return CommonErrors.DeleteFailed("empresa");
                 }
@@ -281,13 +268,11 @@ public class EmpresaService : BaseService, IEmpresaService
             }
             catch (DbUpdateException ex)
             {
-                //_logger.LogError(ex, "Error de base de datos al eliminar empresa: {IdEmpresa}", id);
                 EnrichWideEvent(action: "Delete", entityId: id, exception: ex);
                 return CommonErrors.HasDependencies("Empresa");
             }
             catch (Exception ex)
             {
-                //_logger.LogError(ex, "Error inesperado al eliminar empresa: {IdEmpresa}", id);
                 EnrichWideEvent(action: "Delete", entityId: id, exception: ex);
                 return CommonErrors.InternalServerError($"Error inesperado al eliminar la empresa.");
             }

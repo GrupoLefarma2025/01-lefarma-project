@@ -90,7 +90,6 @@ import {
   EyeIcon,
   FileIcon,
   GanttChartSquareIcon,
-  /* HardDrive, */ // @typescript-eslint/no-unused-vars
   Layers,
   LinkIcon,
   ListIcon,
@@ -106,9 +105,6 @@ import { FileUploader } from "@/components/archivos/FileUploader";
 import { FileViewer } from "@/components/archivos/FileViewer";
 import { toast } from "sonner";
 
-// ==========================================
-// DATOS DE EJEMPLO
-// ==========================================
 const frameworks = [
   { value: "next.js", label: "Next.js", description: "Framework React para producción" },
   { value: "sveltekit", label: "SvelteKit", description: "Desarrollo web simplificado" },
@@ -127,7 +123,6 @@ const medicamentos = [
   { value: "metformina", label: "Metformina 850mg", categoria: "Antidiabético" },
 ];
 
-// Datos de tareas para Roadmap
 const hoy = new Date();
 const estados = [
   { id: "1", name: "Pendiente", color: "#f59e0b" },
@@ -148,7 +143,6 @@ const grupos = [
   { id: "3", nombre: "Reportes y Análisis" },
 ];
 
-// Fechas cercanas a hoy para mejor visualización en el Gantt
 const crearFechaCercana = (diasOffset: number) => {
   const fecha = new Date(hoy);
   fecha.setDate(hoy.getDate() + diasOffset);
@@ -161,7 +155,7 @@ const tareasDemo = [
     nombre: "Diseñar interfaz de usuario",
     inicio: crearFechaCercana(-3),
     fin: crearFechaCercana(2),
-    estado: estados[1], // En Progreso
+    estado: estados[1], 
     usuario: usuarios[0],
     grupo: grupos[0],
   },
@@ -170,7 +164,7 @@ const tareasDemo = [
     nombre: "Implementar API REST",
     inicio: crearFechaCercana(-1),
     fin: crearFechaCercana(4),
-    estado: estados[1], // En Progreso
+    estado: estados[1], 
     usuario: usuarios[1],
     grupo: grupos[0],
   },
@@ -179,7 +173,7 @@ const tareasDemo = [
     nombre: "Configurar base de datos",
     inicio: crearFechaCercana(-5),
     fin: crearFechaCercana(-1),
-    estado: estados[2], // Completado
+    estado: estados[2], 
     usuario: usuarios[2],
     grupo: grupos[0],
   },
@@ -188,7 +182,7 @@ const tareasDemo = [
     nombre: "Crear módulo de autenticación",
     inicio: crearFechaCercana(1),
     fin: crearFechaCercana(6),
-    estado: estados[0], // Pendiente
+    estado: estados[0], 
     usuario: usuarios[3],
     grupo: grupos[1],
   },
@@ -197,7 +191,7 @@ const tareasDemo = [
     nombre: "Desarrollar reportes de ventas",
     inicio: crearFechaCercana(3),
     fin: crearFechaCercana(8),
-    estado: estados[0], // Pendiente
+    estado: estados[0], 
     usuario: usuarios[0],
     grupo: grupos[1],
   },
@@ -206,7 +200,7 @@ const tareasDemo = [
     nombre: "Integrar pasarela de pagos",
     inicio: crearFechaCercana(0),
     fin: crearFechaCercana(5),
-    estado: estados[1], // En Progreso
+    estado: estados[1], 
     usuario: usuarios[1],
     grupo: grupos[1],
   },
@@ -215,7 +209,7 @@ const tareasDemo = [
     nombre: "Optimizar consultas SQL",
     inicio: crearFechaCercana(-2),
     fin: crearFechaCercana(1),
-    estado: estados[2], // Completado
+    estado: estados[2], 
     usuario: usuarios[2],
     grupo: grupos[2],
   },
@@ -224,20 +218,18 @@ const tareasDemo = [
     nombre: "Documentar API endpoints",
     inicio: crearFechaCercana(5),
     fin: crearFechaCercana(10),
-    estado: estados[0], // Pendiente
+    estado: estados[0], 
     usuario: usuarios[3],
     grupo: grupos[2],
   },
 ];
 
-// Datos de ejemplo para Archivos
 const archivosEjemplo = [
   { id: 1, nombre: "Documento.pdf", tipo: "application/pdf", tamanoBytes: 245000, extension: ".pdf" },
   { id: 2, nombre: "Imagen.png", tipo: "image/png", tamanoBytes: 120000, extension: ".png" },
   { id: 3, nombre: "Reporte.xlsx", tipo: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", tamanoBytes: 89000, extension: ".xlsx" },
 ];
 
-// Código de ejemplo para CodeBlock - solo TSX
 const ejemplosCodigo = [
   {
     language: "tsx",
@@ -283,9 +275,6 @@ export function EjemploCombobox({ opciones }: EjemploComboboxProps) {
   },
 ];
 
-// ==========================================
-// COMPONENTES DE EJEMPLO
-// ==========================================
 const EjemploComboboxBasico = () => (
   <div className="space-y-4">
     <p className="text-sm text-muted-foreground">
@@ -407,7 +396,6 @@ const EjemploComboboxCrear = () => {
   );
 };
 
-// Ejemplos de Roadmap
 const EjemploCalendario = () => {
   const anioInicio = hoy.getFullYear();
   const anioFin = anioInicio + 1;
@@ -521,7 +509,6 @@ const EjemploGantt = () => {
     setTareas((prev) =>
       prev.map((t) => (t.id === id ? { ...t, inicio, fin } : t))
     );
-    console.log(`Mover tarea: ${id} de ${inicio} a ${fin}`);
   };
   const handleAgregarTarea = (fecha: Date) =>
     console.log(`Agregar tarea: ${fecha.toISOString()}`);
@@ -826,7 +813,6 @@ const EjemploArchivos = () => {
   const [archivoNombre, setArchivoNombre] = useState<string>("");
   const [archivoIdManual, setArchivoIdManual] = useState<string>("");
   
-  // Parámetros configurables para el upload
   const [entidadTipo, setEntidadTipo] = useState<string>("demo");
   const [entidadId, setEntidadId] = useState<string>("123");
   const [carpeta, setCarpeta] = useState<string>("demo");
@@ -835,7 +821,6 @@ const EjemploArchivos = () => {
     setUploaderOpen(false);
     if (archivos.length > 0) {
       const archivo = archivos[0];
-      // Mostrar ID y abrir viewer automáticamente
       setArchivoId(archivo.id);
       setArchivoNombre(archivo.nombreOriginal);
       setViewerOpen(true);
@@ -852,7 +837,7 @@ const EjemploArchivos = () => {
 
   return (
     <div className="space-y-4">
-      {/* Configuración de parámetros */}
+      {}
       <div className="grid grid-cols-3 gap-4 p-4 border rounded-xl bg-muted/30">
         <div>
           <label className="text-sm font-medium mb-1.5 block">Entidad Tipo</label>
@@ -881,7 +866,7 @@ const EjemploArchivos = () => {
         </div>
       </div>
 
-      {/* Botón de subir */}
+      {}
       <button
         onClick={() => setUploaderOpen(true)}
         disabled={!entidadTipo || !entidadId || !carpeta}
@@ -891,7 +876,7 @@ const EjemploArchivos = () => {
         Subir Archivo
       </button>
 
-      {/* Sección para visualizar por ID manual */}
+      {}
       <div className="flex gap-2 items-end">
         <div className="flex-1">
           <label className="text-sm font-medium mb-1.5 block">ID del archivo</label>
@@ -911,7 +896,7 @@ const EjemploArchivos = () => {
         </Button>
       </div>
 
-      {/* Modal de FileUploader */}
+      {}
       <FileUploader
         open={uploaderOpen}
         onClose={() => setUploaderOpen(false)}
@@ -922,7 +907,7 @@ const EjemploArchivos = () => {
         onError={(error) => toast.error(error)}
       />
 
-      {/* Modal de FileViewer */}
+      {}
       <FileViewer
         open={viewerOpen && archivoId !== null}
         onClose={() => {
@@ -935,13 +920,10 @@ const EjemploArchivos = () => {
   );
 };
 
-// ==========================================
-// PÁGINA PRINCIPAL
-// ==========================================
 export default function DemoComponents() {
   return (
     <div className="min-h-screen bg-background">
-      {/* Hero */}
+      {}
       <div className="relative border-b bg-gradient-to-br from-background via-background to-muted/30">
         <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808008_1px,transparent_1px),linear-gradient(to_bottom,#80808008_1px,transparent_1px)] bg-[size:24px_24px]" />
         <div className="relative max-w-7xl mx-auto px-6 py-16">
@@ -960,7 +942,7 @@ export default function DemoComponents() {
             Cada componente está diseñado con atención al detalle.
           </p>
 
-          {/* Stats */}
+          {}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-10">
             {[
               { icon: Layers, label: "Componentes", value: "7+" },
@@ -982,9 +964,9 @@ export default function DemoComponents() {
         </div>
       </div>
 
-      {/* Contenido */}
+      {}
       <div className="max-w-7xl mx-auto px-6 py-12 space-y-16">
-        {/* Code Block */}
+        {}
         <section className="space-y-6">
           <div className="flex items-start justify-between">
             <div>
@@ -1049,7 +1031,7 @@ export default function DemoComponents() {
           </div>
         </section>
 
-        {/* Combobox */}
+        {}
         <section className="space-y-6">
           <div>
             <h2 className="text-2xl font-semibold tracking-tight mb-2">Combobox</h2>
@@ -1100,7 +1082,7 @@ export default function DemoComponents() {
           </div>
         </section>
 
-        {/* Roadmap - Múltiples Vistas */}
+        {}
         <section className="space-y-6">
           <div className="flex items-start justify-between">
             <div>
@@ -1180,7 +1162,7 @@ export default function DemoComponents() {
           </Tabs>
         </section>
 
-        {/* Grid de Componentes */}
+        {}
         <section className="space-y-6">
           <h2 className="text-2xl font-semibold tracking-tight">Todos los Componentes</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -1213,7 +1195,7 @@ export default function DemoComponents() {
           </div>
         </section>
 
-        {/* Sistema de Gestión de Archivos */}
+        {}
         <section className="space-y-6">
           <div>
             <div className="flex items-center gap-2 mb-2">

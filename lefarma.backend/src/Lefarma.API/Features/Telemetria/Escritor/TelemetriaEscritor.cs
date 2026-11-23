@@ -14,11 +14,6 @@ public sealed record EstadoEscritor(
     DateTime? UltimaRetencion,
     string? UltimaRetencionDetalle);
 
-/// <summary>
-/// Vuelca la cola en SQL Server. Nunca escribe en el hilo de la petición: la
-/// ingesta responde 202 al instante y este proceso hace el trabajo pesado con
-/// lotes de hasta 500 eventos cada dos segundos.
-/// </summary>
 public class TelemetriaEscritor(
     TelemetriaCola cola,
     IServiceScopeFactory fabrica,
@@ -58,7 +53,6 @@ public class TelemetriaEscritor(
         await Task.WhenAll(BucleEscrituraAsync(stoppingToken), BucleRetencionAsync(stoppingToken));
     }
 
-    /// <summary>Drena lo que haya en cola. Devuelve los eventos guardados.</summary>
     public async Task<int> ProcesarDisponiblesAsync(CancellationToken cancellationToken)
     {
         var lotes = new List<Modelo.LoteTelemetria>();
@@ -142,7 +136,6 @@ public class TelemetriaEscritor(
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            // Apagado normal.
         }
         catch (Exception ex)
         {
@@ -151,7 +144,6 @@ public class TelemetriaEscritor(
         }
     }
 
-    /// <summary>Borra lo que ya cumplió su retención. Devuelve el detalle por tabla.</summary>
     public async Task<string> EjecutarRetencionAsync(CancellationToken cancellationToken)
     {
         using var scope = fabrica.CreateScope();

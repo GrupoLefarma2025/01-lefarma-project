@@ -86,9 +86,6 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                     q = q.Where(o => o.IdPasoActual.HasValue && pasosConEnvioConcentrado.Contains(o.IdPasoActual.Value));
                 }
 
-                // La visibilidad (permisos, empresas, flujos, pasos y jefe inmediato) se
-                // resuelve en un único servicio y se combina con los filtros por AND:
-                // ningún filtro del request puede ampliar el conjunto permitido.
                 q = _visibilidad.Aplicar(q, alcance);
 
                 q = query.OrderBy?.ToLower() switch
@@ -109,8 +106,6 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                     .Where(u => userIds.Contains(u.IdUsuario))
                     .ToDictionaryAsync(u => u.IdUsuario, u => new UsuarioInfo(u.NombreCompleto ?? u.SamAccountName ?? $"Usuario {u.IdUsuario}", u.Puesto, u.Correo));
 
-                // El "solicitante" impreso es el jefe (segundo autorizador) cuando el creador
-                // usa correo @grupolefarma. Su puesto y área también salen de Asistencias.
                 var autorizadores = new Dictionary<int, SegundoAutorizadorInfo>();
                 foreach (var o in items)
                     autorizadores[o.IdOrden] = await ResolverSegundoAutorizadorAsync(o);
@@ -164,7 +159,6 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                         .ToDictionaryAsync(e => e.CodigoEnvio, e => e.NombreTraslado!)
                     : new Dictionary<int, string>();
 
-                // Nombres de workflow en lote (evita N+1 al rotular el filtro de flujo).
                 var workflowsIds = items.Select(o => o.IdWorkflow).Where(id => id > 0).Distinct().ToList();
                 var nombresWorkflow = workflowsIds.Count > 0
                     ? await _context.Workflows.AsNoTracking()
@@ -287,8 +281,6 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
 
         internal sealed record SegundoAutorizadorInfo(int? IdUsuario, string? Nombre);
 
-        // Resuelve al segundo autorizador (jefe): el primer paso del workflow siempre es EsInicio
-        // (quien crea la orden), se toma el siguiente paso y se trae su participante.
         private async Task<SegundoAutorizadorInfo> ResolverSegundoAutorizadorAsync(OrdenCompra o)
         {
             if (o.IdWorkflow == 0) return new SegundoAutorizadorInfo(null, null);
@@ -300,7 +292,6 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                 .FirstOrDefaultAsync(w => w.IdWorkflow == o.IdWorkflow);
             if (workflow is null) return new SegundoAutorizadorInfo(null, null);
 
-            // Ordenar pasos y omitir el paso inicial (EsInicio) donde actúa quien creó la orden.
             var pasos = workflow.Pasos
                 .Where(p => p.Activo && !p.EsInicio)
                 .OrderBy(p => p.Orden)
@@ -344,8 +335,6 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
             return new SegundoAutorizadorInfo(null, null);
         }
 
-        // ponytail: los nombres de usuario del historial se resuelven solo en el detalle (GetById);
-        // el listado general no los enriquece para no multiplicar consultas.
         private async Task EnriquecerNombresHistorialAsync(List<HistorialOrdenItemResponse>? historial)
         {
             if (historial == null || historial.Count == 0) return;
@@ -424,8 +413,6 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
 
                 var total = subtotal + totalIva - totalRetenciones + totalOtrosImpuestos + partidas.Sum(p => p.AjusteRedondeo ?? 0m);
 
-                //las claves de este diccionario deben coincidir con WorkflowScopeType.Codigo
-                // Si se agrega un nuevo scope dinámico, incluirlo aquí con su valor
                 var workflow = await _workflowResolver.ResolveWorkflowIdAsync(
                     CodigoProceso.ORDEN_COMPRA,
                     new Dictionary<string, int?>
@@ -462,7 +449,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                     IdArea = request.IdArea,
                     IdTipoGasto = request.IdTipoGasto,
                     IdUsuarioCreador = idUsuario,
-                    IdEstado = 1, // Creada
+                    IdEstado = 1, 
                     IdWorkflow = workflow.IdWorkflow,
                     IdPasoActual = pasoInicio?.IdPaso,
                     IdProveedor = request.IdProveedor,
@@ -547,7 +534,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                     return CommonErrors.NotFound("OrdenCompra", id.ToString());
                 }
 
-                if (orden.Estado?.IdEstado != 1) // 1 = Creada
+                if (orden.Estado?.IdEstado != 1) 
                     return CommonErrors.Conflict("OrdenCompra", "Solo se pueden eliminar órdenes en estado Creada.");
 
                 var eliminado = await _repo.DeleteAsync(orden);
@@ -587,17 +574,16 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                 if (orden == null)
                     return CommonErrors.NotFound("OrdenCompra", id.ToString());
 
-                if (orden.IdUsuarioCreador != idUsuario) // Solo creador puede modificar su orden
+                if (orden.IdUsuarioCreador != idUsuario) 
                     return CommonErrors.Conflict("OrdenCompra", "Solo el creador de la orden puede modificarla.");
 
-                if (orden.Estado?.IdEstado != 1) // 1 = Creada
+                if (orden.Estado?.IdEstado != 1) 
                     return CommonErrors.Conflict("OrdenCompra", "Solo se pueden editar órdenes en estado Creada.");
 
                 var validacionTransporteUpdate = await ValidarFolioTransporteAsync(request, orden.IdOrden, ct);
                 if (validacionTransporteUpdate.IsError)
                     return validacionTransporteUpdate.Errors;
 
-                // Actualizar campos de la orden (no tocar IdOrden, Folio, IdUsuarioCreador, FechaSolicitud, Estado, IdPasoActual)
                 orden.IdEmpresa = request.IdEmpresa;
                 orden.IdSucursal = request.IdSucursal;
                 orden.IdArea = request.IdArea;
@@ -627,11 +613,6 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                         .ToDictionaryAsync(ti => ti.IdTipoImpuesto, ti => ti.Tasa, ct)
                     : new Dictionary<int, decimal>();
 
-                // Sincronizar partidas por IdPartida (CRUD completo):
-                //  - con IdPartida existente  => UPDATE en el lugar (conserva comprobantes)
-                //  - sin IdPartida            => INSERT (partida nueva)
-                //  - existentes no en request => DELETE solo si no tienen comprobantes
-                // No se renumera (existe UQ_orden_numero_partida) para evitar colisiones durante el save.
                 var existentes = (orden.Partidas ?? new List<OrdenCompraPartida>())
                     .OrderBy(p => p.NumeroPartida)
                     .ToList();
@@ -642,12 +623,10 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                     .Select(p => p.IdPartida!.Value)
                     .ToHashSet();
 
-                // Partidas a eliminar: existentes cuyo IdPartida no viene en el request
                 var aEliminar = existentes.Where(p => !idsEnRequest.Contains(p.IdPartida)).ToList();
 
                 if (aEliminar.Any())
                 {
-                    // Bloquear si alguna tiene comprobantes (FK comprobantes_partidas_partida)
                     var idsAEliminar = aEliminar.Select(p => p.IdPartida).ToList();
                     var conComprobante = await _context.ComprobantesPartidas.AsNoTracking()
                         .Where(cp => idsAEliminar.Contains(cp.IdPartida) && cp.Activo)
@@ -668,7 +647,6 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                     _context.OrdenesCompraPartidas.RemoveRange(aEliminar);
                 }
 
-                // Siguiente número para partidas nuevas (por encima del máximo existente => sin colisión con UQ)
                 var siguienteNumero = existentes.Any() ? existentes.Max(p => p.NumeroPartida) : 0;
 
                 var sobrevivientes = new List<OrdenCompraPartida>();
@@ -705,16 +683,13 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                     sobrevivientes.Add(partida);
                 }
 
-                // Totales sobre las partidas que quedan (no las eliminadas)
                 var subtotal = sobrevivientes.Sum(p => (p.PrecioUnitario * p.Cantidad) - p.Descuento);
                 var totalIva = sobrevivientes.Sum(p => ((p.PrecioUnitario * p.Cantidad) - p.Descuento) * (p.PorcentajeIva / 100m));
                 var totalRetenciones = sobrevivientes.Sum(p => p.TotalRetenciones);
                 var totalOtrosImpuestos = sobrevivientes.Sum(p => p.OtrosImpuestos);
                 var total = subtotal + totalIva - totalRetenciones + totalOtrosImpuestos + sobrevivientes.Sum(p => p.AjusteRedondeo ?? 0m);
 
-
-                // Recalcular totales
-                orden.Subtotal = subtotal;
+orden.Subtotal = subtotal;
                 orden.TotalIva = totalIva;
                 orden.TotalRetenciones = totalRetenciones;
                 orden.TotalOtrosImpuestos = totalOtrosImpuestos;
@@ -742,11 +717,6 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
             }
         }
 
-        /// <summary>
-        /// El contexto de una orden debe pertenecer a la empresa seleccionada. Cambiar
-        /// a una empresa distinta a la asignada al usuario exige el permiso explícito.
-        /// Los usuarios sin detalle (flujos externos) conservan la validación de sucursal/área.
-        /// </summary>
         private async Task<ErrorOr<Success>> ValidarContextoEmpresaSucursalAsync(
             int idUsuario,
             int idEmpresa,
@@ -791,7 +761,6 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
 
         private async Task<ErrorOr<Success>> ValidarFirmaUsuarioAsync(int idUsuario)
         {
-            // CxP conserva la firma legacy (firma_path) para crear y editar órdenes.
             var tieneFirmaLegacy = await _profileService.HasFirmaLegacyAsync(idUsuario);
             if (tieneFirmaLegacy.IsError)
                 return tieneFirmaLegacy.Errors;
@@ -811,10 +780,8 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
 
         internal static decimal CalcularTotalPartida(CreatePartidaRequest p)
         {
-            // Subtotal = precio base sin impuestos ni retenciones
             decimal subtotal = (p.PrecioUnitario * p.Cantidad) - p.Descuento;
 
-            // Total = subtotal + impuestos - retenciones + ajuste por redondeo
             decimal total = subtotal * (1 + p.PorcentajeIva / 100)
                             - p.TotalRetenciones
                             + p.OtrosImpuestos
@@ -823,14 +790,6 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
             return total;
         }
 
-        // The 'Puesto' and 'Área' shown in PDFs must come from
-        // Asistencias.dbo.vwEmpleados because app.Usuarios.Puesto defaults to
-        // 'Sin asignar' and the CxP area catalog is a legacy job-position list.
-        // Match key: full email, app.Usuarios.Correo == vwEmpleados.correo,
-        // compared case-insensitively (e.g. user 'Adriana Arredondo Ortiz' has
-        // Correo '1a41@asokam.mx' in Asokam and the same correo in vwEmpleados
-        // with puesto 'AUXILIAR DE COMPRAS' and departamento
-        // 'COORDINACION ADMINISTRATIVA ASOKAM').
         internal static void AplicarPuestosDeAsistencias(Dictionary<int, UsuarioInfo> usuariosInfo, IEnumerable<VwEmpleado> empleados)
         {
             var datosPorCorreo = empleados
@@ -870,7 +829,6 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                     .ToList();
                 if (correos.Count == 0) return;
 
-                // One batched query for all users; never per-user lookups.
                 var empleados = await _asistenciasContext.VwEmpleados.AsNoTracking()
                     .Where(e => e.Correo != null && correos.Contains(e.Correo))
                     .ToListAsync();
@@ -879,7 +837,6 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
             }
             catch (Exception ex)
             {
-                // An unreachable Asistencias server must never fail the orden listing.
                 _logger.LogWarning(ex, "No se pudieron obtener puestos desde Asistencias.dbo.vwEmpleados; se conservan los puestos actuales.");
             }
         }
@@ -991,8 +948,6 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
 
         private static string? SerializeCuentasYFormasPago(string? jsonActual, List<int>? idsCuentas, List<int>? idsFormasPago, int? numeroMensualidades)
         {
-            // El solicitante es dueño solo de estas 3 claves; el merge preserva las claves de otros flujos
-            // (cuentaPagoTesorero, historial) que viven en la misma columna JSON.
             if (idsCuentas == null && idsFormasPago == null && numeroMensualidades == null) return jsonActual;
             return OrdenCompraDocumentoJson.MergeClavesJson(jsonActual, new Dictionary<string, object?>
             {
@@ -1023,10 +978,6 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
             }
         }
 
-        /// <summary>
-        /// Si el tipo de gasto es Transportes, exige FolioTransporte y valida que exista en
-        /// enviosCab (tipoTraslado = 'transporte externo') y que no esté usado en otra orden.
-        /// </summary>
         private async Task<ErrorOr<Success>> ValidarFolioTransporteAsync(CreateOrdenCompraRequest request, int? idOrden, CancellationToken ct)
         {
             var esTransportes = await _context.TiposGasto.AsNoTracking()
@@ -1047,8 +998,6 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
             if (!existe)
                 return CommonErrors.Validation("FolioTransporte", "El folio de transporte no existe o no es un transporte externo válido");
 
-            // El folio queda "en uso" mientras exista una orden que no esté rechazada o cancelada.
-            // Al rechazar/cancelar la orden, el folio se libera para reutilizarse.
             var estados = await _context.WorkflowEstados
                 .Where(e => e.Activo)
                 .ToDictionaryAsync(e => e.Codigo!, e => e.IdEstado, ct);
@@ -1057,11 +1006,10 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
 
             var usado = await _context.OrdenesCompra.AsNoTracking()
                 .AnyAsync(o => o.FolioTransporte == folio
-                            && (idOrden == null || o.IdOrden != idOrden)// excluye la orden actual si es edición
+                            && (idOrden == null || o.IdOrden != idOrden)
                             && o.IdEstado != idRechazada
                             && o.IdEstado != idCancelada, ct);
 
-            //Si el folio ya está en uso y no es la misma orden que se está editando, se lanza conflicto
             if (usado)
                 return CommonErrors.Conflict("FolioTransporte", "Este folio de transporte ya fue utilizado en otra orden");
 

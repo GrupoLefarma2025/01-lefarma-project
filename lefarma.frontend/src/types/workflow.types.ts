@@ -1,25 +1,20 @@
-﻿// ─── Workflow ─────────────────────────────────────────────────────────────────
-
-
 export interface Workflow {
   idWorkflow: number;
   nombre: string;
   descripcion?: string;
-  codigoProceso: string; // 'ORDEN_COMPRA', 'SOLICITUD_VIATICOS', etc.
+  codigoProceso: string; 
   version: number;
   activo: boolean;
   fechaCreacion: string;
   campos?: WorkflowCampo[];
 }
 
-// ─── WorkflowPaso ─────────────────────────────────────────────────────────────
-
 export interface WorkflowPaso {
   idPaso: number;
   idWorkflow: number;
   orden: number;
   nombrePaso: string;
-  idEstado?: number; // FK a WorkflowEstados
+  idEstado?: number; 
   descripcionAyuda?: string;
   esInicio: boolean;
   esFinal: boolean;
@@ -28,12 +23,10 @@ export interface WorkflowPaso {
   requiereComentario: boolean;
   requiereAdjunto: boolean;
   permiteEditar?: boolean;
-  acciones?: WorkflowAccion[]; // Acciones que salen de este paso
-  condiciones?: WorkflowCondicion[]; // Condiciones de routing dinámico
-  participantes?: WorkflowParticipante[]; // Quién puede actuar en este paso
+  acciones?: WorkflowAccion[]; 
+  condiciones?: WorkflowCondicion[]; 
+  participantes?: WorkflowParticipante[]; 
 }
-
-// ─── WorkflowAccion ───────────────────────────────────────────────────────────
 
 export interface WorkflowTipoAccion {
   idTipoAccion: number;
@@ -48,7 +41,7 @@ export interface WorkflowTipoAccion {
 export interface WorkflowAccion {
   idAccion: number;
   idPasoOrigen: number;
-  idPasoDestino?: number; // null si finaliza el flujo
+  idPasoDestino?: number; 
   idTipoAccion: number;
   tipoAccionCodigo?: string;
   tipoAccionNombre?: string;
@@ -56,7 +49,7 @@ export interface WorkflowAccion {
   enviaConcentrado?: boolean;
   activo: boolean;
   handlers?: WorkflowAccionHandler[];
-  notificaciones?: WorkflowNotificacion[]; // Notificaciones que dispara esta acción
+  notificaciones?: WorkflowNotificacion[]; 
 }
 
 export interface WorkflowAccionHandler {
@@ -83,19 +76,15 @@ export interface WorkflowCampo {
   activo: boolean;
 }
 
-// ─── WorkflowCondicion ────────────────────────────────────────────────────────
-
 export interface WorkflowCondicion {
   idCondicion: number;
   idAccion: number;
-  campoEvaluacion: string; // 'Total', 'TipoGasto', etc.
+  campoEvaluacion: string; 
   operador: '>' | '<' | '=' | '>=' | '<=' | '!=' | 'IN' | 'true' | 'false';
   valorComparacion: string;
   idPasoSiCumple: number;
   activo: boolean;
 }
-
-// ─── WorkflowParticipante ─────────────────────────────────────────────────────
 
 export interface WorkflowParticipante {
   idParticipante: number;
@@ -106,8 +95,6 @@ export interface WorkflowParticipante {
   nivelJefe?: number | null;
   activo: boolean;
 }
-
-// ─── WorkflowNotificacion ─────────────────────────────────────────────────────
 
 export interface WorkflowNotificacionCanal {
   idNotificacionCanal?: number;
@@ -134,8 +121,6 @@ export interface WorkflowNotificacion {
   activo: boolean;
   canales?: WorkflowNotificacionCanal[];
 }
-
-// ─── WorkflowBitacora ─────────────────────────────────────────────────────────
 
 export interface WorkflowEstado {
   idEstado: number;
@@ -179,11 +164,9 @@ export interface WorkflowBitacora {
   idAccion: number;
   idUsuario: number;
   comentario?: string;
-  datosSnapshot?: string; // JSON
+  datosSnapshot?: string; 
   fechaEvento: string;
 }
-
-// ─── WorkflowStats (para la lista) ───────────────────────────────────────────
 
 export interface WorkflowStats {
   totalPasos: number;
@@ -198,7 +181,6 @@ export interface WorkflowWithStats extends Workflow {
   idUsuariosJefeExcluidos?: number[];
 }
 
-// Scope types and mappings (backend additions)
 export interface WorkflowScopeType {
   idScopeType: number;
   codigo: string;

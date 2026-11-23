@@ -55,7 +55,6 @@ public class WorkflowNotificationDispatcher : IWorkflowNotificationDispatcher
 
         try
         {
-            // Cargar participantes del paso destino una sola vez (evita doble query)
             List<WorkflowParticipante> participantesDestino = [];
             if (idPasoDestino.HasValue)
             {
@@ -64,13 +63,11 @@ public class WorkflowNotificationDispatcher : IWorkflowNotificationDispatcher
                     .ToListAsync(ct);
             }
 
-            // Resolver idWorkflow desde la notificación → acción → paso
             var idWorkflow = await _context.WorkflowAcciones
                 .Where(a => a.IdAccion == notificacion.IdAccion)
                 .Join(_context.WorkflowPasos, a => a.IdPasoOrigen, p => p.IdPaso, (a, p) => p.IdWorkflow)
                 .FirstOrDefaultAsync(ct);
 
-            // Cargar tipo de notificación para colores de template
             WorkflowTipoNotificacion? tipoNotif = null;
             if (notificacion.IdTipoNotificacion.HasValue)
             {
@@ -80,8 +77,6 @@ public class WorkflowNotificationDispatcher : IWorkflowNotificationDispatcher
 
             var templatesPorCanal = new Dictionary<string, WorkflowCanalTemplate?>();
 
-            // Lazy lookup
-            // Cargar el template del canal + proceso solo si se va a usar ese canal y cachearlo para evitar queries repetidos si hay varios destinatarios
             async Task<WorkflowCanalTemplate?> GetTemplateAsync(string codigoCanal)
             {
                 if (templatesPorCanal.TryGetValue(codigoCanal, out var cached))
@@ -94,11 +89,10 @@ public class WorkflowNotificationDispatcher : IWorkflowNotificationDispatcher
                           && t.Activo,
                         ct);
 
-                templatesPorCanal[codigoCanal] = template;  // cachea incluso null
+                templatesPorCanal[codigoCanal] = template;  
                 return template;
             }
 
-            //Resolver destinatarios
             var userIds = await ResolveRecipientsAsync(notificacion, tipoEntidad, idEntidad, idUsuarioCreador, idUsuarioActual, participantesDestino, idWorkflow, idUsuarioSolicitante, ct);
             if (userIds.Count == 0)
             {
@@ -106,10 +100,8 @@ public class WorkflowNotificationDispatcher : IWorkflowNotificationDispatcher
                 return;
             }
 
-            // Obtener nombres para el template
             var (nombreCreador, nombreSiguiente) = await ResolveNamesAsync(idUsuarioCreador, participantesDestino, ct);
 
-            // NombreAnterior = actor actual que firmo (proposito informativo para el destinatario)
             var nombreActual = await _asokamContext.Usuarios
                 .Where(u => u.IdUsuario == idUsuarioActual)
                 .Select(u => u.NombreCompleto)
@@ -120,29 +112,20 @@ public class WorkflowNotificationDispatcher : IWorkflowNotificationDispatcher
                 .Select(a => a.TipoAccion != null ? a.TipoAccion.Nombre : null)
                 .FirstOrDefaultAsync(ct) ?? "";
 
-            //Interpolar templates
-            //var urlOrden = string.IsNullOrEmpty(_frontendBaseUrl)
-            //    ? $"/autorizaciones?idOrden={orden.IdOrden}"
-            //   : $"{_frontendBaseUrl}/autorizaciones?idOrden={orden.IdOrden}";
+var templateEmail = await GetTemplateAsync("email");
 
-            // Resolver el template de email una sola vez
-            var templateEmail = await GetTemplateAsync("email");
-
-            // Construir URL del botón  desde la UrlButton del template
             var urlPath = (templateEmail?.UrlButton ?? "")
                 .Replace("{IdEntidad}", idEntidad.ToString());
             var urlEntidad = string.IsNullOrEmpty(_frontendBaseUrl)
                 ? urlPath
                 : $"{_frontendBaseUrl}{urlPath}";
 
-            // Construir contexto base (variables del sistema)
             var contextoTemplate = variablesExtra != null
                 ? new Dictionary<string, string>(variablesExtra)
                 : new Dictionary<string, string>();
 
-
-            contextoTemplate["Folio"] = folio;
-            contextoTemplate["UrlEntidad"] = urlEntidad ?? ""; // {{UrlEntidad}} en template
+contextoTemplate["Folio"] = folio;
+            contextoTemplate["UrlEntidad"] = urlEntidad ?? ""; 
             contextoTemplate["UrlOrden"] = urlEntidad ?? "";
             contextoTemplate["Solicitante"] = nombreCreador;
             contextoTemplate["NombreCreador"] = nombreCreador;
@@ -158,18 +141,14 @@ public class WorkflowNotificationDispatcher : IWorkflowNotificationDispatcher
             if (!string.IsNullOrEmpty(contenidoAdicional))
                 contextoTemplate["ContenidoAdicional"] = contenidoAdicional;
 
-            // 5. Resolver canales configurados
             var canalInApp    = notificacion.Canales.FirstOrDefault(c => c.CodigoCanal == "in_app"    && c.Activo);
             var canalEmail    = notificacion.Canales.FirstOrDefault(c => c.CodigoCanal == "email"     && c.Activo);
             var canalTelegram = notificacion.Canales.FirstOrDefault(c => c.CodigoCanal == "telegram"  && c.Activo);
 
-            // Usar in_app canal; si no existe, usar email como fallback de contenido
             var canalInAppEfectivo = canalInApp ?? canalEmail;
 
-            //  Asunto por defecto (si no se configura en canal específico)
             var AsuntoDefault = BuildAsuntoPorDefecto(tipoEntidad, folio);
 
-            // 6. Enviar in-app (siempre que haya contenido disponible)
             if (canalInAppEfectivo != null)
             {
                 var asuntoInApp = Interpolate(
@@ -188,7 +167,6 @@ public class WorkflowNotificationDispatcher : IWorkflowNotificationDispatcher
                 }, ct);
             }
 
-            // 7. Enviar email con wrapper HTML estilizado
             if (notificacion.EnviarEmail && canalEmail != null)
             {
                 var asuntoEmail = Interpolate(
@@ -208,7 +186,6 @@ public class WorkflowNotificationDispatcher : IWorkflowNotificationDispatcher
                 }, ct);
             }
 
-            // 8. Telegram (si aplica)
             if (notificacion.EnviarTelegram && canalTelegram != null)
             {
                 var asuntoTelegram = Interpolate(
@@ -250,7 +227,6 @@ public class WorkflowNotificationDispatcher : IWorkflowNotificationDispatcher
         if (notif.AvisarAlCreador)
             ids.Add(idUsuarioCreador);
 
-        // Anterior = el actor actual que acaba de ejecutar la accion (firmante)
         if (notif.AvisarAlAnterior)
             ids.Add(idUsuarioActual);
 
@@ -317,7 +293,6 @@ public class WorkflowNotificationDispatcher : IWorkflowNotificationDispatcher
 
         var nombreSiguiente = "el responsable";
 
-        // Primero intentar con usuario directo del paso
         var participanteDirecto = participantesDestino.FirstOrDefault(p => p.IdUsuario != null);
         if (participanteDirecto?.IdUsuario != null)
         {
@@ -331,7 +306,6 @@ public class WorkflowNotificationDispatcher : IWorkflowNotificationDispatcher
         }
         else
         {
-            // Fallback: primer usuario del rol del paso
             var rolParticipante = participantesDestino.FirstOrDefault(p => p.IdRol != null);
             if (rolParticipante?.IdRol != null)
             {
@@ -366,7 +340,7 @@ public class WorkflowNotificationDispatcher : IWorkflowNotificationDispatcher
     private async Task<string> ApplyCanalTemplateAsync(string codigoCanal, string contenido,Dictionary<string, string> ctx, 
         Func<string, Task<WorkflowCanalTemplate?>> getTemplate, CancellationToken ct)
     {
-        var template = await getTemplate(codigoCanal);  // usa el caché local
+        var template = await getTemplate(codigoCanal);  
         var layoutHtml = template?.LayoutHtml;
 
         if (string.IsNullOrEmpty(layoutHtml))
@@ -384,8 +358,7 @@ public class WorkflowNotificationDispatcher : IWorkflowNotificationDispatcher
         return Interpolate(withContent, ctx);
     }
 
-    
-    private static string BuildEmailHtmlFallback(string cuerpo, string asunto, string folio, string urlEntidad, string? contenidoAdicional)
+private static string BuildEmailHtmlFallback(string cuerpo, string asunto, string folio, string urlEntidad, string? contenidoAdicional)
     {
         var template = """
             <!DOCTYPE html>
@@ -483,7 +456,6 @@ public class WorkflowNotificationDispatcher : IWorkflowNotificationDispatcher
 
     internal static string FormatearDinero(decimal value, string? simboloMoneda, bool posicionIzquierda = true)
     {
-        // Invariant: punto decimal siempre, sin depender de la cultura del servidor
         var numero = value.ToString("N2", CultureInfo.InvariantCulture);
         return string.IsNullOrEmpty(simboloMoneda)
             ? numero

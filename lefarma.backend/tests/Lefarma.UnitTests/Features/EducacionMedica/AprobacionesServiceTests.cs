@@ -41,7 +41,6 @@ public class AprobacionesServiceTests
         contexto.SeleccionesMensuales.AddRange(selPendiente, selBorrador);
         contexto.SaveChanges();
 
-        // El query service (mock) devuelve una acción SOLO en el paso de firma de la selección.
         var pasosConAccion = new HashSet<int>
         {
             workflow.PasosSeleccion["Gg"],
@@ -115,7 +114,6 @@ public class AprobacionesServiceTests
         documentos.Count(d => d.Acciones.Count > 0).Should().Be(1);
         documentos.Count(d => d.Acciones.Count == 0).Should().Be(1);
 
-        // El nombre del paso se resuelve también para pasos de inicio/fin (no solo "de firma").
         documentos.Should().Contain(d =>
             d.Tipo == "seleccion" && d.Estado == SeleccionMensual.EstadoCreada && d.PasoNombre == "Creada");
     }
@@ -141,7 +139,6 @@ public class AprobacionesServiceTests
         var contexto = workflow.Context;
 
         contexto.TiposGerencia.Add(new TipoGerencia { IdTipoGerencia = 1, Descripcion = "IMSS", Activo = true });
-        // FK requerida de matrices_generales: sin el catálogo, el Include(TipoGerencia) actúa como inner join en InMemory
         contexto.TiposGerencia.Add(new TipoGerencia { IdTipoGerencia = 2, Descripcion = "Descentralizado", Activo = true });
         contexto.SaveChanges();
 
@@ -164,7 +161,6 @@ public class AprobacionesServiceTests
         contexto.MatricesGenerales.AddRange(matrizPendiente, matrizEnInicio);
         contexto.SaveChanges();
 
-        // El query service (mock) devuelve una acción SOLO en el paso del AEM (pendiente)
         var pasosConAccion = new HashSet<int> { workflow.PasosMatriz["Aem"] };
         var queryMock = new Mock<IWorkflowQueryService>();
         queryMock
@@ -204,7 +200,6 @@ public class AprobacionesServiceTests
     {
         var (servicio, _, idMatrizPendiente) = CrearEscenarioConMatriz();
 
-        // El paso del AEM es intermedio (no inicio ni final): la matriz aparece como pendiente
         var documentos = await servicio.GetDocumentosAsync(idUsuario: 60, filtro: "pendientes");
 
         var matriz = documentos.Should().ContainSingle(d => d.Tipo == "matriz").Which;

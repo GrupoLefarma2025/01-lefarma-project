@@ -33,7 +33,6 @@ export function MisPendientesCard({ refreshKey }: { refreshKey?: number } = {}) 
     useState<IncidenciaChecadoResponse | null>(null);
   const puedeVerMisIncidencias = usePermission({ require: 'incidencias_checado.ver_mias' });
 
-  // El contador de incidencias por justificar siempre es del mes presente.
   const periodoIncidencia = new Date().toLocaleDateString('es-MX', {
     month: 'long',
     year: 'numeric',

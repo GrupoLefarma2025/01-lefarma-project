@@ -14,7 +14,6 @@ public class Banco
         public DateTime FechaCreacion { get; set; }
         public DateTime? FechaModificacion { get; set; }
 
-        // Métodos de dominio (opcional - DDD)
         public void Activar() => Activo = true;
         public void Desactivar() => Activo = false;
         public void ActualizarNombreNormalizado()

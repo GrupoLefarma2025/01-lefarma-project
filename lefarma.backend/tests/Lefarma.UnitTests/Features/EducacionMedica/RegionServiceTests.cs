@@ -77,7 +77,6 @@ public class RegionServiceTests
             var idTipoGerencia = Regiones.First(z => z.IdRegion == idRegion).IdTipoGerencia;
             var deseados = codigoEstados.Distinct().ToList();
             Mapeos.RemoveAll(m => m.IdRegion == idRegion && !deseados.Contains(m.CodigoEstado));
-            // 1 estado = 1 region DENTRO DE LA MISMA gerencia.
             Mapeos.RemoveAll(m => m.IdRegion != idRegion
                 && m.IdTipoGerencia == idTipoGerencia
                 && deseados.Contains(m.CodigoEstado));
@@ -510,7 +509,6 @@ public class RegionServiceTests
         };
         var servicio = CrearServicio(regiones, new FakeHospitalRepository(), new FakeHospitalExtensionRepository());
 
-        // Coahuila (491) pasa de NORESTE a OCCIDENTE.
         await servicio.UpdateRegionAsync(
             2, new UpsertRegionRequest { IdTipoGerencia = GerenciaImss, Nombre = "OCCIDENTE", CodigoEstados = [498, 491] }, 1);
 
@@ -537,7 +535,6 @@ public class RegionServiceTests
         };
         var servicio = CrearServicio(regiones, new FakeHospitalRepository(), new FakeHospitalExtensionRepository());
 
-        // La región IMSS conserva los mismos estados: el mapeo de Descentralizado no se toca.
         await servicio.UpdateRegionAsync(
             1, new UpsertRegionRequest { IdTipoGerencia = GerenciaImss, Nombre = "NORESTE", CodigoEstados = [491] }, 1);
 
@@ -575,7 +572,6 @@ public class RegionServiceTests
         };
         var hospitales = new FakeHospitalRepository
         {
-            // Hospital en Coahuila con coordenadas de Saltillo.
             Hospitales = { new Hospital { CodigoContacto = 10, CodigoEstado = "491", Latitud = 25.42m, Longitud = -100.99m } }
         };
         var extensiones = new FakeHospitalExtensionRepository
@@ -605,7 +601,6 @@ public class RegionServiceTests
         };
         var hospitales = new FakeHospitalRepository
         {
-            // CDMX (493) no tiene mapeo; hospital con coordenadas.
             Hospitales = { new Hospital { CodigoContacto = 20, CodigoEstado = "493", Latitud = 19.49m, Longitud = -99.20m } }
         };
         var extensiones = new FakeHospitalExtensionRepository

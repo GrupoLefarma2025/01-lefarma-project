@@ -41,7 +41,6 @@ public class OrdenCompraRepository : BaseRepository<OrdenCompra>, IOrdenCompraRe
             var year = DateTime.Now.Year;
             var prefix = $"OC-{year}-";
 
-            // Busca el último folio del año para evitar duplicados por concurrencia
             var ultimoFolio = await _context.OrdenesCompra
                 .Where(o => o.Folio.StartsWith(prefix))
                 .Select(o => o.Folio)

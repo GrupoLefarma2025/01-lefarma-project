@@ -19,18 +19,6 @@ export interface TablaHotelesProps {
 const SIN_LINK =
   'Este hotel no trae link de reservación: el cálculo no encontró una URL real. Busca el hotel por nombre para cotizar en el sitio oficial.';
 
-/**
- * El backend no expone un campo `precio` por hotel: el importe viaja dentro de
- * `motivo` (p. ej. "pernocte 1 noche(s) × 1 hab · tarifa tabulador ~$600/noche").
- * Se muestra el `motivo` completo en la columna Precio en vez de inventar un
- * número desglosado que la fuente nunca publicó.
- *
- * `estimado` es constante a propósito: hoy CalculoCostosRuta.ts:872-890 solo
- * emite hoteles de tarifa tabulador u Overpass, nunca una tarifa reservada, así
- * que la columna Fuente no puede mentir en ninguna dirección. Cuando el backend
- * empiece a devolver cotizaciones reales, el tipo `CostosRutaHotel` debe ganar
- * un `estimado` y esta constante pasar a leerse de ahí.
- */
 export function TablaHoteles({ titulo = 'Hoteles propuestos', hoteles }: TablaHotelesProps) {
   return (
     <div className="space-y-2">

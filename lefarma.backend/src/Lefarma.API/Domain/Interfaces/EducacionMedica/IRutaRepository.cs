@@ -11,9 +11,7 @@ public interface IRutaRepository
         int idSeleccionMensual,
         CancellationToken cancellationToken = default);
 
-    // Versiones de rutas (entidad autorizable del workflow, ADR-00006)
-
-    Task<Domain.Entities.EducacionMedica.RutaVersion?> GetVersionAsync(
+Task<Domain.Entities.EducacionMedica.RutaVersion?> GetVersionAsync(
         int idSeleccionMensual,
         int version,
         CancellationToken cancellationToken = default);

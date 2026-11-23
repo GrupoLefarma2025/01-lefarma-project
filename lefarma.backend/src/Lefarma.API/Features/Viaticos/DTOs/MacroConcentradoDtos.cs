@@ -1,10 +1,5 @@
 namespace Lefarma.API.Features.Viaticos.DTOs;
 
-/// <summary>
-/// Fila del concentrado macro de viáticos. Se materializa directo desde
-/// <c>dbo.infoMacroViaticos</c> con <c>Database.SqlQuery</c>, por eso las
-/// propiedades son mutables y con tipos nullable en las columnas que lo son.
-/// </summary>
 public class MacroViaticoResponse
 {
     public string Folio { get; set; } = string.Empty;
@@ -28,11 +23,6 @@ public class MacroViaticoResponse
     public int? NumeroComidas { get; set; }
 }
 
-/// <summary>
-/// Envío del concentrado de viáticos a autorización. El PDF lo genera el
-/// cliente y aquí solo se persiste en <c>app.Documentos</c>, igual que el
-/// envío normal del concentrado de órdenes de compra.
-/// </summary>
 public class MacroConcentradoEnvioRequest
 {
     public List<string> Folios { get; set; } = new();

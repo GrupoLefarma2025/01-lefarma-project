@@ -23,8 +23,6 @@ public class EquipoPareoConfiguration : IEntityTypeConfiguration<EquipoPareo>
         builder.Property(e => e.IdUsuarioCreacion).HasColumnName("id_usuario_creacion");
         builder.Property(e => e.IdUsuarioModificacion).HasColumnName("id_usuario_modificacion");
 
-        // Exclusividad de integrantes solo entre equipos activos (regla actual,
-        // no historica): indices unicos filtrados que replican los del script 0006.
         builder.HasIndex(e => e.IdEjecutivo)
             .IsUnique()
             .HasFilter("[activo] = 1")
@@ -35,7 +33,6 @@ public class EquipoPareoConfiguration : IEntityTypeConfiguration<EquipoPareo>
             .HasFilter("[activo] = 1")
             .HasDatabaseName("UX_equipos_pareo_especialista_activo");
 
-        // Region fija del equipo (1 equipo = 1 region): FK fisica del script 0006.
         builder.HasOne(e => e.Region)
             .WithMany()
             .HasForeignKey(e => e.IdRegion)

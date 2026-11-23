@@ -35,7 +35,6 @@ const formatDate = (date: Date | string | null | undefined) => {
   try {
     const dateObj = date instanceof Date ? date : new Date(date);
 
-    // Verificar si la fecha es válida
     if (isNaN(dateObj.getTime())) {
       return "Fecha inválida";
     }
@@ -326,7 +325,6 @@ export const createSubidaColumns = (
       const isAnyLoading = !!context?.loadingDocumentId;
       const status = row.getValue("status") as DocumentStatus;
 
-      // Solo mostrar el botón de eliminar si el documento está pendiente
       if (status !== "pending") {
         return null;
       }
@@ -335,7 +333,6 @@ export const createSubidaColumns = (
         if (isAnyLoading) return;
 
         context?.onDelete?.(document);
-        // Refrescar datos después de eliminar
         await context?.onRefresh?.();
       };
 

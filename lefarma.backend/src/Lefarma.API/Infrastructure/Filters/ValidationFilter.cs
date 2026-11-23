@@ -7,11 +7,6 @@ using Microsoft.AspNetCore.Mvc.Filters;
 
 namespace Lefarma.API.Infrastructure.Filters
 {
-/// <summary>
-    /// Filtro de validación global que automáticamente valida requests
-    /// usando FluentValidation y retorna respuestas consistentes.
-    /// También enriquece el WideEvent con información de errores de validación.
-    /// </summary>
     public class ValidationFilter : IAsyncActionFilter
     {
         private readonly IServiceProvider _serviceProvider;
@@ -25,7 +20,6 @@ namespace Lefarma.API.Infrastructure.Filters
 
         public async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
         {
-            // Buscar el primer argumento que no sea null y no sea de tipo simple
             var requestType = context.ActionArguments
                 .Values
                 .Where(v => v != null &&
@@ -41,7 +35,6 @@ namespace Lefarma.API.Infrastructure.Filters
                 return;
             }
 
-            // Obtener el validator correspondiente
             var validatorType = typeof(IValidator<>).MakeGenericType(requestType);
             var validator = _serviceProvider.GetService(validatorType) as IValidator;
 
@@ -70,13 +63,10 @@ namespace Lefarma.API.Infrastructure.Filters
 
             if (!validationResult.IsValid)
             {
-                // ✅ Extraer información del contexto de la acción
                 var actionContext = ExtractActionContext(context, request);
 
-                // ✅ Enriquecer WideEvent con errores de validación y contexto
                 EnrichWideEventWithValidationErrors(validationResult, requestType, actionContext);
 
-                // Convertir errores de FluentValidation a ErrorDetail
                 var errorDetails = validationResult.Errors
                     .Select(e => new ErrorDetail
                     {
@@ -98,27 +88,19 @@ namespace Lefarma.API.Infrastructure.Filters
             await next();
         }
 
-        /// <summary>
-        /// Extrae información del contexto de la acción (EntityType, EntityId, Action).
-        /// </summary>
         private ActionContextInfo ExtractActionContext(ActionExecutingContext context, object request)
         {
             var actionName = context.ActionDescriptor.RouteValues["action"] ?? "Unknown";
             var controllerName = context.ActionDescriptor.RouteValues["controller"] ?? "Unknown";
 
-            // Inferir EntityType desde el nombre del controller
-            // Ejemplo: "AreasController" -> "Area"
             var entityType = controllerName.EndsWith("s")
-                ? controllerName[..^1]  // Remover la 's' final
+                ? controllerName[..^1]  
                 : controllerName;
 
-            // Inferir Action desde el nombre del método
             var action = InferActionFromMethodName(actionName);
 
-            // Intentar extraer EntityId del request (para Update/Delete)
             int? entityId = null;
 
-            // Buscar propiedades comunes de ID
             var idProperty = request.GetType().GetProperties()
                 .FirstOrDefault(p =>
                     p.Name.Equals("Id", StringComparison.OrdinalIgnoreCase) ||
@@ -134,7 +116,6 @@ namespace Lefarma.API.Infrastructure.Filters
                 }
             }
 
-            // También buscar en route values
             if (!entityId.HasValue && context.RouteData.Values.TryGetValue("id", out var routeId))
             {
                 if (int.TryParse(routeId?.ToString(), out var parsedId) && parsedId > 0)
@@ -151,9 +132,6 @@ namespace Lefarma.API.Infrastructure.Filters
             };
         }
 
-        /// <summary>
-        /// Infiere la acción CRUD desde el nombre del método.
-        /// </summary>
         private string InferActionFromMethodName(string methodName)
         {
             var lowerMethod = methodName.ToLowerInvariant();
@@ -170,12 +148,9 @@ namespace Lefarma.API.Infrastructure.Filters
             if (lowerMethod.Contains("get") || lowerMethod.Contains("list") || lowerMethod.Contains("search"))
                 return "Read";
 
-            return methodName; // Retornar el nombre original si no coincide
+            return methodName; 
         }
 
-        /// <summary>
-        /// Enriquece el WideEvent con información detallada de los errores de validación.
-        /// </summary>
         private void EnrichWideEventWithValidationErrors(
             ValidationResult validationResult,
             Type requestType,
@@ -184,18 +159,15 @@ namespace Lefarma.API.Infrastructure.Filters
             var wideEvent = _wideEventAccessor.Current;
             if (wideEvent == null) return;
 
-            // ✅ Establecer EntityType, EntityId y Action
             wideEvent.EntityType = actionContext.EntityType;
             wideEvent.EntityId = actionContext.EntityId;
             wideEvent.Action = actionContext.Action;
 
-            // Información básica del error
             wideEvent.ErrorType = "Validation";
             wideEvent.ErrorCode = "Validation.Failed";
             wideEvent.ErrorMessage = "Los datos proporcionados no son válidos.";
             wideEvent.IsRetriable = false;
 
-            // Extraer información detallada de los errores
             var validationErrors = validationResult.Errors
                 .Select(e => new
                 {
@@ -218,7 +190,6 @@ namespace Lefarma.API.Infrastructure.Filters
                     g => g.Select(e => e.Message).ToList()
                 );
 
-            // Agregar contexto rico al WideEvent
             wideEvent.AddContext("error", new Dictionary<string, object>
             {
                 ["errorCount"] = validationErrors.Count,
@@ -229,7 +200,6 @@ namespace Lefarma.API.Infrastructure.Filters
                 ["requestType"] = requestType.Name
             });
 
-            // Si hay información de severity, agregar resumen
             var errorsBySeverity = validationErrors
                 .GroupBy(e => e.Severity)
                 .ToDictionary(g => g.Key, g => g.Count());
@@ -243,9 +213,6 @@ namespace Lefarma.API.Infrastructure.Filters
             }
         }
 
-        /// <summary>
-        /// Clase auxiliar para almacenar información del contexto de la acción.
-        /// </summary>
         private class ActionContextInfo
         {
             public string EntityType { get; set; } = string.Empty;

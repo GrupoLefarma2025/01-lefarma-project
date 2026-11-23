@@ -4,15 +4,6 @@ import { MiCalendario } from '../components/MiCalendario';
 import { MisPendientesCard } from '../components/MisPendientesCard';
 import { usePageTitle } from '@/hooks/usePageTitle';
 
-/**
- * RH app landing page.
- *
- * Punto de entrada del módulo de Recursos Humanos con vista
- * Employee Self-Service: pendientes accionables + calendario mensual de solicitudes.
- *
- * En escritorio el layout ocupa el alto disponible para que el calendario
- * muestre el mes completo sin recortes ni desplazamiento vertical.
- */
 export function RhDashboard() {
   usePageTitle('Inicio', 'Tu resumen de Recursos Humanos');
 

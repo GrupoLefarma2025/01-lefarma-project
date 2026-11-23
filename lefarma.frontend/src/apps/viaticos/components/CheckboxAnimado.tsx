@@ -8,14 +8,6 @@ export interface CheckboxAnimadoProps {
   className?: string;
 }
 
-/**
- * Animación del check: la palomita se dibuja al activar (feedback continuo
- * sobre el evento causal) y la caja responde al instante al presionar
- * (`:active`, 100ms). Sin rebotes ni ondas expansivas: un tap no lleva
- * momentum, así que la transición es críticamente amortiguada (ease-out
- * corto). Solo se animan transform/opacidad. Se respeta
- * `prefers-reduced-motion`.
- */
 const CHECKBOX_CSS = `
 .checkbox-animado { position: relative; }
 .checkbox-animado .ca-input {
@@ -85,11 +77,6 @@ const CHECKBOX_CSS = `
 }
 `;
 
-/**
- * Checkbox con palomita que se dibuja al activar, en el primario del tema.
- * Usa un input nativo enfocado por teclado + label asociado, así que
- * `getByLabelText` y la navegación con Tab/Espacio siguen funcionando.
- */
 export function CheckboxAnimado({ id, checked, onCheckedChange, children, className }: CheckboxAnimadoProps) {
   return (
     <div className={cn('checkbox-animado', className)}>

@@ -16,7 +16,6 @@ const resetConnection = () => {
   });
 };
 
-/** Deja correr la verificación que markLost hace contra /health. */
 const confirmar = async () => {
   await vi.advanceTimersByTimeAsync(0);
   await vi.advanceTimersByTimeAsync(800);

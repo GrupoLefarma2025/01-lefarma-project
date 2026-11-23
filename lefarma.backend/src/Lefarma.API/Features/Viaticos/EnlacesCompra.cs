@@ -4,15 +4,6 @@ using System.Text.Json.Nodes;
 
 namespace Lefarma.API.Features.Viaticos;
 
-/// <summary>
-/// Los enlaces <c>/book/flight</c> de Kayak pertenecen a una sesión de búsqueda
-/// y caducan en minutos: al abrirlos después, Kayak responde "los resultados
-/// caducaron". Para guardar y mostrar se usa la búsqueda estable de la ruta y
-/// la fecha (el mismo formato que ya genera el cálculo de respaldo).
-///
-/// La conversión se hace al leer el detalle para que también corrija opciones
-/// viejas que ya quedaron con un enlace efímero en la base.
-/// </summary>
 public static class EnlacesCompra
 {
     private const string KayakBusqueda = "https://www.kayak.com.mx/flights";
@@ -31,11 +22,6 @@ public static class EnlacesCompra
             && uri.AbsolutePath.StartsWith("/flights", StringComparison.OrdinalIgnoreCase);
     }
 
-    /// <summary>
-    /// Devuelve el enlace estable de búsqueda cuando <paramref name="url"/> es
-    /// un enlace efímero de Kayak. Si no hay ruta/fecha suficiente, conserva el
-    /// enlace original en lugar de inventar una búsqueda equivocada.
-    /// </summary>
     public static string? Canonicalizar(
         string? url,
         JsonElement? datosSolicitud,
@@ -53,12 +39,6 @@ public static class EnlacesCompra
         return ConstruirBusqueda(origen, destino, fecha) ?? url;
     }
 
-    /// <summary>
-    /// Reemplaza en el snapshot los enlaces efímeros que ya tienen una versión
-    /// estable calculada por opción. Se recorre todo el JSON para alcanzar
-    /// <c>calculo.ruta.nodos</c>, <c>calculo.tramos</c> y las opciones
-    /// originales guardadas por el concentrado.
-    /// </summary>
     public static JsonElement? ReemplazarEnlaces(
         JsonElement? datos,
         IReadOnlyDictionary<string, string> reemplazos)
@@ -158,8 +138,6 @@ public static class EnlacesCompra
 
         origen ??= tramo == 0 ? origenCiudad : destinoCiudad;
         destino ??= tramo == 0 ? destinoCiudad : origenCiudad;
-        // El tramo de regreso del cálculo se llama "Regreso al origen": el
-        // destino real es la ciudad de salida.
         if (EsRegreso(destino)) destino = origenCiudad;
 
         fecha ??= tramo == 0

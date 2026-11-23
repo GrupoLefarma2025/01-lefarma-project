@@ -7,11 +7,9 @@ export interface PosicionMenu {
   lng: number;
 }
 
-/** Clic derecho sobre el mapa (el menú del navegador queda suprimido). */
 export function ManejadorClickDerecho({ onMenu }: { onMenu: (lat: number, lng: number) => void }) {
   useMapEvents({
     contextmenu(event) {
-      // Un clic nacido en el menú (o con su botón ya desmontado) no es del mapa.
       const objetivo = (event.originalEvent as { target?: Element | null } | undefined)?.target;
       if (objetivo && (!objetivo.isConnected || objetivo.closest?.('.leaflet-popup'))) return;
       onMenu(event.latlng.lat, event.latlng.lng);
@@ -20,14 +18,8 @@ export function ManejadorClickDerecho({ onMenu }: { onMenu: (lat: number, lng: n
   return null;
 }
 
-/** Zoom mínimo al centrar desde el menú: suficiente para ver la calle. */
 const ZOOM_MINIMO_CENTRAR = 15;
 
-/**
- * Menú contextual del punto: se abre con clic derecho sobre el mapa (nunca
- * fuera de él). Cada acción hace solo lo suyo —centrar, poner el pin o
- * quitarlo—; abrir el menú no toca el pin.
- */
 export function MenuContextualPunto({
   posicion,
   onCerrar,

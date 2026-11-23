@@ -49,12 +49,6 @@ const PASOS = [
 
 type PasoId = (typeof PASOS)[number]['id'];
 
-/**
- * Un solo paso visible a la vez. Los pasos no desmontables se ocultan con la
- * clase `hidden` (Tailwind) en vez de con el atributo `hidden`: así el estado
- * capturado por el usuario sobrevive a la navegación sin guardarlo dos veces y
- * `display:none` sigue sacándolos del árbol de accesibilidad real.
- */
 function Paso({ id, titulo, activo, children }: {
   id: PasoId;
   titulo: string;
@@ -69,10 +63,6 @@ function Paso({ id, titulo, activo, children }: {
   );
 }
 
-/**
- * Clave de la opción elegida: persona + tramo. Al indexar por persona, dos
- * personas con el mismo tramo no compiten por la misma elección.
- */
 function claveOpcion(persona: string, tramo: number): string {
   return `${persona}::${tramo}`;
 }
@@ -91,7 +81,6 @@ function mxn(n: number): string {
   return `$${n.toLocaleString('es-MX', { maximumFractionDigits: 0 })} MXN`;
 }
 
-/** Paradas de una persona como puntos de mapa, para el selector de secuencia. */
 function paradasDe(person: PersonForm, hospitals: HospitalUbicacion[]): PuntoSeleccion[] {
   const puntos: PuntoSeleccion[] = [];
   for (const destination of person.destinations) {
@@ -104,7 +93,6 @@ function paradasDe(person: PersonForm, hospitals: HospitalUbicacion[]): PuntoSel
   return puntos;
 }
 
-/** Una parada conserva su identidad cuando la secuencia conserva sus coordenadas. */
 function coincideParada(destination: DestinationForm, punto: PuntoSeleccion, hospitals: HospitalUbicacion[]): boolean {
   if (destination.punto) {
     return destination.punto.latitud === punto.latitud && destination.punto.longitud === punto.longitud;
@@ -113,11 +101,6 @@ function coincideParada(destination: DestinationForm, punto: PuntoSeleccion, hos
   return hospital !== undefined && hospital.latitud === punto.latitud && hospital.longitud === punto.longitud;
 }
 
-/**
- * Reordena las paradas de una persona según la secuencia confirmada. Un punto
- * nuevo (sin parada que lo respalde) entra como destino de mapa con la fecha
- * local de mañana; una parada quitada desaparece de la persona.
- */
 function aplicarSecuencia(
   person: PersonForm,
   secuencia: PuntoSeleccion[],
@@ -133,8 +116,6 @@ function aplicarSecuencia(
     }
     usados.add(indice);
     const existente = person.destinations[indice];
-    // El nombre editado sólo aplica a los destinos de mapa: un hospital de
-    // catálogo no puede renombrarse desde el mapa.
     if (existente.destinoModo === 'mapa' && existente.punto) {
       return { ...existente, punto: { ...existente.punto, nombre: punto.nombre } };
     }
@@ -167,8 +148,6 @@ export function ViaticosPage() {
   const [snapshot, setSnapshot] = useState<{ request: CostosRutaRequest; response: CostosRutaResponse; coordinateWarning: boolean } | null>(null);
   const data = snapshot?.response ?? null;
   const [printSelection, setPrintSelection] = useState<Record<string, string>>({});
-  // Opción elegida por tramo. No se limpia al recalcular: el especialista
-  // elige una vez y un recálculo no le borra lo que ya decidió.
   const [opcionesElegidas, setOpcionesElegidas] = useState<Record<string, string>>({});
   const [printPerson, setPrintPerson] = useState('');
   const [reportMode, setReportMode] = useState<'concentrado' | 'solicitud'>('concentrado');
@@ -177,9 +156,6 @@ export function ViaticosPage() {
   const [personaPuntosId, setPersonaPuntosId] = useState<number | null>(null);
   const mounted = useRef(true);
   const [imprimiendo, setImprimiendo] = useState(false);
-  // Id de la solicitud persistida. Nace en null: hasta que el importador
-  // envia la primera cotizacion no existe. `onEnviada` lo sube aqui para que
-  // los envios siguientes trabajen sobre esa MISMA solicitud y no creen otra.
   const [solicitudId, setSolicitudId] = useState<number | null>(null);
   const nombreSolicitante = useAuthStore(state => state.user?.nombre);
 
@@ -230,7 +206,6 @@ export function ViaticosPage() {
     return () => { cancelled = true; };
   }, []);
 
-  // "Para mí" toma el nombre de la sesión cuando exista y aún no se haya capturado otro.
   useEffect(() => {
     if (!nombreSolicitante) return;
     setPeople(current => current.map(person =>
@@ -274,10 +249,6 @@ export function ViaticosPage() {
   const blocked = !catalogsReady || !request;
   const stale = snapshot && JSON.stringify(request) !== JSON.stringify(snapshot.request);
   const selectedPrintPerson = printPerson || snapshot?.request.personas[0]?.nombre || '';
-  // Gasolina, casetas, hospedaje, comida y taxi de la propuesta elegida de
-  // cada persona; `null` cuando ningun valor conocido existe. El importador
-  // los persiste junto con el desglose que el solo deriva de la cotizacion de
-  // pi. Se suman solo los conocidos.
   const conceptosMotor = (() => {
     if (!snapshot) return null;
     const costos = snapshot.request.personas.map(persona => {
@@ -310,7 +281,6 @@ export function ViaticosPage() {
     return branch ? { nombre: branch.nombre, latitud: branch.latitud, longitud: branch.longitud } : null;
   })();
 
-  /** Dato mínimo de cada paso: sin esto "Siguiente" no avanza. */
   function pasoCompleto(id: PasoId): boolean {
     if (id === 1) return catalogsReady && request !== null;
     if (id === 2) return personaPuntos !== null && puntosSecuencia.length >= 1;
@@ -328,7 +298,6 @@ export function ViaticosPage() {
     updatePerson(person.id, { destinations: person.destinations.map(d => d.id === destinationId ? { ...d, ...change } : d) });
   }
 
-  /** Una sola opción elegida por tramo; reelegir la misma la deselecciona. */
   function alternarOpcion(persona: string, tramo: number, ofertaId: string) {
     setOpcionesElegidas(current => {
       const clave = claveOpcion(persona, tramo);

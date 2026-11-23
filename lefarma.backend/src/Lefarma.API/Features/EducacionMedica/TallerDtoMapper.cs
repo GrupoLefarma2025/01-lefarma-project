@@ -3,7 +3,6 @@ using Lefarma.API.Features.EducacionMedica.DTOs;
 
 namespace Lefarma.API.Features.EducacionMedica;
 
-/// <summary>Mapeo compartido Taller -> TallerDto (lo usan TalleresService y MatrizTalleresService).</summary>
 internal static class TallerDtoMapper
 {
     public static TallerDto Armar(

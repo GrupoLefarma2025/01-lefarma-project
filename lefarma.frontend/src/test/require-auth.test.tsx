@@ -4,28 +4,6 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom';
 import type { ReactNode } from 'react';
 
-/**
- * Auth flow tests: loginStepTwo option, Login config-driven step count, and
- * RequireAuth subtree-aware redirect.
- *
- * Coverage:
- * - authStore.loginStepTwo option `{ requireContextSelection }`:
- *     * default (no option) preserves 3-step flow + loads step-3 data.
- *     * `requireContextSelection:false` authenticates immediately, skips step-3
- *       load, leaves no partial context state.
- * - Login config-driven step count:
- *     * default (requireContextSelection=true) presents context step 3.
- *     * global (requireContextSelection=false, redirectTo='/hub') cleanly skips
- *       step 3 and redirects to /hub.
- * - RequireAuth subtree-aware redirect:
- *     * default loginPath redirects to /login.
- *     * custom loginPath '/cxp/login' redirects there.
- *     * authed session passes through (auth-only check).
- *
- * Mock strategy: real authStore + real router. Only the HTTP edges
- * (authService, apiClient) are mocked so store/UI behavior is exercised end-to-end.
- */
-
 vi.mock('@/shared/auth/authService', () => ({
   authService: {
     loginStepOne: vi.fn().mockResolvedValue({
@@ -101,10 +79,6 @@ import { authService } from '@/shared/auth/authService';
 import Login from '@/pages/auth/Login';
 import { RequireAuth } from '@/shared/auth/RequireAuth';
 
-// ---------------------------------------------------------------------------
-// PR2.3 — authStore.loginStepTwo option
-// ---------------------------------------------------------------------------
-
 describe('authStore.loginStepTwo — requireContextSelection option (PR2.3)', () => {
   beforeEach(() => {
     localStorage.clear();
@@ -133,7 +107,6 @@ describe('authStore.loginStepTwo — requireContextSelection option (PR2.3)', ()
     expect(authService.getEmpresas).toHaveBeenCalledTimes(1);
     expect(authService.getSucursales).toHaveBeenCalledTimes(1);
     expect(authService.getAreas).toHaveBeenCalledTimes(1);
-    // Session NOT finalized — step 3 (context) still pending.
     expect(state.isAuthenticated).toBe(false);
     expect(state.loginStep).toBe(3);
     expect(state.empresas.length).toBeGreaterThan(0);
@@ -147,11 +120,9 @@ describe('authStore.loginStepTwo — requireContextSelection option (PR2.3)', ()
     });
 
     const state = useAuthStore.getState();
-    // Step-3 data NEVER loaded — no partial context state leaks into global flow.
     expect(authService.getEmpresas).not.toHaveBeenCalled();
     expect(authService.getSucursales).not.toHaveBeenCalled();
     expect(authService.getAreas).not.toHaveBeenCalled();
-    // Session authenticated right after credentials.
     expect(state.isAuthenticated).toBe(true);
     expect(state.loginStep).toBe(1);
     expect(state.empresas).toEqual([]);
@@ -162,10 +133,6 @@ describe('authStore.loginStepTwo — requireContextSelection option (PR2.3)', ()
     expect(state.user?.username).toBe('testuser');
   });
 });
-
-// ---------------------------------------------------------------------------
-// PR2.1 — Login config-driven step count
-// ---------------------------------------------------------------------------
 
 describe('Login — config-driven step count (PR2.1)', () => {
   beforeEach(() => {
@@ -200,7 +167,6 @@ describe('Login — config-driven step count (PR2.1)', () => {
     await user.type(screen.getByPlaceholderText('Ingresa tu contraseña'), 'pass');
     await user.click(screen.getByRole('button', { name: /continuar/i }));
 
-    // Step-3 (Empresa) surface presented; not yet authenticated.
     await waitFor(() => {
       expect(useAuthStore.getState().loginStep).toBe(3);
     });
@@ -226,22 +192,15 @@ describe('Login — config-driven step count (PR2.1)', () => {
     await user.type(screen.getByPlaceholderText('Ingresa tu contraseña'), 'pass');
     await user.click(screen.getByRole('button', { name: /continuar/i }));
 
-    // Authenticated + redirected to /hub; step-3 data never loaded.
     await waitFor(() => {
       expect(useAuthStore.getState().isAuthenticated).toBe(true);
     });
     expect(useAuthStore.getState().empresas).toEqual([]);
     expect(useAuthStore.getState().loginStep).toBe(1);
-    // Navigation landed on the /hub route.
     expect(await screen.findByText('HUB_LANDING')).toBeInTheDocument();
-    // Step-3 surface never appeared.
     expect(screen.queryByText('Empresa')).not.toBeInTheDocument();
   });
 });
-
-// ---------------------------------------------------------------------------
-// RequireAuth subtree-aware redirect
-// ---------------------------------------------------------------------------
 
 function renderGuard(initialPath: string, props: { children?: ReactNode; loginPath?: string }) {
   return render(
@@ -269,7 +228,6 @@ describe('RequireAuth — subtree-aware redirect', () => {
   });
 
   it('waits for hydration and does not redirect a stored session to login', () => {
-    // F5 con sesión en localStorage: el primer render ocurre antes de hidratar.
     useAuthStore.setState({ isInitialized: false, isAuthenticated: false });
     renderGuard('/perfil', {});
 
@@ -304,8 +262,6 @@ describe('RequireAuth — subtree-aware redirect', () => {
   });
 
   it('preserves the return URL via ?return= on redirect (spec: Authentication Guard)', () => {
-    // Probe at the login destination that surfaces the router location so we
-    // can assert the `?return=` query param carries the original protected path.
     function LoginProbe() {
       const loc = useLocation();
       return <div data-testid="login-probe">{loc.pathname + loc.search}</div>;
@@ -327,10 +283,8 @@ describe('RequireAuth — subtree-aware redirect', () => {
       </MemoryRouter>
     );
 
-    // The redirect resolved to the login destination; the protected surface did not render.
     expect(screen.getByTestId('login-probe')).toBeInTheDocument();
     expect(screen.queryByText('PROTECTED_DASHBOARD')).not.toBeInTheDocument();
-    // The login destination received the original protected route via ?return=.
     expect(screen.getByTestId('login-probe').textContent).toBe(
       `/login?return=${encodeURIComponent('/cxp/dashboard')}`
     );

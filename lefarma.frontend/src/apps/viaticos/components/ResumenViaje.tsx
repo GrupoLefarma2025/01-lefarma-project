@@ -25,7 +25,6 @@ function etiquetaUbicacion(punto: PuntoSeleccion | null): string {
 
 const NOMBRES_GENERICOS = new Set(['punto seleccionado en mapa', 'punto seleccionado', 'punto']);
 
-/** Solo estado/municipio del punto (sin el nombre genérico del mapa). */
 function estadoMunicipio(punto: PuntoSeleccion | null): string {
   if (!punto) return '';
   return [punto.municipio, punto.estado]
@@ -33,7 +32,6 @@ function estadoMunicipio(punto: PuntoSeleccion | null): string {
     .join(', ');
 }
 
-/** Estado/municipio; si no hay, el nombre del punto salvo los genéricos. */
 function nombreOUbicacion(punto: PuntoSeleccion | null): string {
   const ubicacion = estadoMunicipio(punto);
   if (ubicacion) return ubicacion;
@@ -46,12 +44,10 @@ function coordenadas(punto: PuntoSeleccion | null): string {
   return `${punto.latitud.toFixed(5)}, ${punto.longitud.toFixed(5)}`;
 }
 
-/** Mapa de referencia de solo lectura: punto pequeño y vista amplia del estado. */
 function MapaResumen({ punto }: { punto: PuntoSeleccion }) {
   return <MapaPuntoMini lat={punto.latitud} lng={punto.longitud} />;
 }
 
-/** Ubicación con coordenadas clicables: abren el mapa de referencia. */
 function DetalleUbicacion({
   punto,
   sufijo,
@@ -133,11 +129,6 @@ function construirNodos(datos: Pick<ResumenViajeDatos, 'origen' | 'destinos' | '
   ];
 }
 
-/**
- * Resumen del viaje: tarjetas de motivo/transporte/origen y diagrama de ruta
- * (origen → destinos → regreso). La línea se llena como una tubería y cada
- * punto se llena al ser alcanzado.
- */
 export function ResumenViaje({ motivo, modoTransporte, compartido, acompanantes, origen, destinos, retorno, rango }: ResumenViajeDatos) {
   const nodos = construirNodos({ origen, destinos, retorno });
 

@@ -5,7 +5,6 @@ using Moq;
 
 namespace Lefarma.UnitTests.Features.EducacionMedica;
 
-/// <summary>Resumen agregado del dashboard (ADR-00012, Fase 2).</summary>
 public class DashboardServiceTests
 {
     private const int IdUsuario = 70;

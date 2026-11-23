@@ -1,6 +1,5 @@
 ﻿import type { TableConfig } from '@/types/table.types';
 
-
 const STORAGE_KEY = 'table-configs';
 
 declare global {
@@ -9,9 +8,6 @@ declare global {
   }
 }
 
-/**
- * Obtener todas las configuraciones de tablas desde localStorage
- */
 export function getAllConfigs(): TableConfig[] {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
@@ -24,18 +20,11 @@ export function getAllConfigs(): TableConfig[] {
   }
 }
 
-/**
- * Obtener la configuración de una tabla específica
- */
 export function getConfig(tableId: string): TableConfig | null {
   const configs = getAllConfigs();
   return configs.find(c => c.tableId === tableId) || null;
 }
 
-/**
- * Guardar la configuración de una tabla específica
- * Crea una entrada nueva si no existe, actualiza si ya existe
- */
 export function saveConfig(config: TableConfig): void {
   try {
     const configs = getAllConfigs();
@@ -53,9 +42,6 @@ export function saveConfig(config: TableConfig): void {
   }
 }
 
-/**
- * Resetear la configuración de una tabla específica a los valores por defecto
- */
 export function resetConfig(tableId: string): void {
   try {
     const configs = getAllConfigs();
@@ -66,21 +52,14 @@ export function resetConfig(tableId: string): void {
   }
 }
 
-/**
- * Limpiar TODAS las configuraciones de tablas de localStorage
- */
 export function clearAllConfigs(): void {
   try {
     localStorage.removeItem(STORAGE_KEY);
-    // Configs limpiadas exitosamente
   } catch (error) {
     console.error('[tableConfigStorage] Error clearing configs:', error);
   }
 }
 
-/**
- * Exponer función en el objeto global window para acceso desde la consola
- */
 if (typeof window !== 'undefined') {
   window.clearTableConfigs = clearAllConfigs;
 }

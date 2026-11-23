@@ -45,7 +45,6 @@ const detalleRecurso = (recurso: TallerRecurso) => {
   return partes.join(' · ') || '—';
 };
 
-/** Estilo del panel de estado de la cabecera (color + icono por estado). */
 function estadoVisual(estado: string) {
   switch (estado) {
     case 'EnCurso':
@@ -86,7 +85,6 @@ function estadoVisual(estado: string) {
   }
 }
 
-/** "Cuánto falta / hace cuánto" respecto a la fecha del taller. */
 function textoRelativo(taller: Taller): string {
   if (taller.estado === 'Realizado') {
     const fecha = taller.fechaRealizado ?? taller.fechaTaller;
@@ -117,11 +115,6 @@ function Dato({ etiqueta, valor }: { etiqueta: string; valor: ReactNode }) {
   );
 }
 
-/**
- * Datos de ubicación del hospital para el detalle: la asignación del equipo
- * (Mis talleres) o el catálogo de hospitales (Matriz general). Todos opcionales;
- * lo que falte cae a los datos del propio taller.
- */
 export interface UbicacionDetalle {
   nombreRuta?: string | null;
   orden?: number | null;
@@ -141,15 +134,11 @@ interface TallerDetalleModalProps {
   open: boolean;
   onClose: () => void;
   taller: Taller | null;
-  /** Ubicación/datos extra del hospital (ruta planeada o catálogo). */
   ubicacion?: UbicacionDetalle | null;
-  /** Botones de acción del taller (los arma la página según permisos/estado). */
   acciones?: ReactNode;
-  /** Tipo de visita asociado (Taller, Informativa, Captación de queja, Otro). */
   tipoVisita?: string | null;
 }
 
-/** Detalle del taller capturado: estado, logística, recursos y datos del hospital con ubicación. */
 export function TallerDetalleModal({
   open,
   onClose,
@@ -212,7 +201,7 @@ export function TallerDetalleModal({
     >
       {taller && (
         <div className="space-y-5">
-          {/* Encabezado: hospital, trazabilidad como subtítulo, equipo de pareo y estado */}
+          {}
           <div className="space-y-2">
             <div className="flex flex-wrap items-start justify-between gap-2">
               <div className="min-w-0">
@@ -271,7 +260,7 @@ export function TallerDetalleModal({
             )}
           </div>
 
-          {/* Panel de estado + logística (fusión de la antigua sección Logística) */}
+          {}
           <div className={`rounded-lg border px-4 py-3 ${visual.clase}`}>
             <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="inline-flex items-center gap-2 text-sm font-semibold">
@@ -301,10 +290,10 @@ export function TallerDetalleModal({
             </div>
           </div>
 
-          {/* Acciones del taller */}
+          {}
           {acciones && <div className="flex flex-wrap gap-2">{acciones}</div>}
 
-          {/* Origen y trazabilidad (solo si aplica; "Capturado por" vive en el subtítulo) */}
+          {}
           {(taller.esExtraordinario || taller.solicitudCambioPendiente) && (
             <section className="space-y-2 rounded-lg border border-purple-200 bg-purple-50/40 p-3 dark:border-purple-900 dark:bg-purple-950/20">
               <h3 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-purple-700 dark:text-purple-300">
@@ -330,7 +319,7 @@ export function TallerDetalleModal({
             </section>
           )}
 
-          {/* Recursos del taller */}
+          {}
           <section className="space-y-2 rounded-lg border border-amber-200 bg-amber-50/40 p-3 dark:border-amber-900 dark:bg-amber-950/20">
             <h3 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-300">
               <Package className="h-3.5 w-3.5" />
@@ -368,7 +357,7 @@ export function TallerDetalleModal({
             )}
           </section>
 
-          {/* Hospital y ubicación */}
+          {}
           <section className="space-y-2 rounded-lg border border-sky-200 bg-sky-50/40 p-3 dark:border-sky-900 dark:bg-sky-950/20">
             <h3 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-sky-700 dark:text-sky-300">
               <MapPin className="h-3.5 w-3.5" />
@@ -415,7 +404,7 @@ export function TallerDetalleModal({
             )}
           </section>
 
-          {/* Historial de estados */}
+          {}
           {historial.length > 0 && (
             <section className="space-y-2 rounded-lg border p-3">
               <h3 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">

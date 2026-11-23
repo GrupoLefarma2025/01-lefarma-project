@@ -14,11 +14,6 @@ export interface SwitchTabProps {
   className?: string;
 }
 
-/**
- * Switch de pestañas animado: píldora con un thumb que se desliza a la
- * opción activa (solo transform, con `prefers-reduced-motion` instantáneo).
- * Las opciones son radios (Tab + flechas ←/→) en el primario del tema.
- */
 export function SwitchTab({ ariaLabel, value, onChange, options, disabled, className }: SwitchTabProps) {
   const indice = Math.max(0, options.findIndex((o) => o.id === value));
 
@@ -41,7 +36,7 @@ export function SwitchTab({ ariaLabel, value, onChange, options, disabled, class
         else if (e.key === 'ArrowLeft') { e.preventDefault(); mover(-1, e.currentTarget); }
       }}
     >
-      {/* Thumb: ocupa 1/n del interior y se traslada su propio ancho por paso. */}
+      {}
       <span
         aria-hidden
         className="absolute inset-y-1 left-1 rounded-full bg-primary shadow transition-transform duration-300 ease-out motion-reduce:transition-none"

@@ -1,5 +1,3 @@
-// ─── Partida (Response) ──────────────────────────────────────────────────────
-
 export interface OrdenCompraPartidaResponse {
   idPartida: number;
   numeroPartida: number;
@@ -25,8 +23,6 @@ export interface OrdenCompraPartidaResponse {
   estadoFacturacion: number;
 }
 
-// ─── Cuenta de pago del tesorero / Historial (Response) ──────────────────────
-
 export interface CuentaPagoTesorero {
   idFormaPago?: number | null;
   formaPago?: string | null;
@@ -45,8 +41,6 @@ export interface OrdenCompraHistorialItem {
   usuarioNombre?: string | null;
 }
 
-// ─── Orden de Compra (Response) ──────────────────────────────────────────────
-
 export interface OrdenCompraResponse {
   idOrden: number;
   folio: string;
@@ -62,7 +56,6 @@ export interface OrdenCompraResponse {
   estadoNombre?: string | null;
   estadoColor?: string | null;
   idWorkflow?: number | null;
-  /** Nombre del flujo de la orden; lo resuelve el backend en la lista. */
   nombreWorkflow?: string | null;
   idPasoActual?: number | null;
   idProveedor?: number | null;
@@ -80,13 +73,10 @@ export interface OrdenCompraResponse {
   idUsuarioCreador?: number;
   solicitanteNombre?: string | null;
   solicitantePuesto?: string | null;
-  /** Área (departamento) del solicitante según Asistencias.dbo.vwEmpleados. */
   solicitanteArea?: string | null;
   solicitanteCorreo?: string | null;
   segundoAutorizador?: string | null;
-  /** Puesto del segundo autorizador (jefe) según Asistencias.dbo.vwEmpleados. */
   segundoAutorizadorPuesto?: string | null;
-  /** Área (departamento) del segundo autorizador (jefe) según Asistencias.dbo.vwEmpleados. */
   segundoAutorizadorArea?: string | null;
   notaFormaPago?: string | null;
   notasGenerales?: string | null;
@@ -120,8 +110,6 @@ export interface OrdenCompraResponse {
   partidas: OrdenCompraPartidaResponse[];
 }
 
-// ─── Create Partida (Request) ────────────────────────────────────────────────
-
 export interface CreatePartidaRequest {
   idPartida?: number | null;
   descripcion: string;
@@ -139,8 +127,6 @@ export interface CreatePartidaRequest {
   requiereFactura?: boolean;
   tipoComprobante?: string | null;
 }
-
-// ─── Create Orden de Compra (Request) ────────────────────────────────────────
 
 export interface CreateOrdenCompraRequest {
   idEmpresa: number;
@@ -163,8 +149,6 @@ idsCuentasBancarias?: number[] | null;
   folioTransporte?: number | null;
   partidas: CreatePartidaRequest[];
 }
-
-// ─── Orden de Compra List Request ────────────────────────────────────────────
 
 export interface OrdenCompraListRequest {
   idEmpresa?: number | null;

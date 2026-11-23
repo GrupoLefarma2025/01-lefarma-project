@@ -508,7 +508,6 @@ export default function IncidenciasChecadoList() {
                 setNotificarModalOpen(true);
 
                 setTimeout(() => {
-                  // Agregamos 'as HTMLElement' al final de querySelector
                   const notifications = document.querySelector('.tox-notifications-container') as HTMLElement | null;
                   
                   if (notifications) {

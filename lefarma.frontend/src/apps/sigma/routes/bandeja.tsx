@@ -120,7 +120,6 @@ export function BandejaView({
   const [isApproving, setIsApproving] = useState(false);
   const [isRejecting, setIsRejecting] = useState(false);
 
-  // Diálogos de autorización y rechazo
   const [showApproveDialog, setShowApproveDialog] = useState(false);
   const [showRejectDialog, setShowRejectDialog] = useState(false);
   const [selectedDocument, setSelectedDocument] = useState<Document | null>(
@@ -132,11 +131,8 @@ export function BandejaView({
     useState(true);
   const isFirstRenderRef = useRef(true);
   const previewUrlRef = useRef<string | null>(null);
-  // Identificador de la petición más reciente: evita que una respuesta vieja
-  // sobrescriba el resultado de un filtro más nuevo (carrera de peticiones).
   const lastRequestIdRef = useRef(0);
 
-  // Filtros
   const [nameFilter, setNameFilter] = useState("");
   const [startDate, setStartDate] = useState<Date | undefined>(createDefaultStartDate);
   const [endDate, setEndDate] = useState<Date | undefined>(createDefaultEndDate);
@@ -163,11 +159,9 @@ export function BandejaView({
     }
   }, [isAuthenticated]);
 
-  // Preseleccionar usuario desde parámetro de URL
   useEffect(() => {
     const usuarioParam = searchParams.get("usuario");
     if (usuarioParam && userOptions.length > 0) {
-      // Acepta tanto "sam@dominio" como el SamAccountName solo
       const userExists = userOptions.find(
         (option) =>
           option.value === usuarioParam ||
@@ -248,14 +242,10 @@ export function BandejaView({
     const requestId = ++lastRequestIdRef.current;
     setLoading(true);
     try {
-      // Construir parámetros de consulta
       const params = new URLSearchParams({
         soloActivos: "true",
       });
 
-      // Ojo: en sp_ObtenerDocumentos, @Estatus = 1 significa "todos" y NULL
-      // significa "pendientes". Por eso la vista de pendientes NO manda estatus
-      // (el SP ya devuelve solo pendientes) y la de autorizados/rechazados manda 4.
       if (isAuthorizedRejectedView) {
         params.append("estatus", "4");
       }
@@ -265,8 +255,6 @@ export function BandejaView({
       }
 
       if (userFilter) {
-        // El SP compara contra la columna cruda SubidoPorUsuario (sam@dominio),
-        // que es exactamente el valor que trae el combo del filtro.
         params.append("subidoPorUsuario", userFilter);
       }
 
@@ -333,13 +321,11 @@ export function BandejaView({
     mode,
   ]);
 
-  // Cargar documentos al montar, al autenticarse y cuando cambian los filtros
   useEffect(() => {
     if (!mounted || !isAuthenticated) return;
     loadDocuments();
   }, [mounted, isAuthenticated, loadDocuments]);
 
-  // Mostrar loading mientras se monta el componente
   if (!mounted) {
     return (
       <div className="flex min-h-screen items-center justify-center">
@@ -348,22 +334,17 @@ export function BandejaView({
     );
   }
 
-  // Si no está autenticado, no mostrar nada mientras redirige
   if (!isAuthenticated) {
     return null;
   }
 
-  // Función para enviar notificación en segundo plano (fire and forget)
   const sendEmailNotificationInBackground = (documentId: string) => {
-    // Enviar en segundo plano sin esperar respuesta
     post(`/email/documentos/notificar/${documentId}`).catch((error: unknown) => {
-      // Solo registrar el error sin afectar la UX del usuario
       console.error("Error enviando notificación de email en segundo plano:", error);
     });
   };
 
   const handlePreview = async (document: Document, mostrarDocumentoSoporte?: boolean) => {
-    // Si no se especifica mostrarDocumentoSoporte, usar false por defecto (documento original)
     const showSupport = mostrarDocumentoSoporte !== undefined 
       ? mostrarDocumentoSoporte 
       : false;
@@ -420,7 +401,6 @@ export function BandejaView({
     setApproveComment("");
 
     if (allowApproveWithoutComment) {
-      // Mostrar loader en el documento específico
       setLoadingDocumentId(document.id);
       toast.info("Procesando autorización...", {
         duration: 2000,
@@ -466,7 +446,6 @@ export function BandejaView({
             ? (error.body as { errorCode?: string } | undefined)?.errorCode
             : undefined;
 
-        // Verificar si es el error específico de palabra clave no encontrada
         if (errorCode === "KEYWORD_NOT_FOUND") {
           const palabraClave =
             import.meta.env.VITE_DOCUMENTOS_PALABRA_REEMPLAZAR ||
@@ -482,7 +461,6 @@ export function BandejaView({
         throw error;
       }
 
-      // Enviar notificación por email en segundo plano
       sendEmailNotificationInBackground(document.id);
 
       await loadDocuments();
@@ -528,7 +506,6 @@ export function BandejaView({
         motivo: rejectComment,
       });
 
-      // Enviar notificación por email en segundo plano
       sendEmailNotificationInBackground(selectedDocument.id);
 
       await loadDocuments();
@@ -557,7 +534,6 @@ export function BandejaView({
       return;
     }
 
-    // Preparar datos para Excel
     const excelData = documents.map((doc) => ({
       Nombre: doc.customName || doc.name,
       "Nombre Original": doc.name,
@@ -576,25 +552,22 @@ export function BandejaView({
       Observaciones: doc.observations || "",
     }));
 
-    // Crear libro de trabajo
     const ws = XLSX.utils.json_to_sheet(excelData);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Documentos");
 
-    // Ajustar ancho de columnas
     const colWidths = [
-      { wch: 30 }, // Nombre
-      { wch: 30 }, // Nombre Original
-      { wch: 20 }, // Tipo
-      { wch: 15 }, // Tamaño
-      { wch: 20 }, // Subido por
-      { wch: 20 }, // Fecha
-      { wch: 15 }, // Estado
-      { wch: 40 }, // Observaciones
+      { wch: 30 }, 
+      { wch: 30 }, 
+      { wch: 20 }, 
+      { wch: 15 }, 
+      { wch: 20 }, 
+      { wch: 20 }, 
+      { wch: 15 }, 
+      { wch: 40 }, 
     ];
     ws["!cols"] = colWidths;
 
-    // Descargar archivo
     const fileName = `bandeja_${mode === "pending" ? "pendientes" : "autorizados_rechazados"}_${new Date().toISOString().split("T")[0]}.xlsx`;
     XLSX.writeFile(wb, fileName);
   };
@@ -796,7 +769,7 @@ export function BandejaView({
         </main>
       </SidebarInset>
 
-      {/* Diálogo de vista previa del PDF */}
+      {}
       <PDFPreviewDialog
         document={previewDocument}
         open={showPreview}
@@ -809,7 +782,7 @@ export function BandejaView({
         onDocumentLoad={handleDocumentLoad}
       />
 
-      {/* Diálogo de Autorización */}
+      {}
       <Dialog open={showApproveDialog} onOpenChange={setShowApproveDialog}>
         <DialogContent className="sm:max-w-[500px] max-h-[90vh] flex flex-col">
           <DialogHeader>
@@ -851,7 +824,7 @@ export function BandejaView({
         </DialogContent>
       </Dialog>
 
-      {/* Diálogo de Rechazo */}
+      {}
       <Dialog open={showRejectDialog} onOpenChange={setShowRejectDialog}>
         <DialogContent className="sm:max-w-[500px] max-h-[90vh] flex flex-col">
           <DialogHeader>

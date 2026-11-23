@@ -7,11 +7,6 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Lefarma.API.Features.Telemetria.Almacen;
 
-/// <summary>
-/// Único punto de escritura y de mantenimiento del almacén de telemetría.
-/// Escribe por lotes en SQL Server (esquema `telemetria`) y nunca lanza hacia el
-/// llamador: quien escribe es un proceso de fondo.
-/// </summary>
 public class TelemetriaRepositorio(
     ApplicationDbContext contexto,
     ILogger<TelemetriaRepositorio> log)
@@ -23,10 +18,6 @@ public class TelemetriaRepositorio(
             .AsNoTracking()
             .AnyAsync(l => l.LoteId == loteId, cancellationToken);
 
-    /// <summary>
-    /// Guarda un lote completo en una transacción. Devuelve cuántos eventos
-    /// entraron. Si el lote ya estaba registrado, devuelve 0 sin duplicar.
-    /// </summary>
     public async Task<int> GuardarLoteAsync(LoteTelemetria lote, CancellationToken cancellationToken)
     {
         await using var transaccion = await contexto.Database.BeginTransactionAsync(cancellationToken);
@@ -64,14 +55,12 @@ public class TelemetriaRepositorio(
         if (insertados > 0)
             await contexto.SaveChangesAsync(cancellationToken);
 
-        // El lote también se registra cuando viene vacío o solo con tipos desconocidos.
         await contexto.SaveChangesAsync(cancellationToken);
         await transaccion.CommitAsync(cancellationToken);
 
         return insertados;
     }
 
-    /// <summary>Sal con la que se calcula la huella del usuario; se crea una vez.</summary>
     public async Task<string> ObtenerOCrearSalAsync(CancellationToken cancellationToken)
     {
         var actual = await contexto.TelemetriaParametros
@@ -96,7 +85,6 @@ public class TelemetriaRepositorio(
         }
         catch (DbUpdateException)
         {
-            // Otra petición la creó al mismo tiempo: se lee la que ganó.
             contexto.ChangeTracker.Clear();
             var ganadora = await contexto.TelemetriaParametros
                 .AsNoTracking()
@@ -134,8 +122,6 @@ public class TelemetriaRepositorio(
         }
         catch (Exception ex)
         {
-            // Lo más probable: todavía no se ejecutó el script del esquema. No se
-            // tumba el API: el módulo se reporta como no disponible con el motivo.
             log.LogWarning(ex, "El esquema de telemetría no está listo en la base de datos.");
             var motivo = ex is SqlException { Number: 208 }
                 ? "Falta aplicar el script del esquema de telemetría (esquema 'telemetria')."
@@ -146,7 +132,6 @@ public class TelemetriaRepositorio(
         return new EstadoAlmacen(habilitada, true, destino, null, tablas);
     }
 
-    /// <summary>Borra lo que excedió su retención. Devuelve las filas eliminadas por tabla.</summary>
     public async Task<Dictionary<string, int>> LimpiarAntiguosAsync(
         int diasErrores,
         int diasClics,

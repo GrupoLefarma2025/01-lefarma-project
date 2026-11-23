@@ -3,14 +3,10 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 
 interface RutasAlertsProps {
-  // Acción requerida: problemas que no se resuelven en esta pantalla.
   sinAsignacion: { cantidad: number; nombres: string[] };
   onIrASeleccion: () => void;
-  // Advertencias derivadas en cliente (p. ej. foráneos excedidos por equipo).
   advertencias: string[];
-  // Avisos del backend al generar (se conservan para no perder información).
   avisosBackend: string[];
-  // Nota informativa (versión archivada/confirmada de solo lectura).
   info: string | null;
 }
 

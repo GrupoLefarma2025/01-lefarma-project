@@ -178,7 +178,6 @@ const [loadingDestinatarios, setLoadingDestinatarios] = useState(false);
     setLoadingPlantillas(true);
     setLoadingDestinatarios(true);
 
-    // Cargar plantillas (sin cambios)
     notificarIncidenciaChecadoApi
       .getPlantillas()
       .then((res) => {
@@ -198,7 +197,6 @@ const [loadingDestinatarios, setLoadingDestinatarios] = useState(false);
         if (!cancelled) setLoadingPlantillas(false);
       });
 
-    // Cargar destinatarios por empleado
     const nominas = empleados.map(e => e.nomina);
     if (nominas.length > 0) {
       notificarIncidenciaChecadoApi
@@ -215,7 +213,6 @@ const [loadingDestinatarios, setLoadingDestinatarios] = useState(false);
           setEmpleadosDestinatarios(map);
         })
         .catch(() => {
-          // Si falla, inicializar mapa vacío
           const map = new Map<number, EmpleadoDestinatarioState>();
           for (const emp of empleados) {
             map.set(emp.nomina, { selectedUserIds: [], copiarAUsuarioIncidencia: false });

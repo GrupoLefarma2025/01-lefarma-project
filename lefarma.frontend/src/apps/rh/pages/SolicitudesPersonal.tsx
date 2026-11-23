@@ -106,8 +106,6 @@ export default function SolicitudesPersonal() {
   const [workflowEstados, setWorkflowEstados] = useState<WorkflowEstado[]>([]);
   const [dataPendientes, setDataPendientes] = useState<SolicitudPersonalResponse[]>([]);
   const [dataMias, setDataMias] = useState<SolicitudPersonalResponse[]>([]);
-  // Arrancan en true: la primera carga dispara al montar, así la tabla pinta el
-  // skeleton desde el primer frame en vez de un "Sin resultados" fugaz.
   const [loadingPendientes, setLoadingPendientes] = useState(true);
   const [loadingMias, setLoadingMias] = useState(true);
   const [totalTerminadas, setTotalTerminadas] = useState(0);
@@ -175,7 +173,6 @@ export default function SolicitudesPersonal() {
         setTotalTerminadas(res.data.data ?? 0);
       }
     } catch {
-      // El conteo no debe bloquear la carga del listado.
     }
   }, [buildApiFilters]);
 
@@ -243,8 +240,6 @@ export default function SolicitudesPersonal() {
     window.addEventListener('afterprint', handleAfterPrint);
 
     let cancelled = false;
-    // ponytail: wait for img decode because the print container is hidden (opacity:0/height:0) on screen, so the browser defers decode and window.print() would capture blank images
-    // (también espera las firmas: se descargan como blobs autenticados vía FirmaImg)
     (async () => {
       await waitForPrintImages('#solicitud-personal-pdf-print');
       if (!cancelled) window.print();
@@ -343,8 +338,6 @@ export default function SolicitudesPersonal() {
       });
       return;
     }
-    // Abre el modal de inmediato con la fila como respaldo: así el usuario ve
-    // el progreso (loader) mientras llegan detalle, historial y acciones.
     selectSolicitud(s.idSolicitud, s);
     toggleModal('firma', true);
     fetchAcciones(s.idSolicitud);
@@ -593,7 +586,6 @@ export default function SolicitudesPersonal() {
         onFirmar={async (req) => {
           const ok = await firmar(req, false, buildApiFilters(appliedFilters));
           if (ok) {
-            //closeModal('firma');
             void Promise.all([
               fetchTabData('pendientes', appliedFiltersByTab.pendientes),
               fetchTabData('mias', appliedFiltersByTab.mias),
@@ -644,7 +636,7 @@ export default function SolicitudesPersonal() {
         {selectedSolicitud && <SolicitudArchivosTab idSolicitud={selectedSolicitud.idSolicitud} />}
       </Modal>
 
-      {/* ── Modal: Historial ── */}
+      {}
       <WorkflowHistorialModal
         open={modalStates.historial}
         onClose={() => closeModal('historial')}
@@ -723,7 +715,7 @@ export default function SolicitudesPersonal() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* ── PDF Print Document — Solicitud de Personal ── */}
+      {}
       {selectedSolicitud &&
         createPortal(
           <SolicitudPersonalPDF

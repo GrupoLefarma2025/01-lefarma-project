@@ -52,16 +52,11 @@ const parseMeta = (
 };
 
 interface DocumentoArchivosTabProps {
-  /** Tipo de entidad del servicio de archivos (p. ej. SeleccionMensual, RutaVersion). */
   entidadTipo: string;
   entidadId: number;
   carpeta: string;
 }
 
-/**
- * Archivos de un documento de Educación Médica (selección o versión de rutas).
- * Mismo patrón que SolicitudArchivosTab de RH: lista + subir + ver + descargar + borrar.
- */
 export function DocumentoArchivosTab({ entidadTipo, entidadId, carpeta }: DocumentoArchivosTabProps) {
   const [archivos, setArchivos] = useState<ArchivoListItem[]>([]);
   const archivosList = Array.isArray(archivos) ? archivos : [];

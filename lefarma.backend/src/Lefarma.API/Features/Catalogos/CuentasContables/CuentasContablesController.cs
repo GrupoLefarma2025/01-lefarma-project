@@ -12,7 +12,6 @@ namespace Lefarma.API.Features.Catalogos;
 [Route("api/catalogos/[controller]")]
 [ApiController]
 [EndpointGroupName("Catalogos")]
-//[HasPermission(Permissions.Catalogos.View)]
 public class CuentasContablesController : ControllerBase
 {
     private readonly ICuentaContableService _cuentaContableService;
@@ -56,7 +55,6 @@ public class CuentasContablesController : ControllerBase
     }
 
     [HttpPost]
-    //[HasPermission(Permissions.Catalogos.Manage)]
     [SwaggerOperation(Summary = "Crear nueva cuenta contable", Description = "Crea una cuenta contable con los datos proporcionados")]
     public async Task<IActionResult> Create(
         [SwaggerRequestBody(Description = "Datos de la cuenta contable a crear", Required = true)] CreateCuentaContableRequest request)
@@ -75,7 +73,6 @@ public class CuentasContablesController : ControllerBase
     }
 
     [HttpPut("{id}")]
-    //[HasPermission(Permissions.Catalogos.Manage)]
     [SwaggerOperation(Summary = "Actualizar cuenta contable", Description = "Actualiza los datos de una cuenta contable existente")]
     public async Task<IActionResult> Update(
         [SwaggerParameter(Description = "Identificador de la cuenta contable a actualizar", Required = true)] int id,
@@ -92,7 +89,6 @@ public class CuentasContablesController : ControllerBase
     }
 
     [HttpDelete("{id}")]
-    //[HasPermission(Permissions.Catalogos.Manage)]
     [SwaggerOperation(Summary = "Eliminar cuenta contable", Description = "Elimina una cuenta contable por su identificador")]
     public async Task<IActionResult> Delete(
         [SwaggerParameter(Description = "Identificador de la cuenta contable a eliminar", Required = true)] int id)

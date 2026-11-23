@@ -1,10 +1,5 @@
 import { cn } from '@/lib/utils';
 
-/**
- * Animación de espera para el cálculo de ruta: anillos, marcas y flechas.
- * Las animaciones van en un bloque CSS local porque combinan rotación,
- * `stroke-dashoffset` y retardos; el layout y los colores usan Tailwind.
- */
 const RUTA_LOADER_CSS = `
 .ruta-loader { display: block; }
 .ruta-loader__arrows,

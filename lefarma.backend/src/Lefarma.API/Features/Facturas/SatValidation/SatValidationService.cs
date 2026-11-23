@@ -4,10 +4,6 @@ using Microsoft.Extensions.Options;
 
 namespace Lefarma.API.Features.Facturas.SatValidation;
 
-/// <summary>
-/// Consulta el estado de un CFDI contra el servicio SOAP público del SAT.
-/// Documentación: https://consultaqr.facturaelectronica.sat.gob.mx/ConsultaCFDIService.svc
-/// </summary>
 public sealed class SatValidationService : ISatValidationService
 {
     private static readonly string SoapEnvelopeTemplate =
@@ -50,7 +46,6 @@ public sealed class SatValidationService : ISatValidationService
                 "Validación SAT deshabilitada por configuración. CFDI {Uuid} no se consultó en el SAT.",
                 uuid);
 
-            // No se contactó al SAT, pero la configuración permite continuar.
             return new SatValidacionResult(
                 Contactado: false,
                 Estado: null,
@@ -59,13 +54,10 @@ public sealed class SatValidationService : ISatValidationService
                 PermitirAvanzar: true);
         }
 
-        // El SAT requiere el total con 6 decimales y cero relleno a 12 enteros
         var totalStr = total.ToString("000000000000.000000", CultureInfo.InvariantCulture);
 
-        // La expresión impresa corresponde al contenido del QR de la factura
         var expresion = $"?re={rfcEmisor}&rr={rfcReceptor}&tt={totalStr}&id={uuid}";
 
-        // XML-escapar los & de la expresión antes de insertarla en el SOAP
         var expresionEscapada = System.Security.SecurityElement.Escape(expresion)!;
 
         var soapBody = string.Format(SoapEnvelopeTemplate, expresionEscapada);
@@ -107,7 +99,6 @@ public sealed class SatValidationService : ISatValidationService
         {
             var doc = XDocument.Parse(xml);
 
-            // Localizar ConsultaResult sin importar el namespace
             var result = doc.Descendants()
                 .FirstOrDefault(e => e.Name.LocalName == "ConsultaResult");
 

@@ -25,7 +25,6 @@ public class EmpleadoRepository : IEmpleadoRepository
         int idUsuario,
         CancellationToken cancellationToken = default)
     {
-        // 1) Resolución directa por numero_empleado (Lefarma)
         var numeroEmpleado = await _appContext.UsuariosDetalle
             .AsNoTracking()
             .Where(d => d.IdUsuario == idUsuario && d.Activo)
@@ -35,7 +34,6 @@ public class EmpleadoRepository : IEmpleadoRepository
         if (TryParseNomina(numeroEmpleado, out var nomina))
             return nomina;
 
-        // 2) Fallback: resolución por correo (flujo original)
         var correo = await _asokamContext.Usuarios
             .Where(u => u.IdUsuario == idUsuario)
             .Select(u => u.Correo)
@@ -110,10 +108,8 @@ public class EmpleadoRepository : IEmpleadoRepository
         if (nominaList.Count == 0)
             return new Dictionary<long, int>();
 
-        // 1) Resolución directa por numero_empleado (Lefarma)
         var resultado = await ResolverPorNumeroEmpleadoAsync(nominaList, cancellationToken);
 
-        // 2) Fallback por correo solo para las nóminas no resueltas
         var faltantes = nominaList.Except(resultado.Keys).ToList();
         if (faltantes.Count > 0)
         {
@@ -184,7 +180,6 @@ public class EmpleadoRepository : IEmpleadoRepository
 
         var ids = new HashSet<int>();
 
-        // 1) Los que tienen nómina se resuelven por numero_empleado (con su propio fallback)
         var nominas = empleados
             .Where(e => e.Nomina.HasValue)
             .Select(e => e.Nomina!.Value)
@@ -197,7 +192,6 @@ public class EmpleadoRepository : IEmpleadoRepository
             ids.UnionWith(resueltos.Values);
         }
 
-        // 2) Empleados sin nómina solo se pueden resolver por correo
         var correosSinNomina = empleados
             .Where(e => !e.Nomina.HasValue && !string.IsNullOrWhiteSpace(e.Correo))
             .Select(e => e.Correo!)
@@ -217,12 +211,10 @@ public class EmpleadoRepository : IEmpleadoRepository
         return ids.ToList();
     }
 
-
-    public async Task<VwEmpleado?> ObtenerEmpleadoPorUsuarioAsync(
+public async Task<VwEmpleado?> ObtenerEmpleadoPorUsuarioAsync(
         int idUsuario,
         CancellationToken cancellationToken = default)
     {
-        // 1) Resolución directa por numero_empleado (Lefarma)
         var numeroEmpleado = await _appContext.UsuariosDetalle
             .AsNoTracking()
             .Where(d => d.IdUsuario == idUsuario && d.Activo)
@@ -239,7 +231,6 @@ public class EmpleadoRepository : IEmpleadoRepository
                 return empleado;
         }
 
-        // 2) Fallback: resolución por correo (flujo original)
         var correo = await _asokamContext.Usuarios
             .Where(u => u.IdUsuario == idUsuario)
             .Select(u => u.Correo)
@@ -263,7 +254,6 @@ public class EmpleadoRepository : IEmpleadoRepository
         if (ids.Count == 0)
             return resultado;
 
-        // 1) Resolución directa por numero_empleado (Lefarma)
         var detalles = await _appContext.UsuariosDetalle
             .AsNoTracking()
             .Where(d => ids.Contains(d.IdUsuario) && d.Activo)
@@ -296,7 +286,6 @@ public class EmpleadoRepository : IEmpleadoRepository
             }
         }
 
-        // 2) Fallback por correo (Asokam) para los que no resolvieron por nómina
         var pendientes = ids.Where(id => !resultado.ContainsKey(id)).ToList();
         if (pendientes.Count == 0)
             return resultado;

@@ -7,7 +7,6 @@ namespace Lefarma.API.Features.Viaticos;
 
 public sealed record DeteccionAutomaticaJob(int IdSolicitud, int IdOpcion, int IdUsuario);
 
-/// <summary>Cola en memoria de la Fase 2. Un job por opción pendiente.</summary>
 public interface IDeteccionAutomaticaQueue
 {
     ValueTask EnqueueAsync(DeteccionAutomaticaJob job, CancellationToken ct = default);
@@ -30,13 +29,6 @@ public sealed class DeteccionAutomaticaQueue : IDeteccionAutomaticaQueue
         _canal.Reader.ReadAllAsync(ct);
 }
 
-/// <summary>
-/// Worker de Fase 2: al guardar una cotización se encolan las opciones con
-/// precio pendiente (vuelo, autobús u hotel). Procesa una por una para no
-/// saturar Playwright/Firecrawl, actualiza la opción con el precio real y
-/// guarda la captura. Si falla, deja la opción pendiente y registra el motivo;
-/// el respaldo manual sigue disponible.
-/// </summary>
 public sealed class DeteccionAutomaticaHostedService : BackgroundService
 {
     private readonly IDeteccionAutomaticaQueue _queue;
@@ -77,11 +69,6 @@ public sealed class DeteccionAutomaticaHostedService : BackgroundService
         }
     }
 
-    /// <summary>
-    /// Al arrancar, reencola las opciones que quedaron pendientes (reinicio o
-    /// despliegue a media detección). Sin esto, la UI esperaría un precio que
-    /// ya nadie va a buscar.
-    /// </summary>
     private async Task EncolarPendientesAsync(CancellationToken ct)
     {
         try
@@ -131,7 +118,6 @@ public sealed class DeteccionAutomaticaHostedService : BackgroundService
         }
         catch (Exception ex)
         {
-            // Si la BD aún no está migrada, el servicio sigue escuchando la cola.
             _logger.LogWarning(ex, "No se pudieron reencolar las detecciones pendientes al arrancar.");
         }
     }
@@ -195,9 +181,6 @@ public sealed class DeteccionAutomaticaHostedService : BackgroundService
             return;
         }
 
-        // Una solicitud ya autorizada no se vuelve a cotizar: el precio real
-        // forma parte de lo que se aprobó. La opción queda cerrada para que la
-        // UI no siga esperando.
         if (solicitud.Estado is not (SolicitudesController.EstadoBorrador or SolicitudesController.EstadoEnviada))
         {
             opcion.DatosJson = TotalesCotizacion.MarcarEstadoDeteccion(

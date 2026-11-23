@@ -54,7 +54,6 @@ export function porcentaje(parte: number, total: number): string {
   return `${Math.round((parte / total) * 100)}%`;
 }
 
-/** Escala de intensidad del mapa de calor: transparente → naranja fuerte. */
 export function colorCalor(valor: number, maximo: number): string {
   if (!valor || !maximo) return 'transparent';
   const intensidad = Math.min(1, valor / maximo);
@@ -75,7 +74,6 @@ export function severidadClase(severidad: string): string {
   }
 }
 
-/** Descarga filas como CSV con BOM para que Excel respete los acentos. */
 export function descargarCsv(
   nombre: string,
   filas: Array<Record<string, string | number | null | undefined>>,

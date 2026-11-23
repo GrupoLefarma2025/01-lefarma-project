@@ -1,6 +1,3 @@
-﻿// ─── Help Article ──────────────────────────────────────────────────────────────
-
-
 export interface HelpArticle {
   id: number;
   titulo: string;
@@ -16,8 +13,6 @@ export interface HelpArticle {
   creadoPor?: string;
   actualizadoPor?: string;
 }
-
-// ─── Help Module ──────────────────────────────────────────────────────────────
 
 export interface HelpModule {
   id: number;
@@ -40,8 +35,6 @@ export interface UpdateHelpModuleRequest extends CreateHelpModuleRequest {
   activo?: boolean;
 }
 
-// ─── Create Request ─────────────────────────────────────────────────────────────
-
 export interface CreateHelpArticleRequest {
   titulo: string;
   contenido: string;
@@ -52,14 +45,10 @@ export interface CreateHelpArticleRequest {
   orden: number;
 }
 
-// ─── Update Request ─────────────────────────────────────────────────────────────
-
 export interface UpdateHelpArticleRequest extends CreateHelpArticleRequest {
   id: number;
   activo: boolean;
 }
-
-// ─── Help Image ─────────────────────────────────────────────────────────────────
 
 export interface HelpImage {
   id: number;
@@ -71,8 +60,6 @@ export interface HelpImage {
   fechaSubida: string;
   subidoPor?: string;
 }
-
-// ─── Help Image Upload Response ─────────────────────────────────────────────────
 
 export interface HelpImageUploadResponse {
   id: number;

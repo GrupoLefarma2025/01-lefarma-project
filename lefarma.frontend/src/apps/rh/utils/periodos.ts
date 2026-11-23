@@ -1,4 +1,3 @@
-/** Nombres de mes usados en los periodos de RH (formato "noviembre 2026"). */
 export const MESES_PERIODO = [
   'enero',
   'febrero',

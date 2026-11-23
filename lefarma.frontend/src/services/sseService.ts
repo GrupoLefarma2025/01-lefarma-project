@@ -12,11 +12,6 @@ const SSE_TICKET_URL = `${API_BASE}/auth/sse-ticket`;
 const MAX_RECONNECT_DELAY = 30000;
 const BASE_RECONNECT_DELAY = 1000;
 
-/**
- * Registro centralizado de eventos. Al agregar un tipo nuevo en
- * `SseEventType`, basta con añadirlo aquí para que el listener quede instalado
- * en cada conexión (no se olvida ningún evento).
- */
 const SSE_EVENT_TYPES: readonly SseEventType[] = [
   'connected',
   'user.updated',
@@ -38,10 +33,6 @@ function getStoredToken(): string | null {
   }
 }
 
-/**
- * Pide al backend un ticket de un solo uso. El JWT viaja en el encabezado
- * Authorization (nunca en la URL) y el EventSource solo recibe el ticket.
- */
 async function requestSseTicket(token: string): Promise<string> {
   let response: Response;
   try {
@@ -95,13 +86,6 @@ class SseService {
   };
   private stateListeners: Set<(state: SseConnectionState) => void> = new Set();
 
-  /**
-   * Idempotente: si ya hay un EventSource abierto/conectando con el mismo token
-   * no crea otro. Con un token distinto (relogin) reemplaza la conexión.
-   *
-   * Cada intento pide un ticket nuevo: no se puede reutilizar el de la
-   * conexión anterior porque es de un solo uso.
-   */
   connect(token: string): void {
     if (!token) {
       return;
@@ -134,8 +118,6 @@ class SseService {
       this.reconnectTimeout = null;
     }
 
-    // Invalida cualquier ticket en vuelo para que no abra una conexión
-    // después de cerrar sesión.
     this.connectionGeneration++;
     this.pendingToken = null;
     this.closeSource();
@@ -158,7 +140,6 @@ class SseService {
     const callbacks = this.listeners.get(event);
     if (!callbacks) {
       return () => {
-        /* no-op */
       };
     }
     callbacks.add(callback as EventCallback);
@@ -225,8 +206,6 @@ class SseService {
         isConnected: false,
       });
 
-      // Sin ticket no hay conexión: reintenta con backoff, igual que cuando
-      // se cae un EventSource ya abierto.
       this.scheduleReconnect();
     } finally {
       if (generation === this.connectionGeneration && this.pendingToken === token) {
@@ -260,21 +239,18 @@ class SseService {
 
     this.closeSource();
 
-    // Reconecta también si la conexión inicial nunca abrió; el callback
-    // valida que siga habiendo token.
     this.scheduleReconnect();
   }
 
   private handleMessage(eventType: SseEventType, event: MessageEvent): void {
     try {
-      const data = JSON.parse(event.data) as SseEvent; // Data del endpoint SSE confiable del backend
+      const data = JSON.parse(event.data) as SseEvent; 
       const callbacks = this.listeners.get(eventType);
 
       if (callbacks) {
         callbacks.forEach((callback) => callback(data));
       }
     } catch {
-      // Ignorar errores de parseo
     }
   }
 
@@ -300,7 +276,6 @@ class SseService {
         return;
       }
 
-      // authService guarda el token en `accessToken`; `token` es la clave legacy.
       const token = getStoredToken() ?? this.currentToken;
       if (token) {
         this.connect(token);

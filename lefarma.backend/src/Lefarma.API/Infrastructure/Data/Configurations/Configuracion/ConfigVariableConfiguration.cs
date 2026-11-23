@@ -32,12 +32,9 @@ public class ConfigVariableConfiguration : IEntityTypeConfiguration<ConfigVariab
         builder.Property(v => v.IdUsuarioCreacion).HasColumnName("id_usuario_creacion");
         builder.Property(v => v.IdUsuarioModificacion).HasColumnName("id_usuario_modificacion");
 
-        // Control de concurrencia optimista del módulo.
         builder.Property(v => v.Version).HasColumnName("version").HasDefaultValue(0L).IsConcurrencyToken().IsRequired();
 
-        // row_version (ROWVERSION) lo administra SQL Server y no se mapea en EF.
-
-        builder.Property(v => v.IdModulo).HasColumnName("id_modulo");
+builder.Property(v => v.IdModulo).HasColumnName("id_modulo");
 
         builder.HasOne(v => v.Modulo)
             .WithMany()

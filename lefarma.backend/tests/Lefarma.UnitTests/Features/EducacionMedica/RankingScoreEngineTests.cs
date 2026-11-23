@@ -62,7 +62,7 @@ public class RankingScoreEngineTests
             new() { IdHospital = 3, AnestesiasTotales = 100, NumeroQuirofanos = 6, MesesDesdeUltimaSeleccion = 12 },
         };
 
-        var config = ConfigV1(0m); // aislar agrupabilidad para simplificar
+        var config = ConfigV1(0m); 
         var resultado = RankingScoreEngine.ComputeRanking(candidatos, config);
 
         var anestesias = resultado.Hospitales.First().Factores.Single(f => f.Clave == "anestesias_totales");
@@ -108,16 +108,15 @@ public class RankingScoreEngineTests
     [Fact]
     public void ComputeRanking_AgrupabilidadForaneo_ScoresByNeighborBuckets()
     {
-        // Puntos a 5 km de distancia para tener vecinos controlados
         var baseLat = 19.43;
         var baseLon = -99.13;
         var candidatos = new List<HospitalCandidato>
         {
             new() { IdHospital = 1, Latitud = baseLat, Longitud = baseLon, EsZonaMetropolitana = false },
-            new() { IdHospital = 2, Latitud = baseLat + 0.01, Longitud = baseLon + 0.01, EsZonaMetropolitana = false }, // ~1.5 km
-            new() { IdHospital = 3, Latitud = baseLat + 0.02, Longitud = baseLon + 0.02, EsZonaMetropolitana = false }, // ~3.1 km
-            new() { IdHospital = 4, Latitud = baseLat + 0.03, Longitud = baseLon + 0.03, EsZonaMetropolitana = false }, // ~4.7 km
-            new() { IdHospital = 5, Latitud = baseLat + 0.08, Longitud = baseLon + 0.08, EsZonaMetropolitana = false }, // ~12.5 km
+            new() { IdHospital = 2, Latitud = baseLat + 0.01, Longitud = baseLon + 0.01, EsZonaMetropolitana = false }, 
+            new() { IdHospital = 3, Latitud = baseLat + 0.02, Longitud = baseLon + 0.02, EsZonaMetropolitana = false }, 
+            new() { IdHospital = 4, Latitud = baseLat + 0.03, Longitud = baseLon + 0.03, EsZonaMetropolitana = false }, 
+            new() { IdHospital = 5, Latitud = baseLat + 0.08, Longitud = baseLon + 0.08, EsZonaMetropolitana = false }, 
         };
 
         var config = new RankingConfig
@@ -132,10 +131,10 @@ public class RankingScoreEngineTests
         var resultado = RankingScoreEngine.ComputeRanking(candidatos, config);
 
         var h1 = resultado.Hospitales.Single(h => h.IdHospital == 1);
-        h1.Factores.Single(f => f.Clave == "agrupabilidad_geografica").ScoreFactor.Should().Be(100m); // 3 vecinos
+        h1.Factores.Single(f => f.Clave == "agrupabilidad_geografica").ScoreFactor.Should().Be(100m); 
 
         var h5 = resultado.Hospitales.Single(h => h.IdHospital == 5);
-        h5.Factores.Single(f => f.Clave == "agrupabilidad_geografica").ScoreFactor.Should().Be(0m); // 0 vecinos
+        h5.Factores.Single(f => f.Clave == "agrupabilidad_geografica").ScoreFactor.Should().Be(0m); 
     }
 
     [Fact]

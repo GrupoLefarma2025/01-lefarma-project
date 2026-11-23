@@ -38,7 +38,6 @@ public class CostosRutaController : ControllerBase
         {
             var client = _http.CreateClient();
             client.DefaultRequestHeaders.UserAgent.ParseAdd("GrupoLefarmaViaticos/1.0 (soporte@lefarma.com)");
-            // Costos y llaves de proveedores: tabla viaticos.config_parametros.
             await ConfiguracionViaticosService.ActualizarAsync(_context, _cache, ct);
             var municipios = await MunicipiosAsync(ct);
             var resultado = await CalculoCostosRuta.CalcularAsync(request, client, _cache, ct, municipios);
@@ -55,11 +54,6 @@ public class CostosRutaController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// Municipios activos con centroide, cacheados 24 h. Es el catalogo propio
-    /// (viaticos.municipios_cat): 2,478 filas que evitan llamar a Nominatim
-    /// para resolver la ciudad de un punto.
-    /// </summary>
     private async Task<IReadOnlyList<MunicipioCercano>> MunicipiosAsync(CancellationToken ct)
     {
         try
@@ -82,8 +76,6 @@ public class CostosRutaController : ControllerBase
         }
         catch
         {
-            // Sin catalogo la resolucion cae a Nominatim y luego al municipio
-            // que mando el mapa; el calculo no se cae por este catalogo.
             return Array.Empty<MunicipioCercano>();
         }
     }

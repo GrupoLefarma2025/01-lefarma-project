@@ -283,7 +283,7 @@ export function ResumenSeleccionModal({
           <ResumenContenido detalle={detalle} />
       </Modal>
 
-      {/* Copia exclusiva para impresion: flujo normal de pagina, sin animaciones del dialogo */}
+      {}
       {createPortal(
         <div id="resumen-seleccion-print" className="hidden print:block">
         <ResumenContenido detalle={detalle} />

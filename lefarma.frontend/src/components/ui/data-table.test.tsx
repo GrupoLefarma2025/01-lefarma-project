@@ -79,7 +79,6 @@ describe('DataTable · filtro por valores (estilo Excel)', () => {
 
     await user.click(screen.getByRole('button', { name: 'Filtrar Módulo' }));
 
-    // «Seleccionar todo» + un valor por cada módulo distinto (global, dos veces en los datos).
     expect(screen.getAllByRole('checkbox')).toHaveLength(3);
     await user.click(screen.getByRole('checkbox', { name: 'configuracion' }));
     await user.click(screen.getByRole('button', { name: 'Aceptar' }));

@@ -33,7 +33,7 @@ function readIds(key: string): string[] | null {
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed) ? (parsed as string[]) : null;
   } catch {
-    return null; // ponytail: storage corrupto/indisponible → default
+    return null; 
   }
 }
 
@@ -41,7 +41,6 @@ function writeIds(key: string, ids: string[]) {
   localStorage.setItem(key, JSON.stringify(ids));
 }
 
-/** Ordena `entries` siguiendo `order`; ids no listados van al final en su orden original. */
 function orderBy<T extends { id: string }>(entries: T[], order: string[] | null): T[] {
   if (!order) return entries;
   const byId = new Map(entries.map((e) => [e.id, e]));
@@ -58,11 +57,6 @@ function orderBy<T extends { id: string }>(entries: T[], order: string[] | null)
   return out;
 }
 
-/**
- * Reordena una proyección visible dentro de la lista completa, preservando en su
- * sitio los ids que hoy no son visibles (ej. app sin permiso): así un pin de una
- * app temporalmente oculta no se pierde al reordenar las visibles.
- */
 function reorderProjection(full: string[], visible: string[], from: number, to: number): string[] {
   const moved = arrayMove(visible, from, to);
   const visSet = new Set(visible);
@@ -72,15 +66,8 @@ function reorderProjection(full: string[], visible: string[], from: number, to: 
   return out;
 }
 
-/**
- * Launcher home del shell (spec base-app: "Home Launcher"). Dos secciones:
- *  - "Fijadas": atajos rápidos del usuario (solo si hay ≥1), reordenables por drag.
- *  - "Todas las apps": catálogo completo, también reordenable por drag.
- * Las apps fijadas aparecen en AMBAS secciones. El orden y los pines persisten en
- * localStorage. El launcher no asume contexto empresa/sucursal/área.
- */
 export function Home() {
-  usePermissionVersion(); // subscribe — re-render cuando cambian los permisos (SSE/polling)
+  usePermissionVersion(); 
   const visibleApps = appRegistry.filter(
     (app) => !app.permission || checkPermission({ require: app.permission })
   );

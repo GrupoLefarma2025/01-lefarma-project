@@ -15,16 +15,11 @@ export interface RegionCentroide {
 interface HospitalesMapProps {
   hospitales: HospitalUbicacion[];
   selectedCodigo?: number | null;
-  /** Resalta el círculo del hospital SIN mover el mapa (p. ej. hover en una fila). */
   highlightCodigo?: number | null;
-  /** Ajusta la vista solo a estos hospitales (p. ej. región expandida). Vacío o ausente = vista global. */
   focusCodigos?: number[];
   centroides?: RegionCentroide[];
-  /** Colores por región (idRegion -> color CSS) para pintar los marcadores. */
   colorPorRegion?: Record<number, string>;
-  /** Color para marcadores sin región (idRegion null); omitir usa el color oscuro por defecto. */
   colorSinRegion?: string;
-  /** Hospitales de otras gerencias cercanos a la selección (anillo punteado); solo informativo. */
   hospitalesAjenos?: HospitalCercanoOtraSeleccion[];
 }
 

@@ -184,8 +184,6 @@ const lineNumberClassNames = cn(
   '[&_.line]:before:flex-shrink-0'
 );
 
-// El tema dark-plus proporciona colores con alto contraste
-// Aseguramos que el fondo sea transparente para heredar el del tema
 const darkModeClassNames = cn('dark:[&_.shiki]:!bg-transparent', '[&_.shiki]:!bg-transparent');
 
 const lineHighlightClassNames = cn(
@@ -244,7 +242,6 @@ const codeBlockClassName = cn(
   '[&_.line]:min-h-[1.5em]'
 );
 
-// Tema personalizado para combinar con el tema café oscuro
 const customDarkTheme = {
   name: 'lefarma-dark',
   type: 'dark' as const,
@@ -256,62 +253,50 @@ const customDarkTheme = {
     'editorCursor.foreground': '#d4b896',
   },
   tokenColors: [
-    // Keywords - naranja cálido
     {
       scope: ['keyword', 'storage.type', 'storage.modifier'],
       settings: { foreground: '#e69f5a' },
     },
-    // Strings - verde suave
     {
       scope: ['string', 'string.quoted', 'string.template'],
       settings: { foreground: '#a8c686' },
     },
-    // Comments - gris/marrón claro
     {
       scope: ['comment', 'punctuation.definition.comment'],
       settings: { foreground: '#8b7355', fontStyle: 'italic' },
     },
-    // Functions - amarillo/beige
     {
       scope: ['entity.name.function', 'support.function'],
       settings: { foreground: '#f0d48c' },
     },
-    // Classes/Types - azul claro cálido
     {
       scope: ['entity.name.type', 'support.type', 'entity.name.class'],
       settings: { foreground: '#8ecce8' },
     },
-    // Variables - beige claro
     {
       scope: ['variable', 'identifier'],
       settings: { foreground: '#d4b896' },
     },
-    // Constants/Numbers - rojo suave
     {
       scope: ['constant', 'constant.numeric', 'constant.language'],
       settings: { foreground: '#e88d8d' },
     },
-    // Operators - naranja claro
     {
       scope: ['keyword.operator', 'operator'],
       settings: { foreground: '#f0b896' },
     },
-    // Imports/Exports - rosa cálido
     {
       scope: ['keyword.control.import', 'keyword.control.export', 'keyword.control.from'],
       settings: { foreground: '#e6a8c9' },
     },
-    // JSX/HTML tags - azul pálido
     {
       scope: ['entity.name.tag', 'support.class.component'],
       settings: { foreground: '#9ad4e6' },
     },
-    // Attributes - amarillo pálido
     {
       scope: ['entity.other.attribute-name'],
       settings: { foreground: '#e6d89a' },
     },
-    // Punctuation - gris cálido
     {
       scope: ['punctuation', 'meta.brace', 'meta.delimiter'],
       settings: { foreground: '#a89a85' },
@@ -656,7 +641,6 @@ export const CodeBlockContent = ({
 
     highlight(children as string, language, themes)
       .then(setHtml)
-      // biome-ignore lint/suspicious/noConsole: "it's fine"
       .catch(console.error);
   }, [children, themes, syntaxHighlighting, language]);
 
@@ -667,7 +651,6 @@ export const CodeBlockContent = ({
   return (
     <div
       className={cn('h-full overflow-auto', className)}
-      // biome-ignore lint/security/noDangerouslySetInnerHtml: "Kinda how Shiki works"
       dangerouslySetInnerHTML={{ __html: html }}
       {...props}
     />

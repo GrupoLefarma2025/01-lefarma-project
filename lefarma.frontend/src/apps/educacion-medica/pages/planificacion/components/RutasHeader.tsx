@@ -21,11 +21,6 @@ interface RutasHeaderProps {
   onBack: () => void;
 }
 
-/**
- * Navegación de la pantalla de Rutas: volver + selector de versión. El encabezado
- * del documento (paso, estado y Firmar/Historial) es el `DocumentoHeaderCard`
- * compartido, igual que en Selección Mensual y Matriz de talleres.
- */
 export function RutasHeader({
   versiones,
   version,

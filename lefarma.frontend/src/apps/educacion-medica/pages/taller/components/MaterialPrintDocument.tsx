@@ -122,7 +122,6 @@ interface MaterialPrintDocumentProps {
   documento: TallerDocumentoMaterial | null;
 }
 
-/** Vista de impresión del acuse de material (FOR-007) pre-llenado. */
 export function MaterialPrintDocument({
   open,
   onOpenChange,

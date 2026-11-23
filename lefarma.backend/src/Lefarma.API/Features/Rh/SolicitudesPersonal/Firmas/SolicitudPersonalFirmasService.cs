@@ -63,12 +63,10 @@ public class SolicitudPersonalFirmasService : BaseService, ISolicitudPersonalFir
         IDbContextTransaction? transaction = null;
         try
         {
-            // 0. Validar que el usuario tenga firma digital registrada
             var firmaValidacion = await ValidarFirmaUsuarioAsync(idUsuario);
             if (firmaValidacion.IsError)
                 return firmaValidacion.Errors;
 
-            // 1. Cargar solicitud con estado
             var solicitud = await _solicitudRepo.GetByIdAsync(idSolicitud);
             if (solicitud is null)
             {
@@ -76,20 +74,16 @@ public class SolicitudPersonalFirmasService : BaseService, ISolicitudPersonalFir
                 return CommonErrors.NotFound("SolicitudPersonal", idSolicitud.ToString());
             }
 
-            // 2. Validar estado no terminal
             if (solicitud.Estado?.Codigo is "CERRADA" or "CANCELADA" or "RECHAZADA")
                 return CommonErrors.Conflict("SolicitudPersonal",
                     $"La solicitud {solicitud.Folio} ya está en estado terminal.");
 
-            // Guardar estado anterior
             var estadoAnterior = solicitud.Estado?.Codigo;
 
-            // Solo iniciar una transacción si no hay una activa (p.ej. cuando FirmarAsync es llamada desde EnviarDirectorAsync)
             transaction = _context.Database.CurrentTransaction == null
                 ? await _context.Database.BeginTransactionAsync()
                 : null;
 
-            // 3. Cargar workflow config
             var workflowConfig = await _workflowRepo.GetQueryable()
                 .Include(w => w.Pasos)
                     .ThenInclude(p => p.AccionesOrigen)
@@ -105,17 +99,14 @@ public class SolicitudPersonalFirmasService : BaseService, ISolicitudPersonalFir
             if (workflowConfig is null)
                 return CommonErrors.NotFound("Workflow", solicitud.IdWorkflow.ToString());
 
-            // Paso actual
             var pasoActual = workflowConfig.Pasos.FirstOrDefault(p => p.IdPaso == solicitud.IdPasoActual);
             if (pasoActual is null || !pasoActual.Activo)
                 return CommonErrors.Conflict("solicitud", "La solicitud no tiene un paso activo válido.");
 
-            // 4. Validar participante (el creador puede ejecutar CANCELAR aunque no sea participante)
             var accionSolicitada = pasoActual.AccionesOrigen
                 .FirstOrDefault(a => a.IdAccion == request.IdAccion && a.Activo);
             var codigoAccionSolicitada = accionSolicitada?.TipoAccion?.Codigo;
 
-            // 4a. CERRAR queda bloqueado mientras el usuario tenga una firma en comprobación por RH.
             if (codigoAccionSolicitada == "CERRAR")
             {
                 var enComprobacion = await _profileService.TieneFirmaEnComprobacionAsync(idUsuario);
@@ -134,7 +125,6 @@ public class SolicitudPersonalFirmasService : BaseService, ISolicitudPersonalFir
                 if (validacion.IsError)
                 return validacion.Errors;
 
-            // 4b. Validar adjunto obligatorio del paso (excepto acciones negativas)
             var esAccionNegativa = codigoAccionSolicitada is "RECHAZAR" or "DEVOLVER" or "CANCELAR";
             if (!esAccionNegativa && pasoActual.RequiereAdjunto)
             {
@@ -148,7 +138,6 @@ public class SolicitudPersonalFirmasService : BaseService, ISolicitudPersonalFir
                     return CommonErrors.Validation("Adjunto", "Debes adjuntar al menos un documento de soporte para esta acción.");
             }
 
-            // 5. Ejecutar motor
             var ctx = new WorkflowContext(
                 IdWorkflow: solicitud.IdWorkflow,
                 IdEntidad: solicitud.IdSolicitud,
@@ -163,13 +152,11 @@ public class SolicitudPersonalFirmasService : BaseService, ISolicitudPersonalFir
             if (!resultado.Exitoso)
                 return CommonErrors.Validation("Workflow", resultado.Error ?? "Error en el motor.");
 
-            // 6. Actualizar estado y campos específicos
             solicitud.IdPasoActual = resultado.NuevoIdPaso;
             if (resultado.NuevoIdEstado.HasValue)
                 solicitud.IdEstado = resultado.NuevoIdEstado.Value;
             _context.Entry(solicitud).Property(x => x.IdEstado).IsModified = true;
 
-            // Lógica específica SP: setear FechaEnvio en acción ENVIAR
             var accion = workflowConfig.Pasos
                 .SelectMany(p => p.AccionesOrigen)
                 .FirstOrDefault(a => a.IdAccion == request.IdAccion);
@@ -182,7 +169,6 @@ public class SolicitudPersonalFirmasService : BaseService, ISolicitudPersonalFir
 
             await _context.SaveChangesAsync();
 
-            // validacion de vacaciones: al cerrar solicitud tipo vacaciones, consumir saldo
             if (nuevoEstado?.Codigo == WorkflowEstadoCodigo.CERRADA)
             {
                 var vacacionProcesada = await ProcesarVacacionesAprobadasAsync(solicitud);
@@ -195,11 +181,9 @@ public class SolicitudPersonalFirmasService : BaseService, ISolicitudPersonalFir
 
             if (transaction != null) await transaction.CommitAsync();
 
-            // 8. Resolver notificación
             var notificacion = WorkflowFirmaHelper.ResolverNotificacion(
                 workflowConfig, request.IdAccion, resultado.NuevoIdPaso);
 
-            // 8. ★ Disparar notificación fire-and-forget (helper)
             var variables = await ConstruirVariablesNotificacionAsync(solicitud);
             WorkflowFirmaHelper.DispatchNotificacionFireAndForget(
                 scopeFactory: _scopeFactory,
@@ -375,48 +359,15 @@ public class SolicitudPersonalFirmasService : BaseService, ISolicitudPersonalFir
         }
     }
 
-    //Tablas que se usan EnvioSolicitud, DocumentoInterfaseSolicitud
-    /*DROP TABLE rh.envios_solicitudes
-        DROP TABLE rh.envios_solicitudes
-
-        CREATE TABLE rh.envios_solicitudes
-        (
-            id_envio INT IDENTITY(1,1) PRIMARY KEY,
-            id_solicitud            INT NOT NULL,
-            id_usuario_envio INT NOT NULL,
-            estado                  VARCHAR(20) NOT NULL DEFAULT 'PENDIENTE',
-            token_seguridad NVARCHAR(100) NOT NULL UNIQUE,
-            id_tipo_solicitud INT NULL,
-            id_usuario_solicitante INT NULL,
-            fecha_envio DATETIME NOT NULL DEFAULT GETDATE(),
-            fecha_respuesta DATETIME NULL,
-            id_usuario_respuesta INT NULL,
-            comentario_respuesta NVARCHAR(500) NULL,
-            fecha_creacion DATETIME DEFAULT GETDATE(),
-            fecha_modificacion DATETIME DEFAULT GETDATE(),
-            activo BIT NOT NULL DEFAULT 1
-            CONSTRAINT FK_spe_solicitud FOREIGN KEY(id_solicitud) REFERENCES rh.solicitudes_personal(id_solicitud)
-        );
-
-        CREATE INDEX IX_spe_solicitud ON rh.envios_solicitudes(id_solicitud);
-
-            CREATE TABLE app.DocumentosInterfaseSolicitud
-        (
-            id_documento_firmar UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
-            id_envio INT NOT NULL,
-            --CONSTRAINT FK_dis_documento FOREIGN KEY(id_documento_firmar) REFERENCES app.Documentos(Id)
-        );*/
     public async Task<ErrorOr<EnviarDirectorResponse>> EnviarDirectorAsync(
     int idSolicitud, EnviarDirectorRequest request, int idUsuario)
     {
         try
         {
-            // Validar firma del usuario
             var firmaValidacion = await ValidarFirmaUsuarioAsync(idUsuario);
             if (firmaValidacion.IsError)
                 return firmaValidacion.Errors;
 
-            //Validar que venga PDF
             if (request.ArchivoPdf == null || request.ArchivoPdf.Length == 0)
                 return CommonErrors.Validation("ArchivoPdf", "El PDF de la solicitud es obligatorio.");
 
@@ -424,7 +375,6 @@ public class SolicitudPersonalFirmasService : BaseService, ISolicitudPersonalFir
             if (extension != ".pdf")
                 return CommonErrors.Validation("ArchivoPdf", "Solo se permiten archivos PDF.");
 
-            //El documento soporte (opcional) debe ser un PDF
             if (request.TieneDocumentoSoporte && request.ArchivoSoporte != null)
             {
                 var extensionSoporte = Path.GetExtension(request.ArchivoSoporte.FileName).ToLowerInvariant();
@@ -432,12 +382,10 @@ public class SolicitudPersonalFirmasService : BaseService, ISolicitudPersonalFir
                     return CommonErrors.Validation("ArchivoSoporte", "El documento soporte debe ser un PDF.");
             }
 
-            //Cargar solicitud
             var solicitud = await _solicitudRepo.GetByIdAsync(idSolicitud);
             if (solicitud is null)
                 return CommonErrors.NotFound("SolicitudPersonal", idSolicitud.ToString());
 
-            //Validar que la acción sea ENVIAR_DIRECTOR y esté disponible
             var acciones = await GetAccionesDisponiblesAsync(idSolicitud, idUsuario);
             if (acciones.IsError)
                 return acciones.Errors;
@@ -449,10 +397,8 @@ public class SolicitudPersonalFirmasService : BaseService, ISolicitudPersonalFir
             if (accionEnviarDirector == null)
                 return CommonErrors.Validation("Accion", "La acción no está disponible o no es ENVIAR_DIRECTOR.");
 
-            // primero firmar, luego enviar
             await using var transaction = await _context.Database.BeginTransactionAsync();
 
-            // Ejecutar la firma con la acción ENVIAR_DIRECTOR
             var firmaResult = await FirmarAsync(idSolicitud, new FirmarRequest
             {
                 IdAccion = request.IdAccion,
@@ -465,7 +411,6 @@ public class SolicitudPersonalFirmasService : BaseService, ISolicitudPersonalFir
                 return firmaResult.Errors;
             }
 
-            //obtener solicitud para obtener el estado actualizado
             solicitud = await _solicitudRepo.GetByIdAsync(idSolicitud);
             if (solicitud == null)
             {
@@ -473,7 +418,6 @@ public class SolicitudPersonalFirmasService : BaseService, ISolicitudPersonalFir
                 return CommonErrors.NotFound("SolicitudPersonal", idSolicitud.ToString());
             }
 
-            // Generar token y crear el envío externo
             var token = Guid.NewGuid().ToString("N");
             var idUsuarioSolicitante = solicitud.IdUsuarioSolicitante ?? solicitud.IdUsuarioCreador;
 
@@ -494,7 +438,6 @@ public class SolicitudPersonalFirmasService : BaseService, ISolicitudPersonalFir
             _context.EnviosSolicitudes.Add(envio);
             await _context.SaveChangesAsync();
 
-            //leer el pdf y guardarlo en Asokam.app.Documentos
             byte[] pdfBytes;
             await using (var ms = new MemoryStream())
             {
@@ -514,9 +457,6 @@ public class SolicitudPersonalFirmasService : BaseService, ISolicitudPersonalFir
             if (!string.IsNullOrWhiteSpace(request.Correo)) metadata["to"] = request.Correo.Trim();
             if (!string.IsNullOrWhiteSpace(request.CorreoCC)) metadata["cc"] = request.CorreoCC.Trim();
 
-            //En app.Documentos el usuario registrado debe ser el SOLICITANTE (no quien envía):
-            //el otro sistema muestra ese valor como "Solicitante" y lo resuelve contra
-            //app.Usuarios con el login SamAccountName@Dominio.
             var usuarioSolicitante = await _asokamContext.Usuarios
                 .AsNoTracking()
                 .FirstOrDefaultAsync(u => u.IdUsuario == idUsuarioSolicitante);
@@ -553,7 +493,6 @@ public class SolicitudPersonalFirmasService : BaseService, ISolicitudPersonalFir
 
             _asokamContext.Documentos.Add(documento);
 
-            //Guardar el registro en Asokam.app.DocumentosInterfaseSolicitud
             var interfase = new Domain.Entities.Asokam.DocumentoInterfaseSolicitud
             {
                 IdDocumentoFirmar = documento.Id,
@@ -592,7 +531,6 @@ public class SolicitudPersonalFirmasService : BaseService, ISolicitudPersonalFir
     {
         try
         {
-            //Buscar envío por Id + Token
             var envio = await _context.EnviosSolicitudes
                 .FirstOrDefaultAsync(e => e.IdEnvio == request.IdEnvio
                                        && e.TokenSeguridad == request.TokenSeguridad);
@@ -600,7 +538,6 @@ public class SolicitudPersonalFirmasService : BaseService, ISolicitudPersonalFir
             if (envio is null)
                 return CommonErrors.NotFound("EnvioSolicitud", $"ID: {request.IdEnvio}");
 
-            //validar que el envío esté pendiente
             if (envio.Estado != "PENDIENTE")
                 return CommonErrors.Conflict("EnvioSolicitud", $"El envío ya fue {envio.Estado}.");
 
@@ -608,7 +545,6 @@ public class SolicitudPersonalFirmasService : BaseService, ISolicitudPersonalFir
             if (solicitud is null)
                 return CommonErrors.NotFound("SolicitudPersonal", envio.IdSolicitud.ToString());
 
-            // validar que la acción sea AUTORIZAR o DEVOLVER
             var accionExterna = request.Accion.Trim().ToUpperInvariant();
             var esAutorizar = accionExterna == "AUTORIZAR";
             var esDevolver = accionExterna == "DEVOLVER";
@@ -616,7 +552,6 @@ public class SolicitudPersonalFirmasService : BaseService, ISolicitudPersonalFir
             if (!esAutorizar && !esDevolver)
                 return CommonErrors.Validation("Accion", "La acción debe ser AUTORIZAR o DEVOLVER.");
 
-            // Resolver acción interna del paso actual
             var acciones = await _queryService.GetAccionesDisponiblesAsync(
                 idWorkflow: solicitud.IdWorkflow,
                 idEntidad: solicitud.IdSolicitud,
@@ -635,7 +570,6 @@ public class SolicitudPersonalFirmasService : BaseService, ISolicitudPersonalFir
             if (accionInterna == null)
                 return CommonErrors.Validation("Accion", $"No hay acción {codigoAccionInterna} disponible en el paso actual.");
 
-            //ejecutar firma con la acción interna correspondiente
             var firmaResult = await FirmarAsync(envio.IdSolicitud, new FirmarRequest
             {
                 IdAccion = accionInterna.IdAccion,
@@ -645,7 +579,6 @@ public class SolicitudPersonalFirmasService : BaseService, ISolicitudPersonalFir
             if (firmaResult.IsError)
                 return firmaResult.Errors;
 
-            //actualizar estado del envío
             envio.Estado = esAutorizar ? "APROBADO" : "DEVUELTO";
             envio.FechaRespuesta = DateTime.Now;
             envio.IdUsuarioRespuesta = request.IdUsuario;

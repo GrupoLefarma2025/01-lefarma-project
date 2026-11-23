@@ -9,7 +9,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Filter, X } from 'lucide-react';
 import type { ColumnFilter, FilterType, TextOperator, NumberOperator, BooleanValue } from '@/types/table.types';
 
-
 interface ColumnFilterPopoverProps {
   columnId: string;
   columnName: string;
@@ -18,9 +17,7 @@ interface ColumnFilterPopoverProps {
   onApplyFilter: (filter: ColumnFilter) => void;
   onClearFilter: () => void;
   selectOptions?: { value: string; label: string }[];
-  /** Valores distintos de la columna, para el filtro tipo Excel. */
   valueOptions?: string[];
-  /** Filtro vigente de la columna, para reabrir el embudo con lo ya elegido. */
   activeFilter?: ColumnFilter;
 }
 
@@ -104,7 +101,6 @@ export function ColumnFilterPopover({
   );
 }
 
-// ==================== Text Filter ====================
 interface TextFilterPopoverProps {
   columnId: string;
   columnName: string;
@@ -128,8 +124,6 @@ function TextFilterPopover({
   open,
   setOpen,
 }: TextFilterPopoverProps) {
-  // El contenido del popover se desmonta al cerrarse, así que el estado inicial
-  // se toma del filtro vigente: al reabrir el embudo aparece lo ya elegido.
   const valoresActivos = Array.isArray(activeFilter?.value)
     ? (activeFilter.value as (string | number)[]).map(String)
     : [];
@@ -179,7 +173,6 @@ function TextFilterPopover({
   const aplicarValores = () => {
     if (seleccionados.length === 0) return;
 
-    // Elegir todos los valores equivale a no filtrar, igual que en Excel.
     if (seleccionados.length === valueOptions.length) {
       onClearFilter();
       setOpen(false);
@@ -368,7 +361,6 @@ function TextFilterPopover({
   );
 }
 
-// ==================== Boolean Filter ====================
 interface BooleanFilterPopoverProps {
   columnId: string;
   columnName: string;
@@ -450,7 +442,6 @@ function BooleanFilterPopover({
   );
 }
 
-// ==================== Number Filter ====================
 interface NumberFilterPopoverProps {
   columnId: string;
   columnName: string;
@@ -599,7 +590,6 @@ function NumberFilterPopover({
   );
 }
 
-// ==================== Select Filter ====================
 interface SelectFilterPopoverProps {
   columnId: string;
   columnName: string;
@@ -691,7 +681,6 @@ function SelectFilterPopover({
   );
 }
 
-// ==================== Helpers ====================
 function getOperatorLabel(operator: TextOperator): string {
   const labels: Record<TextOperator, string> = {
     contains: 'Contiene',

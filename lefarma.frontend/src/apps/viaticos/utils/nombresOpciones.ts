@@ -1,10 +1,5 @@
 import type { SolicitudOpcion } from '../types/solicitud.types';
 
-/**
- * Nombres compactos para listas y boletos. El texto completo se conserva en el
- * `title`; aquí solo se evita que una línea de taxi con dos aeropuertos ocupe
- * media pantalla.
- */
 export function nombreCortoOpcion(opcion: SolicitudOpcion): string {
   const linea = (opcion.linea ?? '').trim();
   if ((opcion.tipo ?? '').trim().toLowerCase() !== 'taxi') return linea;

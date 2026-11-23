@@ -7,32 +7,18 @@ using Microsoft.Extensions.Caching.Memory;
 
 namespace Lefarma.API.Features.Viaticos;
 
-// Fase 1 (demo aislada): cálculo de itinerarios/costos. Stateless, sin BD.
-// Una sola clase estática: normalización, cálculo, seeds y conectores HTTP
-// viven aquí como métodos. Cero interfaces, cero servicios instanciables.
-// El controller le pasa HttpClient (vía IHttpClientFactory) e IMemoryCache
-// como parámetros; los timeouts por proveedor se aplican por llamada.
-// Conectores: try/catch con fallback a seed y `fuente` siempre declarada.
-
 public record RutaCarretera(double Km, double Horas, string Fuente, List<(double Lat, double Lon)>? Grafica = null);
 public record PreciosGasolina(double Magna, double Premium, string Fuente);
 public record ViajeBus(string Linea, DateTime Salida, DateTime Llegada, double PrecioDesde, double PrecioHasta, int? Asientos, string Fuente, string Url, string Nota,
     CostosRutaTerminal? TerminalOrigen = null, CostosRutaTerminal? TerminalDestino = null);
 public record ViajeVuelo(string Linea, DateTime Salida, DateTime Llegada, double PrecioDesde, double PrecioHasta, string Fuente, string Url, string Nota);
 
-/// <summary>
-/// Municipio del catalogo propio (viaticos.municipios_cat) con su centroide.
-/// Se carga una vez por request desde la BD y evita llamar a Nominatim para
-/// resolver la ciudad de un punto.
-/// </summary>
 public sealed record MunicipioCercano(string Nombre, double Latitud, double Longitud);
 
 public static class CalculoCostosRuta
 {
-    // RENDIMIENTO FIJO 12 km/L (fase 1: se ignora rendimiento_km_l de la entrada).
     public const double RendimientoKmL = 12.0;
 
-    // Seeds MXN aprox (2025-2026), siempre etiquetados con su `fuente`.
     private static readonly Dictionary<string, (string Nombre, double Lat, double Lon, string? Iata)> Ciudades = new()
     {
         ["CDMX"] = ("Ciudad de México", 19.4326, -99.1332, "MEX"),
@@ -46,11 +32,6 @@ public static class CalculoCostosRuta
         ["BJX"] = ("León", 21.1214, -101.6830, "BJX"),
     };
 
-    /// <summary>
-    /// Central de autobuses principal de cada ciudad sembrada. Una ciudad puede
-    /// tener varias terminales: se usa la central de referencia y el resumen la
-    /// etiqueta como terminal, no como dirección exacta de ventanilla.
-    /// </summary>
     private static readonly Dictionary<string, (string Nombre, double Lat, double Lon)> Centrales = new()
     {
         ["CDMX"] = ("Central de Autobuses del Norte (CDMX)", 19.4789, -99.1383),
@@ -83,10 +64,6 @@ public static class CalculoCostosRuta
         ["XAL"] = (546, 1500), ["BJX"] = (596, 1700),
     };
 
-    // Tabulador por zonas: las 9 ciudades conservan su tarifa puntual; los
-    // demas municipios usan la zona asignada o la zona E por defecto. Los
-    // montos se pueden sobreescribir en config_parametros con
-    // `costos.hospedaje_noche.zona.<A-E>`.
     private static readonly Dictionary<string, string> ZonaHospedaje = new(StringComparer.OrdinalIgnoreCase)
     {
         ["CDMX"] = "A",
@@ -105,12 +82,9 @@ public static class CalculoCostosRuta
         ["E"] = 1500,
     };
 
-    // Fuente de la unica entrada valuada de un pernocte (tarifa tabulador).
-    // Las alternativas de Overpass no traen precio propio: son un menu.
     private const string FuenteTabuladorHotel = "seed tabulador SHCP";
 
     private const double CasetaPorKm = 1.4;
-    // Instancias de Overpass: la pública se cae o se satura seguido, se prueban en orden.
     private static readonly string[] OverpassInstancias =
     [
         "https://overpass-api.de/api/interpreter",
@@ -119,11 +93,7 @@ public static class CalculoCostosRuta
     ];
     private const double ComidaDiaEstandar = 600;
 
-    // ---------- Configuración (tabla viaticos.config_parametros) ----------
-    // Los valores por defecto viven aquí; la tabla de configuración los
-    // sobreescribe sin tocar el código.
-
-    private static double RendimientoEfectivo() => ConfiguracionViaticos.Double("costos.rendimiento_km_l", RendimientoKmL);
+private static double RendimientoEfectivo() => ConfiguracionViaticos.Double("costos.rendimiento_km_l", RendimientoKmL);
     private static double CasetaPorKmEfectivo() => ConfiguracionViaticos.Double("costos.caseta_por_km", CasetaPorKm);
     private static double ComidaDiaEfectiva() => (double)ConfiguracionViaticos.Decimal("costos.comida_dia", 600m);
 
@@ -136,23 +106,11 @@ public static class CalculoCostosRuta
     }
     private const int BufferMin = 30;
     private const double SnapKm = 25.0;
-    /// <summary>Radio para usar la terminal de autobuses mas cercana cuando
-    /// el destino no existe como ciudad en el catalogo del proveedor.</summary>
     private const double TerminalCercanaKm = 60.0;
-    /// <summary>Radio para aceptar el municipio mas cercano del catalogo BD.</summary>
     private const double MunicipioCercanoKm = 50.0;
-    /// <summary>Radio para usar el aeropuerto mas cercano cuando el punto no
-    /// tiene IATA propio (ej. Tekax -> Merida MID).</summary>
     private const double AeropuertoCercanoKm = 160.0;
-    /// <summary>Radio para buscar una central de autobuses alterna cuando la
-    /// ruta directa al destino no existe (ej. Tekax -> Merida).</summary>
     private const double HubBusKm = 160.0;
 
-    /// <summary>
-    /// IATA de las ciudades que no estan en <see cref="Ciudades"/> ni en
-    /// <see cref="AeropuertosCatalogo"/>. Solo se usa para el enlace de busqueda
-    /// de vuelos (Kayak exige el codigo, no el nombre de la ciudad).
-    /// </summary>
     private static readonly Dictionary<string, string> Iatas = new(StringComparer.Ordinal)
     {
         ["ciudad de mexico"] = "MEX", ["cdmx"] = "MEX",
@@ -176,13 +134,11 @@ public static class CalculoCostosRuta
         ["ciudad victoria"] = "CVM", ["saltillo"] = "SLW",
     };
 
-    /// <summary>IATA de una ciudad por nombre (ignora acentos) o null.</summary>
     public static string? IataDeCiudad(string? nombre)
     {
         var buscado = NormalizarTexto(nombre ?? "");
         if (buscado.Length == 0) return null;
         if (Iatas.TryGetValue(buscado, out var directo)) return directo;
-        // "Heroica Victoria de Durango" o "Morelia, Mich." contienen la ciudad.
         foreach (var (ciudad, iata) in Iatas)
             if (buscado.Contains(ciudad, StringComparison.Ordinal)) return iata;
         return null;
@@ -190,7 +146,6 @@ public static class CalculoCostosRuta
     private const string UberEstimateUrl = "https://www.uber.com/mx/es/price-estimate/";
     private const string DidiUrl = "https://web.didiglobal.com/mx/pasajero/";
     private const string PreciosCneUrl = "https://publicacionexterna.azurewebsites.net/publicaciones/prices";
-    // retailerPartnerNumber=343401 solo como default documentado (sin credencial real en fase 1).
     private const string RetailerPartnerNumber = "343401";
 
     private static readonly string[] CategoriasSalida =
@@ -200,9 +155,6 @@ public static class CalculoCostosRuta
     {
         ["avion"] = "aviones", ["bus"] = "autobuses", ["auto"] = "autos",
         ["renta"] = "renta_autos", ["uber"] = "taxis_uber",
-        // "publico" es el transporte urbano (metro, metrobús, tren ligero o
-        // camión). "metro" se conserva porque hay cálculos ya guardados con esa
-        // clave: el modo se llamaba así cuando solo existía CDMX.
         ["publico"] = "transporte_publico", ["metro"] = "transporte_publico",
     };
 
@@ -210,9 +162,6 @@ public static class CalculoCostosRuta
         DateTime? Salida, DateTime? Llegada, DateTime? Deadline, DateTime? Fin, DateTime? FinActividad, bool Propuesto,
         string Municipio, string Estado)
     {
-        /// <summary>True si la salida vino del usuario; false si el motor la
-        /// propuso para llegar manejando. En el primer tramo, una salida
-        /// propuesta no debe bloquear modos mas rapidos (avion/bus).</summary>
         public bool SalidaExplicita { get; init; }
     }
 
@@ -224,7 +173,6 @@ public static class CalculoCostosRuta
         double? Litros, double? PrecioLitro, double? CasetasVal, double? TarifaDia,
         bool Late, bool SaleAntes, int LateMin, string Fuente, bool Estimado, string Nota,
         string Url, string Sitio, string Accion, string Objetivo, string Badge,
-        // Terminal real que informa el proveedor (ClickBus). Null = usar la sembrada.
         CostosRutaTerminal? TerminalOrigenDato = null, CostosRutaTerminal? TerminalDestinoDato = null,
         int? Asientos = null);
 
@@ -232,9 +180,7 @@ public static class CalculoCostosRuta
         List<(double Lat, double Lon)>? Grafica = null);
     private sealed record ComparteInfo(int N, string? Conductor);
 
-    // ---------- Geo ----------
-
-    public static double HaversineKm(double lat1, double lon1, double lat2, double lon2)
+public static double HaversineKm(double lat1, double lon1, double lat2, double lon2)
     {
         var la1 = double.DegreesToRadians(lat1);
         var lo1 = double.DegreesToRadians(lon1);
@@ -245,9 +191,7 @@ public static class CalculoCostosRuta
         return 2 * 6371.0 * Math.Asin(Math.Sqrt(h));
     }
 
-    // ---------- Seeds ----------
-
-    private static (string? Key, double Dist) SnapCiudad(double lat, double lon)
+private static (string? Key, double Dist) SnapCiudad(double lat, double lon)
     {
         string? mejor = null;
         var md = double.MaxValue;
@@ -259,18 +203,10 @@ public static class CalculoCostosRuta
         return md <= SnapKm ? (mejor, md) : (null, md);
     }
 
-    /// <summary>
-    /// Ultimo recurso cuando ningun transportista cotizo: UNA fila generica de
-    /// autobus, sin marca inventada. Poner "ADO" o "ETN" cuando su sitio ni
-    /// vende la ruta es peor que no mostrarlos; el estimado solo sirve para
-    /// presupuestar y se etiqueta como tal.
-    /// </summary>
     private static List<ViajeBus> ViajesBusSeed(DateOnly fecha, double km, string fuente,
         string? slugOrigen = null, string? slugDestino = null)
     {
         var base_ = 250 + km * 1.05;
-        // La unica busqueda real que conocemos para cualquier ruta es ClickBus;
-        // sin slugs no hay enlace (y el frontend lo muestra deshabilitado).
         var urlBusqueda = slugOrigen is not null && slugDestino is not null
             ? $"https://www.clickbus.com.mx/trips?departure_place={Uri.EscapeDataString(slugOrigen)}"
               + $"&arrival_place={Uri.EscapeDataString(slugDestino)}&departure_date={fecha:yyyy-MM-dd}"
@@ -288,9 +224,7 @@ public static class CalculoCostosRuta
         ];
     }
 
-    // ---------- Clientes HTTP ----------
-
-    public static async Task<RutaCarretera?> ObtenerRutaOsrmAsync(HttpClient http,
+public static async Task<RutaCarretera?> ObtenerRutaOsrmAsync(HttpClient http,
         double latO, double lonO, double latD, double lonD, CancellationToken ct)
     {
         try
@@ -305,7 +239,6 @@ public static class CalculoCostosRuta
             var route = doc.RootElement.GetProperty("routes")[0];
             var km = route.GetProperty("distance").GetDouble() / 1000.0;
             var hrs = route.GetProperty("duration").GetDouble() / 3600.0;
-            // Trazado de la carretera (para el mapa): se simplifica a 300 puntos.
             var grafica = new List<(double Lat, double Lon)>();
             if (route.TryGetProperty("geometry", out var geo) && geo.TryGetProperty("coordinates", out var coords)
                 && coords.ValueKind == JsonValueKind.Array)
@@ -369,7 +302,6 @@ public static class CalculoCostosRuta
     public static async Task<List<HotelCercano>> BuscarHotelesCercanosAsync(HttpClient http, IMemoryCache cache,
         double lat, double lon, CancellationToken ct)
     {
-        // 1) Google Places (hoteles locales reales) si hay llave configurada.
         var deGoogle = await GooglePlacesService.BuscarHotelesAsync(http, cache, lat, lon, ct);
         if (deGoogle is not null && deGoogle.Count > 0) return deGoogle;
 
@@ -377,7 +309,6 @@ public static class CalculoCostosRuta
         if (cache.TryGetValue(key, out List<HotelCercano>? cached) && cached is not null)
             return cached;
 
-        // Nominatim responde rápido y trae el nombre del hotel; Overpass queda como respaldo.
         var porNominatim = await BuscarHotelesNominatimAsync(http, lat, lon, ct);
         if (porNominatim.Count > 0)
         {
@@ -386,7 +317,6 @@ public static class CalculoCostosRuta
         }
 
         var q = $"[out:json][timeout:10];(nwr(around:5000,{lat},{lon})[\"tourism\"=\"hotel\"];);out center 8;";
-        // Overpass público se cae o se satura seguido: se prueban instancias alternas.
         foreach (var instancia in OverpassInstancias)
         {
             try
@@ -420,13 +350,11 @@ public static class CalculoCostosRuta
             }
             catch
             {
-                // intenta la siguiente instancia
             }
         }
         return [];
     }
 
-    /// <summary>Hoteles cercanos vía Nominatim (rápido); devuelve nombre y distancia al punto.</summary>
     private static async Task<List<HotelCercano>> BuscarHotelesNominatimAsync(HttpClient http,
         double lat, double lon, CancellationToken ct)
     {
@@ -449,7 +377,6 @@ public static class CalculoCostosRuta
                 var esHotel = (el.TryGetProperty("type", out var tEl) && tEl.GetString() == "hotel")
                     || (el.TryGetProperty("category", out var cEl) && cEl.GetString() == "hotel");
                 if (!esHotel) continue;
-                // Nominatim devuelve lat/lon como texto.
                 var hlat = Coordenada(el, "lat");
                 var hlon = Coordenada(el, "lon");
                 if (double.IsNaN(hlat) || double.IsNaN(hlon)) continue;
@@ -466,7 +393,6 @@ public static class CalculoCostosRuta
         }
     }
 
-    /// <summary>Lee una coordenada que puede venir como número o como texto (jsonv2 de Nominatim).</summary>
     private static double Coordenada(JsonElement el, string propiedad)
     {
         if (!el.TryGetProperty(propiedad, out var v)) return double.NaN;
@@ -476,30 +402,11 @@ public static class CalculoCostosRuta
             : double.NaN;
     }
 
-    // El adapter de ClickBus expone su propio catalogo de lugares (1,642 destinos).
     private const string ClickBusAdapterBase = "https://adapter.clickbus.com.mx/api";
 
-    /// <summary>Lugar del catalogo de ClickBus (`places/get-all`).</summary>
     private sealed record LugarClickBus(string Slug, string Nombre, string Ciudad, string Tipo, string Estado,
         double Lat = 0, double Lon = 0);
 
-    /// <summary>
-    /// Viajes reales de autobus desde el adapter de ClickBus.
-    ///
-    /// Firma real del endpoint, descubierta leyendo el bundle del sitio (la que
-    /// usaba antes este metodo — POST con origin/destination/date — respondia
-    /// 405 con POST y 422/500 con GET):
-    /// <c>GET {base}/trips/search?from={slug}&amp;to={slug}&amp;departure=YYYY-MM-DD&amp;currency=MXN&amp;return=</c>
-    /// <c>return</c> tiene que ir presente aunque vaya vacio: sin el, el adapter
-    /// responde 500. El precio viaja en centavos como texto dentro de
-    /// <c>trips.going[].parts[]</c> (<c>offer</c> con descuento manda sobre <c>price</c>).
-    ///
-    /// Si la ruta no existe en el catalogo (caso real: Xicotlan) o el adapter
-    /// falla, devuelve lista vacia. El respaldo a estimado vive en
-    /// <see cref="CalcularTramoAsync"/>, que solo estima cuando NINGUN proveedor
-    /// cotizo: asi el estimado nunca aparece como una fila mas al lado de un
-    /// precio real.
-    /// </summary>
     public static async Task<List<ViajeBus>> BuscarBusesClickBusAsync(HttpClient http,
         string origen, string destino, DateOnly fecha, IMemoryCache cache, CancellationToken ct,
         string? estadoOrigen = null, string? estadoDestino = null,
@@ -521,11 +428,6 @@ public static class CalculoCostosRuta
 
             var url = $"{ClickBusAdapterBase}/trips/search?from={Uri.EscapeDataString(slugOrigen)}&to={Uri.EscapeDataString(slugDestino)}"
                 + $"&departure={fecha:yyyy-MM-dd}&currency=MXN&return=";
-            // Enlace publico de resultados con la misma ruta y fecha. Es el que
-            // se usa para "ver costo del boleto" y para la captura de pantalla:
-            // los parametros reales del sitio son departure_place/arrival_place
-            // (no origin/destination). Sin filtros de precio para no ocultar
-            // corridas caras.
             var urlCompra = $"https://www.clickbus.com.mx/trips?departure_place={Uri.EscapeDataString(slugOrigen)}"
                 + $"&arrival_place={Uri.EscapeDataString(slugDestino)}&departure_date={fecha:yyyy-MM-dd}";
             using var res = await http.GetAsync(url, t);
@@ -581,14 +483,9 @@ public static class CalculoCostosRuta
 
                 if (salida is null || llegada is null || precio <= 0) continue;
 
-                // Terminal real del proveedor, con coordenadas geocodificadas
-                // (cache 24 h). Si no se puede geocodificar, el nombre se
-                // conserva y la coordenada queda en 0.
                 var terminalOrigen = await TerminalGeocodificadaAsync(http, cache, estacionOrigen, ct);
                 var terminalDestino = await TerminalGeocodificadaAsync(http, cache, estacionDestino, ct);
 
-                // Precio unico: el cotizado es el que se cobra. Nunca se le suma un
-                // margen ni se convierte en rango (regla: solo precios reales).
                 var total = Math.Round(precio, 2);
                 viajes.Add(new ViajeBus(linea, salida.Value, llegada.Value, total, total, asientos,
                     "ClickBus (en vivo)", urlCompra,
@@ -604,12 +501,6 @@ public static class CalculoCostosRuta
         }
     }
 
-    /// <summary>
-    /// Cuando el destino no tiene ruta directa, prueba centrales cercanas
-    /// (caso real: Tekax no tiene CDMX->Tekax, pero si CDMX->Merida). El
-    /// traslado de la terminal hub al punto final lo cobra MillaExtra como
-    /// taxi. Devuelve la primera central que tenga viajes.
-    /// </summary>
     private static async Task<List<ViajeBus>> BuscarBusesClickBusCercanosAsync(
         HttpClient http, IMemoryCache cache, string origen, string? estadoOrigen,
         double latOrigen, double lonOrigen, string destino, string? estadoDestino,
@@ -621,10 +512,6 @@ public static class CalculoCostosRuta
             if (lugares.Count == 0) return [];
 
             var vistos = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { destino };
-            // Las ciudades con grupo "Todas las Terminales" son los hubs que
-            // venden rutas largas (Merida para Tekax); las localidades mas
-            // cercanas suelen no tener la ruta desde CDMX y se probarian en
-            // vano. Se prioriza el grupo y luego la distancia.
             var conGrupo = lugares
                 .Where(l => l.Tipo.Contains("Todas las Terminales", StringComparison.OrdinalIgnoreCase))
                 .Select(l => NormalizarTexto(l.Ciudad))
@@ -634,9 +521,6 @@ public static class CalculoCostosRuta
             foreach (var lugar in lugares)
             {
                 if (string.IsNullOrWhiteSpace(lugar.Ciudad)) continue;
-                // Coordenada() devuelve NaN cuando el catalogo no trae lat/lon.
-                // NaN no es igual a 0 y ademas se ordena antes que cualquier
-                // numero, asi que hay que descartarlo explicitamente.
                 if (!double.IsFinite(lugar.Lat) || !double.IsFinite(lugar.Lon)) continue;
                 if (lugar.Lat == 0 && lugar.Lon == 0) continue;
                 if (!vistos.Add(lugar.Ciudad)) continue;
@@ -646,8 +530,6 @@ public static class CalculoCostosRuta
                     conGrupo.Contains(NormalizarTexto(lugar.Ciudad))));
             }
 
-            // Se prueban las centrales mas cercanas con grupo primero; si no
-            // hay grupo, la distancia decide.
             foreach (var candidato in candidatos
                 .OrderByDescending(c => c.EsGrupo)
                 .ThenBy(c => c.Dist)
@@ -666,20 +548,12 @@ public static class CalculoCostosRuta
         }
         catch
         {
-            // Sin hub: el llamador cae al estimado de siempre.
         }
         return [];
     }
 
-    // ---------- Primera Plus (buscador en vivo) ----------
+private const string PrimeraPlusApiBase = "https://one-api.primeraplus.com.mx/api/v2";
 
-    private const string PrimeraPlusApiBase = "https://one-api.primeraplus.com.mx/api/v2";
-
-    /// <summary>
-    /// Viajes reales del buscador de Primera Plus (el mismo de
-    /// viaje.primeraplus.com.mx). Solo devuelve salidas comprables para la
-    /// fecha pedida: si la ruta no se vende, no hay filas.
-    /// </summary>
     internal static async Task<List<ViajeBus>> BuscarBusesPrimeraPlusAsync(HttpClient http, IMemoryCache cache,
         string origen, string? estadoOrigen, double latOrigen, double lonOrigen,
         string destino, string? estadoDestino, double latDestino, double lonDestino,
@@ -770,7 +644,6 @@ public static class CalculoCostosRuta
                 var salida = FechaHoraPrimeraPlus(trip, "departure");
                 var llegada = FechaHoraPrimeraPlus(trip, "arrival");
                 if (salida is null || llegada is null) continue;
-                // El buscador incluye una salida "abierta" con fecha 2030.
                 if (salida.Value.Date != fecha.ToDateTime(TimeOnly.MinValue)) continue;
 
                 if (!trip.TryGetProperty("pricing", out var pricing)
@@ -799,7 +672,6 @@ public static class CalculoCostosRuta
         }
     }
 
-    /// <summary>Llave publica del buscador (config del sitio), cacheada 12 h.</summary>
     private static async Task<string?> ApiKeyPrimeraPlusAsync(HttpClient http, IMemoryCache cache, CancellationToken ct)
     {
         const string clave = "viaticos:pp:apikey";
@@ -857,10 +729,6 @@ public static class CalculoCostosRuta
             System.Globalization.DateTimeStyles.None, out var dt) ? dt : null;
     }
 
-    /// <summary>
-    /// Catalogo de lugares de ClickBus (slug + nombre + ciudad + tipo de terminal).
-    /// Se cachea 12 h: son 1,642 destinos y cambia poco.
-    /// </summary>
     private static async Task<List<LugarClickBus>> ObtenerLugaresClickBusAsync(
         HttpClient http, IMemoryCache cache, CancellationToken ct)
     {
@@ -898,19 +766,13 @@ public static class CalculoCostosRuta
         }
         catch
         {
-            return lugares; // sin catalogo: el llamador cae al respaldo
+            return lugares; 
         }
 
         if (lugares.Count > 0) cache.Set(clave, lugares, TimeSpan.FromHours(12));
         return lugares;
     }
 
-    /// <summary>
-    /// Nombre de ciudad del viaje -> slug de ClickBus. La comparacion ignora
-    /// acentos y mayusculas y prefiere la entrada "Todas las Terminales".
-    /// Devuelve null cuando el destino no existe en el catalogo (caso real:
-    /// Xicotlan no esta entre los 1,642 destinos de ClickBus).
-    /// </summary>
     private static string? ResolverSlugClickBus(List<LugarClickBus> lugares, string nombre, string? estado = null)
         => ResolverSlugClickBus(lugares, nombre, estado, 0, 0, out _);
 
@@ -937,8 +799,6 @@ public static class CalculoCostosRuta
             })
             .ToList();
 
-        // El estado del viaje desambigua: "Victoria de Durango" (Durango) no es
-        // la "Victoria" de Texas, ni "Ciudad Victoria" (Tamaulipas) es esa misma.
         var candidatos = estadoBuscado.Length > 0
             ? todos.Where(x => x.Estado.Length > 0
                 && (x.Estado == estadoBuscado
@@ -953,8 +813,6 @@ public static class CalculoCostosRuta
                 .Where(x => x.Ciudad.StartsWith(buscado, StringComparison.Ordinal)
                          || buscado.StartsWith(x.Ciudad, StringComparison.Ordinal)).ToList();
         if (coincidencias.Count == 0)
-            // El municipio contiene el nombre de la ciudad ("Victoria de Durango"
-            // contiene "Durango"): gana la coincidencia mas larga.
             coincidencias = candidatos
                 .Where(x => buscado.Contains(x.Ciudad, StringComparison.Ordinal))
                 .OrderByDescending(x => x.Ciudad.Length)
@@ -964,11 +822,6 @@ public static class CalculoCostosRuta
 
         if (coincidencias.Count == 0)
         {
-            // El punto puede ser una localidad que el catalogo no lista (caso
-            // real: "Manzana Cuarta De Santa Cruz Tepexpan", a ~32 km de
-            // Toluca). Se usa la terminal de la ciudad mas cercana del mismo
-            // estado y se marca la nota para que el viajero sepa que el enlace
-            // no es de su localidad exacta.
             if ((lat == 0 && lon == 0) || estadoBuscado.Length == 0) return null;
             var cercanos = lugares
                 .Where(l => l.Lat != 0 || l.Lon != 0)
@@ -999,25 +852,15 @@ public static class CalculoCostosRuta
             .First().Lugar.Slug;
     }
 
-    // Catalogo publico del buscador de Primera Plus. Devuelve ciudades y
-    // terminales con el slug que usa su URL de resultados.
     private const string PrimeraPlusPlacesUrl = "https://one-api.primeraplus.com.mx/api/v2/places";
 
-    /// <summary>Una entrada del catalogo de Primera Plus.</summary>
     private sealed record LugarPrimeraPlus(string Slug, string Ciudad, string Estado, string Tipo,
         double Lat = 0, double Lon = 0);
 
-    /// <summary>URL de resultados de Primera Plus para slugs y fecha.</summary>
     private static string UrlPrimeraPlus(string slugOrigen, string slugDestino, DateOnly fecha) =>
         $"https://viaje.primeraplus.com.mx/search/{slugOrigen}/{slugDestino}/{fecha:yyyy-MM-dd}"
         + "/p/general-1/departures?lang=spanish&seatsOnResultsDiscounts=true";
 
-    /// <summary>
-    /// Nombre de ciudad -> slug de Primera Plus. El origen prefiere la entrada de
-    /// ciudad ("Todas las terminales") y el destino la terminal concreta: en su
-    /// buscador una ciudad como destino no siempre devuelve horarios. Con varias
-    /// terminales gana la mas cercana al punto del viaje.
-    /// </summary>
     private static async Task<string?> SlugPrimeraPlusAsync(HttpClient http, IMemoryCache cache,
         string ciudad, string? estado, double lat, double lon, bool preferirCiudad, CancellationToken ct)
     {
@@ -1030,9 +873,6 @@ public static class CalculoCostosRuta
         {
             var lugares = await ConsultarLugaresPrimeraPlusAsync(http, ciudad, ct);
 
-            // El municipio del punto puede no existir en su catalogo (caso real:
-            // "La Aldea", que viaja desde/hacia Morelia). Ahi manda la ciudad
-            // que devuelve el geocodificador inverso para esas coordenadas.
             if (!lugares.Any(l => NormalizarTexto(l.Ciudad) == buscado))
             {
                 var alternativa = await CiudadNominatimAsync(http, cache, lat, lon, ct);
@@ -1050,8 +890,6 @@ public static class CalculoCostosRuta
             var deLaCiudad = lugares.Where(l => NormalizarTexto(l.Ciudad) == buscado).ToList();
             if (deLaCiudad.Count == 0)
             {
-                // Sin coincidencia de ciudad no se inventa una terminal: mejor
-                // el respaldo (pagina de busqueda) que un slug de otra ciudad.
                 return null;
             }
             var estadoBuscado = NormalizarTexto(estado ?? "");
@@ -1080,23 +918,20 @@ public static class CalculoCostosRuta
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
-            throw; // El cliente se fue: no seguir buscando slugs.
+            throw; 
         }
         catch
         {
-            return null; // Sin catalogo: el llamador usa el respaldo.
+            return null; 
         }
     }
 
-    /// <summary>Lugares del catalogo de Primera Plus para una consulta de texto.</summary>
     private static async Task<List<LugarPrimeraPlus>> ConsultarLugaresPrimeraPlusAsync(
         HttpClient http, string consulta, CancellationToken ct)
     {
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         cts.CancelAfter(TimeSpan.FromSeconds(3));
         var t = cts.Token;
-        // Su API solo responde con Origin del buscador (sin el, 401): no es
-        // autenticacion, es la misma llamada que hace la pagina.
         using var pedido = new HttpRequestMessage(HttpMethod.Get,
             $"{PrimeraPlusPlacesUrl}?q={Uri.EscapeDataString(consulta.Trim())}");
         pedido.Headers.TryAddWithoutValidation("origin", "https://viaje.primeraplus.com.mx");
@@ -1120,11 +955,6 @@ public static class CalculoCostosRuta
             .ToList();
     }
 
-    /// <summary>
-    /// Ciudad real de un punto segun Nominatim (geocodificacion inversa). Se usa
-    /// cuando el municipio del viaje no existe en el catalogo del transportista;
-    /// cachea 24 h por coordenada redondeada (~100 m).
-    /// </summary>
     private static async Task<string?> CiudadNominatimAsync(HttpClient http, IMemoryCache cache,
         double lat, double lon, CancellationToken ct)
     {
@@ -1173,14 +1003,9 @@ public static class CalculoCostosRuta
         var (clave, _) = SnapCiudad(lugar.Lat, lugar.Lon);
         if (clave is not null) return Ciudades[clave].Nombre;
 
-        // Fuente primaria: municipios_cat (2,478 municipios con centroide).
-        // Es local, cacheado y evita una llamada a Nominatim por punto.
         var municipal = MunicipioMasCercano(municipios, lugar.Lat, lugar.Lon);
         if (municipal is not null) return municipal.Nombre;
 
-        // El municipio que manda el mapa puede ser una localidad ("Manzana
-        // Cuarta..."), no una ciudad que el transportista reconozca. Nominatim
-        // devuelve city/municipality/county y empata mejor con sus catalogos.
         var ciudad = await CiudadNominatimAsync(http, cache, lugar.Lat, lugar.Lon, ct);
         if (!string.IsNullOrWhiteSpace(ciudad)) return ciudad;
         if (!string.IsNullOrWhiteSpace(lugar.Municipio)) return lugar.Municipio;
@@ -1208,11 +1033,6 @@ public static class CalculoCostosRuta
         return mejorDistancia <= MunicipioCercanoKm ? mejor : null;
     }
 
-    /// <summary>
-    /// True cuando el nombre parece un hotel y no una direccion. Los hoteles de
-    /// Overpass pueden venir como "Carretera ... 50785" o "T.C. (...)", y
-    /// meterlos en Google Hotels junto con la ciudad solo ensucia la busqueda.
-    /// </summary>
     private static bool NombrePareceHotel(string nombre)
     {
         var limpio = nombre.Trim();
@@ -1236,7 +1056,6 @@ public static class CalculoCostosRuta
         return string.IsNullOrEmpty(texto) ? null : texto;
     }
 
-    /// <summary>Minusculas, sin acentos y sin espacios sobrantes, para comparar nombres de lugar.</summary>
     private static string NormalizarTexto(string s)
     {
         if (string.IsNullOrWhiteSpace(s)) return "";
@@ -1250,17 +1069,9 @@ public static class CalculoCostosRuta
         }
         var limpio = sb.ToString().Trim().ToLowerInvariant();
 
-        // ClickBus nombra la misma ciudad de dos formas: "CDMX" en terminales
-        // sueltas (Terrapuerto El Angel) y "Ciudad de Mexico" en el grupo
-        // "Todas las Terminales". Sin unificar, buscar "CDMX" empata con UNA
-        // terminal y devuelve cero salidas, cuando el grupo si tiene.
         return limpio is "cdmx" or "df" ? "ciudad de mexico" : limpio;
     }
 
-    /// <summary>
-    /// Precio del adapter en pesos. Llega en centavos como texto; `offer` (con
-    /// descuento) manda sobre `price` (tarifa de lista).
-    /// </summary>
     private static double PrecioClickBus(JsonElement nodo)
     {
         foreach (var propiedad in new[] { "offer", "price" })
@@ -1274,7 +1085,6 @@ public static class CalculoCostosRuta
         return 0;
     }
 
-    /// <summary>Fecha y hora naive del adapter (`date` y `time` vienen separados).</summary>
     private static DateTime? FechaHoraClickBus(JsonElement nodo)
     {
         if (!nodo.TryGetProperty("waypoint", out var wp)
@@ -1286,10 +1096,6 @@ public static class CalculoCostosRuta
             System.Globalization.DateTimeStyles.None, out var dt) ? dt : null;
     }
 
-    /// <summary>
-    /// Nombre de la estacion (terminal) que informa ClickBus para un extremo del
-    /// viaje: `waypoint.place.station.current.name`; si no viene, la ciudad.
-    /// </summary>
     private static string? NombreEstacionClickBus(JsonElement nodo)
     {
         if (!nodo.TryGetProperty("waypoint", out var wp)
@@ -1307,11 +1113,6 @@ public static class CalculoCostosRuta
             : null;
     }
 
-    /// <summary>
-    /// Nombre de terminal -> terminal con coordenadas. Geocodifica con Nominatim
-    /// una sola vez por nombre (cache 24 h, incluidos los fallos) porque las
-    /// terminales de ClickBus no traen latitud/longitud en su API.
-    /// </summary>
     private static async Task<CostosRutaTerminal?> TerminalGeocodificadaAsync(
         HttpClient http, IMemoryCache cache, string? nombre, CancellationToken ct)
     {
@@ -1331,8 +1132,6 @@ public static class CalculoCostosRuta
             using var doc = await JsonDocument.ParseAsync(await res.Content.ReadAsStreamAsync(ct), cancellationToken: ct);
             if (doc.RootElement.ValueKind != JsonValueKind.Array || doc.RootElement.GetArrayLength() == 0)
             {
-                // Sin resultado del geocoder se conserva el nombre real de la
-                // terminal: perderlo por una coordenada faltante seria peor.
                 var sinPunto = new CostosRutaTerminal { Nombre = limpio };
                 cache.Set(clave, sinPunto, TimeSpan.FromHours(24));
                 return sinPunto;
@@ -1355,7 +1154,6 @@ public static class CalculoCostosRuta
         }
         catch
         {
-            // Nominatim caido o lento: nombre si, coordenadas no.
             var sinPunto = new CostosRutaTerminal { Nombre = limpio };
             cache.Set(clave, sinPunto, TimeSpan.FromHours(1));
             return sinPunto;
@@ -1384,7 +1182,6 @@ public static class CalculoCostosRuta
                     var arr = c.GetProperty("arrival").GetDateTime();
                     var barato = c.TryGetProperty("cheapest_price", out var p) ? p.GetDouble() : 300;
                     int? asientos = c.TryGetProperty("seats_available", out var s) ? s.GetInt32() : null;
-                    // Precio unico: sin margen ni rango (regla: solo precios reales).
                     viajes.Add(new ViajeBus("Distribusion · red asociada", sal, arr, barato, barato,
                         asientos, "Distribusion (en vivo)",
                         "https://book.api.distribusion.com", "connections + seats + cheapest_prices"));
@@ -1394,33 +1191,19 @@ public static class CalculoCostosRuta
         }
         catch
         {
-            // Sin cotizacion no hay precio: el respaldo a estimado lo decide
-            // CalcularTramoAsync solo cuando NINGUN proveedor respondio.
             return new List<ViajeBus>();
         }
     }
 
-    /// <summary>Fase 1: estimados etiquetados. Método listo para cambiarse por un proveedor con llave.</summary>
     public static Task<List<ViajeVuelo>> BuscarVuelosEstimadosAsync(double kmAerea, string origen, string destino, DateOnly fecha, CancellationToken ct)
     {
         var ft = 0.5 + kmAerea / 760.0;
-        // Rango de planeación, no una tarifa. Se calibró con rutas domésticas
-        // reales (MEX–ZLO/MEX–MTY) para no mostrar un precio único demasiado
-        // bajo; la lista real de Kayak lo sustituye al abrir el tab de vuelo.
         var base_ = Math.Max(1800, 1500 + kmAerea * 3.5);
         var desde = Math.Round(base_, 2);
         var hasta = Math.Round(base_ * 1.45, 2);
-        // El precio medio es solo para los totales de respaldo; la UI muestra
-        // el rango `desde–hasta` y lo etiqueta como estimado.
         var precio = Math.Round((desde + hasta) / 2, 2);
-        // El precio sigue siendo un estimado de fase 1. La consulta real va a
-        // Kayak: Google Flights con q= alternó resultados, portada y errores en
-        // las pruebas. Kayak exige código IATA y muestra la ruta/fecha.
         var url = $"https://www.kayak.com.mx/flights/{origen}-{destino}/{fecha:yyyy-MM-dd}"
                 + "?sort=bestflight_a&fs=cabin=e";
-        // Dos salidas estimadas (mañana y tarde): si el punto está lejos del
-        // aeropuerto, el taxi de llegada puede hacer que el vuelo de las 08:00
-        // ya no llegue a tiempo; el de las 06:00 absorbe ese traslado.
         return Task.FromResult(new[] { new TimeOnly(6, 0), new TimeOnly(14, 0) }
             .Select(hora =>
             {
@@ -1433,9 +1216,7 @@ public static class CalculoCostosRuta
             .ToList());
     }
 
-    // ---------- Cálculo ----------
-
-    public static async Task<CostosRutaResponse> CalcularAsync(CostosRutaRequest request, HttpClient http,
+public static async Task<CostosRutaResponse> CalcularAsync(CostosRutaRequest request, HttpClient http,
         IMemoryCache cache, CancellationToken ct = default,
         IReadOnlyList<MunicipioCercano>? municipios = null)
     {
@@ -1535,9 +1316,6 @@ public static class CalculoCostosRuta
                 var pool = viables.Count > 0 ? viables : tramos[ti].Opciones;
                 if (pool.Count == 0) continue;
                 var mejor = pool.MinBy(o => o.CostoGrupo)!;
-                // El id de la oferta incluye su posición dentro del tramo (varios
-                // modos se repiten: 6 taxis "uber" en un tramo corto). La mejor
-                // oferta se marca por esa misma posición, no por patrón modo.
                 var ixMejor = tramos[ti].Opciones.FindIndex(o => ReferenceEquals(o, mejor));
                 resp.Recomendaciones.Add(new CostosRutaRecomendacion
                 {
@@ -1553,9 +1331,7 @@ public static class CalculoCostosRuta
         return resp;
     }
 
-    // ---------- Normalización ----------
-
-    private static async Task<PersonaNorm> NormalizarAsync(CostosRutaPersonaInput p, int i, HttpClient http, CancellationToken ct)
+private static async Task<PersonaNorm> NormalizarAsync(CostosRutaPersonaInput p, int i, HttpClient http, CancellationToken ct)
     {
         var tag = $"Persona {i + 1} ({p.Nombre ?? $"persona_{i + 1}"})";
         var nombre = string.IsNullOrWhiteSpace(p.Nombre) ? $"persona_{i + 1}" : p.Nombre.Trim();
@@ -1689,9 +1465,7 @@ public static class CalculoCostosRuta
         static string H(DateTime x) => x.ToString("HH:mm");
     }
 
-    // ---------- Draft ----------
-
-    private static async Task<(List<LugarNorm> Prop, List<string> Razones)> DraftAsync(PersonaNorm norm, HttpClient http, CancellationToken ct)
+private static async Task<(List<LugarNorm> Prop, List<string> Razones)> DraftAsync(PersonaNorm norm, HttpClient http, CancellationToken ct)
     {
         var lugares = norm.Lugares.Select(l => l).ToList();
         var razones = new List<string>();
@@ -1742,9 +1516,7 @@ public static class CalculoCostosRuta
         return avisos;
     }
 
-    // ---------- Tramos ----------
-
-    private static async Task<double> HorasManejoAsync(HttpClient http, double latO, double lonO, double latD, double lonD, CancellationToken ct)
+private static async Task<double> HorasManejoAsync(HttpClient http, double latO, double lonO, double latD, double lonD, CancellationToken ct)
     {
         var r = await ObtenerRutaOsrmAsync(http, latO, lonO, latD, lonD, ct);
         return r is not null ? r.Horas : HaversineKm(latO, lonO, latD, lonD) / 70.0;
@@ -1756,9 +1528,6 @@ public static class CalculoCostosRuta
         IReadOnlyList<MunicipioCercano>? municipios = null)
     {
         var deadline = b.Deadline ?? b.Llegada ?? b.Salida ?? throw new ArgumentException($"Tramo {ti + 1}: sin hora de referencia.");
-        // Si el usuario no fijo la salida del origen, el motor la propuso para
-        // llegar manejando; esa hora no debe impedir tomar un vuelo o autobus
-        // que salga antes. En tramos posteriores la salida si es una cita real.
         var salidaPrevia = ti == 0 && !a.SalidaExplicita ? null : a.Salida;
         var ruta = await ObtenerRutaOsrmAsync(http, a.Lat, a.Lon, b.Lat, b.Lon, ct);
         double km, hrs;
@@ -1815,18 +1584,12 @@ public static class CalculoCostosRuta
 
         if (!intermedioSimple)
         {
-            // Un autobus de 1,350 km puede salir 2 dias antes y aun llegar a
-            // tiempo. Se buscan hasta 4 fechas hacia atras; el vuelo solo
-            // necesita 2.
             var diasBus = Math.Clamp((int)Math.Ceiling(km / 700.0) + 1, 2, 4);
             var fechasBus = Enumerable.Range(0, diasBus)
                 .Select(d => deadline.Date.AddDays(-d))
                 .ToArray();
             var fechasVuelo = new[] { deadline.Date, deadline.Date.AddDays(-1) };
             var candidatos = new List<ViajeBus>();
-            // ClickBus busca por ciudad, no por direccion. El municipio del
-            // mapa puede ser una localidad ("Manzana Cuarta..."), asi que se
-            // resuelve la ciudad real (Nominatim) antes de consultar catalogos.
             var ciudadOrigen = await CiudadDeBusquedaAsync(a, http, cache, ct, municipios);
             var ciudadDestino = await CiudadDeBusquedaAsync(b, http, cache, ct, municipios);
             foreach (var f in fechasBus)
@@ -1839,8 +1602,6 @@ public static class CalculoCostosRuta
                     ciudadOrigen, a.Estado, a.Lat, a.Lon, ciudadDestino, b.Estado, b.Lat, b.Lon, fechaBusqueda, ct));
                 if (candidatos.Count == antes)
                 {
-                    // Sin ruta directa: se prueba una central cercana que si
-                    // tenga viajes (Tekax -> Merida) y taxi al punto final.
                     candidatos.AddRange(await BuscarBusesClickBusCercanosAsync(http, cache,
                         ciudadOrigen, a.Estado, a.Lat, a.Lon, ciudadDestino, b.Estado, b.Lat, b.Lon,
                         fechaBusqueda, ct));
@@ -1848,15 +1609,9 @@ public static class CalculoCostosRuta
                 if (ConfiguracionViaticos.Booleano("integraciones.distribusion.habilitado", false))
                     candidatos.AddRange(await BuscarBusesDistribusionAsync(http, a.Nombre, b.Nombre, fechaBusqueda, ct));
             }
-            // El estimado es el ultimo recurso: solo aparece cuando ningun
-            // proveedor cotizo. Con precio real, la tabla no mezcla estimados.
             var busEstimado = candidatos.Count == 0;
             if (busEstimado)
             {
-                // El enlace de la fila estimada abre la busqueda real de ClickBus
-                // (cacheado 12 h); si su catalogo no responde, la fila queda sin
-                // URL en vez de mandar a la portada de un transportista que
-                // quiza ni vende la ruta.
                 string? slugOrigen = null, slugDestino = null;
                 var origenCercano = false;
                 var destinoCercano = false;
@@ -1872,7 +1627,6 @@ public static class CalculoCostosRuta
                 }
                 catch
                 {
-                    // sin catalogo de ClickBus: la fila estimada va sin URL
                 }
 
                 var fuenteSeed = origenCercano || destinoCercano
@@ -1883,11 +1637,6 @@ public static class CalculoCostosRuta
             }
             foreach (var g in candidatos.GroupBy(v => v.Linea))
             {
-                // El taxi terminal → punto tambien cuenta para saber si la
-                // corrida llega a tiempo: una que llega 20:00 a la central y
-                // necesita 1 h de taxi no sirve para una cita a las 20:30.
-                // Si el proveedor manda la terminal sin coordenadas, se usa la
-                // del catálogo; si no, un (0,0) inventa un taxi de 6 días.
                 int TaxiMin(ViajeBus v)
                 {
                     var terminal = TerminalConCoords(v.TerminalDestino)
@@ -1922,9 +1671,6 @@ public static class CalculoCostosRuta
                         viaje.TerminalOrigen, viaje.TerminalDestino, viaje.Asientos);
                 }
 
-                // Se envía una muestra representativa, no solo la mejor: la
-                // corrida cercana a la hora de salida y la más barata también
-                // importan. La tabla las ordena con esos criterios.
                 var ordenados = g.OrderBy(v => v.Salida).ThenBy(v => v.Llegada).ToList();
                 var corridas = SeleccionarCorridasBus(ordenados, salidaPrevia, deadline,
                     v => v.Llegada.AddMinutes(TaxiMin(v)));
@@ -1941,9 +1687,6 @@ public static class CalculoCostosRuta
             iataO ??= IataDeCiudad(a.Municipio) ?? IataDeCiudad(a.Nombre);
             iataD ??= IataDeCiudad(b.Municipio) ?? IataDeCiudad(b.Nombre);
 
-            // Si el punto no tiene IATA (Tekax, por ejemplo), se usa el
-            // aeropuerto mas cercano como hub y el tramo punto-hub se cubre
-            // con taxi. No se inventa una ciudad: se declara el hub.
             var aeropuertoO = AeropuertosCatalogo.Obtener(iataO);
             var aeropuertoD = AeropuertosCatalogo.Obtener(iataD);
             var hubO = false;
@@ -1962,8 +1705,6 @@ public static class CalculoCostosRuta
             if (iataO is not null && iataD is not null && air >= 300)
             {
                 var cands = new List<ViajeVuelo>();
-                // Kayak exige código IATA; no se usa el municipio ni el nombre
-                // como sustituto porque produce rutas equivocadas.
                 var vueloDesde = iataO;
                 var vueloHasta = iataD;
                 foreach (var f in fechasVuelo)
@@ -1983,8 +1724,6 @@ public static class CalculoCostosRuta
                     : "";
                 foreach (var g in cands.GroupBy(v => v.Linea))
                 {
-                    // La llegada que decide si el vuelo sirve es la del punto,
-                    // no la del aeropuerto: se suma el taxi terminal → punto.
                     var mejor = MejorHorario(g.ToList(), salidaPrevia, 120, deadline,
                         v => v.Salida, v => v.Llegada.AddMinutes(taxiDestinoMin), out var saleAntes);
                     var puerta = (mejor.Llegada - mejor.Salida).TotalHours + 2.5;
@@ -2007,7 +1746,6 @@ public static class CalculoCostosRuta
         }
         else if (km <= 80)
         {
-            // Viaje intermedio sin conectores: solo referencia de manejo.
             opts.Add(new OpCalc("uber", "Taxi (referencia intermedia)", $"{km:F0} km", salidaPrevia ?? deadline.AddHours(-hrs),
                 (salidaPrevia ?? deadline.AddHours(-hrs)).AddHours(hrs), hrs, 0, 0, 0, 0, false,
                 null, null, null, null, false, false, 0, "seed", true,
@@ -2026,12 +1764,6 @@ public static class CalculoCostosRuta
         return new TramoCalc(a.Nombre, b.Nombre, km, hrs, opts.OrderBy(o => o.CostoGrupo).ToList(), ruta?.Grafica);
     }
 
-    /// <summary>
-    /// Elige una muestra de corridas de una misma línea: la mejor para llegar
-    /// a tiempo, la más cercana a la hora de salida, la más barata y una
-    /// anterior a la ventana factible. Sin esto la tabla recibía solo una
-    /// corrida por línea y se perdían opciones que el proveedor sí tiene.
-    /// </summary>
     internal static List<ViajeBus> SeleccionarCorridasBus(
         List<ViajeBus> ordenados, DateTime? salidaPrevia, DateTime deadline,
         Func<ViajeBus, DateTime> llegadaAlPunto, int maximo = 6)
@@ -2066,7 +1798,6 @@ public static class CalculoCostosRuta
         var referencia = salidaPrevia?.AddMinutes(30);
         if (referencia is not null)
         {
-            // Cercana a la hora de salida entre las que ya se pueden tomar.
             var cercana = (tomables.Count > 0 ? tomables : ordenados)
                 .Where(LlegaATiempo)
                 .OrderBy(v => Math.Abs((v.Salida - referencia.Value).TotalMinutes))
@@ -2074,8 +1805,6 @@ public static class CalculoCostosRuta
                 .FirstOrDefault();
             if (cercana is not null) Agregar(cercana);
 
-            // Una anterior a la ventana factible: se muestra como "Sale antes"
-            // para que el viajero vea que existe, sin mezclarla con las viables.
             var anterior = ordenados
                 .Where(v => v.Salida < referencia.Value && LlegaATiempo(v))
                 .OrderByDescending(v => v.Salida)
@@ -2090,8 +1819,6 @@ public static class CalculoCostosRuta
             .FirstOrDefault();
         if (barata is not null) Agregar(barata);
 
-        // Vecinas inmediatas de lo elegido: una salida anterior o posterior
-        // puede ser la que el viajero realmente tome.
         foreach (var baseViaje in elegidos.ToList())
         {
             var indice = ordenados.FindIndex(v => MismaCorrida(v, baseViaje));
@@ -2194,9 +1921,7 @@ public static class CalculoCostosRuta
             "ver tarifa", "transporte público", "");
     }
 
-    // ---------- Hoteles ----------
-
-    private static async Task<List<CostosRutaHotel>> HotelesAsync(PersonaNorm norm, int ixP, List<LugarNorm> prop,
+private static async Task<List<CostosRutaHotel>> HotelesAsync(PersonaNorm norm, int ixP, List<LugarNorm> prop,
         List<TramoCalc> tramos, bool calcular, HttpClient http, IMemoryCache cache, CancellationToken ct,
         List<string> incumplimientos, IReadOnlyList<MunicipioCercano>? municipios = null)
     {
@@ -2204,7 +1929,7 @@ public static class CalculoCostosRuta
         for (var idx = 0; idx < prop.Count; idx++)
         {
             var nl = prop[idx];
-            if (nl.Tipo == "punto" && nl.Propuesto) continue; // regreso: solo marca llegada
+            if (nl.Tipo == "punto" && nl.Propuesto) continue; 
             if (nl.Salida is null) continue;
             DateTime llegada;
             string modo;
@@ -2293,11 +2018,6 @@ public static class CalculoCostosRuta
         return Math.Max(0, n);
     }
 
-    /// <summary>
-    /// Casetas de la ruta según la SCT (Rutas Punto a Punto): plaza, km desde
-    /// el origen, carretera y tarifa de automóvil. Se cachea un día porque el
-    /// catálogo oficial cambia poco.
-    /// </summary>
     private static async Task<(List<CostosRutaCaseta> Casetas, List<CostosRutaCasetaDisponibilidad> Disponibilidad)> CasetasAsync(
         List<LugarNorm> lugares, List<TramoCalc> tramos, HttpClient http, IMemoryCache cache, CancellationToken ct)
     {
@@ -2358,9 +2078,7 @@ public static class CalculoCostosRuta
         return (salida, disponibilidad);
     }
 
-    // ---------- Propuestas (6) ----------
-
-    private static List<CostosRutaPropuesta> ArmarPropuestas(PersonaNorm norm, List<LugarNorm> prop,
+private static List<CostosRutaPropuesta> ArmarPropuestas(PersonaNorm norm, List<LugarNorm> prop,
         List<TramoCalc> tramos, List<CostosRutaHotel> hoteles, List<string> incumplimientosBase)
     {
         var defs = new[]
@@ -2401,11 +2119,6 @@ public static class CalculoCostosRuta
             var taxiExtra = validas
                 .Select((o, ti) => o.Modo is "bus" or "avion" ? MillaExtra(prop[ti], prop[ti + 1], o) : 0)
                 .Sum();
-            // Cada pernocte se cuenta UNA vez: la entrada valuada con tarifa
-            // tabulador es la representante; los hoteles de Overpass son
-            // alternativas sin precio propio (menu, no reservas simultaneas).
-            // Se agrupa por estancia (lugar + check-in + check-out) para no
-            // depender del orden de la lista ni de la primera posicion.
             var hosp = hoteles
                 .GroupBy(h => (h.Lugar, h.CheckIn, h.CheckOut))
                 .Sum(g =>
@@ -2434,8 +2147,6 @@ public static class CalculoCostosRuta
                 LlegadaFinal = validas.Count > 0 ? validas[^1].Llegada.ToString("dd/MM HH:mm") : "",
                 MargenMinimoMinutos = margenes.Count > 0 ? margenes.Min() : 0,
                 CostoTotalMxn = Math.Round(total, 2),
-                // Mismos locales ya sumados en `total`; solo se redondean para
-                // presentacion, nunca se recalculan.
                 Comida = Math.Round(comidas, 2),
                 Taxi = Math.Round(taxiExtra, 2),
                 Hospedaje = Math.Round(hosp, 2),
@@ -2469,13 +2180,6 @@ public static class CalculoCostosRuta
         return pool.MinBy(o => 0.5 * (o.CostoGrupo - cs.Min()) / rc + 0.5 * (o.PuertaH - ts.Min()) / rt);
     }
 
-    /// <summary>
-    /// Minutos estimados de UN traslado en taxi entre un punto y su terminal
-    /// (bus o avión), a la velocidad urbana de <c>costos.taxi_km_h</c>. Si la
-    /// ciudad no tiene terminal en el catálogo se cae al centro de la ciudad,
-    /// que es lo que ya se usa para costear el taxi. El tramo tiene dos: del
-    /// punto de salida a su terminal y de la terminal de llegada al punto.
-    /// </summary>
     private static int MinutosTaxiPuntoTerminal(
         LugarNorm? punto,
         (string Nombre, double Lat, double Lon)? terminal)
@@ -2485,8 +2189,6 @@ public static class CalculoCostosRuta
             ? HaversineKm(punto.Lat, punto.Lon, t.Lat, t.Lon)
             : DistanciaAlCentroKm(punto);
         if (km <= 0) return 0;
-        // Un traslado urbano promedio va a 25 km/h; un hub lejano (Tekax →
-        // aeropuerto de Merida, ~90 km) es carretera y a 25 km/h daria 3.6 h.
         var interurbano = km >= 40;
         var velocidad = interurbano
             ? ConfiguracionViaticos.Double("costos.taxi_carretera_km_h", 70)
@@ -2495,11 +2197,6 @@ public static class CalculoCostosRuta
         return (int)Math.Round(km / velocidad * 60);
     }
 
-    /// <summary>
-    /// Terminal de una oferta según su modo: el aeropuerto de la ciudad para
-    /// volar y su central de autobuses para el bus. Los modos que no usan
-    /// terminal (auto, renta, uber, metro) devuelven <c>null</c>.
-    /// </summary>
     private static (string Nombre, double Lat, double Lon)? TerminalDe(string modo, LugarNorm? lugar)
     {
         if (lugar is null || modo is not ("bus" or "avion")) return null;
@@ -2521,12 +2218,6 @@ public static class CalculoCostosRuta
             ? new CostosRutaTerminal { Nombre = t.Nombre, Latitud = t.Lat, Longitud = t.Lon }
             : null;
 
-    /// <summary>
-    /// Terminal del proveedor solo si trae coordenadas utilizables. Algunos
-    /// proveedores mandan el nombre de la terminal con lat/lon en 0; en ese
-    /// caso el costo debe caer a la terminal del catálogo, no al centro de la
-    /// ciudad (que daría un taxi de $0 falso).
-    /// </summary>
     private static CostosRutaTerminal? TerminalConCoords(CostosRutaTerminal? terminal)
     {
         if (terminal is null) return null;
@@ -2544,13 +2235,6 @@ public static class CalculoCostosRuta
                 Longitud = aeropuerto.Lon,
             };
 
-    /// <summary>
-    /// Terminal de respaldo cuando el proveedor no la informa y la ciudad no
-    /// esta en el catalogo sembrado: usa el municipio del lugar con sus
-    /// coordenadas y la marca "por confirmar", para no inventar una terminal
-    /// que no conocemos. Solo aplica a bus y avion; en auto, renta, taxi o
-    /// transporte publico no hay terminal.
-    /// </summary>
     private static CostosRutaTerminal? TerminalDeRespaldo(LugarNorm? lugar, string modo)
     {
         if (lugar is null || modo is not ("bus" or "avion")) return null;
@@ -2569,7 +2253,6 @@ public static class CalculoCostosRuta
         };
     }
 
-    /// <summary>Distancia del punto al centro de su ciudad; 0 si está dentro (≤ 3 km).</summary>
     private static double DistanciaAlCentroKm(LugarNorm lugar)
     {
         var (key, _) = SnapCiudad(lugar.Lat, lugar.Lon);
@@ -2581,10 +2264,6 @@ public static class CalculoCostosRuta
 
     private static double MillaExtra(LugarNorm a, LugarNorm b, OpCalc? opcion = null)
     {
-        // Si el proveedor no informó la terminal (o la mandó sin coordenadas),
-        // se usa la del catálogo (central de autobuses o aeropuerto) antes de
-        // caer al centro de la ciudad. Así la propuesta y el CostoTaxi de la
-        // oferta coinciden, incluso con terminales de proveedor incompletas.
         var terminalOrigen = TerminalConCoords(opcion?.TerminalOrigenDato)
             ?? (opcion is not null ? TerminalDto(TerminalDe(opcion.Modo, a)) : null);
         var terminalDestino = TerminalConCoords(opcion?.TerminalDestinoDato)
@@ -2593,11 +2272,6 @@ public static class CalculoCostosRuta
             + TaxiPuntoTerminal(b, terminalDestino);
     }
 
-    /// <summary>
-    /// Taxi punto ↔ terminal. Si la opción conoce la terminal (hub de avión o
-    /// central de autobuses), se cobra la distancia real; si no, se conserva
-    /// el cálculo anterior contra el centro de la ciudad sembrada.
-    /// </summary>
     private static double TaxiPuntoTerminal(LugarNorm punto, CostosRutaTerminal? terminal)
     {
         var (key, _) = SnapCiudad(punto.Lat, punto.Lon);
@@ -2617,13 +2291,6 @@ public static class CalculoCostosRuta
 
     private static double? TarifaHotel(string ciudad) => TarifaHotelZona(ciudad).Tarifa;
 
-    /// <summary>
-    /// Tarifa de hospedaje y zona aplicada. Prioridad:
-    /// 1) tarifa puntual de la ciudad (las 9 actuales o un override),
-    /// 2) zona configurada para el municipio,
-    /// 3) zona estatica de las 9 ciudades,
-    /// 4) zona E por defecto.
-    /// </summary>
     private static (double? Tarifa, string Zona) TarifaHotelZona(string ciudad)
     {
         var kv = Ciudades.FirstOrDefault(kv => kv.Value.Nombre == ciudad);
@@ -2634,8 +2301,6 @@ public static class CalculoCostosRuta
         if (string.IsNullOrWhiteSpace(zona))
             zona = ZonaHospedaje.GetValueOrDefault(clave, ZonaHospedajeDefault);
 
-        // Las 9 ciudades sembradas conservan su tarifa puntual, configurable
-        // con costos.hospedaje_noche.<clave>.
         if (kv.Key is not null && Viaticos.TryGetValue(kv.Key, out var seed))
         {
             var tarifaSeed = ConfiguracionViaticos.Double(
@@ -2643,7 +2308,6 @@ public static class CalculoCostosRuta
             return (tarifaSeed, zona);
         }
 
-        // Cualquier otro municipio: override puntual si existe.
         if (ConfiguracionViaticos.TryDouble($"costos.hospedaje_noche.{clave}", out var tarifaPropia))
             return (tarifaPropia, zona);
 
@@ -2653,11 +2317,6 @@ public static class CalculoCostosRuta
         return (tarifa, zona);
     }
 
-    /// <summary>
-    /// Clave estable para configurar hospedaje de cualquier municipio:
-    /// mayusculas, sin acentos y separada por guiones bajos
-    /// ("San Quintín" -> "SAN_QUINTIN").
-    /// </summary>
     private static string ClaveHospedaje(string ciudad)
     {
         var normal = NormalizarTexto(ciudad);
@@ -2676,9 +2335,7 @@ public static class CalculoCostosRuta
         return clave.ToString().Trim('_');
     }
 
-    // ---------- Ruta armada / ofertas ----------
-
-    private static CostosRutaRutaArmada RutaArmada(List<LugarNorm> prop, List<TramoCalc> tramos, PreciosGasolina precios)
+private static CostosRutaRutaArmada RutaArmada(List<LugarNorm> prop, List<TramoCalc> tramos, PreciosGasolina precios)
     {
         var armada = new CostosRutaRutaArmada();
         for (var ti = 0; ti < tramos.Count; ti++)
@@ -2719,22 +2376,12 @@ public static class CalculoCostosRuta
         LugarNorm? lugarOrigen = null, LugarNorm? lugarDestino = null)
     {
         var mid = (o.Lo + o.Hi) / 2;
-        // El tiempo puerta a puerta ya incluye los minutos de antes/después
-        // (aeropuerto, maletas, abordaje); aquí se separan para mostrarlos.
         var minutosExtra = Math.Max(0, (int)Math.Round(o.PuertaH * 60 - (o.Llegada - o.Salida).TotalMinutes));
         var minutosAntes = Math.Min(o.OverheadMin, minutosExtra);
         var minutosDespues = Math.Max(0, minutosExtra - minutosAntes);
-        // Terminal real (aeropuerto o central) a la que hay que llegar en taxi.
         var terminalOrigen = TerminalDe(o.Modo, lugarOrigen);
         var terminalDestino = TerminalDe(o.Modo, lugarDestino);
-        // El traslado a la terminal son DOS taxis: el del punto de salida a su
-        // terminal y el de la terminal de llegada al punto final. Auto propio,
-        // renta y taxi urbano no pagan traslado a terminal.
         var usaTerminal = o.Modo is "bus" or "avion";
-        // Un traslado solo se estima cuando SABEMOS dónde está la terminal: la
-        // que informa el proveedor con coordenadas o la del catálogo sembrado.
-        // Si el proveedor manda la terminal con lat/lon en 0, se usa la del
-        // catálogo; el respaldo "por confirmar" no inventa un taxi de $0.
         var terminalCostoOrigen = TerminalConCoords(o.TerminalOrigenDato) ?? TerminalDto(terminalOrigen);
         var terminalCostoDestino = TerminalConCoords(o.TerminalDestinoDato) ?? TerminalDto(terminalDestino);
         var conoceTerminalOrigen = terminalCostoOrigen is not null;
@@ -2751,8 +2398,6 @@ public static class CalculoCostosRuta
         int? minutosTaxiDestino = usaTerminal && conoceTerminalDestino
             ? MinutosTaxiPuntoTerminal(lugarDestino, terminalTaxiDestino)
             : null;
-        // Mismo cálculo que usa la propuesta (MillaExtra): las dos puntas del
-        // taxi punto↔terminal.
         var costoTaxiOrigen = usaTerminal && lugarOrigen is not null
             ? TaxiPuntoTerminal(lugarOrigen, terminalCostoOrigen)
             : 0;
@@ -2760,14 +2405,10 @@ public static class CalculoCostosRuta
             ? TaxiPuntoTerminal(lugarDestino, terminalCostoDestino)
             : 0;
         var costoTotalTaxi = Math.Round(costoTaxiOrigen + costoTaxiDestino, 2);
-        // Se redondea una mitad y la otra se deriva del total: las dos filas
-        // que persiste el frontend suman exactamente el taxi de la oferta.
         var costoTaxiOrigenRedondeado = Math.Round(costoTaxiOrigen, 2);
         var costoTaxiDestinoRedondeado = Math.Round(costoTotalTaxi - costoTaxiOrigenRedondeado, 2);
         return new CostosRutaOferta
         {
-            // ixOferta es la posición del modo dentro del tramo: modo solo no
-            // basta porque un tramo puede traer varias ofertas del mismo modo.
             Id = $"p{ixP}-t{tramo}-{ixOferta}-{o.Modo}",
             Modo = o.Modo, Linea = o.Linea, Servicio = o.Codigo, Persona = persona,
             Tramo = tramo, De = de, A = a,
@@ -2786,9 +2427,6 @@ public static class CalculoCostosRuta
             TerminalDestino = o.TerminalDestinoDato
                 ?? TerminalDto(terminalDestino)
                 ?? TerminalDeRespaldo(lugarDestino, o.Modo),
-            // Un precio cotizado es un numero, no un rango: si Lo y Hi coinciden
-            // (proveedor real) se muestra una sola cifra. El rango solo sobrevive
-            // en la tarifa estimada, que se etiqueta como tal.
             PrecioTxt = Math.Abs(o.Hi - o.Lo) < 0.01
                 ? (o.PorPersona ? $"${o.Lo:F0} MXN /persona" : $"${o.Lo:F0} MXN total")
                 : (o.PorPersona ? $"${o.Lo:F0}–${o.Hi:F0} MXN /persona" : $"${o.Lo:F0}–${o.Hi:F0} MXN total"),
@@ -2815,9 +2453,7 @@ public static class CalculoCostosRuta
         };
     }
 
-    // ---------- Compartidos ----------
-
-    private static Dictionary<int, Dictionary<int, ComparteInfo>> DetectarCompartidos(List<PersonaNorm> normas)
+private static Dictionary<int, Dictionary<int, ComparteInfo>> DetectarCompartidos(List<PersonaNorm> normas)
     {
         var legGroups = new Dictionary<int, Dictionary<int, ComparteInfo>>();
         var maxLegs = normas.Count > 0 ? normas.Max(n => n.Lugares.Count - 1) : 0;

@@ -119,7 +119,6 @@ const formatearTotal = (total: number | null) =>
     ? 'Sin cotización'
     : new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(total);
 
-/** El monto autorizable es el cotizado; la referencia va aparte. */
 const totalPrincipalCotizacion = (cotizacion: SolicitudOrigenEmResumen): number | null =>
   cotizacion.total_cotizado !== undefined || cotizacion.total_estimado !== undefined
     ? cotizacion.total_cotizado ?? null
@@ -292,10 +291,6 @@ function DiaPlaneacion({
   );
 }
 
-/**
- * Mi planeación (ADR-00013): vista semanal personal y vista por rutas.
- * Solo lectura; el handoff a viáticos se hará por ruta completa (todos sus destinos).
- */
 export default function MiPlaneacionPage() {
   usePageTitle('Mi planeación', 'Educación Médica');
 
@@ -328,7 +323,6 @@ export default function MiPlaneacionPage() {
   const hoy = hoyIso();
   const loading = cargandoVisitas || cargandoTalleres;
 
-  // Asignaciones completas: alimentan tanto la semana como la vista por rutas.
   useEffect(() => {
     let cancelado = false;
 
@@ -352,7 +346,6 @@ export default function MiPlaneacionPage() {
     };
   }, [puedeCapturar, refreshKey]);
 
-  // Talleres de la semana (mes del lunes y mes del viernes, por si cruza).
   useEffect(() => {
     let cancelado = false;
 
@@ -450,8 +443,6 @@ export default function MiPlaneacionPage() {
     rutas.find((ruta) => ruta.idRuta === rutaSeleccionadaId) ?? rutas[0] ?? null;
   const idRutaSeleccionada = rutaSeleccionada?.idRuta ?? null;
 
-  // Cotizaciones de la ruta seleccionada (ADR-00014). Se recargan al cambiar de
-  // ruta o al usar "Actualizar"; el backend decide qué visitas siguen activas.
   useEffect(() => {
     if (!puedeCotizar || idRutaSeleccionada == null) {
       return;

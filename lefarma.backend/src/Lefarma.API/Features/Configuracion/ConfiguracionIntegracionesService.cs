@@ -7,10 +7,6 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Lefarma.API.Features.Configuracion;
 
-/// <summary>
-/// Administración de clientes de integración y consulta externa de variables
-/// autenticada por API key.
-/// </summary>
 public sealed class ConfiguracionIntegracionesService : IConfiguracionIntegracionesService
 {
     private readonly ApplicationDbContext _context;
@@ -27,9 +23,7 @@ public sealed class ConfiguracionIntegracionesService : IConfiguracionIntegracio
         _logger = logger;
     }
 
-    // -------------------------------------------------------- administración
-
-    public async Task<ErrorOr<List<IntegracionClienteResponse>>> ListarAsync(CancellationToken ct = default)
+public async Task<ErrorOr<List<IntegracionClienteResponse>>> ListarAsync(CancellationToken ct = default)
     {
         var integraciones = await _context.ConfigIntegraciones
             .AsNoTracking()
@@ -125,9 +119,7 @@ public sealed class ConfiguracionIntegracionesService : IConfiguracionIntegracio
         return Mapear(entidad);
     }
 
-    // ------------------------------------------------------- API externa
-
-    public async Task<ErrorOr<IntegracionVariableResponse>> ObtenerVariableAsync(
+public async Task<ErrorOr<IntegracionVariableResponse>> ObtenerVariableAsync(
         string? apiKey,
         string clave,
         CancellationToken ct = default)

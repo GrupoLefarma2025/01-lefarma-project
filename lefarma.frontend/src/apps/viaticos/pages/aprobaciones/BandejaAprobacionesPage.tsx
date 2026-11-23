@@ -23,11 +23,6 @@ const FILTROS_INICIALES: FiltrosBandeja = { periodo: '', estado: '', gerencia: '
 const campo = (filtros: FiltrosBandeja, clave: keyof FiltrosBandeja) => filtros[clave] ?? '';
 
 export interface BandejaAprobacionesPageProps {
-  /**
-   * Visor de opciones de la solicitud. Lo cablea `BandejaAprobacionesConDetalle`,
-   * que es quien monta el detalle real; sin callback, "Ver opciones" solo emite
-   * la seleccion sin abrir nada.
-   */
   onVerOpciones?: (solicitud: SolicitudBandeja) => void;
 }
 
@@ -77,8 +72,6 @@ export default function BandejaAprobacionesPage({
     try {
       const respuesta = await aprobacionesApi.autorizar(solicitud.id_solicitud);
       if (respuesta.data.success) {
-        // Parcheo local de la fila: el unico campo que mueve el endpoint es
-        // `estado`, y recargar toda la bandeja perderia el scroll y los filtros.
         setSolicitudes((previas) =>
           previas.map((fila) =>
             fila.id_solicitud === solicitud.id_solicitud

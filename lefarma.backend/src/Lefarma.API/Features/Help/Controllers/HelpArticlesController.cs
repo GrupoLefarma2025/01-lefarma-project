@@ -7,12 +7,8 @@ using Lefarma.API.Shared.Models;
 using Swashbuckle.AspNetCore.Annotations;
 
 namespace Lefarma.API.Features.Help.Controllers;
-/// <summary>
-/// Controlador API para gestionar artículos de ayuda
-/// </summary>
 [ApiController]
 [Route("api/help/articles")]
-// [Authorize]
 public class HelpArticlesController : ControllerBase
 {
     private readonly IHelpArticleService _helpArticleService;
@@ -22,11 +18,6 @@ public class HelpArticlesController : ControllerBase
         _helpArticleService = helpArticleService ?? throw new ArgumentNullException(nameof(helpArticleService));
     }
 
-    /// <summary>
-    /// Obtiene todos los artículos de ayuda
-    /// </summary>
-    /// <param name="ct">Token de cancelación</param>
-    /// <returns>Lista de artículos de ayuda</returns>
     [HttpGet]
     [SwaggerOperation(Summary = "Obtener todos los artículos de ayuda", Description = "Retorna la lista completa de artículos de ayuda")]
     [ProducesResponseType(typeof(ApiResponse<IEnumerable<HelpArticleDto>>), StatusCodes.Status200OK)]
@@ -44,12 +35,6 @@ public class HelpArticlesController : ControllerBase
         }));
     }
 
-    /// <summary>
-    /// Obtiene un artículo de ayuda por su ID
-    /// </summary>
-    /// <param name="id">ID del artículo</param>
-    /// <param name="ct">Token de cancelación</param>
-    /// <returns>Artículo de ayuda solicitado</returns>
     [HttpGet("{id:int}")]
     [SwaggerOperation(Summary = "Obtener artículo por ID", Description = "Retorna un artículo de ayuda específico por su identificador")]
     [ProducesResponseType(typeof(ApiResponse<HelpArticleDto>), StatusCodes.Status200OK)]
@@ -70,12 +55,6 @@ public class HelpArticlesController : ControllerBase
         }));
     }
 
-    /// <summary>
-    /// Obtiene artículos de ayuda por módulo
-    /// </summary>
-    /// <param name="modulo">Nombre del módulo</param>
-    /// <param name="ct">Token de cancelación</param>
-    /// <returns>Lista de artículos del módulo</returns>
     [HttpGet("by-module/{modulo}")]
     [SwaggerOperation(Summary = "Obtener artículos por módulo", Description = "Retorna todos los artículos de ayuda de un módulo específico")]
     [ProducesResponseType(typeof(ApiResponse<IEnumerable<HelpArticleDto>>), StatusCodes.Status200OK)]
@@ -95,12 +74,6 @@ public class HelpArticlesController : ControllerBase
         }));
     }
 
-    /// <summary>
-    /// Obtiene artículos de ayuda por tipo
-    /// </summary>
-    /// <param name="tipo">Tipo de artículo (usuario, desarrollador, ambos)</param>
-    /// <param name="ct">Token de cancelación</param>
-    /// <returns>Lista de artículos del tipo</returns>
     [HttpGet("by-type/{tipo}")]
     [SwaggerOperation(Summary = "Obtener artículos por tipo", Description = "Retorna todos los artículos de ayuda de un tipo específico")]
     [ProducesResponseType(typeof(ApiResponse<IEnumerable<HelpArticleDto>>), StatusCodes.Status200OK)]
@@ -120,12 +93,6 @@ public class HelpArticlesController : ControllerBase
         }));
     }
 
-    /// <summary>
-    /// Obtiene artículos de ayuda para usuarios sin autenticación (público)
-    /// </summary>
-    /// <param name="modulo">Nombre del módulo (opcional)</param>
-    /// <param name="ct">Token de cancelación</param>
-    /// <returns>Lista de artículos de ayuda para usuarios</returns>
     [HttpGet("public")]
     [AllowAnonymous]
     [SwaggerOperation(Summary = "Obtener artículos públicos para usuarios", Description = "Retorna artículos de ayuda públicos con tipo 'usuario' o 'ambos', sin requerir autenticación")]
@@ -147,12 +114,6 @@ public class HelpArticlesController : ControllerBase
         }));
     }
 
-    /// <summary>
-    /// Obtiene artículos de ayuda para usuarios (tipo 'usuario' o 'ambos')
-    /// </summary>
-    /// <param name="modulo">Nombre del módulo (opcional)</param>
-    /// <param name="ct">Token de cancelación</param>
-    /// <returns>Lista de artículos de ayuda para usuarios</returns>
     [HttpGet("for-user")]
     [SwaggerOperation(Summary = "Obtener artículos para usuario", Description = "Retorna artículos de ayuda con tipo 'usuario' o 'ambos', opcionalmente filtrados por módulo")]
     [ProducesResponseType(typeof(ApiResponse<IEnumerable<HelpArticleDto>>), StatusCodes.Status200OK)]
@@ -174,12 +135,6 @@ public class HelpArticlesController : ControllerBase
         }));
     }
 
-    /// <summary>
-    /// Crea un nuevo artículo de ayuda
-    /// </summary>
-    /// <param name="request">Datos del artículo a crear</param>
-    /// <param name="ct">Token de cancelación</param>
-    /// <returns>Artículo creado</returns>
     [HttpPost]
     [SwaggerOperation(Summary = "Crear artículo de ayuda", Description = "Crea un nuevo artículo de ayuda con los datos proporcionados")]
     [ProducesResponseType(typeof(ApiResponse<HelpArticleDto>), StatusCodes.Status201Created)]
@@ -205,13 +160,6 @@ public class HelpArticlesController : ControllerBase
             }));
     }
 
-    /// <summary>
-    /// Actualiza un artículo de ayuda existente
-    /// </summary>
-    /// <param name="id">ID del artículo a actualizar</param>
-    /// <param name="request">Datos actualizados del artículo</param>
-    /// <param name="ct">Token de cancelación</param>
-    /// <returns>Artículo actualizado</returns>
     [HttpPut("{id:int}")]
     [SwaggerOperation(Summary = "Actualizar artículo de ayuda", Description = "Actualiza los datos de un artículo de ayuda existente")]
     [ProducesResponseType(typeof(ApiResponse<HelpArticleDto>), StatusCodes.Status200OK)]
@@ -246,12 +194,6 @@ public class HelpArticlesController : ControllerBase
         }));
     }
 
-    /// <summary>
-    /// Elimina un artículo de ayuda
-    /// </summary>
-    /// <param name="id">ID del artículo a eliminar</param>
-    /// <param name="ct">Token de cancelación</param>
-    /// <returns>Confirmación de eliminación</returns>
     [HttpDelete("{id:int}")]
     [SwaggerOperation(Summary = "Eliminar artículo de ayuda", Description = "Elimina un artículo de ayuda por su identificador")]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]

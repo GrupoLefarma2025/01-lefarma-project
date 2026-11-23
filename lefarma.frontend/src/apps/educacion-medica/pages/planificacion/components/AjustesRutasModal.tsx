@@ -24,7 +24,6 @@ interface AjustesRutasModalProps {
   version: number | null;
 }
 
-/** Historial de ajustes post-cierre de la versión de rutas (ADR-00010). */
 export function AjustesRutasModal({ open, onClose, idRutaVersion, version }: AjustesRutasModalProps) {
   const [ajustes, setAjustes] = useState<AjustePostCierre[]>([]);
   const [loading, setLoading] = useState(false);

@@ -14,15 +14,12 @@ const fmtMoneda = (valor: number) =>
 
 interface MatrizEquiposTableProps {
   equipos: ConcentracionEquipo[];
-  /** Talleres de la matriz general (para calcular el costo por equipo). */
   talleres: Taller[];
   loading?: boolean;
-  /** Visitas planeadas sin taller confirmado para el equipo. */
   visitasSinTaller?: (equipo: ConcentracionEquipo) => number;
   onVerDetalle: (equipo: ConcentracionEquipo) => void;
 }
 
-/** Vista "Por equipo" de la Matriz general: una fila por matriz individual. */
 export function MatrizEquiposTable({
   equipos,
   talleres,

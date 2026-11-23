@@ -174,8 +174,6 @@ export default function GestionSolicitudes() {
     window.addEventListener('afterprint', handleAfterPrint);
 
     let cancelled = false;
-    // ponytail: wait for img decode because the print container is hidden (opacity:0/height:0) on screen, so the browser defers decode and window.print() would capture blank images
-    // (también espera las firmas: se descargan como blobs autenticados vía FirmaImg)
     (async () => {
       await waitForPrintImages('#solicitud-personal-pdf-print');
       if (!cancelled) window.print();
@@ -836,7 +834,7 @@ export default function GestionSolicitudes() {
         {selectedSolicitud && <SolicitudArchivosTab idSolicitud={selectedSolicitud.idSolicitud} />}
       </Modal>
 
-      {/* ── Modal: Historial ── */}
+      {}
       <WorkflowHistorialModal
         open={modalStates.historial}
         onClose={() => closeModal('historial')}
@@ -858,7 +856,7 @@ export default function GestionSolicitudes() {
         responsablesPorPaso={responsablesPorPaso}
       />
 
-      {/* ── PDF Print Document — Solicitud de Personal ── */}
+      {}
       {selectedSolicitud &&
         createPortal(
           <SolicitudPersonalPDF

@@ -1,10 +1,3 @@
-﻿/**
- * Componente NotificationList
- * Lista completa de notificaciones con filtros y acciones
- * Se puede usar en una página dedicada de notificaciones
- */
-
-
 import { useState, useEffect } from 'react';
 import { Bell, Check, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -31,9 +24,6 @@ interface NotificationListProps {
   onNotificationClick?: (notification: UserNotification) => void;
 }
 
-/**
- * Retorna el icono según el tipo de notificación
- */
 function getNotificationIcon(type: NotificationType) {
   switch (type) {
     case 'success':
@@ -49,9 +39,6 @@ function getNotificationIcon(type: NotificationType) {
   }
 }
 
-/**
- * Retorna el badge de prioridad
- */
 function PriorityBadge({ priority }: { priority: NotificationPriority }) {
   const styles: Record<NotificationPriority, string> = {
     urgent: 'bg-destructive text-white border-destructive',
@@ -74,9 +61,6 @@ function PriorityBadge({ priority }: { priority: NotificationPriority }) {
   );
 }
 
-/**
- * Componente principal NotificationList
- */
 export function NotificationList({ userId, onNotificationClick }: NotificationListProps) {
   const [filter, setFilter] = useState<{
     unreadOnly: boolean;
@@ -84,7 +68,7 @@ export function NotificationList({ userId, onNotificationClick }: NotificationLi
     category?: NotificationCategory;
     priority?: NotificationPriority;
   }>({
-    unreadOnly: true,  // Por default mostrar solo no leídas
+    unreadOnly: true,  
   });
 
   const {
@@ -97,14 +81,11 @@ export function NotificationList({ userId, onNotificationClick }: NotificationLi
     markAllAsRead,
   } = useNotificationList();
 
-  // Cargar notificaciones al montar (SOLO la primera vez)
   useEffect(() => {
     loadNotifications(userId, filter);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filter]);  // Solo se ejecuta una vez al montar
+  }, [filter]);  
 
-  // Filtrar notificaciones localmente (sin llamar al backend)
-  // Normalizar filtros: convertir 'all' a undefined
   const rawTypeFilter = filter.type as NotificationType | 'all' | undefined;
   const rawCategoryFilter = filter.category as NotificationCategory | 'all' | undefined;
   const rawPriorityFilter = filter.priority as NotificationPriority | 'all' | undefined;
@@ -120,7 +101,6 @@ export function NotificationList({ userId, onNotificationClick }: NotificationLi
     return true;
   });
 
-  // Ordenar por fecha descendente (más recientes primero)
   filteredNotifications = filteredNotifications.sort((a, b) =>
     new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
   );
@@ -132,9 +112,6 @@ export function NotificationList({ userId, onNotificationClick }: NotificationLi
     priority?: NotificationPriority;
   };
 
-  /**
-   * Aplica los filtros seleccionados
-   */
   const applyFilter = <K extends keyof FilterState>(key: K, value: FilterState[K]) => {
     setFilter((prev) => ({
       ...prev,
@@ -142,9 +119,6 @@ export function NotificationList({ userId, onNotificationClick }: NotificationLi
     }));
   };
 
-  /**
-   * Marca una notificación como leída
-   */
   const handleMarkAsRead = async (notificationId: number) => {
     try {
       await markAsRead(notificationId);
@@ -153,9 +127,6 @@ export function NotificationList({ userId, onNotificationClick }: NotificationLi
     }
   };
 
-  /**
-   * Marca todas como leídas
-   */
   const handleMarkAllAsRead = async () => {
     try {
       await markAllAsRead();
@@ -164,9 +135,6 @@ export function NotificationList({ userId, onNotificationClick }: NotificationLi
     }
   };
 
-  /**
-   * Maneja el click en una notificación
-   */
   const handleNotificationClick = (notification: UserNotification) => {
     if (!notification.isRead) {
       handleMarkAsRead(notification.id);
@@ -176,7 +144,7 @@ export function NotificationList({ userId, onNotificationClick }: NotificationLi
 
   return (
     <div className="space-y-4">
-      {/* Header con contadores y filtros */}
+      {}
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
@@ -196,7 +164,7 @@ export function NotificationList({ userId, onNotificationClick }: NotificationLi
         </CardHeader>
         <CardContent>
           <div className="flex flex-wrap items-center gap-4">
-            {/* Filtro: Solo no leídas */}
+            {}
             <div className="flex items-center space-x-2">
               <Switch
                 id="unreadOnly"
@@ -208,7 +176,7 @@ export function NotificationList({ userId, onNotificationClick }: NotificationLi
               </Label>
             </div>
 
-            {/* Filtro: Tipo */}
+            {}
             <Select
               value={filter.type || 'all'}
               onValueChange={(value) =>
@@ -228,7 +196,7 @@ export function NotificationList({ userId, onNotificationClick }: NotificationLi
               </SelectContent>
             </Select>
 
-            {/* Filtro: Categoría */}
+            {}
             <Select
               value={filter.category || 'all'}
               onValueChange={(value) =>
@@ -248,7 +216,7 @@ export function NotificationList({ userId, onNotificationClick }: NotificationLi
               </SelectContent>
             </Select>
 
-            {/* Filtro: Prioridad */}
+            {}
             <Select
               value={filter.priority || 'all'}
               onValueChange={(value) =>
@@ -270,7 +238,7 @@ export function NotificationList({ userId, onNotificationClick }: NotificationLi
         </CardContent>
       </Card>
 
-      {/* Lista de notificaciones */}
+      {}
       {isLoading ? (
         <Card>
           <CardContent className="p-8 text-center text-muted-foreground">
@@ -294,8 +262,6 @@ export function NotificationList({ userId, onNotificationClick }: NotificationLi
         <ScrollArea className="h-[600px]">
           <div className="space-y-2 pr-4">
             {notifications.map((userNotification) => {
-              // Backend devuelve los datos directamente en userNotification,
-              // no anidados en userNotification.notification
               const title = userNotification.title ||
                             userNotification.notification?.title ||
                             'Sin título';
@@ -326,12 +292,12 @@ export function NotificationList({ userId, onNotificationClick }: NotificationLi
                 >
                   <CardContent className="p-4">
                     <div className="flex items-start gap-3">
-                      {/* Icono */}
+                      {}
                       <div className="flex-shrink-0 mt-1">
                         {getNotificationIcon(type as NotificationType)}
                       </div>
 
-                      {/* Contenido */}
+                      {}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-start justify-between gap-2 mb-2">
                           <h4 className="font-semibold text-sm">{title}</h4>

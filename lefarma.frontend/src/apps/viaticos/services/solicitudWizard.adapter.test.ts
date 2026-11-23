@@ -38,7 +38,6 @@ describe('adaptarTramoACostosRuta (frontera con el algoritmo legacy)', () => {
     expect(request).not.toBeNull();
     expect(request!.personas).toHaveLength(1);
     expect(request!.personas[0].carro_propio).toBe(true);
-    // Carro propio SIEMPRE usa Magna: no hay elección premium en el wizard nuevo.
     expect(request!.personas[0].gasolina).toBe('magna');
     expect(request!.personas[0].lugares.map((l) => l.tipo)).toEqual(['salida', 'taller']);
     expect(request!.personas[0].lugares[0].fecha_salida).toBe('2026-11-10');

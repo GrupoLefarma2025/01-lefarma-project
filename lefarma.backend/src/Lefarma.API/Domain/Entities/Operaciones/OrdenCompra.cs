@@ -8,7 +8,7 @@ namespace Lefarma.API.Domain.Entities.Operaciones
     public class OrdenCompra : IWorkflowEntity
     {
         public int IdOrden { get; set; }
-        public string Folio { get; set; } = null!;  // OC-2026-00001
+        public string Folio { get; set; } = null!;  
 
         public int IdEmpresa { get; set; }
         public int IdSucursal { get; set; }
@@ -22,9 +22,7 @@ namespace Lefarma.API.Domain.Entities.Operaciones
         public int IdWorkflow { get; set; }
         public int? IdPasoActual { get; set; }
 
-        // Proveedor: FK opcional al catálogo
         public int? IdProveedor { get; set; }
-        // Múltiples cuentas bancarias como JSON array, ej: "[1,2,3]"
         public string? IdsCuentasBancarias { get; set; }
         public bool SinDatosFiscales { get; set; }
         public string? NotaFormaPago { get; set; }
@@ -32,18 +30,14 @@ namespace Lefarma.API.Domain.Entities.Operaciones
         public string? FacturarA { get; set; }
         public string? DomicilioEntrega { get; set; }
 
-        // Asignado en Firma 3 - CxP
         public int? IdCentroCosto { get; set; }
         public int? IdCuentaContable { get; set; }
 
-        // Moneda de la orden
         public int? IdMoneda { get; set; }
-        public decimal TipoCambioAplicado { get; set; } = 1m;  // congelado al momento de crear
+        public decimal TipoCambioAplicado { get; set; } = 1m;  
 
-        // Folio de transporte (enviosCab.codigoEnvio) — obligatorio cuando el tipo de gasto es Transportes
         public int? FolioTransporte { get; set; }
 
-        // Navegación a catálogos 
         public virtual Proveedor? Proveedor { get; set; }
         public virtual CentroCosto? CentroCosto { get; set; }
         public virtual CuentaContable? CuentaContable { get; set; }
@@ -53,7 +47,6 @@ namespace Lefarma.API.Domain.Entities.Operaciones
         public virtual Area? Area { get; set; }
         public virtual TipoGasto? TipoGasto { get; set; }
 
-        // Configurado en Firma 4 - GAF
         public bool RequiereComprobacionPago { get; set; } = true;
         public bool RequiereComprobacionGasto { get; set; } = true;
         public bool RequierePagoAnticipado { get; set; }
@@ -78,9 +71,7 @@ namespace Lefarma.API.Domain.Entities.Operaciones
         public virtual ICollection<Pago> Pagos { get; set; } = new List<Pago>();
         public virtual ICollection<Comprobacion> Comprobaciones { get; set; } = new List<Comprobacion>();
 
-
-        // IWorkflowEntity
-        int IWorkflowEntity.Id { get => IdOrden; set => IdOrden = value; }
+int IWorkflowEntity.Id { get => IdOrden; set => IdOrden = value; }
         public string ObtenerTipoEntidad() => CodigoProceso.ORDEN_COMPRA;
     }
 }

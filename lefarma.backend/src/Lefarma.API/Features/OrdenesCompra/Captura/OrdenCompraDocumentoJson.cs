@@ -4,14 +4,8 @@ using Lefarma.API.Features.OrdenesCompra.Captura.DTOs;
 
 namespace Lefarma.API.Features.OrdenesCompra.Captura
 {
-    /// <summary>
-    /// Helper del documento JSON compartido en OrdenCompra.IdsCuentasBancarias (nvarchar(max)).
-    /// Cada flujo escribe SOLO sus propias claves y preserva las demas (merge-on-write).
-    /// </summary>
     public static class OrdenCompraDocumentoJson
     {
-        // ponytail: read-modify-write sobre una sola columna nvarchar(max). Techo de concurrencia:
-        // si dos actores escriben a la vez gana el ultimo (last-writer-wins). Riesgo bajo: un actor por paso de workflow.
         public static string MergeClavesJson(string? jsonActual, IDictionary<string, object?> clavesPropias)
         {
             var raiz = ParseARaiz(jsonActual);
@@ -20,8 +14,6 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
             return raiz.ToJsonString();
         }
 
-        // ponytail: el historial vive dentro del mismo JSON y crece sin limite; si el volumen de eventos por orden
-        // llega a ser alto, migrar a una tabla de historial. Hoy: pocos eventos por orden.
         public static string AgregarHistorial(string? jsonActual, int idUsuario, string? nombreUsuario, string tipo, string comentario)
         {
             var raiz = ParseARaiz(jsonActual);
@@ -118,7 +110,6 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
             {
                 var nodo = JsonNode.Parse(json);
                 if (nodo is JsonObject obj) return obj;
-                // Legacy: arreglo plano [1,2,3] => {"IdsCuentasBancarias":[1,2,3]}
                 if (nodo is JsonArray arreglo)
                     return new JsonObject { ["IdsCuentasBancarias"] = arreglo };
                 return new JsonObject();

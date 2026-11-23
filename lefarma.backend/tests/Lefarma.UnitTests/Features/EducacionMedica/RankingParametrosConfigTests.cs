@@ -93,7 +93,6 @@ public class RankingParametrosConfigTests
 
         RankingHospitalesService.AplicarParametrosFactor(config, "recencia_seleccion", json);
 
-        // nunca aplica; los tramos validos reemplazan a los defaults (1 de 2 parseables)
         config.ScoreRecenciaNunca.Should().Be(98m);
         config.TramosRecencia.Should().ContainSingle();
         config.TramosRecencia[0].Score.Should().Be(80m);

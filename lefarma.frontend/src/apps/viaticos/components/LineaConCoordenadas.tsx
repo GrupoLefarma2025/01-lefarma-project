@@ -1,7 +1,6 @@
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { MapaPuntoMini } from './MapaPuntoMini';
 
-/** "19.39888, -99.15101" -> coordenadas; `null` si el texto no las trae. */
 const PATRON = /(-?\d{1,3}\.\d+),\s*(-?\d{1,3}\.\d+)/;
 
 function extraerCoordenadas(texto: string): { lat: number; lng: number } | null {
@@ -14,11 +13,6 @@ function extraerCoordenadas(texto: string): { lat: number; lng: number } | null 
   return { lat, lng };
 }
 
-/**
- * Cualquier línea con coordenadas las vuelve un botón que abre el mapa del
- * punto. Así el mismo texto que ya imprime el detalle sirve de enlace, sin
- * cambiar el formato de lo que se guarda.
- */
 export function LineaConCoordenadas({ texto }: { texto: string }) {
   const coincidencia = PATRON.exec(texto);
   const coords = extraerCoordenadas(texto);

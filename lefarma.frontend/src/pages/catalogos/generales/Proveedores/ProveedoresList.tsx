@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { DataTable } from '@/components/ui/data-table';
 import type { ColumnDef } from '@/components/ui/data-table';
@@ -158,17 +158,9 @@ interface ProveedorFormaPagoCuenta {
   correoNotificacion?: string;
   activo?: boolean;
   tieneOrdenes?: boolean;
-  // Per-account carátula (relative path, e.g. "caratulas/cuentas/...").
-  // Backed by ProveedorFormaPagoCuentaResponse.CaratulaUrl (caratulas-proveedor).
   caratulaUrl?: string;
 }
 
-/**
- * Builds a normalized, comparable signature of a proveedor's editable state.
- * Used to detect whether an edit actually changed anything before hitting the API
- * (an unchanged save on an approved proveedor would otherwise create a staging record).
- * Account order is irrelevant; account/CLABE numbers are compared digits-only.
- */
 const buildProveedorSnapshot = (data: {
   razonSocial?: string | null;
   rfc?: string | null;
@@ -272,19 +264,13 @@ export default function ProveedoresList() {
   const [deleteCuentaIndex, setDeleteCuentaIndex] = useState(-1);
   const [editCuentaModal, setEditCuentaModal] = useState(false);
   const [editCuentaIndex, setEditCuentaIndex] = useState(-1);
-  // "Ver carátulas" preview modal target (null = closed). The count badge and the
-  // row action are the two entry points to the same modal (design §6).
   const [caratulasModalProveedorId, setCaratulasModalProveedorId] = useState<number | null>(null);
-  // Per-account carátula upload in progress (by cuenta id) to disable its control.
   const [caratulaUploadingCuentaId, setCaratulaUploadingCuentaId] = useState<number | null>(null);
-  // Carátulas pendientes de subir: se seleccionan en el account card pero NO se
-  // envían al backend hasta que el usuario hace clic en "Guardar". Map: originalIndex -> File.
   const [pendingCaratulas, setPendingCaratulas] = useState<Record<number, File>>({});
   const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
   const [diffModal, setDiffModal] = useState<DiffModalState>({ open: false, stagingData: null, loading: false });
   const [bulkModalOpen, setBulkModalOpen] = useState(false);
   const [clavesModalOpen, setClavesModalOpen] = useState(false);
-  // Valores originales al abrir el modal (para comparar cambios reales)
   const [originalValues, setOriginalValues] = useState<Partial<{
     regimenFiscalId: number | null;
     usoCfdi: string | null;
@@ -293,13 +279,11 @@ export default function ProveedoresList() {
     razonSocial: string;
   }>>({});
 
-  /** Formatea Número de Cuenta: grupos de 4 dígitos (exactamente 11) */
   const formatCuenta = (raw: string): string => {
     const d = raw.replace(/\D/g, '').slice(0, 11);
     return d.replace(/(\d{4})(?=\d)/g, '$1 ');
   };
 
-  /** Formatea CLABE interbancaria (18 dígitos): XXX XXX XXXX XXXX XXXX */
   const formatCLABE = (raw: string): string => {
     const d = raw.replace(/\D/g, '').slice(0, 18);
     if (d.length === 0) return '';
@@ -357,7 +341,6 @@ export default function ProveedoresList() {
         setRegimenesFiscales(response.data.data || []);
       }
     } catch {
-      // silencioso — el select quedará vacío
     }
   };
 
@@ -368,7 +351,6 @@ export default function ProveedoresList() {
         setFormasPago(response.data.data || []);
       }
     } catch {
-      // silencioso — el select quedará vacío
     }
   };
 
@@ -379,7 +361,6 @@ export default function ProveedoresList() {
         setBancos(response.data.data || []);
       }
     } catch {
-      // silencioso — el select quedará vacío
     }
   };
 
@@ -388,14 +369,9 @@ export default function ProveedoresList() {
     fetchRegimenesFiscales();
     fetchFormasPago();
     fetchBancos();
-    // Reset table config to show all columns including new ones (Contacto, Comentario, Estatus)
     resetConfig('proveedores');
   }, []);
 
-  // Cerrar el visor fullscreen con ESC sin que el evento llegue al modal de Radix.
-  // Radix registra su listener de ESC en `document`; `window` es ancestro de `document`,
-  // por lo que en capture phase nuestro handler se ejecuta PRIMERO y stopPropagation()
-  // impide que el evento llegue a Radix (evitando que cierre también el modal).
   useEffect(() => {
     if (!fullscreenImage) return;
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -452,10 +428,6 @@ export default function ProveedoresList() {
         contactoEmail: proveedor.detalle?.contactoEmail || '',
         comentario: proveedor.detalle?.comentario || '',
       });
-      // Deep-copy: si compartimos la referencia con `proveedores`, mutar una cuenta
-      // al editar (updated[i].campo = ...) también muta el "original" que usa el
-      // snapshot de change-detection → dataChanged siempre false para cambios solo
-      // de cuenta → "No hay cambios" y no se guarda.
       setCuentasFormaPago((proveedor.cuentasFormaPago || []).map((c) => ({ ...c })));
       setCuentasEditMode(new Set());
       setPendingCaratulas({});
@@ -464,22 +436,10 @@ export default function ProveedoresList() {
     }
   };
 
-  /**
-   * Guarda el archivo de carátula seleccionado en estado local (pendingCaratulas).
-   * NO lo sube al backend inmediatamente — se sube cuando el usuario hace clic en
-   * "Guardar" (handleSaveProveedor), después de que el proveedor y la cuenta existen.
-   */
   const handleSelectCaratula = (originalIndex: number, file: File) => {
     setPendingCaratulas((prev) => ({ ...prev, [originalIndex]: file }));
   };
 
-  /**
-   * Uploads a carátula to a specific persisted account (cuenta-scoped endpoint).
-   * New accounts (idCuenta === 0) cannot upload until the supplier is saved. The
-   * upload routes by supplier estatus on the backend (direct write vs staging).
-   * On success, the cuenta's `caratulaUrl` is updated in local state so the
-   * preview shows without a full refetch.
-   */
   const handleUploadCuentaCaratula = async (
     cuentaId: number,
     file: File,
@@ -542,8 +502,6 @@ export default function ProveedoresList() {
 
       const { personaContactoNombre, contactoTelefono, contactoEmail, comentario, ...rest } = values;
 
-      // Fallback: si el form tiene undefined/NaN para campos críticos, usar los valores originales
-      // Esto evita que el staging grabe null cuando el usuario no tocó el campo
       const regimenFiscalIdValue =
         rest.regimenFiscalId != null && !isNaN(rest.regimenFiscalId as number)
           ? rest.regimenFiscalId
@@ -577,8 +535,6 @@ export default function ProveedoresList() {
         })),
       };
 
-      // Detect whether anything actually changed. An unchanged save on an approved
-      // proveedor would otherwise create a redundant staging record.
       let dataChanged = true;
       if (isEditing) {
         const original = proveedores.find((p) => p.idProveedor === proveedorId);
@@ -605,7 +561,6 @@ export default function ProveedoresList() {
         }
       }
 
-      // Detect whether anything actually changed.
       const hasPendingCaratulas = Object.keys(pendingCaratulas).length > 0;
       if (!dataChanged && !hasPendingCaratulas) {
         toast.info('No hay cambios para guardar.');
@@ -614,7 +569,6 @@ export default function ProveedoresList() {
         return;
       }
 
-      // Only hit the update/create endpoint when the record data changed.
       let savedProveedorData: Proveedor | null = null;
       if (dataChanged) {
         const response = isEditing
@@ -630,7 +584,6 @@ export default function ProveedoresList() {
         toast.success(isEditing ? 'Proveedor actualizado correctamente.' : 'Proveedor creado correctamente.');
       }
 
-      // Upload pending carátulas now that the proveedor and cuentas exist.
       if (hasPendingCaratulas) {
         const targetProveedorId = savedProveedorData?.idProveedor ?? proveedorId;
         const savedCuentas = savedProveedorData?.cuentasFormaPago;
@@ -744,8 +697,7 @@ export default function ProveedoresList() {
     }
   };
 
-
-  const filteredProveedores = useMemo(() => {
+const filteredProveedores = useMemo(() => {
     return proveedores.filter((p) =>
       p.razonSocial.toLowerCase().includes(search.toLowerCase()) ||
       p.rfc?.toLowerCase().includes(search.toLowerCase())
@@ -757,8 +709,6 @@ export default function ProveedoresList() {
       accessorKey: 'razonSocial',
       header: 'Razón Social',
       cell: ({ row }) => {
-        // Carátula count badge: one per account that holds a carátula.
-        // Zero carátulas → no badge (spec: "Zero carátulas show no badge").
         const caratulasCount =
           row.original.cuentasFormaPago?.filter((c) => !!c.caratulaUrl).length ?? 0;
         return (
@@ -1076,7 +1026,6 @@ export default function ProveedoresList() {
                 form.handleSubmit(
                   handleSaveProveedor,
                   (errors) => {
-                    type FieldErr = { message?: string };
                     const FIELD_NAMES: Record<string, string> = {
                       razonSocial: 'Razón Social',
                       rfc: 'RFC',
@@ -1089,19 +1038,12 @@ export default function ProveedoresList() {
                       comentario: 'Comentario',
                     };
                     const missing: string[] = [];
-                    const devDetails: string[] = [];
                     for (const [key, err] of Object.entries(errors as Record<string, unknown>)) {
                       if (!err) continue;
                       if (typeof err === 'object' && 'message' in (err as object)) {
-                        const msg = (err as FieldErr).message ?? 'Requerido';
                         missing.push(FIELD_NAMES[key] ?? key);
-                        devDetails.push(`${key} → ${msg}`);
                       }
                     }
-                    console.group('🔴 Validación Proveedor FALLÓ');
-                    devDetails.forEach((d) => console.log(d));
-                    console.log('Objeto completo:', errors);
-                    console.groupEnd();
                     if (missing.length > 0) {
                       toast.error('Faltan campos obligatorios', {
                         description: missing.join(' · '),
@@ -1286,7 +1228,7 @@ export default function ProveedoresList() {
               </div>
             </div>
 
-            {/* Cuentas Forma de Pago */}
+            {}
             <div className="space-y-3 pt-2 border-t mt-2">
               <div className="flex items-center justify-between">
                 <label className="text-sm font-medium">Cuentas Bancarias</label>
@@ -1311,12 +1253,10 @@ export default function ProveedoresList() {
                 </p>
               ) : (
                 <div className="space-y-3 max-h-72 overflow-y-auto pr-1">
-                  {/* Cuentas Activas */}
+                  {}
                   {cuentasFormaPago.filter(c => c.activo !== false).map((cuenta, activeIndex) => {
                     const originalIndex = cuentasFormaPago.findIndex(c => c === cuenta);
                     const isEditable = cuenta.idCuenta === 0 || cuentasEditMode.has(originalIndex);
-                    // Per-account carátula (design §6). The file is staged locally
-                    // (pendingCaratulas) and uploaded on "Guardar", not immediately.
                     const cuentaCaratulaUrl = cuenta.caratulaUrl
                       ? `${(import.meta.env.VITE_API_URL || '')}/media/archivos/${cuenta.caratulaUrl}`
                       : null;
@@ -1324,7 +1264,7 @@ export default function ProveedoresList() {
                       !!cuenta.idCuenta && caratulaUploadingCuentaId === cuenta.idCuenta;
                     return (
                     <div key={originalIndex} className="border border-gray-200 rounded-xl bg-gray-50/60 overflow-hidden shadow-sm">
-                      {/* Header de la tarjeta */}
+                      {}
                       <div className="flex items-center justify-between px-4 py-2.5 bg-gray-100/80 border-b border-gray-200">
                         <div className="flex items-center gap-2">
                           <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-primary/10 text-primary text-[10px] font-semibold">
@@ -1342,7 +1282,7 @@ export default function ProveedoresList() {
                           )}
                         </div>
                         <div className="flex items-center gap-1">
-                          {/* Botón Editar (solo cuentas guardadas) */}
+                          {}
                           {cuenta.idCuenta && cuenta.idCuenta > 0 && !cuentasEditMode.has(originalIndex) && (
                             <Button
                               type="button"
@@ -1358,7 +1298,7 @@ export default function ProveedoresList() {
                               <span>Editar</span>
                             </Button>
                           )}
-                          {/* Botón Eliminar */}
+                          {}
                           <Button
                             type="button"
                             variant="ghost"
@@ -1375,11 +1315,11 @@ export default function ProveedoresList() {
                         </div>
                       </div>
 
-                      {/* Campos de la tarjeta */}
+                      {}
                       <div className="p-4">
-                        {/* Fila 1: Forma de Pago + Banco */}
+                        {}
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
-                          {/* Forma de Pago */}
+                          {}
                           <div className="space-y-1">
                             <label className="text-[11px] font-medium text-gray-500 uppercase tracking-wide">Forma de Pago *</label>
                             <Select
@@ -1405,7 +1345,7 @@ export default function ProveedoresList() {
                             </Select>
                           </div>
 
-                          {/* Banco */}
+                          {}
                           <div className="space-y-1">
                             <label className="text-[11px] font-medium text-gray-500 uppercase tracking-wide">Banco *</label>
                             <Select
@@ -1432,9 +1372,9 @@ export default function ProveedoresList() {
                           </div>
                         </div>
 
-                        {/* Fila 2: Número de Cuenta + CLABE + Beneficiario */}
+                        {}
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                          {/* Número de Cuenta */}
+                          {}
                           <div className="space-y-1">
                             <label className="text-[11px] font-medium text-gray-500 uppercase tracking-wide">No. de Cuenta *</label>
                             <Input
@@ -1451,7 +1391,7 @@ export default function ProveedoresList() {
                             />
                           </div>
 
-                          {/* CLABE */}
+                          {}
                           <div className="space-y-1">
                             <label className="text-[11px] font-medium text-gray-500 uppercase tracking-wide">CLABE Interbancaria *</label>
                             <Input
@@ -1468,7 +1408,7 @@ export default function ProveedoresList() {
                             />
                           </div>
 
-                          {/* Beneficiario */}
+                          {}
                           <div className="space-y-1">
                             <label className="text-[11px] font-medium text-gray-500 uppercase tracking-wide">Beneficiario *</label>
                             <Input
@@ -1485,13 +1425,12 @@ export default function ProveedoresList() {
                           </div>
                         </div>
 
-                        {/* Carátula de la cuenta (per-account, design §6) */}
+                        {}
                         <div className="mt-3 pt-3 border-t border-gray-200">
                           <label className="text-[11px] font-medium text-gray-500 uppercase tracking-wide">
                             Carátula
                           </label>
                           {pendingCaratulas[originalIndex] ? (
-                            // Archivo pendiente seleccionado — se sube al guardar
                             <div className="mt-1 flex items-center gap-3 rounded-md border border-orange-200 bg-orange-50 p-2">
                               <div className="rounded-md bg-orange-100 p-1.5">
                                 <FileText className="h-7 w-7 text-orange-600" />
@@ -1518,7 +1457,6 @@ export default function ProveedoresList() {
                               </button>
                             </div>
                           ) : cuentaCaratulaUrl ? (
-                            // Carátula ya subida — preview + Reemplazar (guarda en pendiente)
                             <div className="mt-1 flex items-center gap-3 rounded-md border border-gray-200 bg-white p-2">
                               <div className="rounded-md bg-muted p-1.5">
                                 {cuentaCaratulaUrl.toLowerCase().endsWith('.pdf') ? (
@@ -1560,7 +1498,6 @@ export default function ProveedoresList() {
                               </label>
                             </div>
                           ) : (
-                            // Sin carátula — Subir (disponible para cuentas nuevas y existentes)
                             <label
                               className="mt-1 inline-flex h-7 cursor-pointer items-center gap-1 rounded-md border border-dashed border-gray-300 px-3 text-xs text-gray-600 hover:bg-gray-50"
                             >
@@ -1583,7 +1520,7 @@ export default function ProveedoresList() {
                     </div>
                   )})}
 
-                  {/* Cuentas Inactivas - Sección Colapsable */}
+                  {}
                   {cuentasFormaPago.some(c => c.activo === false) && (
                     <div className="pt-2">
                       <button
@@ -1650,7 +1587,7 @@ export default function ProveedoresList() {
         </Form>
       </Modal>
 
-      {/* Modal confirmación eliminar cuenta */}
+      {}
       <Modal
         id="modal-delete-cuenta"
         open={deleteCuentaModal}
@@ -1685,7 +1622,7 @@ export default function ProveedoresList() {
       </p>
       </Modal>
 
-      {/* Modal confirmación editar cuenta */}
+      {}
       <Modal
         id="modal-edit-cuenta"
         open={editCuentaModal}
@@ -1766,7 +1703,7 @@ export default function ProveedoresList() {
         </div>
       </Modal>
 
-      {/* Diff Modal - Cambios Pendientes de Edición */}
+      {}
       <Modal
         id="modal-diff"
         open={diffModal.open}
@@ -1859,19 +1796,16 @@ export default function ProveedoresList() {
         onPreview={(url) => setFullscreenImage(url)}
       />
 
-      {/* Fullscreen image viewer — en portal al body. Tres elementos HERMANOS
-          (no anidados) para que el botón cerrar compita con z-index propio en el
-          body y ningún stacking context del padre lo neutralice. */}
+      {}
       {fullscreenImage &&
         createPortal(
           <>
-            {/* Fondo: cierra al hacer click */}
+            {}
             <div
               className="fixed inset-0 z-[10000] bg-black/80"
               onClick={() => setFullscreenImage(null)}
             />
-            {/* Contenido centrado: pointer-events-none salvo la imagen/iframe,
-                para que el click en el área vacía llegue al fondo y cierre */}
+            {}
             <div className="pointer-events-none fixed inset-0 z-[10001] flex items-center justify-center p-4">
               <div className="pointer-events-auto">
                 {fullscreenImage.toLowerCase().endsWith('.pdf') ? (
@@ -1889,7 +1823,7 @@ export default function ProveedoresList() {
                 )}
               </div>
             </div>
-            {/* Botón cerrar: hermano del fondo, z propio, pointer-events explícito */}
+            {}
             <button
               type="button"
               aria-label="Cerrar vista previa"

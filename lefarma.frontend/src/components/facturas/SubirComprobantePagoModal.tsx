@@ -97,11 +97,9 @@ export function SubirComprobantePagoModal({
   const [step, setStep] = useState<Step>('datos');
   const [loading, setLoading] = useState(false);
   const [mediosPago, setMediosPago] = useState<MedioPagoItem[]>([]);
-  // ponytail: la forma de pago es un dato informativo del proveedor (no editable); solo guardo su nombre para mostrarlo y enviarlo
   const [formaPagoNombre, setFormaPagoNombre] = useState('');
   const [bancos, setBancos] = useState<{ idBanco: number; nombre: string }[]>([]);
 
-  // Step datos
   const [idMedioPago, setIdMedioPago] = useState<number | null>(null);
   const [referencia, setReferencia]   = useState('');
   const [autorizacion, setAutorizacion] = useState('');
@@ -113,27 +111,23 @@ export function SubirComprobantePagoModal({
   const [numeroCuenta, setNumeroCuenta] = useState('');
   const [clabe, setClabe]             = useState('');
 
-  // Cargar catálogos al abrir
   useEffect(() => {
     if (open) {
       API.get<ApiResponse<MedioPagoItem[]>>('/catalogos/MediosPago')
         .then(res => { if (res.data?.success) setMediosPago((res.data.data ?? []).sort((a, b) => a.orden - b.orden)); })
-        .catch(() => { /* silent */ });
+        .catch(() => { });
       API.get<ApiResponse<{ idBanco: number; nombre: string }[]>>('/catalogos/Bancos')
         .then(res => { if (res.data?.success) setBancos(res.data.data ?? []); })
-        .catch(() => { /* silent */ });
+        .catch(() => { });
     }
   }, [open]);
 
   const medioSeleccionado = mediosPago.find(m => m.idMedioPago === idMedioPago);
 
-  // Pendiente al abrir el modal
-  // redondear pendienteOrden a 2 decimales
   const pendienteOrden = totalOrden != null
   ? Math.max(0, Math.round((totalOrden - totalPagado) * 100) / 100)
   : undefined;
 
-  // Sincronizar monto y cuenta pre-cargada cuando se abre el modal
   useEffect(() => {
     if (open) {
       setMonto(pendienteOrden != null ? String(pendienteOrden) : '');
@@ -145,7 +139,6 @@ export function SubirComprobantePagoModal({
     }
   }, [open, pendienteOrden, cuentaPagoInicial]);
 
-  // Step archivo / asignar
   const [comprobanteSubido, setComprobanteSubido] = useState<ComprobanteResponse | null>(null);
   const [asignaciones, setAsignaciones]           = useState<AsignacionLocal[]>([]);
 
@@ -172,17 +165,13 @@ export function SubirComprobantePagoModal({
 
   const handleClose = () => { resetForm(); onClose(); };
 
-  // ── Step datos → archivo: crea el comprobante sin archivo ─────────────────
-
-  const handleCrearComprobante = async () => {
+const handleCrearComprobante = async () => {
     if (!monto || Number(monto) <= 0) {
       toast.error('Ingresa el monto del pago');
       return;
     }
     setLoading(true);
     try {
-      // ponytail: si el tesorero no alteró ninguno de los 3 campos de cuenta respecto al pre-cargado,
-      // no mandamos datos de cuenta → el backend no reescribe cuentaPagoTesorero ni escribe un renglón duplicado en la bitácora.
       const sinCambioCuenta =
         idBanco === (cuentaPagoInicial?.idBanco ?? null) &&
         numeroCuenta.trim() === (cuentaPagoInicial?.numeroCuenta ?? '').trim() &&
@@ -218,13 +207,10 @@ export function SubirComprobantePagoModal({
     }
   };
 
-  // ── Step archivo → asignar ────────────────────────────────────────────────
-
-  const handleArchivoSubido = async (archivos: Archivo[]) => {
+const handleArchivoSubido = async (archivos: Archivo[]) => {
     if (!comprobanteSubido) return;
     void archivos;
 
-    // Siempre ir al step asignar para que el usuario revise
     setAsignaciones(
       partidasPendientes.map((p) => {
         const pendTotal = partidasPendientes.reduce((s, x) => s + x.importePendiente, 0);
@@ -241,9 +227,7 @@ export function SubirComprobantePagoModal({
     setStep('asignar');
   };
 
-  // ── Step asignar → cierre ─────────────────────────────────────────────────
-
-  const handleAsignar = async () => {
+const handleAsignar = async () => {
     if (!comprobanteSubido) return;
 
     const items: AsignacionItemRequest[] = asignaciones
@@ -279,9 +263,7 @@ export function SubirComprobantePagoModal({
     }
   };
 
-  // ── Metadata para FileUploader ────────────────────────────────────────────
-
-  const metadataArchivo = comprobanteSubido ? {
+const metadataArchivo = comprobanteSubido ? {
     modulo:         'ordenes_compra',
     origen:         'workflow',
     tipo:           'comprobante_pago',
@@ -295,9 +277,7 @@ export function SubirComprobantePagoModal({
     nombreAccion:   nombreAccion,
   } : undefined;
 
-  // ── Indicadores de paso ───────────────────────────────────────────────────
-
-  const STEPS: Step[] = ['datos', 'archivo', 'asignar'];
+const STEPS: Step[] = ['datos', 'archivo', 'asignar'];
   const stepLabel: Record<Step, string> = {
     datos:   'Datos',
     archivo: 'Voucher',
@@ -345,7 +325,7 @@ export function SubirComprobantePagoModal({
         </div>
       }
     >
-      {/* Indicadores de pasos */}
+      {}
       <div className="mb-4 flex items-center gap-1 text-xs">
         {STEPS.map((s, i) => (
           <div key={s} className="flex items-center gap-1">
@@ -364,7 +344,7 @@ export function SubirComprobantePagoModal({
         ))}
       </div>
 
-      {/* Banner de progreso — visible en todos los steps */}
+      {}
       {totalOrden != null && (
         <div className="rounded-lg border bg-muted/20 px-3 py-2.5 space-y-2 text-xs mb-4">
           <div className="flex items-center justify-between">
@@ -391,7 +371,7 @@ export function SubirComprobantePagoModal({
         </div>
       )}
 
-      {/* ── Step: datos ── */}
+      {}
       {step === 'datos' && (
         <div className="space-y-4">
           <p className="text-xs text-muted-foreground">Selecciona el medio de pago e ingresa los datos de la transaccion.</p>
@@ -473,7 +453,7 @@ export function SubirComprobantePagoModal({
         </div>
       )}
 
-      {/* ── Step: archivo — FileUploader inline ── */}
+      {}
       {step === 'archivo' && comprobanteSubido && (
         <>
           <p className="text-xs text-muted-foreground mb-3">Sube el comprobante o voucher del pago (PDF, JPG, PNG).</p>
@@ -494,22 +474,12 @@ export function SubirComprobantePagoModal({
         </>
       )}
 
-      {/* ── Step: asignar ── */}
+      {}
       {step === 'asignar' && comprobanteSubido && (
         <div className="space-y-3">
           <p className="text-xs text-muted-foreground">Distribuye el pago entre las partidas de la orden. Puedes guardar y cerrar cuando termines.</p>
           
-          {/* <div className="rounded-lg border bg-muted/20 p-3 text-xs flex items-center gap-3">
-            <div className="flex-1">
-              <p className="font-medium">
-                {medioSeleccionado?.nombre ?? comprobanteSubido.tipoComprobante}
-              </p>
-              {comprobanteSubido.referenciaPago && (
-                <p className="text-muted-foreground">Ref: {comprobanteSubido.referenciaPago}</p>
-              )}
-            </div>
-            <p className="text-base font-bold">{formatCurrency(comprobanteSubido.total)}</p>
-          </div> */}
+          {}
 
           {partidasPendientes.length === 0 && (
             <div className="flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700 dark:bg-amber-950/20">

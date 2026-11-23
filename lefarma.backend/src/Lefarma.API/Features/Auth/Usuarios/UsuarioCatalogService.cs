@@ -3,9 +3,6 @@ using Lefarma.API.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 
 namespace Lefarma.API.Features.Auth.Usuarios;
-/// <summary>
-/// Service for Usuario catalog operations
-/// </summary>
 public class UsuarioCatalogService : IUsuarioCatalogService
 {
     private readonly AsokamDbContext _context;
@@ -15,10 +12,6 @@ public class UsuarioCatalogService : IUsuarioCatalogService
         _context = context;
     }
 
-    /// <summary>
-    /// Gets all active usuarios for catalog selection
-    /// Returns empty list if table doesn't exist
-    /// </summary>
     public async Task<List<UsuarioCatalogDto>> GetAllAsync(CancellationToken ct = default)
     {
         try
@@ -36,7 +29,6 @@ public class UsuarioCatalogService : IUsuarioCatalogService
         }
         catch (Microsoft.Data.SqlClient.SqlException) when (ct.IsCancellationRequested == false)
         {
-            // Table doesn't exist yet, return empty list
             return new List<UsuarioCatalogDto>();
         }
     }

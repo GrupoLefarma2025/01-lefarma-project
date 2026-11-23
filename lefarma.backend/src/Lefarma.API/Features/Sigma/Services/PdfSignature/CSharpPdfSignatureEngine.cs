@@ -4,11 +4,6 @@ using Microsoft.Extensions.Options;
 
 namespace Lefarma.API.Features.Sigma.Services.PdfSignature;
 
-/// <summary>
-/// Motor C#: reproduce paso por paso lo que hacía <c>pdf_signature_replacer.py</c>,
-/// sin iniciar Python. Lee de <c>app.Documentos</c>, estampa, aplana, cifra y actualiza
-/// el binario autorizado.
-/// </summary>
 public sealed class CSharpPdfSignatureEngine
 {
     private readonly IPdfDocumentStore _store;
@@ -34,10 +29,6 @@ public sealed class CSharpPdfSignatureEngine
         _logger = logger;
     }
 
-    /// <summary>
-    /// Procesa un documento. Con <paramref name="soloEscanear"/> sólo comprueba la
-    /// palabra clave; sin él firma, guarda el PDF y marca el documento como autorizado.
-    /// </summary>
     public async Task<SigmaPdfSignatureResult> EjecutarAsync(
         Guid idDocumento,
         bool soloEscanear,
@@ -56,7 +47,6 @@ public sealed class CSharpPdfSignatureEngine
         var pdf = documento.Pdf
             ?? throw new InvalidOperationException($"El documento {idDocumento:D} no tiene PDF en app.Documentos.");
 
-        // El script deja siempre una copia del binario original antes de tocarlo.
         await _store.GuardarCopiaAsync(idDocumento, string.Empty, pdf, ct);
 
         var coincidencias = soloEscanear

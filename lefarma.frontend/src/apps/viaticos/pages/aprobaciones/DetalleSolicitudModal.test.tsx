@@ -32,7 +32,6 @@ const opcion = (over: Partial<SolicitudOpcion>): SolicitudOpcion => ({
   ...over,
 });
 
-/** 2 elegidas (1000 + 600) y 3 descartadas (5000, 7000, 9000). */
 const CINCO_OPCIONES: SolicitudOpcion[] = [
   opcion({ id_opcion: 1, linea: 'Aeroméxico', precio: 1000, fue_elegida: true, ruta_captura: '/caps/1.png' }),
   opcion({ id_opcion: 2, tipo: 'hotel', linea: 'Hotel Camino Real', precio: 600, fue_elegida: true }),
@@ -65,7 +64,6 @@ const renderModal = (props: Partial<Parameters<typeof DetalleSolicitudModal>[0]>
 beforeEach(() => {
   mocks.get.mockReset();
   mocks.get.mockResolvedValue(ok(detalle(CINCO_OPCIONES)));
-  // jsdom no implementa createObjectURL/revokeObjectURL.
   (URL as unknown as Record<string, unknown>).createObjectURL =
     vi.fn(() => 'blob:detalle-captura');
   (URL as unknown as Record<string, unknown>).revokeObjectURL = vi.fn();
@@ -96,7 +94,6 @@ describe('DetalleSolicitudModal', () => {
       'opcion-4',
       'opcion-5',
     ]);
-    // Las elegidas quedan fuera de esa sección.
     expect(within(seccion as HTMLElement).queryByTestId('opcion-1')).toBeNull();
 
     const elegidas = within(
@@ -109,8 +106,6 @@ describe('DetalleSolicitudModal', () => {
     renderModal();
 
     await waitFor(() => expect(screen.getByTestId('total-elegidas')).toBeDefined());
-    // 1000 + 600 = 1600. Las descartadas suman 21,000 y el total de las cinco
-    // seria 22,600: ninguna de esas dos cifras puede ser el total mostrado.
     expect(screen.getByTestId('total-elegidas').textContent).toBe('$1,600.00');
     expect(screen.getByTestId('total-elegidas').textContent).not.toContain('22,600');
     expect(screen.queryByText('$21,000.00')).toBeNull();
@@ -140,11 +135,9 @@ describe('DetalleSolicitudModal', () => {
     renderModal();
 
     await waitFor(() => expect(screen.getByTestId('total-elegidas')).toBeDefined());
-    // La opción 2 no trae ruta_captura.
     const sinCaptura = screen.getByTestId('opcion-2');
     expect(within(sinCaptura).getByText('Sin captura')).toBeDefined();
     expect(within(sinCaptura).queryByRole('img')).toBeNull();
-    // La que sí trae, muestra miniatura con alt y abre la imagen grande.
     const miniatura = within(screen.getByTestId('opcion-1')).getByRole('img');
     expect(miniatura.getAttribute('src')).toBe('/caps/1.png');
     expect(miniatura.closest('button')).not.toBeNull();
@@ -166,7 +159,6 @@ describe('DetalleSolicitudModal', () => {
     expect(within(screen.getByTestId('opcion-1')).getByText('Cotizado')).toBeDefined();
     const estimada = screen.getByTestId('opcion-2');
     expect(within(estimada).getByText('Estimado')).toBeDefined();
-    // La fuente cruda nunca se oculta, ni estimada ni cotizada.
     expect(within(estimada).getByText('estimado')).toBeDefined();
     expect(within(screen.getByTestId('opcion-1')).getByText('cotizacion.agent')).toBeDefined();
   });
@@ -191,15 +183,11 @@ describe('DetalleSolicitudModal', () => {
   });
 
   it('funciona sin fila de bandeja: el solicitante ve los datos del detalle', async () => {
-    // El solicitante no tiene fila de bandeja: solo el id, y todo lo demás sale
-    // del detalle que le devuelve su propio GET.
     renderModal({ solicitud: { id_solicitud: 101 } });
 
     await waitFor(() => expect(screen.getByTestId('total-elegidas')).toBeDefined());
     expect(mocks.get).toHaveBeenCalledWith('/viaticos/solicitudes/101');
-    // Sin nombre de la bandeja cae al id que devuelve el propio detalle.
     expect(screen.getByText('Usuario #7')).toBeDefined();
-    // Destino sale de datos_json, igual que lo lee el backend para la bandeja.
     expect(screen.getByText('Toluca')).toBeDefined();
     expect(screen.getByText('2026-10')).toBeDefined();
     expect(screen.getByText('Enviada')).toBeDefined();

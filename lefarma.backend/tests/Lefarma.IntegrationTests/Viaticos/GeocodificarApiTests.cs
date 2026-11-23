@@ -7,34 +7,23 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Lefarma.Tests.Viaticos;
 
-/// <summary>
-/// Integración del proxy de geocodificación: HTTP real contra WebApplicationFactory
-/// (Program.cs completo, con el named client "nominatim" real de Program.cs) y un
-/// handler falso de upstream que cuenta llamadas y captura el User-Agent que llega
-/// a Nominatim. Cada test usa claves únicas (texto con GUID) para no depender de
-/// estado previo del IMemoryCache compartido por la fixture.
-/// </summary>
 public sealed class GeocodificarApiTests : IClassFixture<GeocodificarApiTests.GeocodificarFixture>
 {
     private const string UserAgentEsperado = "GrupoLefarmaViaticos/1.0 (soporte@lefarma.com)";
 
     public sealed class FakeUpstreamHandler : HttpMessageHandler
     {
-        /// <summary>Respuesta por defecto: una dirección mexicana con calle y número.</summary>
         public const string CuerpoPorDefecto = """[{"display_name":"Lázaro Cárdenas, Toluca, México","name":"","lat":"19.4326","lon":"-99.1332","address":{"house_number":"123","road":"Av. Lázaro Cárdenas","city":"Toluca","state":"México","country":"México","country_code":"mx"}}]""";
 
-        /// <summary>Respuesta por defecto de Photon: sin resultados.</summary>
         public const string CuerpoPhotonPorDefecto = """{"features":[]}""";
 
         public readonly List<string> Urls = [];
         public readonly List<string> UserAgents = [];
         public HttpStatusCode Estado = HttpStatusCode.OK;
-        /// <summary>Cuerpo que devuelve el upstream falso; los tests lo ajustan al caso.</summary>
         public string Cuerpo = CuerpoPorDefecto;
 
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
-            // AbsoluteUri (no ToString): conserva %20/%C3%A9 escapados para los asserts.
             Urls.Add(request.RequestUri?.AbsoluteUri ?? string.Empty);
             UserAgents.Add(request.Headers.UserAgent.ToString());
             return Task.FromResult(new HttpResponseMessage(Estado)
@@ -44,10 +33,6 @@ public sealed class GeocodificarApiTests : IClassFixture<GeocodificarApiTests.Ge
         }
     }
 
-    /// <summary>
-    /// Upstream falso del resolvedor de ligas: responde por URL absoluta con
-    /// un estado y un Location opcionales (NotFound si no está configurada).
-    /// </summary>
     public sealed class FakeEnlacesHandler : HttpMessageHandler
     {
         public readonly List<string> Urls = [];
@@ -78,9 +63,6 @@ public sealed class GeocodificarApiTests : IClassFixture<GeocodificarApiTests.Ge
         {
             builder.ConfigureServices(services =>
             {
-                // Reemplaza SOLO el handler de los named clients "nominatim",
-                // "photon" y "enlaces": el User-Agent y el timeout siguen
-                // viniendo de Program.cs.
                 services.AddHttpClient("nominatim")
                     .ConfigurePrimaryHttpMessageHandler(() => Upstream);
                 services.AddHttpClient("photon")
@@ -120,11 +102,9 @@ public sealed class GeocodificarApiTests : IClassFixture<GeocodificarApiTests.Ge
         Assert.True(cuerpo.RootElement.GetProperty("success").GetBoolean());
         var data = cuerpo.RootElement.GetProperty("data");
         Assert.Equal(JsonValueKind.Array, data.ValueKind);
-        // Etiqueta estilo Google armada del bloque address (no el display_name crudo).
         Assert.Equal("Av. Lázaro Cárdenas 123, Toluca, México", data[0].GetProperty("nombre").GetString());
         Assert.Equal(19.4326, data[0].GetProperty("latitud").GetDouble(), precision: 6);
         Assert.Equal(-99.1332, data[0].GetProperty("longitud").GetDouble(), precision: 6);
-        // Estado y municipio salen del bloque address: alimentan la pestaña del destino.
         Assert.Equal("México", data[0].GetProperty("estado").GetString());
         Assert.Equal("Toluca", data[0].GetProperty("municipio").GetString());
 
@@ -169,14 +149,12 @@ public sealed class GeocodificarApiTests : IClassFixture<GeocodificarApiTests.Ge
         Assert.True(indice >= 0);
         Assert.Contains("viewbox=-99.5832,18.9826,-98.6832,19.8826", _factory.Upstream.Urls[indice]);
 
-        // Mismo texto con otro sesgo: el cache los distingue (clave con viewbox).
         var otraCaja = Uri.EscapeDataString("-100.0,19.0,-99.0,20.0");
         var otra = await _client.GetAsync(
             $"/api/viaticos/geocodificar?tipo=global&texto={codificado}&viewbox={otraCaja}");
         Assert.Equal(HttpStatusCode.OK, otra.StatusCode);
         Assert.Equal(2, UpstreamPara(codificado));
 
-        // La misma petición vuelve por cache.
         var repetida = await _client.GetAsync(
             $"/api/viaticos/geocodificar?tipo=global&texto={codificado}&viewbox={viewbox}");
         Assert.Equal(HttpStatusCode.OK, repetida.StatusCode);
@@ -207,8 +185,6 @@ public sealed class GeocodificarApiTests : IClassFixture<GeocodificarApiTests.Ge
             Assert.Equal(HttpStatusCode.OK, respuesta.StatusCode);
             using var cuerpo = await JsonDocument.ParseAsync(await respuesta.Content.ReadAsStreamAsync());
             var data = cuerpo.RootElement.GetProperty("data");
-            // Fuera de México descartado; el duplicado por coordenada redondeada
-            // y el de etiqueta idéntica con otras coordenadas también.
             Assert.Equal(1, data.GetArrayLength());
             Assert.Equal("Av. Lázaro Cárdenas 123, Toluca, México", data[0].GetProperty("nombre").GetString());
         }
@@ -227,7 +203,6 @@ public sealed class GeocodificarApiTests : IClassFixture<GeocodificarApiTests.Ge
             $"/api/viaticos/geocodificar?tipo=otro&texto={Uri.EscapeDataString($"x {Guid.NewGuid():N}")}");
         Assert.Equal(HttpStatusCode.BadRequest, tipoInvalido.StatusCode);
 
-        // tipo=cascada se retiró del producto: ahora también responde 400.
         var cascadaRetirada = await _client.GetAsync(
             $"/api/viaticos/geocodificar?tipo=cascada&estado={Uri.EscapeDataString("México")}&municipio={Uri.EscapeDataString("Toluca")}&texto={Uri.EscapeDataString($"calle {Guid.NewGuid():N}")}");
         Assert.Equal(HttpStatusCode.BadRequest, cascadaRetirada.StatusCode);
@@ -264,7 +239,6 @@ public sealed class GeocodificarApiTests : IClassFixture<GeocodificarApiTests.Ge
     {
         var codificado = Uri.EscapeDataString($"hospital gen xoco {Guid.NewGuid():N}");
         var caja = Uri.EscapeDataString("-99.5832,18.9826,-98.6832,19.8826");
-        // Nominatim no tolera palabras incompletas: devuelve cero resultados.
         _factory.Upstream.Cuerpo = "[]";
         _factory.Photon.Cuerpo = """
             {"features":[
@@ -279,7 +253,6 @@ public sealed class GeocodificarApiTests : IClassFixture<GeocodificarApiTests.Ge
             Assert.Equal(HttpStatusCode.OK, respuesta.StatusCode);
             using var cuerpo = await JsonDocument.ParseAsync(await respuesta.Content.ReadAsStreamAsync());
             var data = cuerpo.RootElement.GetProperty("data");
-            // Fuera de México descartado y el duplicado por etiqueta también.
             Assert.Equal(1, data.GetArrayLength());
             Assert.Equal("Hospital General Xoco, Calle Bruno Traven, Pedro María Anaya, Benito Juárez, Ciudad de México",
                 data[0].GetProperty("nombre").GetString());
@@ -288,7 +261,6 @@ public sealed class GeocodificarApiTests : IClassFixture<GeocodificarApiTests.Ge
             Assert.Equal("Ciudad de México", data[0].GetProperty("estado").GetString());
             Assert.Equal("Benito Juárez", data[0].GetProperty("municipio").GetString());
 
-            // Nominatim primero; Photon entra como refuerzo con el mismo sesgo.
             Assert.Equal(1, UpstreamPara(codificado));
             Assert.Equal(1, PhotonPara(codificado));
             var indice = _factory.Photon.Urls.FindIndex(u => u.Contains(codificado));
@@ -298,7 +270,6 @@ public sealed class GeocodificarApiTests : IClassFixture<GeocodificarApiTests.Ge
             Assert.Contains("limit=8", _factory.Photon.Urls[indice]);
             Assert.Equal(UserAgentEsperado, _factory.Photon.UserAgents[indice]);
 
-            // Segunda idéntica: sale del cache sin nuevos golpes a ningún motor.
             var repetida = await _client.GetAsync($"/api/viaticos/geocodificar?tipo=global&texto={codificado}&viewbox={caja}");
             Assert.Equal(HttpStatusCode.OK, repetida.StatusCode);
             Assert.Equal(1, UpstreamPara(codificado));
@@ -319,7 +290,6 @@ public sealed class GeocodificarApiTests : IClassFixture<GeocodificarApiTests.Ge
         try
         {
             var respuesta = await _client.GetAsync($"/api/viaticos/geocodificar?tipo=global&texto={codificado}");
-            // Photon (sin resultados por defecto) respondió: 200 vacío, no 502.
             Assert.Equal(HttpStatusCode.OK, respuesta.StatusCode);
             Assert.Equal(1, PhotonPara(codificado));
             using var cuerpo = await JsonDocument.ParseAsync(await respuesta.Content.ReadAsStreamAsync());
@@ -347,7 +317,6 @@ public sealed class GeocodificarApiTests : IClassFixture<GeocodificarApiTests.Ge
             var data = cuerpo.RootElement.GetProperty("data");
             Assert.Equal(1, data.GetArrayLength());
             Assert.Equal("Calle República de Bolivia 2, Centro, Ciudad de México", data[0].GetProperty("nombre").GetString());
-            // Las coordenadas pegadas mandan (no las del edificio más cercano).
             Assert.Equal(19.4395, data[0].GetProperty("latitud").GetDouble(), precision: 6);
             Assert.Equal(-99.1332, data[0].GetProperty("longitud").GetDouble(), precision: 6);
             Assert.Equal("Ciudad de México", data[0].GetProperty("estado").GetString());
@@ -419,7 +388,6 @@ public sealed class GeocodificarApiTests : IClassFixture<GeocodificarApiTests.Ge
             Assert.Equal(1, EnlacesPara(corta));
             Assert.Equal(1, EnlacesPara(final));
 
-            // La segunda vez sale del cache sin golpear upstream.
             var repetida = await _client.GetAsync($"/api/viaticos/resolver-liga?url={codificada}");
             Assert.Equal(HttpStatusCode.OK, repetida.StatusCode);
             Assert.Equal(1, EnlacesPara(corta));
@@ -450,7 +418,6 @@ public sealed class GeocodificarApiTests : IClassFixture<GeocodificarApiTests.Ge
 
         Assert.Equal(antes, _factory.Enlaces.Urls.Count);
 
-        // Redirección hacia un host ajeno: se corta en el primer salto (anti-SSRF).
         var corta = $"https://goo.gl/{Guid.NewGuid():N}";
         _factory.Enlaces.Respuestas[corta] = (HttpStatusCode.Found, "https://evil.example.com/roba");
         try
@@ -470,14 +437,12 @@ public sealed class GeocodificarApiTests : IClassFixture<GeocodificarApiTests.Ge
     public async Task Resolver_liga_con_demasiados_saltos_responde_502()
     {
         var corta = $"https://g.co/kgs/{Guid.NewGuid():N}";
-        // Se redirige a sí misma: agota el tope de saltos.
         _factory.Enlaces.Respuestas[corta] = (HttpStatusCode.Found, corta);
         try
         {
             var respuesta = await _client.GetAsync(
                 $"/api/viaticos/resolver-liga?url={Uri.EscapeDataString(corta)}");
             Assert.Equal(HttpStatusCode.BadGateway, respuesta.StatusCode);
-            // Tope de saltos: 6 intentos (MaxSaltos + 1) antes de rendirse.
             Assert.Equal(6, EnlacesPara(corta));
         }
         finally

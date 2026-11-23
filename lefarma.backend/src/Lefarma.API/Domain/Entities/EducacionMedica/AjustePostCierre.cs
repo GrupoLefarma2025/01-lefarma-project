@@ -1,11 +1,5 @@
 namespace Lefarma.API.Domain.Entities.EducacionMedica;
 
-/// <summary>
-/// Bitácora de ajustes post-cierre (ADR-00010): cambios puntuales de fecha/hora/logística
-/// sobre rutas Cerrada y talleres Autorizado/Programado, sin re-ejecutar el workflow ni
-/// firma. Permiso exclusivo del CEM + motivo obligatorio; valores antes/después en JSON.
-/// También audita la cancelación de versión (CANCELAR_VERSION).
-/// </summary>
 public class AjustePostCierre
 {
     public const string EntidadRutaVisita = "RUTA_VISITA";

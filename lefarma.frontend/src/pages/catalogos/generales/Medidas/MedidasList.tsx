@@ -6,7 +6,6 @@ import {
   Plus,
   Pencil,
   Trash2,
-  // Search, // @typescript-eslint/no-unused-vars
   Loader2,
   RefreshCcw,
   ArrowRightLeft,
@@ -69,7 +68,6 @@ export default function MedidasList() {
   usePageTitle('Medidas', 'Gestión de medidas del catálogo general');
   const [medidas, setMedidas] = useState<Medida[]>([]);
   const [unidadesMedida, setUnidadesMedida] = useState<UnidadMedida[]>([]);
-  // const [loading, setLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isSavingUnidad, setIsSavingUnidad] = useState(false);
   const [searchMedidas, setSearchMedidas] = useState('');
@@ -113,7 +111,6 @@ export default function MedidasList() {
 
   const fetchMedidas = async () => {
     try {
-      // setLoading(true);
       const response = await API.get<ApiResponse<Medida[]>>(ENDPOINT);
       if (response.data.success) {
         setMedidas(response.data.data || []);
@@ -122,9 +119,6 @@ export default function MedidasList() {
       const err = toApiError(error);
       toast.error(err.message ?? 'Error al cargar las medidas');
     }
-    // } finally {
-    //   // setLoading(false);
-    // }
   };
 
   const fetchUnidadesMedida = async () => {
@@ -139,7 +133,6 @@ export default function MedidasList() {
     }
   };
 
-  // Medidas handlers
   const handleNuevaMedida = () => {
     setMedidaId(0);
     formMedida.reset({ nombre: '', descripcion: '', activo: true });
@@ -198,7 +191,6 @@ export default function MedidasList() {
     }
   };
 
-  // Unidades handlers
   const handleNuevaUnidad = () => {
     setUnidadMedidaId(0);
     formUnidadMedida.reset({
@@ -277,7 +269,6 @@ export default function MedidasList() {
     }
   };
 
-  // Reasignar handlers
   const handleAbrirReasignar = (idUnidadMedida: number) => {
     setReasignarUnidadId(idUnidadMedida);
     const unidad = unidadesMedida.find((u) => u.idUnidadMedida === idUnidadMedida);
@@ -293,7 +284,6 @@ export default function MedidasList() {
     if (!reasignarUnidadId || !values.idMedida) return;
     setIsSavingUnidad(true);
     try {
-      // Fetch full unidad data to send complete UpdateUnidadMedidaRequest
       const unidad = unidadesMedida.find((u) => u.idUnidadMedida === reasignarUnidadId);
       if (!unidad) {
         toast.error('Unidad no encontrada');
@@ -326,7 +316,6 @@ export default function MedidasList() {
     }
   };
 
-  // Filtros
   const filteredMedidas = medidas.filter(
     (m) =>
       m.nombre.toLowerCase().includes(searchMedidas.toLowerCase()) ||
@@ -339,7 +328,6 @@ export default function MedidasList() {
       u.abreviatura.toLowerCase().includes(searchUnidades.toLowerCase())
   );
 
-  // Columnas Medidas
   const medidaColumns: ColumnDef<Medida>[] = [
     {
       accessorKey: 'nombre',
@@ -422,7 +410,6 @@ export default function MedidasList() {
     },
   ];
 
-  // Columnas Unidades
   const unidadColumns: ColumnDef<UnidadMedida>[] = [
     {
       accessorKey: 'nombre',
@@ -492,7 +479,7 @@ export default function MedidasList() {
 
   return (
     <div className="space-y-8">
-      {/* Sección: Medidas */}
+      {}
       <div className="space-y-4">
         <div className="flex items-center justify-between gap-4">
           <h2 className="text-lg font-semibold">Medidas</h2>
@@ -517,10 +504,10 @@ export default function MedidasList() {
         <DataTable columns={medidaColumns} data={filteredMedidas} showRowCount />
       </div>
 
-      {/* Separador */}
+      {}
       <div className="border-t" />
 
-      {/* Sección: Unidades de Medida */}
+      {}
       <div className="space-y-4">
         <div className="flex items-center justify-between gap-4">
           <h2 className="text-lg font-semibold">Unidades de Medida</h2>
@@ -545,7 +532,7 @@ export default function MedidasList() {
         <DataTable columns={unidadColumns} data={filteredUnidades} showRowCount />
       </div>
 
-      {/* Modal editar medida */}
+      {}
       <Modal
         id="modal-medida"
         open={modalOpen}
@@ -608,7 +595,7 @@ export default function MedidasList() {
         </Form>
       </Modal>
 
-      {/* Modal crear/editar unidad */}
+      {}
       <Modal
         id="modal-unidad"
         open={modalUnidadOpen}
@@ -711,7 +698,7 @@ export default function MedidasList() {
         </Form>
       </Modal>
 
-      {/* Modal reasignar unidad */}
+      {}
       <Modal
         id="modal-reasignar-unidad"
         open={reasignarUnidadId !== null}

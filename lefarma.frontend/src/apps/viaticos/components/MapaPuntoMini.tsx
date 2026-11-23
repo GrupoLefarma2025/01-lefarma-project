@@ -1,11 +1,6 @@
 import { useEffect } from 'react';
 import { CircleMarker, MapContainer, TileLayer, useMap } from 'react-leaflet';
 
-/**
- * Zoom con Ctrl + rueda. Sin Ctrl el evento no se toca, así la rueda sigue
- * desplazando el diálogo y no se queda "atrapada" en el mapa; con Ctrl se
- * frena el zoom de la página y se acerca el mapa.
- */
 function ZoomConCtrl() {
   const map = useMap();
 
@@ -23,11 +18,6 @@ function ZoomConCtrl() {
   return null;
 }
 
-/**
- * Mapa de referencia del punto: se puede arrastrar y acercar (Ctrl + rueda o
- * los botones +/−), pero no edita nada. Se usa en los globos de coordenadas
- * del detalle del viaje y del diagrama de ruta.
- */
 export function MapaPuntoMini({
   lat,
   lng,

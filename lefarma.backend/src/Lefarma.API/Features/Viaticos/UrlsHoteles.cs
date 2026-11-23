@@ -1,12 +1,5 @@
 namespace Lefarma.API.Features.Viaticos;
 
-/// <summary>
-/// Google Hotels devuelve un error 500 cuando se consulta directo un hotel
-/// concreto por nombre, pero sí responde al listado de la ciudad. Para la
-/// detección con Playwright se reescribe la búsqueda del hotel a
-/// "hoteles en {ciudad}" y el parser sigue exigiendo que la tarjeta coincida
-/// con el nombre del hotel cotizado.
-/// </summary>
 public static class UrlsHoteles
 {
     private const string PrefijoListado = "hoteles en ";

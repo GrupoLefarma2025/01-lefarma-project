@@ -5,12 +5,10 @@ import { ICONOS_TIPO, TONOS_TIPO } from './typeVisuals';
 
 interface TipoVariableProps {
   tipo: string;
-  /** Esquema de la variable; en listas permite nombrar el tipo de sus elementos. */
   esquema?: unknown;
   className?: string;
 }
 
-/** "Lista de fecha y hora" cuando el esquema declara el tipo de los elementos. */
 function etiquetaConDetalle(tipo: string, esquema?: unknown): string {
   if (normalizarTipoDato(tipo) !== 'lista') return etiquetaTipo(tipo);
   const nodo = esquema as JsonSchemaNodo | null | undefined;
@@ -20,7 +18,6 @@ function etiquetaConDetalle(tipo: string, esquema?: unknown): string {
   return `Lista de ${etiquetaTipo(tipoEditorDeEsquema(nodoItems)).toLowerCase()}`;
 }
 
-/** Chip del tipo de dato con el mismo color e icono que usa el asistente. */
 export function TipoVariable({ tipo, esquema, className }: TipoVariableProps) {
   const canonico = normalizarTipoDato(tipo);
   const definicion = canonico ? TIPOS_DATO.find((t) => t.valor === canonico) : undefined;

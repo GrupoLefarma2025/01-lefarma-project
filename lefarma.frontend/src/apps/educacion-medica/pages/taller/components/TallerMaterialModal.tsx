@@ -44,14 +44,11 @@ interface TallerMaterialModalProps {
   open: boolean;
   onClose: () => void;
   taller: Taller | null;
-  /** AEM: registra/edita la entrega (materiales.puede_gestionar). */
   puedeGestionar: boolean;
-  /** EV: confirma la recepción con su firma digital (materiales.puede_confirmar). */
   puedeConfirmar: boolean;
   onChanged: () => void;
 }
 
-/** Material del taller (FOR-007): entrega del AEM y confirmación del EV (ADR-00008). */
 export function TallerMaterialModal({
   open,
   onClose,

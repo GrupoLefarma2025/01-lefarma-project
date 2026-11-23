@@ -14,9 +14,6 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace Lefarma.API.Features.Auth;
-/// <summary>
-/// Service for authentication operations including two-step login flow.
-/// </summary>
 public class AuthService : BaseService, IAuthService
 {
     private readonly ApplicationDbContext _context;
@@ -48,7 +45,6 @@ public class AuthService : BaseService, IAuthService
         _jwtSettings = jwtSettings.Value;
     }
 
-    /// <inheritdoc />
     public async Task<ErrorOr<LoginStepOneResponse>> LoginStepOneAsync(
         LoginStepOneRequest request,
         CancellationToken cancellationToken = default)
@@ -60,7 +56,6 @@ public class AuthService : BaseService, IAuthService
                 return CommonErrors.Validation("username", "El nombre de usuario es requerido");
             }
 
-            // Query vwDirectorioActivo to find all domains where user exists
             var userDomains = await _context.VwDirectorioActivo
                 .Where(u => u.SamAccountName == request.Username)
                 .Select(u => u.Dominio)
@@ -80,7 +75,6 @@ public class AuthService : BaseService, IAuthService
 
             var domains = userDomains.Where(d => !string.IsNullOrWhiteSpace(d)).Cast<string>().ToList();
 
-            // Verify each domain has configuration in DominioConfig table
             var configuredDomains = await _asokamContext.DominioConfigs
                 .Where(dc => domains.Contains(dc.Dominio))
                 .Select(dc => dc.Dominio)
@@ -97,7 +91,6 @@ public class AuthService : BaseService, IAuthService
                 return CommonErrors.NotFound("Dominio", "No hay dominios configurados para este usuario");
             }
 
-            // Get user display name
             var userInfo = await _context.VwDirectorioActivo
                 .FirstOrDefaultAsync(u => u.SamAccountName == request.Username, cancellationToken);
 
@@ -128,7 +121,6 @@ public class AuthService : BaseService, IAuthService
         }
     }
 
-    /// <inheritdoc />
     public async Task<ErrorOr<LoginResponse>> LoginStepTwoAsync(
         LoginStepTwoRequest request,
         string? ipAddress = null,
@@ -172,11 +164,9 @@ public class AuthService : BaseService, IAuthService
                 }
             }
 
-            // Get user info from vwDirectorioActivo
             var adUser = await _context.VwDirectorioActivo
                 .FirstOrDefaultAsync(u => u.SamAccountName == request.Username && u.Dominio == request.Domain, cancellationToken);
 
-            // 3. Create or update user in app.Usuarios
             var usuario = await _asokamContext.Usuarios
                 .FirstOrDefaultAsync(u => u.SamAccountName == request.Username, cancellationToken);
 
@@ -198,9 +188,6 @@ public class AuthService : BaseService, IAuthService
             else
             {
                 usuario.Dominio = request.Domain;
-                // El nombre lo administra la sincronizacion RH (app.sp_sincroniza_empleados_usuarios):
-                // sobrescribirlo con el displayName del AD revertia en cada login los nombres ya
-                // corregidos y dejaba etiquetas de vacante/puesto. Solo se rellena si esta vacio.
                 if (string.IsNullOrWhiteSpace(usuario.NombreCompleto))
                 {
                     usuario.NombreCompleto = adUser?.DisplayName ?? request.Username;
@@ -211,13 +198,10 @@ public class AuthService : BaseService, IAuthService
 
             await _asokamContext.SaveChangesAsync(cancellationToken);
 
-            // Sincronizar numero_empleado con numeroNomina de vwDirectorioActivo, si existe
             await SincronizarNumeroEmpleadoAsync(usuario.IdUsuario, adUser?.NumeroNomina, cancellationToken);
 
-            // 4. Get roles and permissions
             var (userRoles, allPermissions) = await GetUserRolesAndPermissionsAsync(usuario.IdUsuario, cancellationToken);
 
-            // 6. Create session in app.Sesiones
             var session = new Sesion
             {
                 IdUsuario = usuario.IdUsuario,
@@ -231,7 +215,6 @@ public class AuthService : BaseService, IAuthService
             _asokamContext.Sesiones.Add(session);
             await _asokamContext.SaveChangesAsync(cancellationToken);
 
-            // 7. Generate JWT access token
             var roleNames = userRoles.Select(r => r.NombreRol).ToList();
             var permissionCodes = allPermissions.Select(p => p.CodigoPermiso).ToList();
             var accessTokenResult = await _tokenService.GenerateAccessTokenAsync(
@@ -241,14 +224,12 @@ public class AuthService : BaseService, IAuthService
                 return accessTokenResult.Errors;
             }
 
-            // 8. Create refresh token
             var refreshTokenResult = await _tokenService.GenerateRefreshTokenAsync(usuario, session.IdSesion, null, cancellationToken);
             if (refreshTokenResult.IsError)
             {
                 return refreshTokenResult.Errors;
             }
 
-            // 9. Log to app.AuditLog
             var auditLog = new AuditLog
             {
                 IdUsuario = usuario.IdUsuario,
@@ -273,7 +254,7 @@ public class AuthService : BaseService, IAuthService
             {
                 AccessToken = accessTokenResult.Value,
                 RefreshToken = refreshTokenResult.Value,
-                ExpiresIn = _jwtSettings.AccessTokenExpirationMinutes * 60, // seconds
+                ExpiresIn = _jwtSettings.AccessTokenExpirationMinutes * 60, 
                 User = new UserInfo
                 {
                     Id = usuario.IdUsuario,
@@ -312,14 +293,12 @@ public class AuthService : BaseService, IAuthService
         }
     }
 
-    /// <inheritdoc />
     public async Task<ErrorOr<LoginResponse>> RefreshTokenAsync(
         RefreshTokenRequest request,
         CancellationToken cancellationToken = default)
     {
         try
         {
-            // Validate refresh token
             var tokenResult = await _tokenService.ValidateRefreshTokenAsync(request.RefreshToken, cancellationToken);
             if (tokenResult.IsError)
             {
@@ -329,7 +308,6 @@ public class AuthService : BaseService, IAuthService
 
             var storedToken = tokenResult.Value;
 
-            // Get user
             var usuario = await _asokamContext.Usuarios
                 .FirstOrDefaultAsync(u => u.IdUsuario == storedToken.IdUsuario, cancellationToken);
 
@@ -353,7 +331,6 @@ public class AuthService : BaseService, IAuthService
                 return CommonErrors.Validation("usuario", "El usuario esta inactivo");
             }
 
-            // Get session if exists
             Sesion? session = null;
             if (storedToken.IdSesion.HasValue)
             {
@@ -366,7 +343,6 @@ public class AuthService : BaseService, IAuthService
                 }
             }
 
-            // Get roles and permissions
             var (userRoles, allPermissions) = await GetUserRolesAndPermissionsAsync(usuario.IdUsuario, cancellationToken);
 
             await _tokenService.RevokeRefreshTokenAsync(request.RefreshToken, "Token refreshed", cancellationToken);
@@ -425,7 +401,6 @@ public class AuthService : BaseService, IAuthService
         }
     }
 
-    /// <inheritdoc />
     public async Task<ErrorOr<LogoutResponse>> LogoutAsync(
         string? refreshToken = null,
         int? usuarioId = null,
@@ -433,7 +408,6 @@ public class AuthService : BaseService, IAuthService
     {
         try
         {
-            // If specific refresh token provided, revoke it
             if (!string.IsNullOrWhiteSpace(refreshToken))
             {
                 var revokeResult = await _tokenService.RevokeRefreshTokenAsync(
@@ -442,17 +416,14 @@ public class AuthService : BaseService, IAuthService
                 if (revokeResult.IsError)
                 {
                     EnrichWideEvent(action: "Logout", error: revokeResult.FirstError.Description);
-                    // Continue even if token not found - user still considered logged out
                 }
 
-                // Get user ID from token to close session
                 var tokenHash = HashToken(refreshToken);
                 var storedToken = await _asokamContext.RefreshTokens
                     .FirstOrDefaultAsync(rt => rt.TokenHash == tokenHash, cancellationToken);
 
                 if (storedToken != null)
                 {
-                    // Close session
                     if (storedToken.IdSesion.HasValue)
                     {
                         var session = await _asokamContext.Sesiones
@@ -469,12 +440,10 @@ public class AuthService : BaseService, IAuthService
                 }
             }
 
-            // If user ID provided, revoke all tokens for user
             if (usuarioId.HasValue)
             {
                 await _tokenService.RevokeAllUserTokensAsync(usuarioId.Value, "User logout", cancellationToken);
 
-                // Close all active sessions for user
                 var activeSessions = await _asokamContext.Sesiones
                     .Where(s => s.IdUsuario == usuarioId.Value && s.EsActiva)
                     .ToListAsync(cancellationToken);
@@ -486,7 +455,6 @@ public class AuthService : BaseService, IAuthService
                 }
             }
 
-            // Create audit log
             if (usuarioId.HasValue)
             {
                 var usuario = await _asokamContext.Usuarios
@@ -528,9 +496,6 @@ public class AuthService : BaseService, IAuthService
         }
     }
 
-    /// <summary>
-    /// Loads roles and permissions for a user in a single query batch.
-    /// </summary>
     private async Task<(List<RoleInfo> Roles, List<PermissionInfo> Permissions)> GetUserRolesAndPermissionsAsync(
         int userId,
         CancellationToken cancellationToken)
@@ -563,8 +528,6 @@ public class AuthService : BaseService, IAuthService
             })
             .ToListAsync(cancellationToken);
 
-        // Las filas con EsConcedido = 0 son denegaciones explícitas: restan el permiso
-        // aunque venga del rol (mismo criterio que app.sp_ObtenerPermisosUsuario).
         var directPermissionRows = await _asokamContext.UsuariosPermisos
             .Include(up => up.Permiso)
             .Where(up => up.IdUsuario == userId && up.Permiso.EsActivo)
@@ -606,9 +569,6 @@ public class AuthService : BaseService, IAuthService
         return (userRoles, allPermissions);
     }
 
-    /// <summary>
-    /// Hashes a token using SHA256 for comparison with stored hash.
-    /// </summary>
     private static string HashToken(string token)
     {
         var bytes = System.Text.Encoding.UTF8.GetBytes(token);
@@ -616,10 +576,6 @@ public class AuthService : BaseService, IAuthService
         return Convert.ToBase64String(hash);
     }
 
-    /// <summary>
-    /// Sincroniza config.usuario_detalle.numero_empleado con el numeroNomina de AD.
-    /// Nunca interrumpe el login: cualquier fallo solo se registra como warning.
-    /// </summary>
     private async Task SincronizarNumeroEmpleadoAsync(
         int idUsuario,
         string? numeroNomina,
@@ -661,7 +617,7 @@ public class AuthService : BaseService, IAuthService
             }
             else
             {
-                return; // Sin cambios, evita write innecesario
+                return; 
             }
 
             await _context.SaveChangesAsync(cancellationToken);

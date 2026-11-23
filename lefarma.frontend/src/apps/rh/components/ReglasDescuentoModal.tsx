@@ -12,7 +12,6 @@ interface ReglasDescuentoModalProps {
   triggerSize?: 'sm' | 'default';
 }
 
-/** Botón "¿Cómo se generan los descuentos?" + modal explicativo. */
 export function ReglasDescuentoModal({
   className,
   triggerSize = 'sm',

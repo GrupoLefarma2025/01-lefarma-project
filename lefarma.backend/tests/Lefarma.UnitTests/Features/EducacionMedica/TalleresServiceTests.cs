@@ -30,7 +30,6 @@ public class TalleresServiceTests
         var contexto = _workflow.Context;
         contexto.TiposGerencia.Add(new TipoGerencia { IdTipoGerencia = 1, Descripcion = "IMSS", Activo = true });
         contexto.TiposGerencia.Add(new TipoGerencia { IdTipoGerencia = 2, Descripcion = "Descentralizado", Activo = true });
-        // La FK id_region del equipo es requerida: sin el catálogo, el Include(Region) actúa como inner join en InMemory
         contexto.RegionesCat.Add(new RegionCatalogo { IdRegion = 1, IdTipoGerencia = 1, Nombre = "Región 1", Activo = true });
         contexto.EquiposPareo.Add(new EquipoPareo
         {
@@ -65,7 +64,6 @@ public class TalleresServiceTests
             CiudadMunicipio = "Cuauhtémoc",
             IdRegion = 1,
         });
-        // Ruta autorizada del hospital (candado de captura: solo hospitales con ruta cerrada).
         contexto.Rutas.Add(new Ruta
         {
             IdRuta = 1,
@@ -133,7 +131,6 @@ public class TalleresServiceTests
         individual.Periodo.Should().Be(Periodo);
         individual.EsBloqueado.Should().BeFalse();
 
-        // La general nace en el paso inicial del workflow de la gerencia (IMSS -> WfMatriz)
         var general = contexto.MatricesGenerales.Single(m => m.IdMatrizGeneral == taller.IdMatrizGeneral);
         general.IdTipoGerencia.Should().Be(1);
         general.Periodo.Should().Be(Periodo);
@@ -194,7 +191,6 @@ public class TalleresServiceTests
     [Fact]
     public async Task Crear_SinRutaAutorizada_Debe_Fallar()
     {
-        // Hospital de la selección sin visita de ruta cerrada.
         _workflow.Context.SeleccionesHospitales.Add(new SeleccionHospital
         {
             IdSeleccionHospital = 2,

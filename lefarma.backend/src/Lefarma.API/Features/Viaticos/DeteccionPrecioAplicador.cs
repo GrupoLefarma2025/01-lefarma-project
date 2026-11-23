@@ -4,12 +4,6 @@ using Lefarma.API.Infrastructure.Data;
 
 namespace Lefarma.API.Features.Viaticos;
 
-/// <summary>
-/// Único punto que aplica un resultado de detección a una opción: actualiza
-/// precio/fuente/captura, recalcula totales y registra el evento. Lo usan el
-/// endpoint bajo demanda y la cola de Fase 2, para que ambos caminos no
-/// diverjan.
-/// </summary>
 public static class DeteccionPrecioAplicador
 {
     public static async Task<bool> AplicarAsync(

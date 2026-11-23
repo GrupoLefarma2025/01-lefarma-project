@@ -13,7 +13,6 @@ beforeEach(() => {
   urlMock.revocar.mockReset();
   let contador = 0;
   urlMock.crear.mockImplementation(() => `blob:captura-${++contador}`);
-  // jsdom no implementa createObjectURL/revokeObjectURL.
   (URL as unknown as Record<string, unknown>).createObjectURL = urlMock.crear;
   (URL as unknown as Record<string, unknown>).revokeObjectURL = urlMock.revocar;
 });
@@ -42,7 +41,6 @@ describe('CeldaCaptura', () => {
     const miniatura = await screen.findByRole('img');
     expect(api.get).toHaveBeenCalledWith('/viaticos/capturas/uno.png', { responseType: 'blob' });
     expect(miniatura.getAttribute('src')).toBe('blob:captura-1');
-    // La miniatura abre el visor modal, no una pestaña nueva.
     expect(miniatura.closest('button')).not.toBeNull();
 
     unmount();
@@ -94,7 +92,6 @@ describe('CeldaCaptura', () => {
     fireEvent.click(miniatura.closest('button')!);
 
     expect((await screen.findAllByText('Captura · Volaris')).length).toBeGreaterThan(0);
-    // El visor usa el nombre real del archivo en la ruta, no un nombre sintético.
     expect(await screen.findByAltText('uno.png')).toBeInTheDocument();
   });
 

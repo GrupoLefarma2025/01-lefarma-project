@@ -1,4 +1,3 @@
-
 import { type ColumnDef } from "@tanstack/react-table";
 import { ArrowUpDown, CheckCircle, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -79,17 +78,6 @@ export const createColumns = (
       );
     },
   },
-  // {
-  //   accessorKey: "type",
-  //   header: "Tipo",
-  //   cell: ({ row }) => {
-  //     return (
-  //       <div className="text-muted-foreground">
-  //         {row.getValue("type")}
-  //       </div>
-  //     );
-  //   },
-  // },
   {
     accessorKey: "size",
     header: ({ column }) => {

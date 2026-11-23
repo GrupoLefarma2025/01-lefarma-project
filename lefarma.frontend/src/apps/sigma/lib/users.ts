@@ -43,9 +43,6 @@ const normalizeOption = (item: Record<string, unknown>): BandejaUserOption | nul
   };
 };
 
-/**
- * Fetch the list of users available for the Bandeja filter.
- */
 export async function fetchBandejaUsers(): Promise<BandejaUserOption[]> {
   const result = await get<RawUsersResponse | Array<Record<string, unknown>>>(
     "/documentos/bandeja/usuarios"

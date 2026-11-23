@@ -16,7 +16,7 @@ export function PermissionElement({
   children,
   fallback = null,
 }: PermissionElementProps) {
-  usePermissionVersion(); // subscribe — re-render when permissions change
+  usePermissionVersion(); 
   const hasPermission = checkPermission({ require, requireAny, exclude });
   return hasPermission ? <>{children}</> : <>{fallback}</>;
 }

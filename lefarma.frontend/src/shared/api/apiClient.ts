@@ -9,7 +9,6 @@ import {
   registrarFalloHttp,
 } from '@/shared/telemetria/capturaErrores';
 
-
 const baseURL = import.meta.env.VITE_API_URL || '/api';
 
 const apiClient: AxiosInstance = axios.create({
@@ -42,8 +41,6 @@ apiClient.interceptors.request.use(
       config.headers.Authorization = `Bearer ${token}`;
     }
 
-    // Dejar que axios setee Content-Type automáticamente para FormData (incluye boundary)
-    // Remover Content-Type para requests sin body (GET, DELETE, HEAD)
     if (config.data instanceof FormData) {
       delete config.headers['Content-Type'];
     } else if (!config.data && ['get', 'delete', 'head'].includes((config.method ?? '').toLowerCase())) {
@@ -60,9 +57,6 @@ apiClient.interceptors.request.use(
 apiClient.interceptors.response.use(
   (response) => {
     consecutiveConnectionFailures = 0;
-    // Cualquier respuesta con éxito confirma que el servidor está vivo: no solo
-    // el probe de /health o el onopen del SSE. Sin esto, si las peticiones que
-    // vuelven al reconectar no son ninguna de esas dos, el overlay se queda.
     useConnectionStore.getState().markConnected();
     return response;
   },
@@ -113,8 +107,6 @@ apiClient.interceptors.response.use(
         originalRequest.headers.Authorization = `Bearer ${newToken}`;
         return apiClient(originalRequest);
       } catch (refreshError) {
-        // La sesión existía y el servidor la rechazó: queda en telemetría para
-        // poder distinguir «sesión expirada» de «sin conexión».
         if (authService.getRefreshToken()) {
           registrarFalloHttp({
             metodo: originalRequest?.method ?? 'get',
@@ -136,15 +128,10 @@ apiClient.interceptors.response.use(
       }
     }
 
-    if (error.response?.status === 403) {
-      // Permiso denegado - el backend ya responde con el mensaje apropiado
-    }
-
     const estado = error.response?.status;
     const urlPeticion = originalRequest?.url ?? '';
     const esTelemetria = urlPeticion.includes('/telemetria/');
     if (!estado && !esTelemetria) {
-      // Sin respuesta: conexión rechazada, restablecida, DNS o tiempo agotado.
       registrarFalloDeRed({
         metodo: originalRequest?.method ?? 'get',
         url: `${originalRequest?.baseURL ?? ''}${urlPeticion}`,
@@ -192,7 +179,6 @@ export const proveedorApi = {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
   },
-  // Per-account carátula (replaces the legacy single-carátula endpoint).
   uploadCuentaCaratula: (id: number, idCuenta: number, file: File) => {
     const formData = new FormData();
     formData.append('file', file);
@@ -202,7 +188,6 @@ export const proveedorApi = {
       { headers: { 'Content-Type': 'multipart/form-data' } },
     );
   },
-  // Feed for the "Ver carátulas" modal → [{ cuentaId, ultimos4, caratulaUrl }].
   getCaratulas: (id: number) =>
     apiClient.get(`/catalogos/Proveedores/${id}/caratulas`),
 };

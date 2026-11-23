@@ -3,11 +3,6 @@ using Microsoft.Extensions.Options;
 
 namespace Lefarma.API.Shared.Authorization;
 
-/// <summary>
-/// Resolves HasPermission_* policies on the fly without static registration in startup.
-/// Lets new permissions be added to app.Permisos without code changes or restarts.
-/// Falls back to DefaultAuthorizationPolicyProvider for any other policy name.
-/// </summary>
 public class DynamicPermissionPolicyProvider : IAuthorizationPolicyProvider
 {
     private readonly DefaultAuthorizationPolicyProvider _fallbackProvider;

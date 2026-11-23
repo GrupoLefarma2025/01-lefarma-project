@@ -1,11 +1,6 @@
 import { Activity, LayoutDashboard, Settings, User } from 'lucide-react';
 import type { SidebarMenuItemConfig } from '@/components/layout/sidebar-types';
 
-/**
- * Config de navegación del sidebar del shell. El shell del base-app raíz
- * (hub, perfil) usa el mismo MainLayout + AppSidebar + Header que las apps,
- * pero con items solo del shell y sin contexto (showContext=false).
- */
 export const shellMenuItems: SidebarMenuItemConfig[] = [
   {
     title: 'Inicio',
@@ -31,12 +26,6 @@ export const shellMenuItems: SidebarMenuItemConfig[] = [
   },
 ];
 
-/**
- * El módulo Configuración usa su propio layout para no mezclar la navegación
- * del administrador de variables con el acceso de perfil del shell. Telemetría
- * vive dentro de Configuración (`/configuracion/telemetria`), así que también
- * aparece en este sidebar.
- */
 export const configuracionMenuItems: SidebarMenuItemConfig[] = shellMenuItems.filter(
   (item) => !('path' in item) || item.path !== '/perfil',
 );

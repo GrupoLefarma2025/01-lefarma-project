@@ -3,36 +3,24 @@ using System.Text.Json.Serialization;
 
 namespace Lefarma.API.Features.Viaticos.DTOs;
 
-/// <summary>
-/// Cuerpo del POST /api/viaticos/capturas. Acepta una lista mixta:
-/// strings (solo URL) u objetos { url, nombre } (mismo contrato que el script
-/// captura-viaticos.mjs de T7). El model binder recibe JsonElements y el
-/// controller los normaliza a <see cref="CapturaItem"/>.
-/// </summary>
 public class CapturaRequest
 {
     [JsonPropertyName("urls")]
     public List<JsonElement>? Urls { get; set; }
 }
 
-/// <summary>Item normalizado que el servicio procesa.</summary>
 public class CapturaItem
 {
     public string Url { get; set; } = string.Empty;
     public string? Nombre { get; set; }
-    /// <summary>vuelo | autobus | hotel | renta | taxi...</summary>
     public string? Tipo { get; set; }
-    /// <summary>Línea, aerolínea u hotel que debe aparecer en la tarjeta.</summary>
     public string? Linea { get; set; }
-    /// <summary>Precio de la opción para localizar su tarjeta.</summary>
     public decimal? Precio { get; set; }
     public string? Salida { get; set; }
     public string? Llegada { get; set; }
-    /// <summary>Texto adicional para desambiguar (nombre del hotel, etc.).</summary>
     public string? Objetivo { get; set; }
 }
 
-/// <summary>Salida por URL (mismo shape que captura-viaticos.mjs).</summary>
 public class CapturaResultDto
 {
     [JsonPropertyName("url")]
@@ -44,7 +32,6 @@ public class CapturaResultDto
     [JsonPropertyName("archivo")]
     public string? Archivo { get; set; }
 
-    /// <summary>opcion (recorte de la tarjeta) | resultados (página completa).</summary>
     [JsonPropertyName("alcance")]
     public string? Alcance { get; set; }
 
@@ -52,11 +39,6 @@ public class CapturaResultDto
     public string? Error { get; set; }
 }
 
-/// <summary>
-/// Cuerpo multipart de POST /api/viaticos/capturas/adjuntar: una captura PNG
-/// tomada fuera del backend. Va como DTO (no como parametros sueltos) porque
-/// Swashbuckle no genera el schema de un <c>[FromForm] IFormFile</c> suelto.
-/// </summary>
 public class AdjuntarCapturaRequest
 {
     public IFormFile? Archivo { get; set; }
@@ -64,27 +46,15 @@ public class AdjuntarCapturaRequest
     public string? Nombre { get; set; }
 }
 
-/// <summary>
-/// Body opcional de POST /api/viaticos/solicitudes/{id}/capturas.
-/// <c>forzar=false</c> respeta las capturas ya guardadas; <c>true</c> vuelve a
-/// tomar todas (util cuando el precio viejo ya no coincide con la pagina).
-/// </summary>
 public class CapturarEvidenciasRequest
 {
     [JsonPropertyName("forzar")]
     public bool Forzar { get; set; }
 
-    /// <summary>Si viene, captura solo esa opción (generar/reemplazar una).</summary>
     [JsonPropertyName("opcion_id")]
     public int? OpcionId { get; set; }
 }
 
-/// <summary>
-/// Evidencia de una opcion del viaje: link de compra + captura de pantalla.
-/// <c>ruta_captura</c> es la ruta persistida en la BD
-/// (<c>capturas-viaticos/x.png</c>); <c>url_captura</c> es esa misma captura
-/// resuelta contra el endpoint autenticado de este backend.
-/// </summary>
 public class EvidenciaOpcionDto
 {
     [JsonPropertyName("id_opcion")]
@@ -120,26 +90,16 @@ public class EvidenciaOpcionDto
     [JsonPropertyName("capturada_en")]
     public DateTime? CapturadaEn { get; set; }
 
-    /// <summary>Motivo por el que esa opcion no tiene captura (si aplica).</summary>
     [JsonPropertyName("error")]
     public string? Error { get; set; }
 
-    /// <summary>
-    /// Informacion del viaje extraida por el agente (transportista, horarios,
-    /// duracion, precio, asientos, notas). <c>null</c> si aun no se ha buscado.
-    /// </summary>
     [JsonPropertyName("datos")]
     public JsonElement? Datos { get; set; }
 
-    /// <summary>Cuando se hizo la ultima busqueda agentica de esta opcion.</summary>
     [JsonPropertyName("buscado_en")]
     public DateTime? BuscadoEn { get; set; }
 }
 
-/// <summary>
-/// Respuesta de GET/POST /api/viaticos/solicitudes/{id}/capturas: las opciones
-/// del viaje con su link de compra y su captura.
-/// </summary>
 public class EvidenciasSolicitudDto
 {
     [JsonPropertyName("id_solicitud")]
@@ -160,16 +120,10 @@ public class EvidenciasSolicitudDto
     [JsonPropertyName("fallidas")]
     public int Fallidas { get; set; }
 
-    /// <summary>Aviso cuando hubo mas opciones de las que se pueden capturar de golpe.</summary>
     [JsonPropertyName("aviso")]
     public string? Aviso { get; set; }
 }
 
-/// <summary>
-/// Resultado de una busqueda agentica: la captura de pantalla y los datos del
-/// viaje (transportista, horarios, precio...) que devolvio el agente en la
-/// misma corrida. <see cref="Datos"/> queda en null si solo se pudo capturar.
-/// </summary>
 public class BusquedaCapturaResult
 {
     public CapturaResultDto Captura { get; init; } = new();
@@ -183,11 +137,6 @@ public class BusquedaCapturaResult
     public DateTime BuscadoEn { get; init; } = DateTime.UtcNow;
 }
 
-/// <summary>
-/// Cuerpo de POST /api/viaticos/capturas/buscar: pide al agente buscar la
-/// oferta en la URL del proveedor (llenando el buscador con el contexto de la
-/// ruta) y devolver la captura de los RESULTADOS y el costo.
-/// </summary>
 public class BuscarCapturaRequest
 {
     [JsonPropertyName("url")]
@@ -196,15 +145,10 @@ public class BuscarCapturaRequest
     [JsonPropertyName("nombre")]
     public string? Nombre { get; set; }
 
-    /// <summary>Texto con origen, destino y fecha para que el agente llene el buscador.</summary>
     [JsonPropertyName("contexto")]
     public string? Contexto { get; set; }
 }
 
-/// <summary>
-/// Respuesta de POST /api/viaticos/capturas/buscar: la captura publicada y la
-/// informacion del viaje extraida por el agente.
-/// </summary>
 public class CapturaBuscadaDto
 {
     [JsonPropertyName("archivo")]
@@ -226,10 +170,6 @@ public class CapturaBuscadaDto
     public string? Error { get; set; }
 }
 
-/// <summary>
-/// Body opcional de POST /api/viaticos/solicitudes/{id}/buscar: si viene
-/// <c>opcion_id</c> solo se busca esa opcion (la UI las pide una por una).
-/// </summary>
 public class BuscarEvidenciasRequest
 {
     [JsonPropertyName("opcion_id")]

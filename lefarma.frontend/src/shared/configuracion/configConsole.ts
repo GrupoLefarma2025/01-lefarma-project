@@ -1,23 +1,12 @@
 import { ensureConfig, syncNow } from './configRuntime';
 import { useConfiguracionStore } from './configuracionStore';
 
-/**
- * API de sólo lectura para inspeccionar la configuración desde la consola del
- * navegador. Usa exactamente el mismo store que `useConfig`; nunca consulta
- * variables backend-only.
- */
 export interface LefarmaConfigConsoleApi {
-  /** Valor actualmente cacheado. No hace peticiones. */
   get<T = unknown>(clave: string): T | undefined;
-  /** Fuerza una consulta al servidor y devuelve el valor actualizado. */
   getAsync<T = unknown>(clave: string): Promise<T | undefined>;
-  /** Todas las variables frontend cacheadas, indexadas por clave. */
   getAll(): Record<string, unknown>;
-  /** Claves disponibles en la caché local. */
   keys(): string[];
-  /** Revisión global aplicada por última vez. */
   revision(): number;
-  /** Fuerza una sincronización incremental. */
   sync(): Promise<void>;
   help(): void;
 }

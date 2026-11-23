@@ -2,14 +2,10 @@ using FluentValidation;
 using Lefarma.API.Features.Profile.DTOs;
 
 namespace Lefarma.API.Features.Profile;
-/// <summary>
-/// Validador para actualización de perfil
-/// </summary>
 public class UpdateProfileRequestValidator : AbstractValidator<UpdateProfileRequest>
 {
     public UpdateProfileRequestValidator()
     {
-        // Validaciones de datos básicos
         RuleFor(x => x.NombreCompleto)
             .MaximumLength(255)
             .When(x => !string.IsNullOrWhiteSpace(x.NombreCompleto))
@@ -23,7 +19,6 @@ public class UpdateProfileRequestValidator : AbstractValidator<UpdateProfileRequ
             .When(x => !string.IsNullOrWhiteSpace(x.Correo))
             .WithMessage("El correo no puede exceder 255 caracteres");
 
-        // Validaciones de datos laborales
         RuleFor(x => x.Puesto)
             .MaximumLength(100)
             .When(x => !string.IsNullOrWhiteSpace(x.Puesto))
@@ -34,7 +29,6 @@ public class UpdateProfileRequestValidator : AbstractValidator<UpdateProfileRequ
             .When(x => !string.IsNullOrWhiteSpace(x.NumeroEmpleado))
             .WithMessage("El número de empleado no puede exceder 50 caracteres");
 
-        // Validaciones de contacto
         RuleFor(x => x.TelefonoOficina)
             .MaximumLength(20)
             .When(x => !string.IsNullOrWhiteSpace(x.TelefonoOficina))
@@ -55,7 +49,6 @@ public class UpdateProfileRequestValidator : AbstractValidator<UpdateProfileRequ
             .When(x => !string.IsNullOrWhiteSpace(x.TelegramChat))
             .WithMessage("El chat de Telegram no puede exceder 100 caracteres");
 
-        // Validaciones de configuración de interfaz
         RuleFor(x => x.AvatarUrl)
             .MaximumLength(500)
             .When(x => !string.IsNullOrWhiteSpace(x.AvatarUrl))
@@ -71,7 +64,6 @@ public class UpdateProfileRequestValidator : AbstractValidator<UpdateProfileRequ
             .When(x => !string.IsNullOrWhiteSpace(x.DashboardInicio))
             .WithMessage("El dashboard de inicio no puede exceder 100 caracteres");
 
-        // Validación de delegación
         RuleFor(x => x.DelegacionHasta)
             .GreaterThan(DateTime.UtcNow)
             .When(x => x.DelegacionHasta.HasValue)

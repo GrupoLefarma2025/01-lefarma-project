@@ -18,18 +18,12 @@ const MONEDA = new Intl.NumberFormat('es-MX', {
 
 interface AprobacionesBandejaTableProps {
   solicitudes: SolicitudBandeja[];
-  /** Con false el boton Autorizar no se renderiza (falta viaticos.autorizar). */
   puedeAutorizar: boolean;
   autorizandoId: number | null;
   onAutorizar: (solicitud: SolicitudBandeja) => void;
   onVerOpciones: (solicitud: SolicitudBandeja) => void;
 }
 
-/**
- * Tabla de la bandeja de autorizaciones de viaticos. Cada fila expone
- * exactamente dos acciones: Autorizar (solo con viaticos.autorizar) y Ver
- * opciones.
- */
 export function AprobacionesBandejaTable({
   solicitudes,
   puedeAutorizar,
@@ -53,7 +47,6 @@ export function AprobacionesBandejaTable({
         </TableHeader>
         <TableBody>
           {solicitudes.map((solicitud) => {
-            // El backend solo autoriza 'enviada' (409 en cualquier otro estado).
             const pendientes = solicitud.precios_pendientes ?? 0;
             const autorizable = solicitud.estado === ESTADO_ENVIADA && pendientes === 0;
             const autorizando = autorizandoId === solicitud.id_solicitud;

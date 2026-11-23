@@ -3,14 +3,8 @@ using System.Text;
 
 namespace Lefarma.API.Features.Sigma;
 
-/// <summary>
-/// Ticket firmado (HMAC-SHA256) que identifica a un visitante externo del portal de documentos.
-/// Formato: <c>base64url(payload).base64url(firma)</c>, payload = <c>idUsuario|correo|expEpoch</c>.
-/// No sustituye al JWT de los usuarios de Active Directory: sólo acredita al alta anónima.
-/// </summary>
 public sealed class SigmaVisitorTokenService
 {
-    /// <summary>Cabecera HTTP con la que el cliente externo envía el ticket.</summary>
     public const string HeaderName = "X-Sigma-Visitor";
 
     private static readonly TimeSpan Vigencia = TimeSpan.FromHours(8);
@@ -31,7 +25,6 @@ public sealed class SigmaVisitorTokenService
         _clave = Encoding.UTF8.GetBytes(secreto);
     }
 
-    /// <summary>Emite un ticket con vigencia de 8 horas para el visitante indicado.</summary>
     public string Issue(int idUsuario, string correo)
     {
         var expira = DateTimeOffset.UtcNow.Add(Vigencia).ToUnixTimeSeconds();
@@ -41,7 +34,6 @@ public sealed class SigmaVisitorTokenService
         return $"{Base64Url(bytesPayload)}.{Base64Url(firma)}";
     }
 
-    /// <summary>Valida firma y vigencia del ticket; devuelve la identidad del visitante.</summary>
     public bool TryValidate(string? token, out SigmaVisitor visitante)
     {
         visitante = default!;
@@ -103,11 +95,6 @@ public sealed class SigmaVisitorTokenService
     }
 }
 
-/// <summary>Identidad contenida en el ticket de visitante.</summary>
 public sealed record SigmaVisitor(int IdUsuario, string Correo, string Nombre);
 
-/// <summary>
-/// Identidad resuelta por petición: usuario de AD (JWT) o visitante externo (ticket).
-/// Los controllers trabajan con este tipo y no con HttpContext.User.
-/// </summary>
 public sealed record SigmaActor(int? IdUsuario, string Usuario, bool EsAnonimo, string Nombre);

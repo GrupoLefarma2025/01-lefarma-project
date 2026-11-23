@@ -2,7 +2,6 @@ using System.Text.Json.Serialization;
 
 namespace Lefarma.API.Features.Sigma.DTOs;
 
-/// <summary>Resultado de un envío de notificaciones (equivalente a DocumentoEmailResult de SIGMA).</summary>
 public sealed class DocumentoEmailResult
 {
     public bool Success { get; set; }
@@ -12,7 +11,6 @@ public sealed class DocumentoEmailResult
     public string Mensaje { get; set; } = "";
 }
 
-/// <summary>Metadatos del documento legacy (app.Documentos.MetadataJSON).</summary>
 public sealed class DocumentoMetadata
 {
     [JsonPropertyName("to")]
@@ -32,7 +30,6 @@ public sealed class DocumentoMetadata
             : To.Split(new[] { ';', ',' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
 }
 
-/// <summary>Fila de app.Documentos usada por la notificación individual.</summary>
 internal sealed record DocumentoEmailRow
 {
     public Guid Id { get; init; }
@@ -50,7 +47,6 @@ internal sealed record DocumentoEmailRow
     public string? SubidoPorUsuario { get; init; }
 }
 
-/// <summary>Fila mínima para el envío masivo de autorizaciones pendientes.</summary>
 internal sealed record DocumentoPendienteEmailRow
 {
     public Guid Id { get; init; }
@@ -58,7 +54,6 @@ internal sealed record DocumentoPendienteEmailRow
     public DateTime FechaSubida { get; init; }
 }
 
-/// <summary>Respuesta de POST api/email/documentos/autorizacion-pendiente.</summary>
 public sealed record AutorizacionPendienteResponse
 {
     public string Message { get; init; } = "";
@@ -67,7 +62,6 @@ public sealed record AutorizacionPendienteResponse
     public IReadOnlyList<string> Errores { get; init; } = Array.Empty<string>();
 }
 
-/// <summary>Respuesta de POST api/email/documentos/notificar/{id}.</summary>
 public sealed record NotificarDocumentoResponse
 {
     public string Message { get; init; } = "";

@@ -2,10 +2,6 @@ using System.Security.Claims;
 
 namespace Lefarma.API.Features.Telemetria.Ingesta;
 
-/// <summary>
-/// Límites de frecuencia de la ingesta. Es el primer limitador del API, así que
-/// las políticas se declaran aquí y se registran en <c>Program.cs</c>.
-/// </summary>
 public static class TelemetriaRateLimit
 {
     public const string Politica = "telemetria";

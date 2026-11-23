@@ -14,15 +14,6 @@ import {
 } from 'lucide-react';
 import type { SidebarMenuItemConfig } from '@/components/layout/sidebar-types';
 
-/**
- * RH (Recursos Humanos) sidebar navigation config. Paths are absolute with
- * the `/rh/` prefix (RH is mounted at `/rh/`).
- *
- * Estructura: autoservicio plano y arriba (Dashboard, Mis solicitudes,
- * Mis incidencias) para que el empleado común llegue en un clic; los grupos
- * de administración se auto-ocultan cuando ninguno de sus hijos tiene
- * permiso (AppSidebar filtra hijos y oculta el grupo vacío).
- */
 export const rhMenuItems: SidebarMenuItemConfig[] = [
   {
     title: 'Dashboard',

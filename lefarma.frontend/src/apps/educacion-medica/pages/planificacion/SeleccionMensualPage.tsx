@@ -70,9 +70,9 @@ const HospitalesMap = lazy(() =>
 
 interface FiltrosSelecciones {
   busqueda: string;
-  idTipoGerencia: string; // 'all' | idTipoGerencia
-  idEstado: string; // 'all' | idEstado workflow
-  periodo: string; // 'all' | 'YYYY-MM'
+  idTipoGerencia: string; 
+  idEstado: string; 
+  periodo: string; 
 }
 
 const FILTROS_INICIALES: FiltrosSelecciones = {
@@ -88,7 +88,6 @@ export default function SeleccionMensualPage() {
   const { hasFirma } = useAuthStore();
   const puedeEditarSeleccion = usePermission({ requireAny: [...PERMISOS_EDICION_SELECCION] });
 
-  // La URL es la fuente de verdad del documento abierto: /seleccion?idSeleccion=123
   const [searchParams, setSearchParams] = useSearchParams();
   const seleccionId = useMemo(() => {
     const idParam = searchParams.get('idSeleccion');
@@ -107,12 +106,10 @@ export default function SeleccionMensualPage() {
   const [modalFirma, setModalFirma] = useState(false);
   const [modalHistorial, setModalHistorial] = useState(false);
 
-  // Listado: filtros (cliente) + estados del workflow
   const [workflowEstados, setWorkflowEstados] = useState<WorkflowEstado[]>([]);
   const [draftFiltros, setDraftFiltros] = useState<FiltrosSelecciones>(FILTROS_INICIALES);
   const [appliedFiltros, setAppliedFiltros] = useState<FiltrosSelecciones>(FILTROS_INICIALES);
 
-  // Modales de fila del listado (firma / historial / archivos)
   const [documentoLista, setDocumentoLista] = useState<SeleccionMensual | null>(null);
   const [modalesLista, setModalesLista] = useState({
     firma: false,
@@ -292,7 +289,6 @@ export default function SeleccionMensualPage() {
         }
       })
       .catch(() => {
-        // Informativo: una falla aquí no debe bloquear la vista.
       });
 
     return () => {
@@ -307,11 +303,9 @@ export default function SeleccionMensualPage() {
         setHospitalesCercanos(response.data.data ?? []);
       }
     } catch {
-      // Informativo: una falla aquí no debe bloquear la vista.
     }
   }, []);
 
-  // Al cambiar de selección, abrir la primera región con problema (sin ejecutivo > advertencia <4)
   useEffect(() => {
     if (!detalle) return;
     if (regionesInicializadasPara.current === detalle.idSeleccionMensual) return;
@@ -332,7 +326,6 @@ export default function SeleccionMensualPage() {
     }
   };
 
-  // ── Filtros del listado ────────────────────────────────────────────────────
   const seleccionesFiltradas = useMemo(() => {
     return selecciones.filter((s) => {
       if (
@@ -376,7 +369,6 @@ export default function SeleccionMensualPage() {
     setAppliedFiltros(FILTROS_INICIALES);
   };
 
-  // ── Modales de fila del listado ────────────────────────────────────────────
   const abrirFirmaLista = (s: SeleccionMensual) => {
     if (hasFirma === false) {
       toast.warning('No has cargado tu firma digital', {
@@ -424,8 +416,6 @@ export default function SeleccionMensualPage() {
         toast.success(
           `${nombreSeleccion(documentoLista.fechaSeleccion, documentoLista.tipoGerencia)}: ${response.data.message || 'acción aplicada.'}`
         );
-        // Patrón RH: se cierra solo el formulario; la lista de acciones queda
-        // abierta, refrescada con las acciones restantes del documento.
         const lista = await fetchSelecciones();
         const actualizado = lista?.find(
           (s) => s.idSeleccionMensual === documentoLista.idSeleccionMensual
@@ -444,7 +434,6 @@ export default function SeleccionMensualPage() {
     }
   };
 
-  // ── Nueva selección ────────────────────────────────────────────────────────
   const mesFuturo = useMemo(() => {
     const hoy = new Date();
     const siguiente = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 1);
@@ -513,7 +502,6 @@ export default function SeleccionMensualPage() {
     }
   };
 
-  // ── Detalle: hospitales ────────────────────────────────────────────────────
   const abrirModalHospital = () => {
     setHospitalesGerencia([]);
     setHospitalElegidoId(null);
@@ -537,11 +525,9 @@ export default function SeleccionMensualPage() {
         const response = await educacionMedicaApi.hospitales.getAll({
           idTipoGerencia: idGerencia,
           tieneCoordenadas: true,
-          // Excluye contactos logísticos (almacenes/farmacias): solo sedes de taller.
           filtroSede: 'sedes',
           mostrarEducacionMedica: true,
           page,
-          // IMSS Bienestar supera las 4 mil sedes; 500 evita cortar el catálogo.
           pageSize: 500,
         });
         if (!response.data.success) {
@@ -792,7 +778,6 @@ export default function SeleccionMensualPage() {
         setFiltrosDisponibles(response.data.data ?? null);
       }
     } catch (error: unknown) {
-      // No bloquear la experiencia si el endpoint falla
       console.warn('No se pudieron cargar los filtros disponibles', error);
       setFiltrosDisponibles(null);
     }
@@ -812,7 +797,6 @@ export default function SeleccionMensualPage() {
       );
       setRankingEjecucion(response.data.success ? (response.data.data ?? null) : null);
     } catch (error: unknown) {
-      // 404 = todavía no hay ranking para esta selección: abrir en estado vacío
       if (!isAxiosError(error) || error.response?.status !== 404) {
         toast.error(toApiError(error).message ?? 'Error al cargar el ranking anterior');
       }
@@ -856,8 +840,6 @@ export default function SeleccionMensualPage() {
     }
   };
 
-  // Acciones de workflow disponibles para el usuario en el paso actual (enviar, firmas
-  // GG/GV, devolver). El backend inicializa el paso inicial si la selección es antigua.
   useEffect(() => {
     if (!detalle) return;
 
@@ -902,8 +884,6 @@ export default function SeleccionMensualPage() {
           response.data.message ||
             `${nombreSeleccion(detalle.fechaSeleccion, detalle.tipoGerencia)}: acción aplicada.`
         );
-        // Patrón RH: se cierra solo el formulario; la lista de acciones queda
-        // abierta y se refresca (el detalle recarga las acciones del paso actual).
         await refrescar();
         return true;
       }
@@ -928,8 +908,6 @@ export default function SeleccionMensualPage() {
     return mapa;
   }, [detalle]);
 
-  // Agrupa los cercanos por la región del hospital propio más cercano
-  // (null = no se pudo resolver o el hospital propio no tiene región).
   const cercanosPorRegion = useMemo(() => {
     const regionPorHospital = new Map<number, number | null>();
     for (const hospital of detalle?.hospitales ?? []) {
@@ -989,7 +967,6 @@ export default function SeleccionMensualPage() {
 
   const editable = puedeEditarSeleccion && detalle?.permiteEdicion === true;
 
-  // ── Modo lista ─────────────────────────────────────────────────────────────
   if (seleccionId === null) {
     return (
       <div className="space-y-6">
@@ -1148,7 +1125,7 @@ export default function SeleccionMensualPage() {
           </>
         )}
 
-        {/* ── Modal: nueva selección ── */}
+        {}
         <Modal
           id="modal-nueva-seleccion"
           open={modalNueva}
@@ -1220,7 +1197,6 @@ export default function SeleccionMensualPage() {
     );
   }
 
-  // ── Modo detalle ───────────────────────────────────────────────────────────
   if (!detalle) {
     return (
       <div className="space-y-4">

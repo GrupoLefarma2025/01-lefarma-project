@@ -11,10 +11,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Lefarma.API.Features.Notifications.Services;
-/// <summary>
-/// Main service for orchestrating multi-channel notifications.
-/// Coordinates template rendering, channel delivery, and persistence.
-/// </summary>
 public class NotificationService : INotificationService
 {
     private readonly INotificationRepository _repository;
@@ -46,13 +42,11 @@ public class NotificationService : INotificationService
         _sseService = sseService ?? throw new ArgumentNullException(nameof(sseService));
     }
 
-    /// <inheritdoc/>
     public async Task<SendNotificationResponse> SendAsync(SendNotificationRequest request, CancellationToken ct = default)
     {
         _logger.LogInformation("Sending notification: {Title} to {ChannelCount} channels",
             request.Title, request.Channels.Count);
 
-        // Step 1: Create Notification entity
         var notification = new Notification
         {
             Title = request.Title,
@@ -66,15 +60,13 @@ public class NotificationService : INotificationService
                 : null,
             ScheduledFor = request.ScheduledFor,
             ExpiresAt = request.ExpiresAt,
-            CreatedBy = "system" // TODO: Get from current user context
+            CreatedBy = "system" 
         };
 
-        // Step 2: Save to database
         notification = await _repository.CreateAsync(notification, ct);
 
         _logger.LogDebug("Notification created with ID: {NotificationId}", notification.Id);
 
-        // Step 3: Process each channel
         var channelResults = new Dictionary<string, ChannelResult>();
         var notificationChannels = new List<NotificationChannel>();
 
@@ -84,7 +76,6 @@ public class NotificationService : INotificationService
 
             try
             {
-                // Step 3a: Get channel implementation (keyed service)
                 var channel = GetChannelByKey(channelRequest.ChannelType);
                 if (channel == null)
                 {
@@ -97,10 +88,8 @@ public class NotificationService : INotificationService
                     continue;
                 }
 
-                // Step 3b: Resolve UserIds and RoleNames to recipient emails
                 var resolvedRecipients = await ResolveRecipientsToEmailsAsync(channelRequest, ct);
 
-                // Step 3c: Render template if TemplateId provided
                 string messageBody = request.Message;
                 if (!string.IsNullOrWhiteSpace(request.TemplateId))
                 {
@@ -111,7 +100,6 @@ public class NotificationService : INotificationService
                         ct);
                 }
 
-                // Step 3d: Create NotificationMessage with resolved emails
                 var notificationMessage = new NotificationMessage
                 {
                     Title = request.Title,
@@ -120,17 +108,14 @@ public class NotificationService : INotificationService
                     Data = channelRequest.ChannelSpecificData ?? new Dictionary<string, object>()
                 };
 
-                // Add template info to data for channels that need it
                 if (!string.IsNullOrWhiteSpace(request.TemplateId))
                 {
                     notificationMessage.Data["templateId"] = request.TemplateId;
                     notificationMessage.Data["templateData"] = request.TemplateData ?? new Dictionary<string, object>();
                 }
 
-                // Step 3e: Call channel.SendAsync()
                 var channelResult = await channel.SendAsync(notificationMessage, ct);
 
-                // Step 3f: Create NotificationChannel record with result
                 var notificationChannel = new NotificationChannel
                 {
                     NotificationId = notification.Id,
@@ -160,7 +145,6 @@ public class NotificationService : INotificationService
                     Message = "Error al procesar el canal de notificación."
                 };
 
-                // Create failed channel record
                 notificationChannels.Add(new NotificationChannel
                 {
                     NotificationId = notification.Id,
@@ -172,14 +156,12 @@ public class NotificationService : INotificationService
             }
         }
 
-        // Step 4: Create UserNotification records for in-app channel
         var inAppChannelRequest = request.Channels.FirstOrDefault(c => c.ChannelType == "in-app");
         if (inAppChannelRequest != null)
         {
             await CreateUserNotificationsAsync(notification, inAppChannelRequest, ct);
         }
 
-        // Step 5: Update notification in database with channels
         notification.Channels = notificationChannels;
         await _repository.UpdateAsync(notification, ct);
 
@@ -189,7 +171,6 @@ public class NotificationService : INotificationService
             channelResults.Count(r => r.Value.Success),
             channelResults.Count);
 
-        // Step 6: Return response
         return new SendNotificationResponse
         {
             NotificationId = notification.Id,
@@ -198,7 +179,6 @@ public class NotificationService : INotificationService
         };
     }
 
-    /// <inheritdoc/>
     public async Task<SendNotificationResponse> SendBulkAsync(BulkNotificationRequest request, CancellationToken ct = default)
     {
         _logger.LogInformation("Sending bulk notification to {UserCount} users", request.UserIds.Count);
@@ -211,7 +191,6 @@ public class NotificationService : INotificationService
             await semaphore.WaitAsync(ct);
             try
             {
-                // Deep-copy channels per user to avoid concurrent mutation of shared objects
                 var userRequest = new SendNotificationRequest
                 {
                     Channels = request.Channels.Select(c => new NotificationChannelRequest
@@ -247,7 +226,6 @@ public class NotificationService : INotificationService
 
         var taskResults = await Task.WhenAll(tasks);
 
-        // Aggregate results sequentially after all tasks complete (no concurrent mutation needed)
         var results = new Dictionary<string, ChannelResult>();
         int successCount = 0;
         int firstNotificationId = 0;
@@ -292,20 +270,15 @@ public class NotificationService : INotificationService
         };
     }
 
-    /// <inheritdoc/>
     public async Task<SendNotificationResponse> SendByRoleAsync(RoleNotificationRequest request, CancellationToken ct = default)
     {
         _logger.LogInformation("Sending notification to roles: {Roles}", string.Join(", ", request.Roles));
 
-        // TODO: Implement role-based user lookup
-        // For now, this is a placeholder that would need to query the user/role system
-
-        throw new NotImplementedException(
+throw new NotImplementedException(
             "SendByRoleAsync is not yet implemented. " +
             "Requires integration with the role/user management system.");
     }
 
-    /// <inheritdoc/>
     public async Task<List<NotificationDto>> GetUserNotificationsAsync(int userId, bool unreadOnly = false, CancellationToken ct = default)
     {
         _logger.LogDebug(
@@ -323,11 +296,10 @@ public class NotificationService : INotificationService
             Type = n.Type,
             Priority = n.Priority,
             CreatedAt = n.CreatedAt,
-            IsRead = false, // Will be set below
+            IsRead = false, 
             ReceivedVia = n.Channels.Select(c => c.ChannelType).ToList()
         }).ToList();
 
-        // Update IsRead from UserNotifications
         foreach (var dto in dtos)
         {
             var userNotification = await _repository.GetUserNotificationAsync(dto.Id, userId, ct);
@@ -340,7 +312,6 @@ public class NotificationService : INotificationService
         return dtos;
     }
 
-    /// <inheritdoc/>
     public async Task MarkAsReadAsync(int notificationId, int userId, CancellationToken ct = default)
     {
         _logger.LogDebug(
@@ -376,7 +347,6 @@ public class NotificationService : INotificationService
             userId);
     }
 
-    /// <inheritdoc/>
     public async Task MarkAllAsReadAsync(int userId, CancellationToken ct = default)
     {
         _logger.LogInformation("Marking all notifications as read for user {UserId}", userId);
@@ -402,21 +372,11 @@ public class NotificationService : INotificationService
             userId);
     }
 
-    /// <summary>
-    /// Gets a notification channel by its key from the DI container.
-    /// Uses keyed services to support multiple channel implementations.
-    /// </summary>
     private INotificationChannel? GetChannelByKey(string channelType)
     {
         return _serviceProvider.GetKeyedService<INotificationChannel>(channelType);
     }
 
-    /// <summary>
-    /// Creates UserNotification records for in-app channel recipients.
-    /// </summary>
-    /// <summary>
-    /// Resolves UserIds and RoleNames to a list of email addresses
-    /// </summary>
     private async Task<List<string>> ResolveRecipientsToEmailsAsync(
         NotificationChannelRequest channelRequest,
         CancellationToken ct)
@@ -424,20 +384,17 @@ public class NotificationService : INotificationService
         var emails = new List<string>();
         var userIds = new List<int>();
 
-        // Add explicitly selected user IDs
         if (channelRequest.UserIds != null && channelRequest.UserIds.Any())
         {
             userIds.AddRange(channelRequest.UserIds);
         }
 
-        // Add user IDs from roles
         if (channelRequest.RoleNames != null && channelRequest.RoleNames.Any())
         {
             var roleUserIds = await GetUserIdsByRoleNamesAsync(channelRequest.RoleNames, ct);
             userIds.AddRange(roleUserIds);
         }
 
-        // Agregar correos explícitos del request (no necesariamente usuarios del sistema)
         if (channelRequest.Emails != null && channelRequest.Emails.Count > 0)
         {
             foreach (var correo in channelRequest.Emails)
@@ -449,10 +406,8 @@ public class NotificationService : INotificationService
             }
         }
 
-        // Remove duplicates
         userIds = userIds.Distinct().ToList();
 
-        // Fetch users and get their emails from AsokamDbContext
         if (userIds.Any())
         {
             var users = await _asokamDbContext.Usuarios
@@ -469,7 +424,6 @@ public class NotificationService : INotificationService
         return emails.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
     }
 
-    /// <summary>Validación mínima de un correo explícito; el canal vuelve a validar al enviar.</summary>
     internal static bool EsCorreoValido(string? correo)
     {
         if (string.IsNullOrWhiteSpace(correo))
@@ -488,12 +442,8 @@ public class NotificationService : INotificationService
         }
     }
 
-    /// <summary>
-    /// Gets user IDs that have any of the specified roles
-    /// </summary>
     private async Task<List<int>> GetUserIdsByRoleNamesAsync(List<string> roleNames, CancellationToken ct)
     {
-        // Buscar roles por nombre en AsokamDbContext
         var roles = await _asokamDbContext.UsuariosRoles
             .Include(ur => ur.Rol)
             .Where(ur => roleNames.Contains(ur.Rol.NombreRol))
@@ -514,20 +464,17 @@ public class NotificationService : INotificationService
 
         var userIds = new List<int>();
 
-        // Add explicitly selected user IDs
         if (inAppChannelRequest.UserIds != null && inAppChannelRequest.UserIds.Any())
         {
             userIds.AddRange(inAppChannelRequest.UserIds);
         }
 
-        // Add user IDs from roles
         if (inAppChannelRequest.RoleNames != null && inAppChannelRequest.RoleNames.Any())
         {
             var roleUserIds = await GetUserIdsByRoleNamesAsync(inAppChannelRequest.RoleNames, ct);
             userIds.AddRange(roleUserIds);
         }
 
-        // If no user IDs found and it's a test request, use current user
         if (userIds.Count == 0)
         {
             var currentUserId = getCurrentUserId();
@@ -543,7 +490,6 @@ public class NotificationService : INotificationService
             }
         }
 
-        // Remove duplicates
         userIds = userIds.Distinct().ToList();
 
         foreach (var userId in userIds)
@@ -565,8 +511,6 @@ public class NotificationService : INotificationService
                     userId,
                     notification.Id);
 
-                // Send SSE event to the user in real-time
-                // This ensures the frontend receives the notification immediately without refresh
                 var notificationDto = new
                 {
                     id = userNotification.Id,
@@ -608,9 +552,6 @@ public class NotificationService : INotificationService
         }
     }
 
-    /// <summary>
-    /// Gets the current authenticated user ID from HTTP context.
-    /// </summary>
     private int? getCurrentUserId()
     {
         try
@@ -635,15 +576,8 @@ public class NotificationService : INotificationService
         }
     }
 
-    /// <summary>
-    /// Parses semicolon-separated recipient string into user IDs.
-    /// Handles special case "test" by using the current authenticated user.
-    /// </summary>
 }
 
-/// <summary>
-/// Extension methods for collections.
-/// </summary>
 internal static class CollectionExtensions
 {
     public static void AddAll<T>(this ICollection<T> collection, IEnumerable<T> items)

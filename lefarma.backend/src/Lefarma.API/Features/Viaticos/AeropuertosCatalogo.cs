@@ -1,11 +1,5 @@
 namespace Lefarma.API.Features.Viaticos;
 
-/// <summary>
-/// Aeropuertos mexicanos con servicio programado (OurAirports, 2026), con
-/// coordenadas para resolver el aeropuerto mas cercano cuando el punto no
-/// tiene IATA propio. Se usa solo como hub: el traslado punto-hub se cobra
-/// como taxi en el motor.
-/// </summary>
 internal static class AeropuertosCatalogo
 {
     internal sealed record Aeropuerto(string Iata, string Nombre, string Ciudad, double Lat, double Lon);
@@ -71,8 +65,6 @@ internal static class AeropuertosCatalogo
         ["ZCL"] = new Aeropuerto("ZCL", "General Leobardo C. Ruiz International Airport", "Zacatecas", 22.894942, -102.687154),
         ["ZIH"] = new Aeropuerto("ZIH", "Ixtapa-Zihuatanejo International Airport", "Ixtapa", 17.601771, -101.460629),
         ["ZLO"] = new Aeropuerto("ZLO", "Playa de Oro International Airport", "Manzanillo", 19.1448, -104.558998),
-        // JAL no aparece con servicio programado en OurAirports; se conserva
-        // porque el motor ya lo usa para Xalapa.
         ["JAL"] = new Aeropuerto("JAL", "Aeropuerto Nacional El Lencero", "Xalapa", 19.4751, -96.7973),
     };
 

@@ -3,12 +3,6 @@ using System.Net.Sockets;
 
 namespace Lefarma.API.Features.Viaticos;
 
-/// <summary>
-/// Reglas de navegación para las URLs que captura el servidor (Playwright o
-/// Firecrawl). Bloquea loopback, rangos privados y hosts internos para que una
-/// cotización no pueda apuntar a la intranet. La usan el endpoint bajo demanda
-/// y la cola automática.
-/// </summary>
 public static class UrlsNavegables
 {
     public static bool EsPermitida(Uri uri)

@@ -83,7 +83,6 @@ interface FileWithMetadata {
   archivoSoporte?: File;
 }
 
-// Caracteres que un nombre de archivo no admite en Windows (los de control tampoco).
 const CARACTERES_NO_VALIDOS_EN_NOMBRE = '<>:"/\\|?*';
 
 const limpiarNombreArchivo = (valor: string) =>
@@ -117,28 +116,24 @@ export default function SubidaDocumentos() {
   const [errorMessage, setErrorMessage] = useState<string>("");
   const previewUrlRef = useRef<string | null>(null);
 
-  // Filtros
   const [nameFilter, setNameFilter] = useState("");
   const [startDate, setStartDate] = useState<Date | undefined>(() => {
-    // Calcular el lunes de la semana pasada
     const today = new Date();
-    const dayOfWeek = today.getDay(); // 0 = domingo, 1 = lunes, ..., 6 = sábado
-    const daysToSubtract = dayOfWeek === 0 ? 13 : dayOfWeek + 6; // Si es domingo, retroceder 13 días, sino día actual + 6
+    const dayOfWeek = today.getDay(); 
+    const daysToSubtract = dayOfWeek === 0 ? 13 : dayOfWeek + 6; 
     const lastMonday = new Date(today);
     lastMonday.setDate(today.getDate() - daysToSubtract);
     lastMonday.setHours(0, 0, 0, 0);
     return lastMonday;
   });
   const [endDate, setEndDate] = useState<Date | undefined>(() => {
-    // Fecha de hoy
     const today = new Date();
     today.setHours(23, 59, 59, 999);
     return today;
   });
-  const [onlyPending, setOnlyPending] = useState(false); // Por defecto false para mostrar todos los documentos
+  const [onlyPending, setOnlyPending] = useState(false); 
 
   useEffect(() => {
-    // Verificar autenticación solo en el cliente
     const authenticated = auth.isAuthenticated();
     setIsAuthenticated(authenticated);
     setMounted(true);
@@ -170,15 +165,11 @@ export default function SubidaDocumentos() {
       const userIdentifier = auth.getUserWithDomain() || auth.getUser();
       if (!userIdentifier) return;
 
-      // Construir parámetros de consulta
       const params = new URLSearchParams({
         subidoPorUsuario: userIdentifier,
         soloActivos: "true",
       });
 
-      // El procedimiento usa @Estatus=1 como «todos» y sin valor como «solo
-      // pendientes»: para el filtro «solo pendientes» se omite el parámetro y
-      // para «todos» se manda 1.
       if (!onlyPending) {
         params.append("estatus", "1");
       }
@@ -240,14 +231,12 @@ export default function SubidaDocumentos() {
     }
   }, [onlyPending, nameFilter, startDate, endDate]);
 
-  // Cargar documentos al montar, al autenticarse y cuando cambian los filtros
   useEffect(() => {
     if (mounted && isAuthenticated) {
       loadDocuments();
     }
   }, [mounted, isAuthenticated, loadDocuments]);
 
-  // Mostrar loading mientras se monta el componente
   if (!mounted) {
     return (
       <div className="flex min-h-screen items-center justify-center">
@@ -256,20 +245,16 @@ export default function SubidaDocumentos() {
     );
   }
 
-  // Si no está autenticado, no mostrar nada mientras redirige
   if (!isAuthenticated) {
     return null;
   }
 
-  // Función para enviar notificación en segundo plano (fire and forget)
   const sendEmailNotificationInBackground = (documentId: string, soloCC: boolean = false) => {
     const path = soloCC
       ? `/email/documentos/notificar/${documentId}?soloCC=true`
       : `/email/documentos/notificar/${documentId}`;
 
-    // Enviar en segundo plano sin esperar respuesta
     post(path).catch((error: unknown) => {
-      // Solo registrar el error sin afectar la UX del usuario
       console.error("Error enviando notificación de email en segundo plano:", error);
     });
   };
@@ -278,12 +263,10 @@ export default function SubidaDocumentos() {
     if (e.target.files) {
       const newFiles = Array.from(e.target.files);
 
-      // Filtrar solo archivos PDF
       const pdfFiles = newFiles.filter(
         (file) => file.type === "application/pdf"
       );
 
-      // Mostrar alerta si se intentaron subir archivos que no son PDF
       if (pdfFiles.length !== newFiles.length) {
         alert(
           `Solo se permiten archivos PDF. Se ignoraron ${newFiles.length - pdfFiles.length} archivo(s).`
@@ -291,7 +274,6 @@ export default function SubidaDocumentos() {
       }
 
       if (pdfFiles.length > 0) {
-        // Mostrar diálogo directamente sin escaneo previo
         setTempFiles(pdfFiles);
         setCurrentFileIndex(0);
         setShowDialog(true);
@@ -309,13 +291,11 @@ export default function SubidaDocumentos() {
     const tieneDocumentoSoporte = formData.get("tieneDocumentoSoporte") === "on";
     const archivoSoporteInput = formData.get("archivoSoporte") as File | null;
 
-    // Validar que el motivo de subida no esté vacío
     if (!observations || !observations.trim()) {
       alert("El motivo de subida es obligatorio");
       return;
     }
 
-    // Validar formato de correos CC si se proporcionaron
     if (correoCC && correoCC.trim()) {
       const emails = correoCC.split(';').map(e => e.trim()).filter(e => e);
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -327,13 +307,11 @@ export default function SubidaDocumentos() {
       }
     }
 
-    // Validar que si el checkbox está marcado, se haya seleccionado un archivo
     if (tieneDocumentoSoporte && (!archivoSoporteInput || archivoSoporteInput.size === 0)) {
       alert("Debe seleccionar un documento de soporte");
       return;
     }
 
-    // Validar que el archivo de soporte sea PDF
     if (tieneDocumentoSoporte && archivoSoporteInput && archivoSoporteInput.type !== "application/pdf") {
       alert("El documento de soporte debe ser un archivo PDF");
       return;
@@ -342,7 +320,6 @@ export default function SubidaDocumentos() {
     const currentFile = tempFiles[currentFileIndex];
     const nombreLimpio = limpiarNombreArchivo(customName ?? "").trim();
 
-    // Agregar el archivo
     const fileWithMetadata: FileWithMetadata = {
       file: currentFile,
       customName: nombreLimpio || currentFile.name,
@@ -354,17 +331,13 @@ export default function SubidaDocumentos() {
 
     setFiles((prev) => [...prev, fileWithMetadata]);
 
-    // Si hay más archivos, mostrar el siguiente
     if (currentFileIndex < tempFiles.length - 1) {
       setCurrentFileIndex(currentFileIndex + 1);
-      // Resetear el formulario se hará automáticamente al cambiar de archivo
     } else {
-      // No hay más archivos, cerrar diálogo
       setShowDialog(false);
       setTempFiles([]);
       setCurrentFileIndex(0);
 
-      // Limpiar el input de archivos
       const fileInput = document.getElementById("files") as HTMLInputElement;
       if (fileInput) {
         fileInput.value = "";
@@ -393,7 +366,6 @@ export default function SubidaDocumentos() {
       const filesWithOtherErrors: Array<{name: string, error: string}> = [];
       let successCount = 0;
 
-      // Subir cada archivo a la API
       for (const fileWithMeta of files) {
         try {
           const formData = new FormData();
@@ -408,18 +380,15 @@ export default function SubidaDocumentos() {
           formData.append("comentario", fileWithMeta.observations || "");
           formData.append("archivo", fileWithMeta.file);
 
-          // Agregar correo del usuario autenticado (campo principal)
           const userEmail = auth.getFullUser()?.correo || "";
           if (userEmail) {
             formData.append("correo", userEmail);
           }
 
-          // Agregar correos en copia (CC) si existen
           if (fileWithMeta.correoCC) {
             formData.append("correoCC", fileWithMeta.correoCC);
           }
 
-          // Agregar documento de soporte si existe
           formData.append("tieneDocumentoSoporte", fileWithMeta.tieneDocumentoSoporte.toString());
           if (fileWithMeta.tieneDocumentoSoporte && fileWithMeta.archivoSoporte) {
             formData.append("archivoSoporte", fileWithMeta.archivoSoporte);
@@ -430,19 +399,15 @@ export default function SubidaDocumentos() {
             formData
           );
 
-          // Archivo subido exitosamente
           successCount++;
 
-          // Obtener el ID del documento de la respuesta
           try {
             const documentId = created?.data?.idDocumento;
 
-            // Enviar notificación por email si hay correos CC y se obtuvo el ID del documento
             if (documentId && fileWithMeta.correoCC) {
               sendEmailNotificationInBackground(documentId, true);
             }
           } catch (error) {
-            // Si no se puede obtener el ID, solo registrar el error sin afectar el flujo
             console.error("Error al obtener ID del documento para notificación:", error);
           }
         } catch (error) {
@@ -466,19 +431,15 @@ export default function SubidaDocumentos() {
         }
       }
 
-      // Recargar documentos
       await loadDocuments();
 
-      // Limpiar archivos seleccionados
       setFiles([]);
 
-      // Limpiar el input de archivos
       const fileInput = document.getElementById("files") as HTMLInputElement;
       if (fileInput) {
         fileInput.value = "";
       }
 
-      // Mostrar resultados
       if (filesWithKeywordError.length > 0) {
         setKeywordErrorFiles(filesWithKeywordError);
         setShowKeywordErrorDialog(true);
@@ -517,7 +478,6 @@ export default function SubidaDocumentos() {
   };
 
   const handlePreview = async (document: Document, mostrarDocumentoSoporte?: boolean) => {
-    // Si no se especifica mostrarDocumentoSoporte, usar false por defecto (documento original)
     const showSupport = mostrarDocumentoSoporte !== undefined 
       ? mostrarDocumentoSoporte 
       : false;
@@ -601,7 +561,6 @@ export default function SubidaDocumentos() {
       return;
     }
 
-    // Preparar datos para Excel
     const excelData = documents.map((doc) => ({
       Nombre: doc.customName || doc.name,
       "Nombre Original": doc.name,
@@ -620,25 +579,22 @@ export default function SubidaDocumentos() {
       Observaciones: doc.observations || "",
     }));
 
-    // Crear libro de trabajo
     const ws = XLSX.utils.json_to_sheet(excelData);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Documentos");
 
-    // Ajustar ancho de columnas
     const colWidths = [
-      { wch: 30 }, // Nombre
-      { wch: 30 }, // Nombre Original
-      { wch: 20 }, // Tipo
-      { wch: 15 }, // Tamaño
-      { wch: 20 }, // Subido por
-      { wch: 20 }, // Fecha
-      { wch: 15 }, // Estado
-      { wch: 40 }, // Observaciones
+      { wch: 30 }, 
+      { wch: 30 }, 
+      { wch: 20 }, 
+      { wch: 15 }, 
+      { wch: 20 }, 
+      { wch: 20 }, 
+      { wch: 15 }, 
+      { wch: 40 }, 
     ];
     ws["!cols"] = colWidths;
 
-    // Descargar archivo
     const fileName = `mis_documentos_${new Date().toISOString().split("T")[0]}.xlsx`;
     XLSX.writeFile(wb, fileName);
   };
@@ -872,8 +828,7 @@ export default function SubidaDocumentos() {
               </CardContent>
             </Card>
 
-
-            <div className="space-y-1">
+<div className="space-y-1">
               <div className="flex flex-wrap items-center gap-2 py-0.5">
                 <h2 className="text-xs font-semibold leading-tight">
                   Mis Documentos
@@ -902,7 +857,7 @@ export default function SubidaDocumentos() {
         </main>
       </SidebarInset>
 
-      {/* Diálogo para agregar metadata a cada archivo */}
+      {}
       <Dialog open={showDialog} onOpenChange={setShowDialog}>
         <DialogContent className="sm:max-w-[600px] max-h-[90vh] flex flex-col p-0">
           <form onSubmit={handleDialogSubmit} data-scan-form="true" key={currentFileIndex} className="flex flex-col h-full">
@@ -1058,7 +1013,7 @@ export default function SubidaDocumentos() {
         </DialogContent>
       </Dialog>
 
-      {/* Diálogo de vista previa del PDF */}
+      {}
       <PDFPreviewDialog
         document={previewDocument}
         open={showPreview}
@@ -1066,7 +1021,7 @@ export default function SubidaDocumentos() {
         onDocumentLoad={handleDocumentLoad}
       />
 
-      {/* AlertDialog para error de palabra clave no encontrada */}
+      {}
       <AlertDialog
         open={showKeywordErrorDialog}
         onOpenChange={setShowKeywordErrorDialog}
@@ -1124,7 +1079,7 @@ export default function SubidaDocumentos() {
               </div>
             </div>
 
-            {/* Ejemplo visual de documento */}
+            {}
             <div className="border-4 border-blue-500 rounded-lg overflow-hidden bg-white shadow-lg">
               <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-3 sm:px-6 py-3 sm:py-4">
                 <div className="flex items-center gap-2 sm:gap-3 mb-2 sm:mb-0">
@@ -1142,7 +1097,7 @@ export default function SubidaDocumentos() {
                 className="p-4 sm:p-8 md:p-12 space-y-4 sm:space-y-5 bg-white overflow-x-auto"
                 style={{ fontFamily: "'Times New Roman', Times, serif" }}
               >
-                {/* Encabezado oficial */}
+                {}
                 <div className="border-b-2 border-gray-800 pb-3 sm:pb-4 mb-4 sm:mb-6">
                   <div className="flex flex-col sm:flex-row justify-between items-start gap-2 sm:gap-0 mb-3">
                     <div>
@@ -1178,7 +1133,7 @@ export default function SubidaDocumentos() {
                   </div>
                 </div>
 
-                {/* Datos del proveedor */}
+                {}
                 <div className="bg-gray-50 border border-gray-300 rounded p-3 sm:p-4 mb-3 sm:mb-4">
                   <h3 className="text-xs sm:text-sm font-bold text-gray-900 mb-2">
                     DATOS DEL PROVEEDOR
@@ -1198,7 +1153,7 @@ export default function SubidaDocumentos() {
                   </div>
                 </div>
 
-                {/* Tabla de artículos */}
+                {}
                 <div className="mb-4 sm:mb-6 overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
                   <table className="w-full min-w-[600px] border-collapse border border-gray-400 text-[10px] sm:text-xs">
                     <thead>
@@ -1265,7 +1220,7 @@ export default function SubidaDocumentos() {
                   </table>
                 </div>
 
-                {/* Totales */}
+                {}
                 <div className="flex justify-end mb-4 sm:mb-6">
                   <div className="w-full sm:w-64 space-y-2 text-xs sm:text-sm border border-gray-400 p-2 sm:p-3 bg-gray-50">
                     <div className="flex justify-between">
@@ -1283,7 +1238,7 @@ export default function SubidaDocumentos() {
                   </div>
                 </div>
 
-                {/* Condiciones */}
+                {}
                 <p className="text-xs sm:text-sm text-gray-800 leading-relaxed text-justify">
                   <span className="font-bold">CONDICIONES COMERCIALES:</span> El
                   presente documento constituye una orden de compra formal bajo
@@ -1301,7 +1256,7 @@ export default function SubidaDocumentos() {
                     Atentamente,
                   </p>
 
-                  {/* Área de firma centrada */}
+                  {}
                   <div className="flex justify-center mt-8 sm:mt-12 mb-6 sm:mb-8">
                     <div className="text-center">
                       <div className="bg-yellow-50 border-2 border-yellow-400 rounded px-3 sm:px-4 py-2 sm:py-3 mb-2 sm:mb-3 inline-block">
@@ -1323,7 +1278,7 @@ export default function SubidaDocumentos() {
                     </div>
                   </div>
 
-                  {/* Tabla de firmas */}
+                  {}
                   <div className="mt-6 sm:mt-8 border border-gray-400 overflow-x-auto -mx-4 sm:mx-0">
                     <table className="w-full min-w-[500px] text-[10px] sm:text-xs">
                       <thead>
@@ -1473,7 +1428,7 @@ export default function SubidaDocumentos() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* AlertDialog para errores generales */}
+      {}
       <AlertDialog open={showErrorDialog} onOpenChange={setShowErrorDialog}>
         <AlertDialogContent className="max-h-[90vh] flex flex-col">
           <AlertDialogHeader>

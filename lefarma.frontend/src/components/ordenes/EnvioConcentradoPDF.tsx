@@ -3,8 +3,6 @@ import type { OrdenCompraResponse } from '@/types/ordenCompra.types';
 import { areaDocumento, datosSolicitanteDocumento } from '@/utils/datosSolicitanteDocumento';
 import logoImage from '@/assets/logo_concentrado.png?no-inline';
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
 export type AgrupacionKey = 'sucursal' | 'empresa' | 'area' | 'proveedor';
 
 export const AGRUPACION_LABELS: Record<AgrupacionKey, string> = {
@@ -19,17 +17,11 @@ interface Props {
   agrupacion: AgrupacionKey;
   generadoPor?: string;
   id?: string;
-  /** Firma del GAF — rol Autorizó */
   firmaAutorizo?: string;
-  /** Firma del revisor (usuario 44) — rol Revisó */
   firmaReviso?: string;
-  /** Nombre completo del revisor (usuario 44) para la etiqueta */
   nombreReviso?: string;
-  /** Nombre completo del autorizador (GAF, usuario 41) para la etiqueta */
   nombreAutorizo?: string;
 }
-
-// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function fmtMoney(n: number) {
   return n.toLocaleString('es-MX', {
@@ -59,9 +51,6 @@ function getMes(d: string) {
   }
 }
 
-/** Folio + partida cell as 3 intentional lines ('OC-2026' / '00171' / '- 1'), mirroring the
- *  jsPDF table; cell styles use white-space: pre-line so '\n' breaks the line. Falls back to
- *  the whole folio when it has fewer than 3 dash-separated segments. All '-' preserved. */
 function folioPartidaCell(folio: string, numeroPartida: number): string {
   const parts = folio.split('-');
   if (parts.length >= 3) {
@@ -83,7 +72,6 @@ function getGroupKey(orden: OrdenCompraResponse, agrupacion: AgrupacionKey): str
   }
 }
 
-// One flat row per orden (partidas agregadas)
 interface OrdenRow {
   folio: string;
   fechaElaboracion: string;
@@ -164,7 +152,6 @@ function agruparRows(rows: OrdenRow[]): Array<{ grupo: string; rows: OrdenRow[];
     }));
 }
 
-// One flat row per partida (modo detalle con 2+ órdenes)
 interface PartidaRow {
   idOrden: number;
   folio: string;
@@ -254,15 +241,12 @@ function agruparPartidas(rows: PartidaRow[]): Array<{
     });
 }
 
-// ─── Styles ───────────────────────────────────────────────────────────────────
-
 const DARK = '#1a3a5c';
 const BORDER = '#a0b8d0';
 const WHITE = '#ffffff';
 const HEADER_BG = '#1a3a5c';
 const COL_BG = '#2c5f8a';
 const EVEN_BG = '#f0f5fb';
-// Separador sutil entre bloques de orden (modo detalle por partida)
 const ORDER_TINT = '#f7fafd';
 const ORDER_SUBTOTAL_BG = '#e6effb';
 
@@ -452,28 +436,25 @@ const s: Record<string, React.CSSProperties> = {
   },
 };
 
-// Sums to exactly 100%: 'Comentario de Pago' and 'Nota de la Orden' removed and their
-// 12.16% redistributed proportionally across the remaining columns (plus rounding fix
-// on Descripción so the total is exact).
 const COL_WIDTHS = [
-  '7.47%',  // Folio
-  '4.62%',  // Fecha elab
-  '4.84%',  // Solicitante
-  '5.34%',  // F. Límite Pago
-  '3.46%',  // Mes
-  '5.12%',  // Sucursal
-  '2.88%',  // Cantidad
-  '3.46%',  // U. Medida
-  '8.08%',  // Proveedor
-  '11.56%', // Descripción
-  '5.77%',  // Precio Unit
-  '5.77%',  // Subtotal
-  '4.62%',  // Descuento
-  '5.77%',  // Impuesto
-  '4.62%',  // Otros Imp
-  '4.62%',  // Retenciones
-  '6.35%',  // Importe Total
-  '5.65%',  // Forma Pago
+  '7.47%',  
+  '4.62%',  
+  '4.84%',  
+  '5.34%',  
+  '3.46%',  
+  '5.12%',  
+  '2.88%',  
+  '3.46%',  
+  '8.08%',  
+  '11.56%', 
+  '5.77%',  
+  '5.77%',  
+  '4.62%',  
+  '5.77%',  
+  '4.62%',  
+  '4.62%',  
+  '6.35%',  
+  '5.65%',  
 ];
 
 const COL_HEADERS = [
@@ -497,8 +478,6 @@ const COL_HEADERS = [
   'Forma Pago',
 ];
 
-// ─── Component ────────────────────────────────────────────────────────────────
-
 export function EnvioConcentradoPDF({ ordenes, agrupacion, generadoPor, id = 'envio-concentrado-pdf-print', firmaAutorizo, firmaReviso, nombreReviso, nombreAutorizo }: Props) {
   const detallePartidas = ordenes.length > 1;
   const allRows = buildRows(ordenes, agrupacion);
@@ -518,7 +497,7 @@ export function EnvioConcentradoPDF({ ordenes, agrupacion, generadoPor, id = 'en
 
   return (
     <div id={id} style={s.page}>
-      {/* ── HEADER ── */}
+      {}
       <div style={s.header}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <img
@@ -540,7 +519,7 @@ export function EnvioConcentradoPDF({ ordenes, agrupacion, generadoPor, id = 'en
         </div>
       </div>
 
-      {/* ── GRUPOS (modo detalle por partida) ── */}
+      {}
       {detallePartidas &&
         gruposPartidas.map(({ grupo, ordenes: bloqueOrdenes, subtotal }) => (
           <div key={grupo} style={{ marginBottom: 4 }}>
@@ -595,7 +574,7 @@ export function EnvioConcentradoPDF({ ordenes, agrupacion, generadoPor, id = 'en
                           </tr>
                         );
                       })}
-                      {/* Order subtotal — separador sutil entre órdenes */}
+                      {}
                       <tr style={s.subtotalRow}>
                         <td
                           colSpan={16}
@@ -632,7 +611,7 @@ export function EnvioConcentradoPDF({ ordenes, agrupacion, generadoPor, id = 'en
                     </React.Fragment>
                   );
                 })}
-                {/* Group subtotal */}
+                {}
                 <tr style={s.subtotalRow}>
                   <td
                     colSpan={16}
@@ -671,7 +650,7 @@ export function EnvioConcentradoPDF({ ordenes, agrupacion, generadoPor, id = 'en
           </div>
         ))}
 
-      {/* ── GRUPOS (modo por orden) ── */}
+      {}
       {!detallePartidas && grupos.map(({ grupo, rows, subtotal }) => (
         <div key={grupo} style={{ marginBottom: 4 }}>
           <div style={s.groupHeader}>▸ {grupo.toUpperCase()}</div>
@@ -714,7 +693,7 @@ export function EnvioConcentradoPDF({ ordenes, agrupacion, generadoPor, id = 'en
                   </tr>
                 );
               })}
-              {/* Group subtotal */}
+              {}
               <tr style={s.subtotalRow}>
                 <td
                   colSpan={16}
@@ -753,7 +732,7 @@ export function EnvioConcentradoPDF({ ordenes, agrupacion, generadoPor, id = 'en
         </div>
       ))}
 
-      {/* ── GRAND TOTAL ── */}
+      {}
       <div style={s.grandTotalBox}>
         <table style={s.grandTotalTable}>
           <tbody>
@@ -815,11 +794,11 @@ export function EnvioConcentradoPDF({ ordenes, agrupacion, generadoPor, id = 'en
         </table>
       </div>
 
-      {/* ── FIRMAS ── */}
+      {}
       <div style={s.firmaSection}>
         <div style={s.groupHeader}>Autorizaciones</div>
         <div style={s.firmaGrid}>
-          {/* Revisó (usuario 44) */}
+          {}
           <div style={s.firmaBox}>
             <div style={s.firmaLabel}>{nombreReviso ? `Revisó — ${nombreReviso}` : 'Revisó'}</div>
             <div style={{ flex: 1, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', paddingBottom: 8, minHeight: 40 }}>
@@ -835,7 +814,7 @@ export function EnvioConcentradoPDF({ ordenes, agrupacion, generadoPor, id = 'en
               )}
             </div>
           </div>
-          {/* Autorizó (GAF) */}
+          {}
           <div style={s.firmaBox}>
             <div style={s.firmaLabel}>{nombreAutorizo ? `Autorizó — ${nombreAutorizo}` : 'Autorizó'}</div>
             <div style={{ flex: 1, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', paddingBottom: 8, minHeight: 40 }}>
@@ -851,7 +830,7 @@ export function EnvioConcentradoPDF({ ordenes, agrupacion, generadoPor, id = 'en
               )}
             </div>
           </div>
-          {/* Visto Bueno */}
+          {}
           <div style={s.firmaBox}>
             <div style={s.firmaLabel}>Visto Bueno — Dirección Corporativa</div>
             <div style={{ flex: 1, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', paddingBottom: 8, minHeight: 40 }}>
@@ -861,7 +840,7 @@ export function EnvioConcentradoPDF({ ordenes, agrupacion, generadoPor, id = 'en
         </div>
       </div>
 
-      {/* ── FOOTER ── */}
+      {}
       <div style={s.footer}>
         <span>LEF-AYF — Concentrado de Órdenes</span>
         <span>Generado: {fechaStr}</span>

@@ -7,10 +7,6 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace Lefarma.API.Features.Sigma.Controllers;
 
-/// <summary>
-/// Puerto de <c>DocumentosModule</c> de SIGMA: dashboard de documentos y catálogo de usuarios
-/// de la bandeja. Sólo para usuarios autenticados de Active Directory.
-/// </summary>
 [ApiController]
 [Route("api/documentos")]
 [Authorize]
@@ -26,7 +22,6 @@ public sealed class DocumentosController : ControllerBase
         _log = log;
     }
 
-    /// <summary>Estadísticas del dashboard de documentos.</summary>
     [HttpGet("dashboard")]
     public async Task<IActionResult> Dashboard(CancellationToken ct)
     {
@@ -42,7 +37,6 @@ public sealed class DocumentosController : ControllerBase
             canViewAll = true;
         }
 
-        // SIGMA compone siempre sam@dominio, incluso cuando la vista es global.
         var samAccountFilter = $"{samAccountName}@{dominio}";
 
         try
@@ -116,7 +110,6 @@ public sealed class DocumentosController : ControllerBase
         }
     }
 
-    /// <summary>Catálogo de usuarios para el filtro de la bandeja.</summary>
     [HttpGet("bandeja/usuarios")]
     public async Task<IActionResult> BandejaUsuarios(CancellationToken ct)
     {

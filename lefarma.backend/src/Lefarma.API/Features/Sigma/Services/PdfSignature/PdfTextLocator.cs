@@ -4,7 +4,6 @@ using UglyToad.PdfPig.Content;
 
 namespace Lefarma.API.Features.Sigma.Services.PdfSignature;
 
-/// <summary>Texto encontrado en una página, con su rotación y su tamaño sin rotar.</summary>
 public sealed record CoincidenciaTexto(
     int Pagina,
     int Rotacion,
@@ -12,26 +11,10 @@ public sealed record CoincidenciaTexto(
     double AltoContenido,
     CajaContenido Caja);
 
-/// <summary>
-/// Localiza el texto marcador (por defecto <c>#firmad</c>) dentro del PDF.
-/// Reproduce el criterio de <c>page.search_for</c> de PyMuPDF: sin distinguir
-/// mayúsculas, cortando la búsqueda en la primera página donde aparece.
-/// </summary>
 public static class PdfTextLocator
 {
-    /// <summary>
-    /// Diferencia máxima de línea base, en puntos, para considerar que dos letras
-    /// están en la misma línea. Evita unir coincidencias que cruzan renglones.
-    /// </summary>
     private const double ToleranciaLinea = 1.0;
 
-    /// <summary>
-    /// Altura de la línea base al borde superior del rectángulo que MuPDF usa para
-    /// las fuentes estándar (base 14) sin incrustar. PyMuPDF las mide con sus propias
-    /// métricas y no con el rectángulo del glifo, así que sin esta tabla la firma
-    /// quedaría unos puntos más abajo que con el script. Valores medidos contra
-    /// PyMuPDF 1.27.1.
-    /// </summary>
     private static readonly Dictionary<string, double> AscensosBase14 = new(StringComparer.OrdinalIgnoreCase)
     {
         ["Helvetica"] = 1.075,
@@ -50,7 +33,6 @@ public static class PdfTextLocator
         ["ZapfDingbats"] = 0.851
     };
 
-    /// <summary>Devuelve todas las coincidencias del PDF, página por página.</summary>
     public static IReadOnlyList<CoincidenciaTexto> Buscar(byte[] pdf, string texto)
     {
         if (pdf is null || pdf.Length == 0 || string.IsNullOrEmpty(texto))
@@ -69,10 +51,6 @@ public static class PdfTextLocator
         return encontradas;
     }
 
-    /// <summary>
-    /// Búsqueda de escaneo: igual que el script, se detiene en la primera página
-    /// con al menos una coincidencia.
-    /// </summary>
     public static IReadOnlyList<CoincidenciaTexto> BuscarEnPrimeraPagina(byte[] pdf, string texto)
     {
         if (pdf is null || pdf.Length == 0 || string.IsNullOrEmpty(texto))
@@ -103,8 +81,6 @@ public static class PdfTextLocator
             return;
         }
 
-        // Texto plano de la página y mapa de cada carácter a la letra que lo aportó:
-        // así se reconstruye la caja aunque el marcador esté repartido entre letras.
         var constructor = new StringBuilder(letras.Count * 2);
         var mapa = new List<int>(letras.Count * 2);
         for (var indice = 0; indice < letras.Count; indice++)
@@ -177,8 +153,6 @@ public static class PdfTextLocator
             baseMinima = Math.Min(baseMinima, letra.StartBaseLine.Y);
             baseMaxima = Math.Max(baseMaxima, letra.StartBaseLine.Y);
 
-            // Las fuentes estándar se miden como lo hace MuPDF: su caja llega más
-            // arriba que el rectángulo del glifo y la firma debe caer en el mismo sitio.
             if (letra.FontName is { Length: > 0 } nombreFuente
                 && AscensosBase14.TryGetValue(nombreFuente, out var ascenso))
             {
@@ -207,8 +181,6 @@ public static class PdfTextLocator
             y1 = alturaBase14;
         }
 
-        // Coincidencias que cruzan renglones: el script las descarta porque
-        // search_for sólo encuentra texto dentro de una misma línea.
         if (baseMaxima - baseMinima > ToleranciaLinea || x1 <= x0 || y1 <= y0)
         {
             return false;

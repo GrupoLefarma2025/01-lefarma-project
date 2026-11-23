@@ -2,10 +2,6 @@ using Lefarma.API.Domain.Entities.Viaticos;
 
 namespace Lefarma.API.Features.Viaticos;
 
-/// <summary>
-/// Precio detectado por cualquier fuente (Kayak, ClickBus, Google Hotels).
-/// Es la unidad que aplica el endpoint y la cola de detección automática.
-/// </summary>
 public sealed record PrecioDetectado(
     string Tipo,
     string Linea,
@@ -30,17 +26,11 @@ public sealed class DeteccionPrecioResult
     public bool Bloqueado { get; init; }
     public string? Fuente { get; init; }
     public string? RutaCaptura { get; init; }
-    /// <summary>opcion (tarjeta recortada) | resultados (página completa).</summary>
     public string? CapturaAlcance { get; init; }
     public PrecioDetectado? Elegido { get; init; }
     public List<PrecioDetectado> Opciones { get; init; } = new();
 }
 
-/// <summary>
-/// Fachada de detección: vuelos usan Kayak (servicio existente); autobuses y
-/// hoteles usan el detector genérico de página (ClickBus/Primera Plus y Google
-/// Hotels). La cola de Fase 2 depende de esta interfaz, no de un tipo concreto.
-/// </summary>
 public interface IDeteccionPrecioService
 {
     Task<DeteccionPrecioResult> DetectarAsync(
@@ -92,9 +82,6 @@ public sealed class DeteccionPrecioService : IDeteccionPrecioService
                 opcion.UrlCompra, fecha, deadline, minutosTaxi, nombre, capturar, ct);
             var opciones = vuelo.Opciones.Select(ADetectado).ToList();
             var elegido = vuelo.Elegido is null ? null : ADetectado(vuelo.Elegido);
-            // La detección navega la búsqueda estable de Kayak, pero las
-            // tarjetas traen enlaces /book/flight de sesión que caducan. Se
-            // conserva la búsqueda para que el enlace guardado siga sirviendo.
             if (EnlacesCompra.EsBusquedaKayak(opcion.UrlCompra))
             {
                 opciones = opciones

@@ -2,9 +2,6 @@ using ErrorOr;
 
 namespace Lefarma.API.Shared.Errors
 {
-/// <summary>
-    /// Errores comunes predefinidos para toda la aplicación.
-    /// </summary>
     public static class CommonErrors
     {
         public static Error NotFound(string entityName, string? identifier = null) => Error.NotFound(

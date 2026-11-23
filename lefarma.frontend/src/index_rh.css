@@ -1,25 +1,15 @@
-/* =====================================================================
-   Estilos de impresión — RH (Solicitud de Personal)
-   ===================================================================== */
-
-/* On screen: el PDF de solicitud permanece oculto; solo se muestra en los
-   previews (envío a director y modal de vista previa). */
 #solicitud-personal-pdf-print {
   display: none;
 }
 
-/* Capture portals (html2canvas): the print doc must be laid out inside the
-   off-screen portal, otherwise it collapses to 0 height and captures blank. */
 #solicitud-personal-envio-director-pdf-portal #solicitud-personal-pdf-print {
   display: block !important;
 }
 
-/* Preview del PDF de solicitud dentro del modal de envío a director */
 .solicitud-pdf-preview #solicitud-personal-pdf-print {
   display: block !important;
 }
 
-/* ── SOLICITUD DE PERSONAL ── */
 @media print {
   body.print-solicitud #solicitud-personal-pdf-print,
   body.print-solicitud #solicitud-personal-pdf-print * {

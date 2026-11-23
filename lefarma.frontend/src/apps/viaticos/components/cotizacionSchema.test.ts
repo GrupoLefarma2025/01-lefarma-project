@@ -2,10 +2,6 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { validarCotizacion, type Esquema } from './validadorCotizacion';
 
-// Contrato de cotizacion de viajes (pi): el JSON se valida contra el schema
-// oficial de lefarma.docs con el validador propio de ./validadorCotizacion.ts
-// (sin ajv ni dependencias nuevas).
-
 interface DatosCotizacion {
   [campo: string]: unknown;
   opciones: Array<Record<string, unknown>>;
@@ -17,8 +13,6 @@ const rutaFixture = '../test/fixtures/cotizacion-ejemplo.json';
 const leerJson = (ruta: string): DatosCotizacion =>
   JSON.parse(readFileSync(new URL(ruta, import.meta.url), 'utf8')) as DatosCotizacion;
 
-// Se relee el archivo en cada caso: ningun estado se comparte entre tests y el
-// resultado no depende del orden de ejecucion.
 const esquema = leerJson(rutaSchema) as unknown as Esquema;
 const clonarFixture = (): DatosCotizacion => leerJson(rutaFixture);
 
@@ -63,8 +57,6 @@ describe('contrato de cotizacion de viajes (pi)', () => {
     expect(ok.errores).toEqual([]);
     expect(ok.valido).toBe(true);
 
-    // Regla documentada en la descripcion del campo precio: null SOLO si
-    // fuente == "estimado"; cualquier otra fuente con precio null es invalida.
     const sinFuenteEstimado = clonarFixture();
     sinFuenteEstimado.opciones[0].precio = null;
     const resultado = validarCotizacion(sinFuenteEstimado, esquema);

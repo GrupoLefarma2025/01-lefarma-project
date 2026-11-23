@@ -1,9 +1,5 @@
 namespace Lefarma.API.Domain.Entities.EducacionMedica;
 
-/// <summary>
-/// Evidencia del taller (fotos/video/documentos post-taller, 1:N); archivo_url apunta al
-/// servicio de archivos existente. ADR-00008.
-/// </summary>
 public class TallerEvidencia
 {
     public const string TipoFoto = "foto";

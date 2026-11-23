@@ -1066,7 +1066,6 @@ describe('CalculosViajeModal en modo autorizar', () => {
 
     const siguiente = await screen.findByRole('button', { name: /siguiente/i });
     await waitFor(() => expect(siguiente).toBeEnabled());
-    // Primera oferta de cada tramo: la propuesta debe usar esa selección.
     await usuario.click(screen.getAllByRole('button', { name: /^Elegir / })[0]);
     await usuario.click(siguiente);
 
@@ -1089,7 +1088,6 @@ describe('CalculosViajeModal en modo autorizar', () => {
       linea: 'Futura',
     });
 
-    // Se guardan las dos alternativas de cada tramo, no solo la elegida.
     expect(propuesta.opciones).toHaveLength(4);
     expect(propuesta.opciones.filter((opcion) => opcion.fue_elegida)).toHaveLength(2);
     expect(propuesta.opciones.every((opcion) => opcion.datos?.tramo !== undefined)).toBe(true);

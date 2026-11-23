@@ -10,15 +10,10 @@ import { ManejadorClickDerecho, MenuContextualPunto, type PosicionMenu } from '.
 
 export interface MapaPuntoProps {
   punto: PuntoSeleccion | null;
-  /** Si es falso, el mapa solo muestra: sin clic ni arrastre. */
   interactivo?: boolean;
-  /** Clic en el mapa (solo en modo interactivo). */
   onPunto?: (latitud: number, longitud: number) => void;
-  /** Arrastre del marcador (solo en modo interactivo). */
   onMover?: (latitud: number, longitud: number) => void;
-  /** Quitar el pin desde el menú contextual (solo en modo interactivo). */
   onQuitar?: () => void;
-  /** Nota al pie del mapa (fondo amarillo). */
   pie?: ReactNode;
 }
 
@@ -36,11 +31,6 @@ function iconoMarcador() {
   });
 }
 
-/**
- * Recentra el mapa cuando cambia el punto. Si el mapa monta con un punto ya
- * elegido (p. ej. el regreso al origen), arranca enfocado en él; sin punto,
- * arranca en México.
- */
 function ControladorMapa({ centro }: { centro: [number, number] | null }) {
   const map = useMap();
   const primerRender = useRef(true);
@@ -55,13 +45,9 @@ function ControladorMapa({ centro }: { centro: [number, number] | null }) {
   return null;
 }
 
-/** Convierte un clic en el mapa en coordenadas. */
 function ManejadorClick({ onPunto }: { onPunto: (lat: number, lng: number) => void }) {
   useMapEvents({
     click(event) {
-      // Los botones del menú no son clics del mapa: al pulsarlos, React ya
-      // desmontó el menú y Leaflet recibe el clic con un botón desconectado
-      // (o dentro del popup); ignorarlo evita re-fijar/mover el pin.
       const objetivo = (event.originalEvent as { target?: Element | null } | undefined)?.target;
       if (objetivo && (!objetivo.isConnected || objetivo.closest?.('.leaflet-popup'))) return;
       onPunto(event.latlng.lat, event.latlng.lng);
@@ -70,10 +56,6 @@ function ManejadorClick({ onPunto }: { onPunto: (lat: number, lng: number) => vo
   return null;
 }
 
-/**
- * El mapa arranca fijo para poder arrastrar el marcador sin moverlo por
- * accidente: solo con Ctrl presionado se habilitan arrastre y zoom con rueda.
- */
 function ControlNavegacionCtrl() {
   const map = useMap();
   useEffect(() => {
@@ -107,10 +89,6 @@ function ControlNavegacionCtrl() {
   return null;
 }
 
-/**
- * Mapa con un solo punto: el padre decide qué se muestra (punto elegido,
- * sucursal, etc.) y si se puede interactuar. Sin punto arranca con México.
- */
 export function MapaPunto({ punto, interactivo, onPunto, onMover, onQuitar, pie }: MapaPuntoProps) {
   const icono = useMemo(() => iconoMarcador(), []);
   const centro = punto ? ([punto.latitud, punto.longitud] as [number, number]) : null;
@@ -118,13 +96,11 @@ export function MapaPunto({ punto, interactivo, onPunto, onMover, onQuitar, pie 
   const arrastre = interactivo ? onMover : undefined;
   const [menu, setMenu] = useState<PosicionMenu | null>(null);
 
-  /** Clic derecho: abre el menú contextual de esa posición (no mueve el pin). */
   function clicDerecho(lat: number, lng: number) {
     if (!interactivo) return;
     setMenu({ lat, lng });
   }
 
-  /** Fija el pin solo si la posición cae dentro de México. */
   function fijarPunto(lat: number, lng: number) {
     if (!dentroDeMexico(lat, lng)) {
       toast.error('Solo puedes fijar puntos dentro de México.');

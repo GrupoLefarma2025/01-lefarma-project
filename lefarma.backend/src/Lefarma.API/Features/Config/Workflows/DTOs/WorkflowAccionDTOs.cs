@@ -58,8 +58,8 @@ public class WorkflowCampoMetadataResponse
 
 public class AccionMetadataResponse
 {
-    public int IdEntidad { get; set; }           // Genérico: id de la entidad workflowable
-    public int IdOrden => IdEntidad;              // Alias legacy para no romper frontend existente
+    public int IdEntidad { get; set; }           
+    public int IdOrden => IdEntidad;              
     public int IdAccion { get; set; }
     public int IdTipoAccion { get; set; }
     public string? TipoAccionCodigo { get; set; }
@@ -77,8 +77,8 @@ public class AccionMetadataResponse
 public class HistorialWorkflowItemResponse
 {
     public int IdEvento { get; set; }
-    public int IdEntidad { get; set; }          // Genérico: id de la entidad workflowable
-    public int IdOrden => IdEntidad;            // Alias legacy para no romper frontend existente
+    public int IdEntidad { get; set; }          
+    public int IdOrden => IdEntidad;            
     public int IdPaso { get; set; }
     public string? NombrePaso { get; set; }
     public int IdAccion { get; set; }
@@ -90,7 +90,6 @@ public class HistorialWorkflowItemResponse
     public DateTime FechaEvento { get; set; }
 }
 
-// DTOs para enviar y recibir datos del sistema externo para Solicitud de Personal
 public class EnviarDirectorRequest
 {
     public int IdAccion { get; set; }
@@ -115,7 +114,7 @@ public class RespuestaSolicitudPersonalExternaRequest
     public required int IdEnvio { get; set; }
     public required string TokenSeguridad { get; set; }
     public required int IdUsuario { get; set; }
-    public required string Accion { get; set; } // "AUTORIZAR" o "DEVOLVER"
+    public required string Accion { get; set; } 
     public string? Comentario { get; set; }
 }
 

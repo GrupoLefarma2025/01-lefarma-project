@@ -123,9 +123,6 @@ public class RutasService : IRutasService
 
         var regionesPorId = regiones.ToDictionary(r => r.IdRegion);
 
-        // Nuevo modelo (ADR-00015): la ruta se genera por especialista. Si la selección
-        // aún no tiene especialistas, se usa el ejecutivo y se crea una ruta sin especialista
-        // para que la planeación no se detenga. El modelo de equipos queda como fallback legacy.
         var usaEspecialistas = regiones.Any(r => r.IdEjecutivo.HasValue || r.IdEspecialista.HasValue)
             || hospitales.Any(h => h.IdEspecialista.HasValue);
 
@@ -544,7 +541,6 @@ public class RutasService : IRutasService
         return dto;
     }
 
-    /// <summary>Edición de horas de la visita: normal en Creada; ajuste auditado en Cerrada (ADR-00010).</summary>
     public async Task<RutaVisitaDto> EditarHorasVisitaAsync(
         int idRuta,
         int idRutaVisita,
@@ -621,7 +617,6 @@ public class RutasService : IRutasService
             throw new InvalidOperationException("El hospital no pertenece a la selección de esta ruta.");
         }
 
-        // Frontera región→responsable: Rutas no reasigna; la asignación vive en el paso Reparto.
         string? aviso = null;
         int? idEjecutivoRegion = null;
         int? idEspecialistaRegion = null;
@@ -707,8 +702,7 @@ public class RutasService : IRutasService
             await tx!.CommitAsync(ct);
         }
 
-
-        if (aviso is not null)
+if (aviso is not null)
         {
             _logger.LogInformation(
                 "Alta manual de hospital sin asignación completa en reparto. IdSeleccionHospital {IdSeleccionHospital} agregado a la ruta {IdRuta} por el usuario {IdUsuario}. {Aviso}",
@@ -720,10 +714,6 @@ public class RutasService : IRutasService
         return dto;
     }
 
-    /// <summary>
-    /// Alta de visita extraordinaria (ADR-00011): hospital del catálogo fuera de la selección,
-    /// en la versión activa Cerrada, con get-or-create de la ruta del equipo.
-    /// </summary>
     public async Task<RutaVisitaDto> AgregarVisitaExtraordinariaAsync(
         int idSeleccionMensual,
         VisitaExtraordinariaRequest request,
@@ -896,7 +886,6 @@ public class RutasService : IRutasService
         var estadoAnterior = version.Estado;
         await AplicarEstadoVersionAsync(version, RutaVersion.EstadoCancelada, idUsuario, ct);
 
-        // El motivo deja de perderse en logs: queda persistido en la bitácora de ajustes (ADR-00010, decisión 8).
         await RegistrarAjusteAsync(
             AjustePostCierre.EntidadRutaVersion, version.IdRutaVersion, AjustePostCierre.AccionCancelarVersion,
             new { estado = estadoAnterior },
@@ -913,7 +902,6 @@ public class RutasService : IRutasService
         return await ArmarDetalleAsync(rutas, null, ct);
     }
 
-    /// <summary>Escribe el estado de negocio en la versión y lo sincroniza en sus filas de rutas.</summary>
     private async Task AplicarEstadoVersionAsync(RutaVersion version, string estado, int idUsuario, CancellationToken ct)
     {
         version.Estado = estado;
@@ -973,8 +961,6 @@ public class RutasService : IRutasService
         var seleccionesVigentes = new HashSet<int>();
         foreach (var idSeleccion in rutas.Select(r => r.IdSeleccionMensual).Distinct())
         {
-            // Solo la planeación vigente o próxima ("mis hospitales del mes"), no selecciones vencidas:
-            // la selección recién autorizada puede empezar su vigencia en los próximos días y es la que se trabaja.
             var seleccion = await _seleccionRepository.GetByIdAsync(idSeleccion, ct);
             if (seleccion is null || hoy > seleccion.FechaFinVigencia)
             {
@@ -1099,10 +1085,6 @@ public class RutasService : IRutasService
         return asignaciones.OrderBy(a => a.FechaVisita).ThenBy(a => a.Orden).ToList();
     }
 
-    /// <summary>
-    /// Hospitales elegibles para la captura asistida (ADR-00011): hospitales de la selección
-    /// del equipo elegido cuya ruta está Cerrada, con snapshots para el buscador.
-    /// </summary>
     public async Task<List<HospitalElegibleDto>> GetHospitalesElegiblesAsync(int idEquipo, CancellationToken ct = default)
     {
         var rutas = (await _rutaRepository.GetByEquipoAsync(idEquipo, ct))
@@ -1205,10 +1187,6 @@ public class RutasService : IRutasService
         int? idEspecialista = null,
         Func<SeleccionHospital, int?>? idEjecutivoSelector = null)
     {
-        // Dos criterios deterministas:
-        //  - "ciudad": bloques por localidad (vecino más cercano entre ciudades de la región).
-        //  - "centroide": orden clásico por distancia al centroide regional (compacta días
-        //    aunque mezcle ciudades).
         var ordenados = agruparPorCiudad
             ? OrdenarPorLocalidad(hospitales)
             : OrdenarPorCentroideRegional(hospitales);
@@ -1240,11 +1218,8 @@ public class RutasService : IRutasService
                     break;
                 }
 
-                // Bloque = hospitales consecutivos de la misma localidad (solo en modo ciudad).
                 var bloque = agruparPorCiudad ? ContarBloqueLocalidad(ordenados, siguiente) : 1;
 
-                // Mantener la ciudad junta: si el bloque no cabe en lo que queda del día pero
-                // cabría en un día fresco, se pasa al siguiente día en vez de fragmentar la ciudad.
                 if (bloque > restanteDia && usadosDia > 0 && bloque <= maxVisitasPorDia)
                 {
                     break;
@@ -1301,7 +1276,6 @@ public class RutasService : IRutasService
         return bloque;
     }
 
-    /// <summary>Criterio original: regiones en orden y hospitales por cercanía al centroide regional.</summary>
     private static List<SeleccionHospital> OrdenarPorCentroideRegional(List<SeleccionHospital> hospitales)
     {
         var centroides = hospitales
@@ -1367,7 +1341,6 @@ public class RutasService : IRutasService
                 ? double.PositiveInfinity
                 : Haversine.DistanciaKm(centroLat.Value, centroLon.Value, c.Lat.Value, c.Lon.Value);
 
-        // Recorrido glotón de vecino más cercano empezando por la ciudad más cercana al centroide.
         var restantes = ciudades
             .OrderBy(DistanciaAlCentroide)
             .ThenBy(c => c.Clave, StringComparer.Ordinal)
@@ -1515,9 +1488,7 @@ public class RutasService : IRutasService
         return avisos;
     }
 
-    // ----- Ajustes post-cierre (ADR-00010) -----
-
-    private async Task ValidarPermisoAjusteAsync(int idUsuario, CancellationToken ct)
+private async Task ValidarPermisoAjusteAsync(int idUsuario, CancellationToken ct)
     {
         var permisos = await _permissionService.GetPermissionsAsync(idUsuario);
         if (!permisos.Contains(Permissions.EducacionMedica.RutasAjustar))
@@ -1535,7 +1506,6 @@ public class RutasService : IRutasService
         }
     }
 
-    /// <summary>Límite temporal del ajuste: la fecha original no puede superar dias_limite_cambio (ADR-00010).</summary>
     private async Task ValidarLimiteTemporalAsync(DateOnly fechaOriginal, CancellationToken ct)
     {
         var parametros = await _parametroRepository.GetAllAsync(ct);

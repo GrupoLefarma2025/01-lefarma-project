@@ -1,14 +1,10 @@
 namespace Lefarma.API.Features.OrdenesCompra.Firmas.DTOs
 {
 
-    // ── Envío Concentrado ─────────────────────────────────────────────────────
-
-    public class EnvioConcentradoRequest
+public class EnvioConcentradoRequest
     {
-        /// <summary>IDs de las órdenes en paso 4 a avanzar.</summary>
         public required List<int> IdsOrdenes { get; set; }
 
-        /// <summary>Comentario que quedará en la bitácora de cada orden.</summary>
         public string? Comentario { get; set; }
     }
 
@@ -42,14 +38,12 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas.DTOs
         public IFormFile? ArchivoSoporte { get; set; }
     }
 
-    // ── Respuesta del Sistema Externo ────────────────────────────────────────
-
-    public class RespuestaConcentradoExternoRequest
+public class RespuestaConcentradoExternoRequest
     {
         public required int IdConcentrado { get; set; }
         public required string TokenSeguridad { get; set; }
         public required int IdUsuario { get; set; }
-        public required string Accion { get; set; } // "APROBAR" o "DEVOLVER"
+        public required string Accion { get; set; } 
         public string? Comentario { get; set; }
     }
 

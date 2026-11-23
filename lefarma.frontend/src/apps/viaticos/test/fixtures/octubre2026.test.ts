@@ -41,9 +41,7 @@ describe('fixture de regresion octubre 2026', () => {
   });
 
   it('distingue celda vacia (null) de cero', () => {
-    // Un dia sin hospedaje es null, no 0: las salidas 1, 14 y 15 no lo tienen.
     expect(VIAJES_OCTUBRE_2026.filter(v => v.hospedaje === null).map(v => v.no)).toEqual([1, 14, 15]);
-    // Los viajes 6, 9, 12 y 17 son solo avion (sin autobus).
     expect(VIAJES_OCTUBRE_2026.filter(v => v.autobus === null).map(v => v.no)).toEqual([6, 9, 12, 17]);
     expect(VIAJES_OCTUBRE_2026.some(v => Object.values(v).includes(0))).toBe(false);
   });

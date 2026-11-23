@@ -13,16 +13,12 @@ export const viaticosMenuItems: SidebarMenuItemConfig[] = [
     path: '/viaticos/mis-viajes',
   },
   {
-    // Punto intermedio entre Mis viajes y el concentrado: aquí se autorizan
-    // las solicitudes enviadas. Solo entra quien puede autorizar.
     title: 'Autorizaciones',
     icon: ClipboardList,
     path: '/viaticos/autorizaciones',
     permission: { require: 'viaticos.autorizar' },
   },
   {
-    // Pantalla de consulta: solo entra quien puede autorizar y ya no autoriza
-    // aquí, el paso previo es Autorizaciones.
     title: 'Concentrado de viáticos',
     icon: ClipboardCheck,
     path: '/viaticos/concentrado',

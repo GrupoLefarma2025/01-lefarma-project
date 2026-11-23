@@ -7,7 +7,6 @@
 
 @custom-variant dark (&:is(.dark *));
 
-
 @layer base {
   :root {
     --background: hsl(225.0000 50.0000% 96.8627%);
@@ -63,18 +62,15 @@
     --tracking-normal: 0em;
     --spacing: 0.24rem;
 
-    /* UI Preferences - Dynamic Variables */
-    --font-scale: 1; /* 0.875 (small), 1 (medium), 1.125 (large) */
-    --spacing-factor: 1; /* 0.75 (compacto), 1 (comodo) */
-    --transition-duration: 150ms; /* 0ms when animations disabled */
+    --font-scale: 1; 
+    --spacing-factor: 1; 
+    --transition-duration: 150ms; 
   }
 
-  /* Apply font scale to root */
   :root {
     font-size: calc(16px * var(--font-scale));
   }
 
-  /* Disable animations when data-no-animations is true */
   [data-no-animations="true"] * {
     transition: none !important;
     animation: none !important;
@@ -213,9 +209,6 @@
   }
 }
 
-/* ─── Print / PDF styles ─────────────────────────────────────────────────── */
-
-/* On screen: hide all print documents */
 #flujo-pdf-print,
 #orden-compra-pdf-print,
 #envio-concentrado-pdf-print,
@@ -237,7 +230,6 @@
   width: 100% !important;
 }
 
-/* ─── Named page boxes (must be outside @media) ───────────────────────────── */
 @page portrait {
   size: A4 portrait;
   margin: 16mm 14mm;
@@ -248,14 +240,11 @@
   margin: 8mm;
 }
 
-/* On print: base styles */
 @media print {
-  /* Ocultar toda la app; solo mostrar el PDF activo */
   #root {
     display: none !important;
   }
 
-  /* ── FLUJO ── */
   body.print-flujo {
     page: portrait;
   }
@@ -278,7 +267,6 @@
     height: auto !important;
   }
 
-  /* ── ORDEN DE COMPRA ── */
   body.print-orden {
     page: portrait;
   }
@@ -309,7 +297,6 @@
     overflow: visible !important;
   }
 
-  /* ── ENVIO CONCENTRADO ── */
   body.print-envio-concentrado {
     page: landscape;
   }
@@ -349,7 +336,6 @@
     display: table-row-group;
   }
 
-  /* ── SOLICITUD DE PERSONAL ── */
   body.print-solicitud {
     page: portrait;
   }
@@ -382,7 +368,6 @@
     overflow: visible !important;
   }
 
-  /* Header */
   .pdf-header {
     display: flex;
     justify-content: space-between;
@@ -421,7 +406,6 @@
     margin-top: 2pt;
   }
 
-  /* Sections */
   .pdf-section {
     margin-bottom: 12pt;
     }
@@ -445,7 +429,6 @@
     margin-bottom: 7pt;
   }
 
-  /* Orden grid */
   .pdf-orden-grid {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
@@ -513,7 +496,6 @@
     color: #374151;
   }
 
-  /* Table */
   .pdf-table {
     width: 100%;
     border-collapse: collapse;
@@ -555,7 +537,6 @@
     text-align: right !important;
   }
 
-  /* Timeline */
   .pdf-timeline {
     display: flex;
     flex-direction: column;
@@ -635,7 +616,6 @@
     margin: 2pt 0;
   }
 
-  /* Events */
   .pdf-eventos {
     display: flex;
     flex-direction: column;
@@ -717,7 +697,6 @@
     line-height: 1.4;
   }
 
-  /* Firmas */
   .pdf-firmas-grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
@@ -777,7 +756,6 @@
     word-wrap: break-word;
   }
 
-  /* Footer */
   .pdf-footer {
     display: flex;
     justify-content: space-between;
@@ -790,7 +768,6 @@
   }
 }
 
-/* Table Density Styles */
 .data-table-compact tbody tr td {
   padding-top: calc(var(--spacing-factor) * 0.25rem);
   padding-bottom: calc(var(--spacing-factor) * 0.25rem);
@@ -801,35 +778,28 @@
   padding-bottom: calc(var(--spacing-factor) * 1rem);
 }
 
-/* Force muted-foreground text and be light on primary background */
 [data-selected="true"] .text-muted-foreground,
 [data-selected="true"] .bg-border,
 [data-selected="true"] .text-xs {
   color: hsl(210 100% 85%) !important;
 }
 
-/* Force badge text to be light on primary background */
 [data-selected="true"] [data-slot="badge"] {
   color: white !important;
   background-color: rgba(255, 255, 255, 0.2) !important;
   border-color: rgba(255, 255, 255, 0.3) !important;
 }
 
-/* Force muted-foreground text to be light on primary background */
 .data-table-comfortable tbody tr td {
   padding-top: calc(var(--spacing-factor) * 1rem);
   padding-bottom: calc(var(--spacing-factor) * 1rem);
 }
 
-/* ===== Impresion del resumen de seleccion =====
-   El contenido imprimible vive en un portal propio (.print:block en
-   ResumenSeleccionModal); aqui solo se oculta todo lo demas. */
 @media print {
   #root {
     display: none !important;
   }
 
-  /* Ocultar el overlay oscuro y el dialogo abiertos (pantalla) */
   body > .fixed.inset-0.z-50.bg-black\/80 {
     display: none !important;
   }
@@ -839,8 +809,6 @@
   }
 }
 
-/* ===== Impresion de la planificacion de rutas (RutasPrintModal) =====
-   Portal #rutas-print visible solo al imprimir; bordes y colores forzados. */
 @media print {
   #rutas-print {
     color: #000;
@@ -853,8 +821,6 @@
   }
 }
 
-/* ===== Impresion de la matriz de talleres (MatrizPrintDocument) =====
-   El FOR-005 tiene 19 columnas en la tabla principal: A4 horizontal. */
 @media print {
   body.print-matriz {
     page: landscape;

@@ -2,20 +2,10 @@ import { Fragment } from 'react';
 import { CheckCircle } from 'lucide-react';
 
 export interface StepIndicatorProps {
-  /** Etiquetas de cada paso, en orden. */
   steps: string[];
-  /** Paso actual (1-based). */
   current: number;
 }
 
-/**
- * Indicador de progreso para flujos multi-paso. Componente puramente
- * presentacional, data-driven via `steps` y `current`.
- *
- * - El paso `current` y los anteriores se resaltan (`bg-primary`).
- * - Los pasos completados (`current > step`) muestran un check.
- * - Los conectores se llenan cuando el paso previo está completo.
- */
 export function StepIndicator({ steps, current }: StepIndicatorProps) {
   return (
     <div className="my-4 flex items-center justify-center gap-2">

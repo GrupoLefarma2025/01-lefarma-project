@@ -4,14 +4,8 @@ using Microsoft.Extensions.Options;
 
 namespace Lefarma.API.Features.Telemetria.Cola;
 
-/// <summary>Foto de la cola en memoria, para el panel de estado.</summary>
 public sealed record EstadoCola(long Encolados, long Descartados, long Pendientes, int Capacidad);
 
-/// <summary>
-/// Cola acotada entre la petición HTTP (que responde 202 al instante) y el escritor
-/// en segundo plano. Si el escritor se atrasa, se descartan lotes nuevos en lugar de
-/// crecer sin límite: el descarte se cuenta y se ve en el estado.
-/// </summary>
 public sealed class TelemetriaCola
 {
     private readonly Channel<LoteTelemetria> _canal;
@@ -31,7 +25,6 @@ public sealed class TelemetriaCola
         });
     }
 
-    /// <summary>Intenta encolar; devuelve <c>false</c> si la cola está llena (lote descartado).</summary>
     public bool Encolar(LoteTelemetria lote)
     {
         if (_canal.Writer.TryWrite(lote))

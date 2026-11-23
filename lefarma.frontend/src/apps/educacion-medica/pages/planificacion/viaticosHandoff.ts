@@ -12,9 +12,7 @@ export interface VisitaCotizable {
   ciudadMunicipio?: string | null;
   latitud?: number | null;
   longitud?: number | null;
-  /** TimeOnly del backend: 'HH:mm:ss'. */
   horaSalida?: string | null;
-  /** TimeOnly del backend: 'HH:mm:ss'. */
   horaLlegada?: string | null;
 }
 
@@ -28,7 +26,6 @@ export interface RutaParaCotizar {
   idRuta: number;
   nombre: string;
   idSeleccionMensual?: number | null;
-  /** Gerencia de la selección (Descentralizado / IMSS / IMSS Bienestar). */
   gerencia?: string | null;
   visitas: VisitaCotizable[];
   viajero?: ViajeroCotizacion;
@@ -36,26 +33,17 @@ export interface RutaParaCotizar {
 
 const ESTADOS_RUTA_NO_COTIZABLES = new Set(['Archivada', 'Cancelada', 'Rechazada']);
 
-/** Una ruta archivada, cancelada o rechazada ya no puede generar cotizaciones. */
 export const esEstadoRutaCotizable = (estado: string | null | undefined): boolean =>
   estado != null && !ESTADOS_RUTA_NO_COTIZABLES.has(estado);
 
-/** Un destino solo puede enviarse a cotizar si el hospital tiene coordenadas. */
 export const tieneCoordenadas = (visita: VisitaCotizable): boolean =>
   typeof visita.latitud === 'number' &&
   Number.isFinite(visita.latitud) &&
   typeof visita.longitud === 'number' &&
   Number.isFinite(visita.longitud);
 
-/** TimeOnly del backend ('HH:mm:ss') al formato del wizard ('HH:mm'). */
 const horaCorta = (hora: string | null | undefined): string => (hora ?? '').slice(0, 5);
 
-/**
- * Construye el snapshot `solicitud-v2` que hidrata el asistente de Viáticos.
- * Solo incluye destinos con coordenadas; la hora no se envía (el usuario la
- * completa en el asistente si la necesita). Los datos que no vienen de la ruta
- * (origen, transporte, retorno) se dejan vacíos.
- */
 export function construirSnapshotSolicitud(
   ruta: RutaParaCotizar,
   visitas: VisitaCotizable[],
@@ -81,9 +69,6 @@ export function construirSnapshotSolicitud(
           motivo: 'Talleres médicos en hospitales',
         };
 
-  // Si la ruta ocupa más de un día, se propone hotel al cerrar el día que
-  // todavía tiene visitas al día siguiente. El usuario puede desmarcarlo en
-  // el asistente; esto solo evita que un viaje de varios días nazca sin hotel.
   const fechas = new Set(seleccionadas.map((visita) => visita.fechaVisita));
   const multiDia = fechas.size > 1;
 
@@ -136,7 +121,6 @@ export function construirSnapshotSolicitud(
       destino: 'origen',
       punto: null,
     },
-    // Trazabilidad del handoff; el asistente ignora las claves que no conoce.
     origenEm: {
       idRuta: ruta.idRuta,
       nombreRuta: ruta.nombre,
@@ -146,12 +130,6 @@ export function construirSnapshotSolicitud(
   };
 }
 
-/**
- * Crea o reutiliza la cotización de viáticos de una ruta (ADR-00014).
- * El backend decide la reutilización por ruta + conjunto exacto de visitas y
- * bloquea las visitas que ya están en una cotización activa. Solo los
- * hospitales con coordenadas se envían.
- */
 export async function crearBorradorDesdeRuta(
   ruta: RutaParaCotizar,
   visitas: VisitaCotizable[],

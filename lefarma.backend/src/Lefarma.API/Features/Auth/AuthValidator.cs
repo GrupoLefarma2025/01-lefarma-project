@@ -2,9 +2,6 @@ using FluentValidation;
 using Lefarma.API.Features.Auth.DTOs;
 
 namespace Lefarma.API.Features.Auth;
-/// <summary>
-/// Validator for LoginStepOneRequest.
-/// </summary>
 public class LoginStepOneRequestValidator : AbstractValidator<LoginStepOneRequest>
 {
     public LoginStepOneRequestValidator()
@@ -15,9 +12,6 @@ public class LoginStepOneRequestValidator : AbstractValidator<LoginStepOneReques
     }
 }
 
-/// <summary>
-/// Validator for LoginStepTwoRequest.
-/// </summary>
 public class LoginStepTwoRequestValidator : AbstractValidator<LoginStepTwoRequest>
 {
     public LoginStepTwoRequestValidator()
@@ -36,9 +30,6 @@ public class LoginStepTwoRequestValidator : AbstractValidator<LoginStepTwoReques
     }
 }
 
-/// <summary>
-/// Validator for RefreshTokenRequest.
-/// </summary>
 public class RefreshTokenRequestValidator : AbstractValidator<RefreshTokenRequest>
 {
     public RefreshTokenRequestValidator()

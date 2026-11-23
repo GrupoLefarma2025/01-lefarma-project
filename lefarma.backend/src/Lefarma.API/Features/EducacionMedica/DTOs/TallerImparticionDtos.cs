@@ -2,9 +2,6 @@ using System.ComponentModel.DataAnnotations;
 
 namespace Lefarma.API.Features.EducacionMedica.DTOs;
 
-// ----- Material (FOR-007, 1:1) -----
-
-/// <summary>Material del taller (FOR-007) con la confirmación de recepción del EV.</summary>
 public class TallerMaterialDto
 {
     public int IdTallerMaterial { get; set; }
@@ -25,11 +22,9 @@ public class TallerMaterialDto
     public DateTime? FechaRecepcion { get; set; }
     public int? IdUsuarioRecepcion { get; set; }
     public string? NombreUsuarioRecepcion { get; set; }
-    /// <summary>true cuando el EV ya confirmó la recepción (firma + fecha + usuario).</summary>
     public bool Confirmado { get; set; }
 }
 
-/// <summary>Registro/edición de la entrega de material por el AEM (FOR-007).</summary>
 public class GuardarTallerMaterialRequest
 {
     public DateOnly? FechaEntrega { get; set; }
@@ -57,14 +52,11 @@ public class GuardarTallerMaterialRequest
     public string? Observaciones { get; set; }
 }
 
-/// <summary>Confirmación de recepción del material por el EV (firma + fecha + usuario del perfil).</summary>
 public class ConfirmarMaterialRequest
 {
     [MaxLength(200)]
     public string? NombreEjecutivoRecepcion { get; set; }
 }
-
-// ----- Asistencias (FOR-008, 1:N máx. 20) -----
 
 public class TallerAsistenciaDto
 {
@@ -105,8 +97,6 @@ public class GuardarTallerAsistenciaRequest
     public string? Observaciones { get; set; }
 }
 
-// ----- Evidencias (1:N) -----
-
 public class TallerEvidenciaDto
 {
     public int IdEvidencia { get; set; }
@@ -133,16 +123,12 @@ public class GuardarTallerEvidenciaRequest
     public DateOnly? FechaEvidencia { get; set; }
 }
 
-// ----- Estados del taller (ADR-00008 revisado) -----
-
-/// <summary>Transición manual del taller: EnCurso, Realizado o Cancelado (solo transiciones permitidas).</summary>
 public class CambiarEstadoTallerRequest
 {
     [Required(ErrorMessage = "El nuevo estado es obligatorio.")]
     [MaxLength(15)]
     public string NuevoEstado { get; set; } = string.Empty;
 
-    /// <summary>Motivo obligatorio en cancelaciones.</summary>
     [MaxLength(500)]
     public string? Motivo { get; set; }
 }
@@ -159,8 +145,6 @@ public class TallerEstadoHistorialDto
     public DateTime Fecha { get; set; }
 }
 
-// ----- Imprimibles (FOR-007 / FOR-008) -----
-
 public class TallerDocumentoMaterialDto
 {
     public TallerDto Taller { get; set; } = null!;
@@ -173,9 +157,6 @@ public class TallerDocumentoAsistenciaDto
     public List<TallerAsistenciaDto> Asistencias { get; set; } = [];
 }
 
-// ----- Solicitudes de cambio del equipo (ADR-00010, decisiones 13-15) -----
-
-/// <summary>Resumen de la solicitud pendiente que el DTO del taller expone por join (sin listado aparte).</summary>
 public class TallerSolicitudCambioResumenDto
 {
     public int IdSolicitud { get; set; }
@@ -185,7 +166,6 @@ public class TallerSolicitudCambioResumenDto
     public DateTime Fecha { get; set; }
 }
 
-/// <summary>Solicitud de cambio del equipo (diff antes/después + motivo en datos_json).</summary>
 public class CrearSolicitudCambioRequest
 {
     [Required(ErrorMessage = "El motivo de la solicitud es obligatorio.")]
@@ -206,7 +186,6 @@ public class CrearSolicitudCambioRequest
     public int? IdEspecialista { get; set; }
 }
 
-/// <summary>Resolución del CEM sobre una solicitud: aprobar (aplica el ajuste) o rechazar (solo motivo).</summary>
 public class ResolverSolicitudCambioRequest
 {
     public bool Aprobar { get; set; }

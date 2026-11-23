@@ -4,11 +4,6 @@ using Microsoft.Extensions.Options;
 
 namespace Lefarma.API.Features.Sigma;
 
-/// <summary>
-/// Almacenamiento físico de los PDFs del flujo de firmas, fuera de wwwroot.
-/// Estructura heredada de SIGMA: <c>&lt;StoragePath&gt;/&lt;idDocumento&gt;/archivo_inicial.pdf</c>
-/// para documentos sueltos y <c>&lt;StoragePath&gt;/&lt;idGrupo&gt;/&lt;idDocumento&gt;_inicial.pdf</c> para grupos.
-/// </summary>
 public sealed class SigmaDocumentStorage
 {
     private const string NombreArchivoInicial = "archivo_inicial.pdf";
@@ -42,7 +37,6 @@ public sealed class SigmaDocumentStorage
 
     public long MaxUploadBytes => _maxUploadBytes;
 
-    /// <summary>Valida que el archivo sea un PDF no vacío dentro del límite de tamaño.</summary>
     public string? ValidarPdf(IFormFile? archivo)
     {
         if (archivo is null || archivo.Length == 0)
@@ -63,7 +57,6 @@ public sealed class SigmaDocumentStorage
         return null;
     }
 
-    /// <summary>Guarda el PDF inicial de un documento suelto y devuelve ruta, tamaño y hash.</summary>
     public Task<ArchivoGuardado> GuardarInicialAsync(Guid idDocumento, IFormFile archivo, CancellationToken ct = default)
     {
         var directorio = Path.Combine(_raiz, idDocumento.ToString("D"));
@@ -71,7 +64,6 @@ public sealed class SigmaDocumentStorage
         return GuardarAsync(directorio, ruta, archivo, ct);
     }
 
-    /// <summary>Guarda el PDF inicial de un documento dentro de un grupo.</summary>
     public Task<ArchivoGuardado> GuardarInicialGrupoAsync(Guid idGrupo, Guid idDocumento, IFormFile archivo, CancellationToken ct = default)
     {
         var directorio = Path.Combine(_raiz, idGrupo.ToString("D"));
@@ -79,11 +71,6 @@ public sealed class SigmaDocumentStorage
         return GuardarAsync(directorio, ruta, archivo, ct);
     }
 
-    /// <summary>
-    /// Deriva el PDF firmado a partir del inicial (archivo_inicial.pdf → archivo_firmado.pdf,
-    /// &lt;id&gt;_inicial.pdf → &lt;id&gt;_firmado.pdf) y lo crea copiando el inicial si aún no existe.
-    /// TODO: aquí irá la firma digital real; por ahora se copia, igual que en SIGMA.
-    /// </summary>
     public string? PrepararArchivoFirmado(string? rutaArchivoInicial)
     {
         if (string.IsNullOrWhiteSpace(rutaArchivoInicial) || !File.Exists(rutaArchivoInicial))
@@ -107,11 +94,9 @@ public sealed class SigmaDocumentStorage
         return rutaFirmado;
     }
 
-    /// <summary>Ruta del PDF firmado del documento suelto (aún puede no existir).</summary>
     public string RutaFirmado(Guid idDocumento) =>
         Path.Combine(_raiz, idDocumento.ToString("D"), NombreArchivoFirmado);
 
-    /// <summary>Nombre original saneado, sin rutas ni caracteres inválidos.</summary>
     public static string SanearNombreArchivo(string? nombre)
     {
         if (string.IsNullOrWhiteSpace(nombre))
@@ -162,5 +147,4 @@ public sealed class SigmaDocumentStorage
     }
 }
 
-/// <summary>Datos del PDF recién guardado.</summary>
 public sealed record ArchivoGuardado(string RutaAbsoluta, long TamanoBytes, string HashSHA256);

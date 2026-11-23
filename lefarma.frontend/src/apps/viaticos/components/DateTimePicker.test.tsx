@@ -13,10 +13,8 @@ const PROPS = {
   placeholder: 'Elige fecha y hora de salida',
 };
 
-/** Reloj congelado: «ahorita» es jueves 15 de octubre de 2026, 16:35. */
 const AHORA = new Date(2026, 9, 15, 16, 35, 0);
 
-/** Envoltura con estado, como en el asistente: refleja cada cambio del picker. */
 function Combinado({ inicialFecha = '', inicialHora = '', desde = null }: { inicialFecha?: string; inicialHora?: string; desde?: { fecha: string; hora: string } | null }) {
   const [fecha, setFecha] = useState(inicialFecha);
   const [hora, setHora] = useState(inicialHora);
@@ -42,7 +40,6 @@ function botonDeDia(texto: string): HTMLElement {
 
 describe('DateTimePicker', () => {
   beforeEach(() => {
-    // Solo se congela el reloj (Date); los timers reales siguen para userEvent.
     vi.useFakeTimers({ toFake: ['Date'] });
     vi.setSystemTime(AHORA);
   });
@@ -64,7 +61,6 @@ describe('DateTimePicker', () => {
     await usuario.click(screen.getByRole('button', { name: 'Elige fecha y hora de salida' }));
     await usuario.click(screen.getByRole('button', { name: /next month/i }));
     await usuario.click(botonDeDia('15'));
-    // El reloj congelado marca 16:35; el día elegido es futuro.
     expect(screen.getByRole('button', { name: /15 de noviembre de 2026.*04:35 PM/ })).toBeInTheDocument();
   });
 
@@ -73,7 +69,6 @@ describe('DateTimePicker', () => {
     const usuario = userEvent.setup();
     render(<DateTimePicker {...PROPS} onFecha={onFecha} />);
     await usuario.click(screen.getByRole('button', { name: /10 de noviembre de 2026/ }));
-    // Un mes adelante siempre hay días futuros, sin depender del día de hoy.
     await usuario.click(screen.getByRole('button', { name: /next month/i }));
     await usuario.click(botonDeDia('15'));
     expect(onFecha).toHaveBeenCalledWith('2026-11-15');
@@ -95,7 +90,6 @@ describe('DateTimePicker', () => {
     render(<Combinado inicialHora="08:30" />);
     await usuario.click(screen.getByRole('button', { name: /Elige fecha y hora de salida.*08:30 AM/ }));
     await usuario.click(botonDeDia('15'));
-    // 08:30 ya pasó (son las 16:35): la hora se limpia y hay que elegirla otra vez.
     expect(screen.getByRole('button', { name: /15 de octubre de 2026.*--:--/ })).toBeInTheDocument();
     expect(screen.getByRole('group', { name: 'Minutos' })).toBeInTheDocument();
   });
@@ -105,10 +99,8 @@ describe('DateTimePicker', () => {
     render(<Combinado />);
     await usuario.click(screen.getByRole('button', { name: 'Elige fecha y hora de salida' }));
     await usuario.click(within(screen.getByRole('group', { name: 'Hora' })).getByRole('button', { name: '08' }));
-    // Hora sin minuto explícito: sigue abierto.
     expect(screen.getByRole('group', { name: 'Minutos' })).toBeInTheDocument();
     await usuario.click(within(screen.getByRole('group', { name: 'Minutos' })).getByRole('button', { name: '30' }));
-    // Falta el día: sigue abierto.
     expect(screen.getByRole('group', { name: 'Día' })).toBeInTheDocument();
     await usuario.click(screen.getByRole('button', { name: /next month/i }));
     await usuario.click(botonDeDia('15'));
@@ -126,7 +118,6 @@ describe('DateTimePicker', () => {
     expect(within(grupoHora).getByRole('button', { name: '15' })).toBeDisabled();
     expect(within(grupoHora).getByRole('button', { name: '16' })).not.toBeDisabled();
     expect(within(grupoHora).getByRole('button', { name: '23' })).not.toBeDisabled();
-    // La hora actual arranca en el minuto actual, no en :00 (no se elige un horario pasado).
     await usuario.click(within(grupoHora).getByRole('button', { name: '16' }));
     expect(screen.getByRole('button', { name: /15 de octubre de 2026.*04:35 PM/ })).toBeInTheDocument();
     const grupoMinutos = screen.getByRole('group', { name: 'Minutos' });
@@ -140,10 +131,8 @@ describe('DateTimePicker', () => {
     render(<Combinado desde={{ fecha: '2026-11-20', hora: '10:30' }} />);
     await usuario.click(screen.getByRole('button', { name: 'Elige fecha y hora de salida' }));
     await usuario.click(screen.getByRole('button', { name: /next month/i }));
-    // Días anteriores al mínimo quedan bloqueados.
     expect(botonDeDia('19')).toBeDisabled();
     await usuario.click(botonDeDia('20'));
-    // La hora se autocompleta con la actual (16:35) y el panel se cierra.
     await usuario.click(screen.getByRole('button', { name: /20 de noviembre de 2026.*04:35 PM/ }));
     const grupoHora = screen.getByRole('group', { name: 'Hora' });
     expect(within(grupoHora).getByRole('button', { name: '09' })).toBeDisabled();
@@ -166,9 +155,7 @@ describe('DateTimePicker', () => {
     await usuario.click(screen.getByRole('button', { name: 'Elige fecha y hora de salida' }));
     const grupoHora = screen.getByRole('group', { name: 'Hora' });
     await usuario.click(within(grupoHora).getByRole('button', { name: '06' }));
-    // Sin minuto capturado se usa el minuto actual ya preseleccionado.
     expect(onHora).toHaveBeenCalledWith('06:35');
-    // Falta la fecha: sigue abierto.
     expect(screen.getByRole('group', { name: 'Minutos' })).toBeInTheDocument();
   });
 

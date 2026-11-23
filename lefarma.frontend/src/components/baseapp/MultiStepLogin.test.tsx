@@ -2,7 +2,6 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter, useLocation } from 'react-router-dom';
 
-// El authStore importa el cliente HTTP; se mockea como en el resto de la suite.
 vi.mock('@/shared/api/apiClient', () => ({
   API: {
     get: vi.fn().mockResolvedValue({ data: { success: true, data: null } }),
@@ -24,15 +23,6 @@ vi.mock('@/shared/api/apiClient', () => ({
 import { MultiStepLogin } from '@/components/baseapp/MultiStepLogin';
 import { useAuthStore } from '@/shared/auth/authStore';
 
-/**
- * El login no debe alcanzarse a pintar cuando ya hay sesión (destino del
- * efecto de navegación) ni cuando la sesión aún no se ha hidratado desde
- * `localStorage` (F5 con token guardado). Antes de estos guards la tarjeta de
- * credenciales se veía un instante en ambos casos.
- *
- * `LocationProbe` permite comprobar la navegación sin montar rutas: el
- * componente queda montado tras navegar, así que su salida se puede inspeccionar.
- */
 function LocationProbe() {
   const location = useLocation();
   return <div data-testid="location">{location.pathname}</div>;

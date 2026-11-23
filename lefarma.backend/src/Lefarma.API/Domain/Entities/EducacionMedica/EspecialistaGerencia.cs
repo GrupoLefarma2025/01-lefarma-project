@@ -1,9 +1,5 @@
 namespace Lefarma.API.Domain.Entities.EducacionMedica;
 
-/// <summary>
-/// Gerencia que puede atender un especialista de producto (ADR-00015).
-/// La ausencia de filas se interpreta como NO elegible.
-/// </summary>
 public class EspecialistaGerencia
 {
     public int IdEspecialistaGerencia { get; set; }

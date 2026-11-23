@@ -104,7 +104,6 @@ export default function EquiposPareoPage() {
         setEquiposVigentes(response.data.data ?? []);
       }
     } catch {
-      // El aviso de integrante ocupado es solo preventivo; el backend valida de todas formas
     }
   }, []);
 

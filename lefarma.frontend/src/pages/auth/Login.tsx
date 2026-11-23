@@ -22,18 +22,6 @@ import {
 } from 'lucide-react';
 import logoEstatico from '@/assets/logo.png';
 
-/**
- * @legacy Login monolítico — SUPERSEDO por `<MultiStepLogin>` (pasos 1 y 2)
- * más el slot `step3` inyectado por cada app (ej. `CxpContextSelection` para
- * CxP). La fábrica genérica `createAppRoutes` ahora renderiza `<MultiStepLogin>`
- * en lugar de este componente.
- *
- * Se conserva ÍNTEGRO (sin cambios de lógica) únicamente porque sus pruebas
- * unitarias directas (`require-auth.test.tsx`, `login.smoke.test.tsx`) lo
- * importan y ejercen. No agregar nuevos consumidores — usar
- * `<MultiStepLogin>` + slot `step3` para cualquier login nuevo.
- */
-
 const DOMAIN_NAMES: Record<string, string> = {
   'LEFARMA-HN': 'LeFarma Honduras',
   'LEFARMA-GT': 'LeFarma Guatemala',
@@ -44,19 +32,7 @@ const DOMAIN_NAMES: Record<string, string> = {
 };
 
 export interface LoginProps {
-  /**
-   * Cuando es `true` (por defecto), presenta el flujo de 3 pasos que recopila
-   * el contexto de empresa/sucursal/area después de las credenciales (login
-   * CxP — CxP es la ÚNICA app que recopila contexto). Cuando es `false`, la
-   * sesión se finaliza justo después de las credenciales y el paso de selección
-   * de contexto se omite limpiamente (flujo `/login` global y el login por-app
-   * de RH).
-   */
   requireContextSelection?: boolean;
-  /**
-   * Destino de navegación post-login. Por defecto `'dashboard'` (el landing
-   * de CxP). El login global lo sobrescribe con `'/hub'`.
-   */
   redirectTo?: string;
 }
 
@@ -86,13 +62,6 @@ export default function Login({
     loadProfile,
   } = useAuthStore();
 
-  // Destino de retorno post-login opcional, establecido por el guard
-  // RequireAuth del shell cuando redirige aquí una sesión no autenticada.
-  // Guarda contra open-redirect: solo honra rutas absolutas del mismo origen
-  // (relativas a la raíz, NO relativas al protocolo como `//evil.com`). El
-  // shell ahora se sirve desde la raíz (`/`), así que los destinos de retorno
-  // válidos se ven como `/hub`, `/perfil`, `/cxp/dashboard`, `/rh/dashboard`, etc.
-  // El flujo por defecto de CxP (sin parámetro return) no cambia.
   const returnSearchParam = new URLSearchParams(window.location.search).get('return');
   const safeReturn =
     returnSearchParam &&
@@ -108,13 +77,8 @@ export default function Login({
   const [selectedEmpresa, setSelectedEmpresa] = useState('');
   const [selectedSucursal, setSelectedSucursal] = useState('');
   const [error, setError] = useState('');
-  // Evita doble auto-commit del paso 3 (StrictMode monta efectos dos veces) — patrón HandoffLogin
   const ranRef = useRef(false);
-  // Selección manual del usuario en el paso 3: bloquea el auto-commit y la auto-selección.
-  // No se resetea al reintentar el profile a propósito: la elección manual sobrevive al retry.
-  // Se limpia solo al salir del paso 3 (submit o volver).
   const manualSelectionRef = useRef(false);
-  // Auto-selección cuando el usuario NO puede cambiar empresa/sucursal
   const autoSelectedEmpresa = useMemo(() => {
     if (puedeSeleccionarEmpresas || !usuarioDetalle) return null;
     const { idEmpresa } = usuarioDetalle;
@@ -138,8 +102,6 @@ export default function Login({
     return null;
   }, [puedeSeleccionarEmpresas, usuarioDetalle, autoSelectedEmpresa, sucursales]);
 
-  // Valores efectivos: auto-selección o los del usuario
-  // (si hubo selección manual en este paso, la auto-selección cede ante ella)
   const effectiveEmpresa = manualSelectionRef.current ? selectedEmpresa : autoSelectedEmpresa ?? selectedEmpresa;
   const effectiveSucursal = manualSelectionRef.current ? selectedSucursal : autoSelectedSucursal ?? selectedSucursal;
 
@@ -149,31 +111,22 @@ export default function Login({
     return String(s.idEmpresa) === String(effectiveEmpresa);
   });
 
-  // --- Ajustes de estado durante el render (recomendado vs. setState dentro de useEffect) ---
-
-  // Sincronizar username cuando el store cambia pendingUsername (sin pisar lo que el usuario tipea)
-  if (pendingUsername && pendingUsername !== syncedPending) {
+if (pendingUsername && pendingUsername !== syncedPending) {
     setSyncedPending(pendingUsername);
     setUsername(pendingUsername);
   }
 
-  // Auto-seleccionar el dominio cuando hay uno solo
   if (!requiresDomainSelection && availableDomains.length === 1 && !selectedDomain) {
     setSelectedDomain(availableDomains[0]);
   }
 
-  // Pre-cargar empresa/sucursal/area del usuario como DEFAULT cuando puede seleccionar
-  // (cuando no puede, ya se resuelven via autoSelected*). Editable: solo siembra valores.
   if (loginStep === 3 && puedeSeleccionarEmpresas && usuarioDetalle && !selectedEmpresa) {
     if (usuarioDetalle.idEmpresa > 0) setSelectedEmpresa(String(usuarioDetalle.idEmpresa));
     if (usuarioDetalle.idSucursal > 0) setSelectedSucursal(String(usuarioDetalle.idSucursal));
   }
 
-  // Navegacion al dashboard: side-effect real, va en efecto
   useEffect(() => {
     if (!isAuthenticated) return;
-    // Honrar un destino de retorno del mismo origen si existe; de lo contrario
-    // usar el redirect configurado (dashboard de CxP o /hub para el login global).
     if (safeReturn) {
       navigate(safeReturn, { replace: true });
       return;
@@ -181,19 +134,12 @@ export default function Login({
     navigate(redirectTo, { replace: true });
   }, [isAuthenticated, navigate, safeReturn, redirectTo]);
 
-  // Área resuelta por la regla única (REQ-001): solo lectura, nunca un control (REQ-004/007)
   const resolvedArea = useMemo(() => {
     const empId = effectiveEmpresa || selectedEmpresa;
     if (!empId) return null;
     return resolveArea(empId);
   }, [effectiveEmpresa, selectedEmpresa, resolveArea]);
 
-  // Auto-commit del paso 3 SOLO cuando el usuario no puede elegir empresa/sucursal
-  // (puedeSeleccionarEmpresas=false) y el detalle resuelve contexto válido (REQ-004).
-  // Cuando puede seleccionar, el paso 3 se muestra con defaults del detalle (prefill abajo)
-  // y el usuario confirma o cambia — el salto lo dejaría a medias sin chance de cambiar.
-  // ranRef: mismo patrón que HandoffLogin — StrictMode monta efectos dos veces en dev; evita
-  // el doble commit. Se rearma al salir del paso 3 para permitir re-login en el mismo mount.
   useEffect(() => {
     if (loginStep !== 3) {
       ranRef.current = false;
@@ -278,8 +224,6 @@ export default function Login({
 
     try {
       await loginStepThree(emp, suc);
-      // Honrar un destino de retorno del mismo origen si existe; de lo contrario
-      // usar el redirect configurado (dashboard de CxP).
       if (safeReturn) {
         navigate(safeReturn, { replace: true });
         return;
@@ -319,7 +263,7 @@ export default function Login({
             />
           </div>
 
-          {/* Pasos de progreso */}
+          {}
           <div className="my-4 flex items-center justify-center gap-2">
             <div
               className={`flex items-center gap-2 ${
@@ -379,7 +323,7 @@ export default function Login({
         </CardHeader>
 
         <CardContent>
-          {/* PASO 1: Usuario */}
+          {}
           {loginStep === 1 && (
             <form onSubmit={handleStepOne} className="space-y-4">
               {error && (
@@ -412,7 +356,7 @@ export default function Login({
             </form>
           )}
 
-          {/* PASO 2: Contraseña y Dominio */}
+          {}
           {loginStep === 2 && (
             <form onSubmit={handleStepTwo} className="space-y-4">
               {error && (
@@ -493,7 +437,7 @@ export default function Login({
             </form>
           )}
 
-          {/* PASO 3: Empresa, Sucursal y Área */}
+          {}
           {loginStep === 3 && (
             <form id="empresa-sucursal-form" onSubmit={handleStepThree} className="space-y-4">
               {error && (
@@ -528,7 +472,7 @@ export default function Login({
                 </div>
               )}
 
-              {/* Empresa */}
+              {}
               <div className="space-y-2">
                 <label className="flex items-center gap-2 text-sm font-medium">
                   <Building2 className="h-4 w-4" />
@@ -559,7 +503,7 @@ export default function Login({
                 </Select>
               </div>
 
-              {/* Sucursal */}
+              {}
               {(effectiveEmpresa || selectedEmpresa) && (
                 <div className="space-y-2">
                   <label className="flex items-center gap-2 text-sm font-medium">
@@ -602,7 +546,7 @@ export default function Login({
                 </div>
               )}
 
-              {/* Área — solo lectura, asignada por administración (REQ-004/007) */}
+              {}
               {(effectiveEmpresa || selectedEmpresa) && resolvedArea && (
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Área</label>

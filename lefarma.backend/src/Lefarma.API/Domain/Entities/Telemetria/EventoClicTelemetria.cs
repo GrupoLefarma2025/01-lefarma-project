@@ -1,6 +1,5 @@
 namespace Lefarma.API.Domain.Entities.Telemetria;
 
-/// <summary>Clic de un botón o elemento interactivo, con su identidad estable.</summary>
 public class EventoClicTelemetria
 {
     public long IdClic { get; set; }

@@ -64,7 +64,6 @@ export interface UseSolicitudesAutorizacionesReturn {
 
   workflowsMap: Map<number, WorkflowFlowResponse>;
   pasosWorkflow: import('@/types/solicitudPersonalWorkflow.types').WorkflowPasoFlowResponse[];
-  /** Nombres de los jefes que se esperan en cada paso (para la línea de tiempo). */
   responsablesPorPaso: Map<number, string[]>;
   getEstadoInfo: (
     solicitud:
@@ -108,9 +107,6 @@ export function useSolicitudesAutorizaciones(): UseSolicitudesAutorizacionesRetu
   const [workflowsLoaded, setWorkflowsLoaded] = useState(false);
   const [isSubmittingFirma, setIsSubmittingFirma] = useState(false);
 
-  // Configuración de jefes del solicitante y exclusiones del workflow de la
-  // solicitud seleccionada: sirven para no pintar en la línea de tiempo los
-  // pasos de jefe que el motor omitirá (p. ej. niveles 4-5 sin cuenta).
   const [jefesConfig, setJefesConfig] = useState<EmpleadoJefesConfigResponse | null>(null);
   const [jefesExcluidos, setJefesExcluidos] = useState<Set<number>>(() => new Set());
   const filtroFlujoCache = useRef(new Map<string, FiltroFlujo>());
@@ -150,7 +146,6 @@ export function useSolicitudesAutorizaciones(): UseSolicitudesAutorizacionesRetu
       setJefesConfig(config);
       setJefesExcluidos(excluidos);
     } catch {
-      // Sin datos se muestra el flujo completo (comportamiento anterior).
       setJefesConfig(null);
       setJefesExcluidos(new Set());
     }
@@ -427,8 +422,6 @@ export function useSolicitudesAutorizaciones(): UseSolicitudesAutorizacionesRetu
       .filter((p) => p.activo)
       .sort((a, b) => a.orden - b.orden);
 
-    // Oculta los pasos de jefe que el motor omitirá para este solicitante. Se
-    // conservan el paso actual y los ya visitados para no perder su historial.
     if (!jefesConfig) return pasos;
     const pasosConEventos = new Set(historial.map((h) => h.idPaso));
     return pasos.filter(
@@ -439,8 +432,6 @@ export function useSolicitudesAutorizaciones(): UseSolicitudesAutorizacionesRetu
     );
   }, [selectedSolicitud, workflowsMap, jefesConfig, jefesExcluidos, historial]);
 
-  // Jefe esperado por paso: se muestra en la línea de tiempo aunque el paso
-  // todavía no tenga firma, para que se vea quién debe atenderlo.
   const responsablesPorPaso = useMemo(() => {
     const map = new Map<number, string[]>();
     if (!jefesConfig) return map;

@@ -19,53 +19,14 @@ import { StepIndicator } from '@/components/baseapp/StepIndicator';
 import { PageLoader } from '@/components/ui/page-loader';
 
 export interface MultiStepLoginProps {
-  /**
-   * Destino de navegación post-login. Honrado a menos que exista un
-   * `?return=` del mismo origen (guard anti open-redirect). Requerido porque
-   * cada consumidor sabe a dónde debe aterrizar.
-   */
   redirectTo: string;
-  /**
-   * Contenido del paso 3 inyectado por la app consumidora (ej. selección de
-   * empresa/sucursal/área de CxP). Su presencia equivale a
-   * `requireContextSelection: true`: el login cargará el paso 3 tras las
-   * credenciales. Si se omite, el login es de 2 pasos y autentica al instante.
-   *
-   * El slot es responsable de su propio estado/formulario y de finalizar la
-   * sesión escribiendo `isAuthenticated` en el authStore (típicamente vía
-   * `loginStepThree`). MultiStepLogin observa ese flag y ejecuta el redirect.
-   */
   step3?: ReactNode;
-  /** Etiqueta del 3er punto del indicador de progreso. Default: 'Contexto'. */
   step3Label?: string;
-  /** Descripción bajo el indicador cuando se muestra el paso 3. */
   step3Description?: string;
-  /** Subtítulo bajo el logo, ej. "Sistema de Gestión de Recursos Humanos". */
   subtitle?: string;
-  /**
-   * Nombre corto de la app en la que se hace login (ej. 'Cuentas por Pagar').
-   * Se muestra en la esquina inferior derecha, junto a la versión.
-   * Al omitirse (login del hub) el fondo exterior usa el degradado
-   * distintivo del hub.
-   */
   appName?: string;
 }
 
-/**
- * Shell de autenticación multi-paso reutilizable.
- *
- * Encapsula los pasos comunes a todas las apps:
- *  1. Usuario
- *  2. Contraseña (+ selección de dominio si aplica)
- *  3. (Opcional) contenido provisto por la app via `step3`
- *
- * La navegación post-login vive aquí: cuando `isAuthenticated` pasa a `true`
- * (sea tras el paso 2 en flujos de 2 pasos, o tras el paso 3 cuando el slot
- * finaliza), se redirige a `redirectTo` o a `?return=` del mismo origen.
- *
- * Esto reemplaza la lógica de pasos 1 y 2 que antes vivía en
- * `pages/auth/Login.tsx`, dejando que cada app inyecte su propio paso 3.
- */
 export function MultiStepLogin({
   redirectTo,
   step3,
@@ -90,10 +51,6 @@ export function MultiStepLogin({
     resetLoginFlow,
   } = useAuthStore();
 
-  // Destino de retorno post-login opcional, establecido por el guard
-  // RequireAuth del shell cuando redirige aquí una sesión no autenticada.
-  // Guard contra open-redirect: solo honra rutas absolutas del mismo origen
-  // (relativas a la raíz, NO relativas al protocolo como `//evil.com`).
   const [searchParams] = useSearchParams();
   const returnSearchParam = searchParams.get('return');
   const safeReturn =
@@ -108,16 +65,6 @@ export function MultiStepLogin({
   const [selectedDomain, setSelectedDomain] = useState('');
   const [error, setError] = useState('');
 
-  // Detectar el regreso desde el paso 3 (el slot llamó `resetLoginFlow`) al
-  // paso 1 para limpiar credenciales locales. Preserva el comportamiento del
-  // Login original. Se excluye el caso de éxito del paso 3 (loginStepThree
-  // setea loginStep=1 e isAuthenticated=true) para no limpiar durante la
-  // navegación de salida.
-  //
-  // Patrón de ajuste de estado durante el render (documentado por React)
-  // ante el cambio de un valor externo: evita setState en effects
-  // (react-hooks/set-state-in-effect) y el acceso a refs durante el render
-  // (react-hooks/refs).
   const [prevLoginStep, setPrevLoginStep] = useState(loginStep);
   if (loginStep !== prevLoginStep) {
     setPrevLoginStep(loginStep);
@@ -128,13 +75,10 @@ export function MultiStepLogin({
     }
   }
 
-  // Auto-seleccionar el dominio cuando hay uno solo (mismo patrón de
-  // ajuste durante el render).
   if (!requiresDomainSelection && availableDomains.length === 1 && !selectedDomain) {
     setSelectedDomain(availableDomains[0]);
   }
 
-  // Navegación al destino post-login: lado-effecto real, va en efecto.
   useEffect(() => {
     if (!isAuthenticated) return;
     if (safeReturn) {
@@ -182,9 +126,6 @@ export function MultiStepLogin({
       const domain = requiresDomainSelection ? selectedDomain : availableDomains[0];
 
       try {
-        // La presencia de step3 determina si se requiere selección de contexto:
-        // el store carga empresas/sucursales/areas y avanza al paso 3, o
-        // finaliza la sesión aquí (flujo de 2 pasos).
         await loginStepTwo(password, domain, { requireContextSelection: hasStep3 });
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : 'Credenciales incorrectas';
@@ -202,10 +143,6 @@ export function MultiStepLogin({
     setError('');
   }, [resetLoginFlow]);
 
-  // No pintar el formulario de credenciales cuando todavía no se sabe si hay
-  // sesión (F5 con token en localStorage) ni cuando ya la hay: en ambos casos
-  // el efecto de arriba navega al destino, y sin este guard la tarjeta se
-  // alcanza a ver un instante (destello de login al recargar).
   if (!isInitialized || isAuthenticated) return <PageLoader />;
 
   return (
@@ -215,9 +152,6 @@ export function MultiStepLogin({
           ? 'flex min-h-screen items-center justify-center bg-background p-4'
           : 'relative flex min-h-screen items-center justify-center overflow-hidden p-4'
       }
-      /* Fondo cristal solo del login raíz (hub). Estilos inline porque el
-         tailwind.config define los colores como var() sin <alpha-value>:
-         los modificadores /opacity de Tailwind no se generan con esa forma. */
       style={
         appName
           ? undefined
@@ -227,8 +161,7 @@ export function MultiStepLogin({
             }
       }
     >
-      {/* Manchas de color detrás de la tarjeta: le dan al backdrop-blur algo
-          que difuminar para lograr el efecto cristal del login raíz. */}
+      {}
       {!appName && (
         <>
           <div
@@ -266,7 +199,7 @@ export function MultiStepLogin({
             </p>
           )}
 
-          {/* Pasos de progreso */}
+          {}
           <StepIndicator
             steps={hasStep3 ? ['Usuario', 'Contraseña', step3Label] : ['Usuario', 'Contraseña']}
             current={loginStep}
@@ -280,7 +213,7 @@ export function MultiStepLogin({
         </CardHeader>
 
         <CardContent>
-          {/* PASO 1: Usuario */}
+          {}
           {loginStep === 1 && (
             <form onSubmit={handleStepOne} className="space-y-4">
               {error && (
@@ -313,7 +246,7 @@ export function MultiStepLogin({
             </form>
           )}
 
-          {/* PASO 2: Contraseña y Dominio */}
+          {}
           {loginStep === 2 && (
             <form onSubmit={handleStepTwo} className="space-y-4">
               {error && (
@@ -394,7 +327,7 @@ export function MultiStepLogin({
             </form>
           )}
 
-          {/* PASO 3: contenido inyectado por la app consumidora */}
+          {}
           {loginStep === 3 && step3}
 
           <div className="relative mt-6 text-center text-sm text-gray-600">

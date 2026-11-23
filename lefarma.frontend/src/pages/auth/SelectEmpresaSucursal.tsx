@@ -21,14 +21,12 @@ import {
 import { Building2, Building, AlertCircle, ArrowLeft, Loader2, Lock } from 'lucide-react';
 import logoEstatico from '@/assets/logo.png';
 
-
 export default function SelectEmpresaSucursal() {
   const navigate = useNavigate();
   const { user, changeEmpresaSucursal, puedeSeleccionarEmpresas } = useAuthStore();
 
   const [empresas, setEmpresas] = useState<Empresa[]>([]);
   const [sucursales, setSucursales] = useState<Sucursal[]>([]);
-  // Pre-cargar la ubicacion actual del usuario como DEFAULT via lazy init (sin efecto).
   const [selectedEmpresa, setSelectedEmpresa] = useState(() => {
     const s = authService.getEmpresa();
     return s ? String(s.idEmpresa) : '';
@@ -45,15 +43,12 @@ export default function SelectEmpresaSucursal() {
     loadData();
   }, []);
 
-  // Listas derivadas en el render (sin estado redundante ni efectos de sincronización)
   const sucursalesFiltradas = selectedEmpresa
     ? sucursales.filter(
         (s) => s.idSucursal != null && s.idEmpresa != null && String(s.idEmpresa) === String(selectedEmpresa)
       )
     : [];
 
-  // Ajuste de estado durante el render (recomendado vs. setState dentro de useEffect).
-  // Si la sucursal seleccionada no es valida para la empresa, caer al primero [0].
   if (selectedEmpresa) {
     if (
       sucursalesFiltradas.length > 0 &&
@@ -63,12 +58,10 @@ export default function SelectEmpresaSucursal() {
     }
   }
 
-  // Auto-submit si el usuario no puede seleccionar empresa/sucursal (efecto: side-effect real)
   useEffect(() => {
     if (!puedeSeleccionarEmpresas && selectedEmpresa && selectedSucursal) {
       const form = formRef.current;
       if (form) {
-        // Pequeño delay para asegurar que el state está actualizado
         const timer = setTimeout(() => {
           form.requestSubmit();
         }, 100);
@@ -81,8 +74,6 @@ export default function SelectEmpresaSucursal() {
     setIsLoading(true);
     setError('');
     try {
-      // REQ-005: profile first — usuarioDetalle / puedeSeleccionarEmpresas feed
-      // the store resolver and this screen's seeding.
       const store = useAuthStore.getState();
       await store.loadProfile();
 
@@ -92,18 +83,14 @@ export default function SelectEmpresaSucursal() {
         authService.getAreas(),
       ]);
 
-      // REQ-001/005: push catalogs to the store so resolveArea has data.
       store.setCatalogs(empresasData, sucursalesData, areasData);
 
-      // Solo empresas activas: una empresa dada de baja no se ofrece.
       const empresasSeleccionables = empresasData.filter(
         (empresa) => empresa.activo !== false
       );
       setEmpresas(empresasSeleccionables);
       setSucursales(sucursalesData);
 
-      // REQ-003: seed empresa/sucursal from detalle when valid in catalogs
-      // (detalle canonical); localStorage lazy-init above is fallback only.
       const detalle = useAuthStore.getState().usuarioDetalle;
       if (detalle && detalle.idEmpresa > 0) {
         const empresaValida = empresasSeleccionables.some(
@@ -155,9 +142,7 @@ export default function SelectEmpresaSucursal() {
         setError('Empresa o sucursal no encontrada');
         return;
       }
-      // REQ-006: área resolved and persisted by the store (no área param).
       await changeEmpresaSucursal(empresa, sucursal);
-      // Si no puede seleccionar, ir directo al dashboard sin mostrar el select
       navigate('/cxp/dashboard', { replace: true });
     } catch (err: unknown) {
       const message =
@@ -193,7 +178,7 @@ export default function SelectEmpresaSucursal() {
 
         <CardContent>
           <form ref={formRef} id="empresa-sucursal-form" onSubmit={handleSubmit} className="space-y-4">
-            {/* Info del usuario */}
+            {}
             {user?.nombre && (
               <div className="text-center py-2 px-4 bg-muted rounded-lg">
                 <p className="text-sm text-muted-foreground">Usuario</p>
@@ -201,7 +186,7 @@ export default function SelectEmpresaSucursal() {
               </div>
             )}
 
-            {/* Error */}
+            {}
             {error && (
               <div className="flex items-center gap-2 rounded-md border border-red-200 bg-red-50 p-3 text-red-800">
                 <AlertCircle className="h-4 w-4 shrink-0" />
@@ -209,7 +194,7 @@ export default function SelectEmpresaSucursal() {
               </div>
             )}
 
-            {/* Loading */}
+            {}
             {isLoading && (
               <div className="flex items-center justify-center py-8">
                 <Loader2 className="h-6 w-6 animate-spin text-primary" />
@@ -219,7 +204,7 @@ export default function SelectEmpresaSucursal() {
               </div>
             )}
 
-            {/* Selección de Empresa */}
+            {}
             {!isLoading && (
               <div className="space-y-2">
                 <label className="text-sm font-medium flex items-center gap-2">
@@ -249,7 +234,7 @@ export default function SelectEmpresaSucursal() {
               </div>
             )}
 
-            {/* Selección de Sucursal */}
+            {}
             {selectedEmpresa && !isLoading && (
               <div className="space-y-2">
                 <label className="text-sm font-medium flex items-center gap-2">
@@ -290,7 +275,7 @@ export default function SelectEmpresaSucursal() {
               </div>
             )}
 
-            {/* Botones */}
+            {}
             <div className="flex flex-col gap-2">
               {puedeSeleccionarEmpresas && (
                 <Button

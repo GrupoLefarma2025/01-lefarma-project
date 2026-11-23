@@ -80,7 +80,6 @@ public class BusinessAuditLogConfiguration : IEntityTypeConfiguration<BusinessAu
         builder.Property(e => e.DurationMs)
             .HasColumnName("duration_ms");
 
-        // Índices para consultas frecuentes
         builder.HasIndex(e => e.FechaOperacion)
             .HasDatabaseName("IX_AuditLog_FechaOperacion");
 

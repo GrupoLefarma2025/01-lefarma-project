@@ -214,7 +214,6 @@ public class CuentaContableService : BaseService, ICuentaContableService
                 cuentaContable.Activo = request.Activo;
                 cuentaContable.FechaModificacion = DateTime.UtcNow;
 
-                // Recargar la navegación si hay CentroCostoId
                 if (request.CentroCostoId.HasValue)
                 {
                     var centroCosto = await _centroCostoRepository.GetByIdAsync(request.CentroCostoId.Value);
@@ -225,7 +224,6 @@ public class CuentaContableService : BaseService, ICuentaContableService
                     cuentaContable.CentroCosto = null;
                 }
 
-                // Recargar la navegación si hay EmpresaId
                 if (request.IdEmpresa.HasValue)
                 {
                     var empresa = await _empresaRepository.GetByIdAsync(request.IdEmpresa.Value);

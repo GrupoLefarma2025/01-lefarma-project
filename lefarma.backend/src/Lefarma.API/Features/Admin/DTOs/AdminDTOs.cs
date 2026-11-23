@@ -2,9 +2,6 @@ namespace Lefarma.API.Features.Admin.DTOs
 {
 #region Usuario DTOs
 
-    /// <summary>
-    /// Response DTO para Usuario
-    /// </summary>
     public class UsuarioResponse
     {
         public int IdUsuario { get; set; }
@@ -17,18 +14,13 @@ namespace Lefarma.API.Features.Admin.DTOs
         public bool EsRobot { get; set; }
         public DateTime FechaCreacion { get; set; }
         public DateTime? UltimoLogin { get; set; }
-        /// <summary>Puesto oficial del empleado según Asistencias.dbo.vwEmpleados.</summary>
         public string? PuestoEmpleado { get; set; }
-        /// <summary>Área (departamento) oficial del empleado según Asistencias.dbo.vwEmpleados.</summary>
         public string? AreaEmpleado { get; set; }
         public List<RolBasicoResponse> Roles { get; set; } = [];
         public List<PermisoBasicoResponse> PermisosDirectos { get; set; } = [];
         public UsuarioDetalleResponse? Detalle { get; set; }
     }
 
-    /// <summary>
-    /// Request DTO para crear Usuario
-    /// </summary>
     public class CreateUsuarioRequest
     {
         public string SamAccountName { get; set; } = string.Empty;
@@ -42,9 +34,6 @@ namespace Lefarma.API.Features.Admin.DTOs
         public List<int> RolesIds { get; set; } = [];
     }
 
-    /// <summary>
-    /// Response DTO básico para Usuario (sin relaciones completas)
-    /// </summary>
     public class UsuarioBasicoResponse
     {
         public int IdUsuario { get; set; }
@@ -54,9 +43,6 @@ namespace Lefarma.API.Features.Admin.DTOs
         public bool EsActivo { get; set; }
     }
 
-    /// <summary>
-    /// Request DTO para actualizar Usuario
-    /// </summary>
     public class UpdateUsuarioRequest
     {
         public string SamAccountName { get; set; } = string.Empty;
@@ -68,9 +54,6 @@ namespace Lefarma.API.Features.Admin.DTOs
         public UpdateUsuarioDetalleRequest? Detalle { get; set; }
     }
 
-    /// <summary>
-    /// Response DTO para UsuarioDetalle
-    /// </summary>
     public class UsuarioDetalleResponse
     {
         public int IdUsuario { get; set; }
@@ -110,9 +93,6 @@ namespace Lefarma.API.Features.Admin.DTOs
         public bool Activo { get; set; }
     }
 
-    /// <summary>
-    /// Request DTO para crear/actualizar UsuarioDetalle
-    /// </summary>
     public class UpdateUsuarioDetalleRequest
     {
         public int IdEmpresa { get; set; }
@@ -155,9 +135,6 @@ namespace Lefarma.API.Features.Admin.DTOs
 
     #region Rol DTOs
 
-    /// <summary>
-    /// Response DTO para Rol
-    /// </summary>
     public class RolResponse
     {
         public int IdRol { get; set; }
@@ -170,9 +147,6 @@ namespace Lefarma.API.Features.Admin.DTOs
         public List<PermisoBasicoResponse> Permisos { get; set; } = [];
     }
 
-    /// <summary>
-    /// Response DTO para Rol con lista de usuarios
-    /// </summary>
     public class RolConUsuariosResponse
     {
         public int IdRol { get; set; }
@@ -186,9 +160,6 @@ namespace Lefarma.API.Features.Admin.DTOs
         public List<UsuarioBasicoResponse> Usuarios { get; set; } = [];
     }
 
-    /// <summary>
-    /// Response DTO básico para Rol (sin relaciones)
-    /// </summary>
     public class RolBasicoResponse
     {
         public int IdRol { get; set; }
@@ -197,9 +168,6 @@ namespace Lefarma.API.Features.Admin.DTOs
         public bool EsActivo { get; set; }
     }
 
-    /// <summary>
-    /// Request DTO para crear Rol
-    /// </summary>
     public class CreateRolRequest
     {
         public string NombreRol { get; set; } = string.Empty;
@@ -210,9 +178,6 @@ namespace Lefarma.API.Features.Admin.DTOs
         public List<int> PermisosIds { get; set; } = [];
     }
 
-    /// <summary>
-    /// Request DTO para actualizar Rol
-    /// </summary>
     public class UpdateRolRequest
     {
         public string NombreRol { get; set; } = string.Empty;
@@ -226,9 +191,6 @@ namespace Lefarma.API.Features.Admin.DTOs
 
     #region Permiso DTOs
 
-    /// <summary>
-    /// Response DTO para Permiso
-    /// </summary>
     public class PermisoResponse
     {
         public int IdPermiso { get; set; }
@@ -245,9 +207,6 @@ namespace Lefarma.API.Features.Admin.DTOs
         public int CantidadUsuarios { get; set; }
     }
 
-    /// <summary>
-    /// Response DTO básico para Permiso (sin relaciones)
-    /// </summary>
     public class PermisoBasicoResponse
     {
         public int IdPermiso { get; set; }
@@ -258,9 +217,6 @@ namespace Lefarma.API.Features.Admin.DTOs
         public string? Accion { get; set; }
     }
 
-    /// <summary>
-    /// Request DTO para crear Permiso
-    /// </summary>
     public class CreatePermisoRequest
     {
         public string CodigoPermiso { get; set; } = string.Empty;
@@ -274,9 +230,6 @@ namespace Lefarma.API.Features.Admin.DTOs
         public bool EsSistema { get; set; } = false;
     }
 
-    /// <summary>
-    /// Request DTO para actualizar Permiso
-    /// </summary>
     public class UpdatePermisoRequest
     {
         public string CodigoPermiso { get; set; } = string.Empty;
@@ -293,58 +246,37 @@ namespace Lefarma.API.Features.Admin.DTOs
 
     #region Asignaciones DTOs
 
-    /// <summary>
-    /// Request DTO para asignar roles a un usuario
-    /// </summary>
     public class AsignarRolesRequest
     {
         public List<int> RolesIds { get; set; } = [];
     }
 
-    /// <summary>
-    /// Request DTO para asignar permisos a un rol
-    /// </summary>
     public class AsignarPermisosRequest
     {
         public List<int> PermisosIds { get; set; } = [];
     }
 
-    /// <summary>
-    /// Request DTO para asignar usuarios a un rol
-    /// </summary>
     public class AsignarUsuariosRequest
     {
         public List<int> UsuariosIds { get; set; } = [];
     }
 
-    /// <summary>
-    /// Request DTO para asignar roles a un permiso
-    /// </summary>
     public class AsignarRolesAPermisoRequest
     {
         public List<int> RolesIds { get; set; } = [];
     }
 
-    /// <summary>
-    /// Request DTO para asignar usuarios a un permiso
-    /// </summary>
     public class AsignarUsuariosAPermisoRequest
     {
         public List<int> UsuariosIds { get; set; } = [];
     }
 
-    /// <summary>
-    /// Response DTO para permiso con roles y usuarios
-    /// </summary>
     public class PermisoConRolesYUsuariosResponse : PermisoResponse
     {
         public List<RolBasicoResponse> Roles { get; set; } = [];
         public List<UsuarioBasicoResponse> Usuarios { get; set; } = [];
     }
 
-    /// <summary>
-    /// Request DTO para asignar permisos directos a un usuario
-    /// </summary>
     public class AsignarPermisosUsuarioRequest
     {
         public List<int> PermisosIds { get; set; } = [];

@@ -1,8 +1,5 @@
 namespace Lefarma.API.Features.Sigma.DTOs;
 
-// DTOs copiados del módulo de documentos de SIGMA (DocumentosModuleV2.cs). Se conservan
-// los nombres y formas exactas; la serialización de la API los expone en camelCase.
-
 public sealed record UsuarioParaFlujoDto
 {
     public string Usuario { get; init; } = "";
@@ -170,7 +167,6 @@ public sealed record ComentarioHistorialDto
     public string Comentario { get; init; } = "";
 }
 
-/// <summary>Fila usada al descargar un documento (rutas físicas y nombre original).</summary>
 internal sealed record DocumentoRutaRow
 {
     public string? RutaArchivoInicial { get; init; }
@@ -178,7 +174,6 @@ internal sealed record DocumentoRutaRow
     public string? NombreArchivo { get; init; }
 }
 
-/// <summary>Documento recibido en el JSON de sp_CrearGrupoDocumentosConFlujo.</summary>
 public sealed record DocumentoGrupoJson
 {
     public Guid IdDocumento { get; init; }
@@ -189,14 +184,12 @@ public sealed record DocumentoGrupoJson
     public string HashSHA256 { get; init; } = "";
 }
 
-/// <summary>Solicitud del portal externo para obtener identidad de visitante.</summary>
 public sealed record AccesoExternoRequest
 {
     public string NombreCompleto { get; init; } = "";
     public string Correo { get; init; } = "";
 }
 
-/// <summary>Identidad de visitante devuelta por el alta anónima.</summary>
 public sealed record VisitanteDto
 {
     public int? IdUsuario { get; init; }
@@ -205,7 +198,6 @@ public sealed record VisitanteDto
     public string VisitorToken { get; init; } = "";
 }
 
-/// <summary>Fila que devuelve app.sp_CrearUsuarioAnonimo.</summary>
 public sealed record UsuarioAnonimoRow
 {
     public int? IdUsuario { get; init; }

@@ -3,16 +3,12 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace Lefarma.API.Infrastructure.Data.Configurations.Auth;
-/// <summary>
-/// Configuration for the vwDirectorioActivo view (read-only).
-/// </summary>
 public class VwDirectorioActivoConfiguration : IEntityTypeConfiguration<VwDirectorioActivo>
 {
     public void Configure(EntityTypeBuilder<VwDirectorioActivo> builder)
     {
         builder.ToView("vwDirectorioActivo", "dbo");
 
-        // Configure as keyless entity (view)
         builder.HasNoKey();
 
         builder.Property(e => e.SamAccountName)

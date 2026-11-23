@@ -1,5 +1,3 @@
-// ─── Empresa ─────────────────────────────────────────────────────────────────
-
 export interface Empresa {
   idEmpresa: number;
   nombre: string;
@@ -22,8 +20,6 @@ export interface Empresa {
   puedeSeleccionarEmpresas?: boolean;
 }
 
-// ─── Sucursal ─────────────────────────────────────────────────────────────────
-
 export interface Sucursal {
   idSucursal: number;
   idEmpresa: number;
@@ -45,8 +41,6 @@ export interface Sucursal {
   fechaModificacion?: string;
 }
 
-// ─── Area ─────────────────────────────────────────────────────────────────────
-
 export interface Area {
   idArea: number;
   idEmpresa: number;
@@ -62,8 +56,6 @@ export interface Area {
   fechaModificacion?: string;
 }
 
-// ─── Forma de Pago ────────────────────────────────────────────────────────────
-
 export interface FormaPago {
   idFormaPago: number;
   nombre: string;
@@ -73,8 +65,6 @@ export interface FormaPago {
   fechaCreacion: string;
   fechaModificacion?: string;
 }
-
-// ─── Unidad de Medida ─────────────────────────────────────────────────────────
 
 export interface UnidadMedida {
   idUnidadMedida: number;
@@ -88,8 +78,6 @@ export interface UnidadMedida {
   fechaModificacion?: string;
 }
 
-// ─── Medida ───────────────────────────────────────────────────────────────────
-
 export interface Medida {
   idMedida: number;
   nombre: string;
@@ -102,8 +90,6 @@ export interface Medida {
   unidadesMedida?: UnidadMedida[];
 }
 
-// ─── Tipo de Impuesto ─────────────────────────────────────────────────────────
-
 export interface TipoImpuesto {
   idTipoImpuesto: number;
   nombre: string;
@@ -114,8 +100,6 @@ export interface TipoImpuesto {
   fechaCreacion: string;
   fechaModificacion?: string;
 }
-
-// ─── Tipo de Gasto ────────────────────────────────────────────────────────────
 
 export interface TipoGasto {
   idTipoGasto: number;
@@ -130,10 +114,6 @@ export interface TipoGasto {
   fechaModificacion?: string;
 }
 
-
-
-// ─── Banco ────────────────────────────────────────────────────────────────────
-
 export interface Banco {
   idBanco: number;
   nombre: string;
@@ -141,8 +121,6 @@ export interface Banco {
   codigoSwift?: string;
   activo: boolean;
 }
-
-// ─── Proveedor Cuenta Bancaria ────────────────────────────────────────────────
 
 export interface ProveedorCuentaBancaria {
   idCuenta: number;
@@ -159,8 +137,6 @@ export interface ProveedorCuentaBancaria {
   activo: boolean;
   tieneOrdenes?: boolean;
 }
-
-// ─── Moneda ───────────────────────────────────────────────────────────────────
 
 export interface Moneda {
   idMoneda: number;

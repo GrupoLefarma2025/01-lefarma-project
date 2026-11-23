@@ -13,7 +13,6 @@ namespace Lefarma.API.Features.Catalogos;
 [Route("api/catalogos/[controller]")]
 [ApiController]
 [EndpointGroupName("Catalogos")]
-// [HasPermission(Permissions.Catalogos.View)]
 public class ProveedoresController : ControllerBase
 {
     private readonly IProveedorService _proveedorService;
@@ -62,7 +61,6 @@ public class ProveedoresController : ControllerBase
     }
 
     [HttpPost]
-//    [HasPermission(Permissions.Catalogos.Manage)]
     [SwaggerOperation(Summary = "Crear nuevo proveedor", Description = "Crea un proveedor con los datos proporcionados")]
     public async Task<IActionResult> Create(
         [SwaggerRequestBody(Description = "Datos del proveedor a crear", Required = true)] CreateProveedorRequest request)
@@ -81,7 +79,6 @@ public class ProveedoresController : ControllerBase
     }
 
     [HttpPut("{id}")]
-//    [HasPermission(Permissions.Catalogos.Manage)]
     [SwaggerOperation(Summary = "Actualizar proveedor", Description = "Actualiza los datos de un proveedor existente")]
     public async Task<IActionResult> Update(
         [SwaggerParameter(Description = "Identificador del proveedor a actualizar", Required = true)] int id,
@@ -98,7 +95,6 @@ public class ProveedoresController : ControllerBase
     }
 
     [HttpDelete("{id}")]
-//    [HasPermission(Permissions.Catalogos.Manage)]
     [SwaggerOperation(Summary = "Eliminar proveedor", Description = "Elimina un proveedor por su identificador")]
     public async Task<IActionResult> Delete(
         [SwaggerParameter(Description = "Identificador del proveedor a eliminar", Required = true)] int id)
@@ -114,7 +110,6 @@ public class ProveedoresController : ControllerBase
     }
 
     [HttpPost("{id}/autorizar")]
-//    [HasPermission(Permissions.Proveedores.Autorizar)]
     [SwaggerOperation(Summary = "Autorizar proveedor por CxP", Description = "Marca un proveedor como autorizado por el área de Cuentas por Pagar")]
     public async Task<IActionResult> Autorizar(
         [SwaggerParameter(Description = "Identificador del proveedor a autorizar", Required = true)] int id)
@@ -130,7 +125,6 @@ public class ProveedoresController : ControllerBase
     }
 
     [HttpPost("{id}/rechazar")]
-//    [HasPermission(Permissions.Proveedores.Rechazar)]
     [SwaggerOperation(Summary = "Rechazar proveedor por CxP", Description = "Rechaza un proveedor con un motivo")]
     public async Task<IActionResult> Rechazar(
         [SwaggerParameter(Description = "Identificador del proveedor a rechazar", Required = true)] int id,
@@ -317,7 +311,6 @@ public class ProveedoresController : ControllerBase
     [HttpPost("bulk-upload")]
     [Consumes("multipart/form-data")]
     [RequestSizeLimit(5_000_000)]
-//    [HasPermission(Permissions.Proveedores.CargaMasiva)]
     [SwaggerOperation(
         Summary = "Carga masiva de proveedores vía CSV",
         Description = "Sube un archivo CSV con proveedores y cuentas bancarias. " +

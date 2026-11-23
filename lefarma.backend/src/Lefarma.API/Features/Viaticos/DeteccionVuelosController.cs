@@ -15,12 +15,6 @@ using Swashbuckle.AspNetCore.Annotations;
 
 namespace Lefarma.API.Features.Viaticos;
 
-/// <summary>
-/// Detección automática del precio real de una opción: vuelo (Kayak),
-/// autobús (ClickBus/Primera Plus) u hotel (Google Hotels). Playwright primero
-/// y Firecrawl como respaldo. La cola de Fase 2 usa el mismo servicio y el
-/// mismo aplicador.
-/// </summary>
 [ApiController]
 [Route("api/viaticos")]
 [EndpointGroupName("Viaticos")]
@@ -252,12 +246,6 @@ public class DeteccionVuelosController : ControllerBase
         });
     }
 
-    /// <summary>
-    /// Vista previa al seleccionar una opción en el wizard. No persiste nada:
-    /// consulta la URL igual que la cola, pero devuelve la coincidencia con la
-    /// línea/horario seleccionados para que el usuario no reciba el precio de
-    /// otro vuelo o corrida.
-    /// </summary>
     [HttpPost("opciones/detectar-precio")]
     [SwaggerOperation(
         Summary = "Vista previa del precio real de una opción del wizard",
@@ -397,8 +385,6 @@ public class DeteccionVuelosController : ControllerBase
             }
 
             var opciones = deteccion.Opciones.Select(ADto).ToList();
-            // Una opción "Vuelo (estimado)"/"Autobús (estimado)" no identifica una
-            // línea concreta: se usa la mejor opción que devolvió la fuente.
             var lineaGenerica = Compactar(linea).Contains("estimado", StringComparison.Ordinal);
             var elegido = lineaGenerica
                 ? null
@@ -499,11 +485,6 @@ public class DeteccionVuelosController : ControllerBase
         Patrocinado = precio.Patrocinado,
     };
 
-    /// <summary>
-    /// Elige de la consulta la opción que corresponde a la tarjeta que el
-    /// usuario seleccionó. Si no hay coincidencia, el llamador no debe aplicar
-    /// el precio de otra línea/horario.
-    /// </summary>
     private static PrecioDetectado? BuscarCoincidencia(
         IEnumerable<PrecioDetectado> opciones,
         string? linea,
@@ -551,7 +532,6 @@ public class DeteccionVuelosController : ControllerBase
             : null;
     }
 
-    /// <summary>Minúsculas, sin acentos y sin separadores, para comparar líneas.</summary>
     private static string Compactar(string? texto)
     {
         if (string.IsNullOrWhiteSpace(texto)) return string.Empty;

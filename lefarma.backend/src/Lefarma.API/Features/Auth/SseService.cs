@@ -5,11 +5,6 @@ using Lefarma.API.Features.Auth.DTOs;
 
 namespace Lefarma.API.Features.Auth;
 
-/// <summary>
-/// Servicio SSE con soporte para múltiples conexiones simultáneas por usuario
-/// (varias pestañas o equipos). La escritura de cada conexión está serializada y
-/// las conexiones muertas se eliminan sin bloquear al resto de los clientes.
-/// </summary>
 public class SseService : ISseService
 {
     private const int HeartbeatSegundos = 30;
@@ -33,7 +28,6 @@ public class SseService : ISseService
         HttpResponse response,
         CancellationToken cancellationToken = default)
     {
-        // Headers are already set by the controller, don't try to set them again
         var connection = new SseConnection(userId, response);
 
         while (true)
@@ -146,9 +140,7 @@ public class SseService : ISseService
     public bool IsUserConnected(int userId)
         => _connections.TryGetValue(userId, out var conexiones) && !conexiones.IsEmpty;
 
-    // ---------------------------------------------------------------- internos
-
-    private async Task EnviarAUsuarioAsync(
+private async Task EnviarAUsuarioAsync(
         int userId,
         string eventType,
         object data,
@@ -179,8 +171,6 @@ public class SseService : ISseService
     {
         try
         {
-            // Cada conexión se atiende en paralelo con su propio timeout: una conexión
-            // lenta o muerta no bloquea ni retrasa a las demás.
             await Task.WhenAll(conexiones.Select(c => EntregarAAsync(c, mensaje, cancellationToken)));
         }
         catch (Exception ex)
@@ -212,7 +202,6 @@ public class SseService : ISseService
         }
         catch (OperationCanceledException)
         {
-            // Cancelación del request global: no se considera una conexión muerta.
         }
         catch (Exception ex)
         {
@@ -231,8 +220,6 @@ public class SseService : ISseService
         string contenido,
         CancellationToken cancellationToken)
     {
-        // Serializa la escritura para que los frames SSE nunca se entremezclen
-        // entre el heartbeat y los eventos.
         await conexion.Lock.WaitAsync(cancellationToken);
 
         try
@@ -269,8 +256,6 @@ public class SseService : ISseService
 
         var par = new KeyValuePair<int, ConcurrentDictionary<Guid, SseConnection>>(userId, conexiones);
 
-        // Solo se elimina el cubo si sigue siendo el registrado. Si una conexión
-        // nueva entró justo en medio, se vuelve a registrar para no perderla.
         if (_connections.TryRemove(par) && !conexiones.IsEmpty)
         {
             _connections.TryAdd(userId, conexiones);
@@ -285,7 +270,6 @@ public class SseService : ISseService
     private static string FormatearEvento(string eventType, string json)
         => $"event: {eventType}\ndata: {json}\n\n";
 
-    /// <summary>Conexión SSE individual con escritura serializada.</summary>
     private sealed class SseConnection
     {
         public SseConnection(int userId, HttpResponse response)

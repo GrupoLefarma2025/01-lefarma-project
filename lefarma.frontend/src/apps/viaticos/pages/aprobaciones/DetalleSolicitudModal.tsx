@@ -27,53 +27,21 @@ import {
 import type { Solicitud, SolicitudOpcion } from '../../types/solicitud.types';
 import EditorAjustes from './EditorAjustes';
 
-/**
- * Visor de "qué me habían dado": TODAS las opciones que el solicitante recibió,
- * incluidas las que descartó. Es la respuesta a la pregunta que hace el
- * solicitante ("eso era lo que había") y la que hace el aprobador ("por qué
- * no se eligió lo más barato").
- *
- * Dos reglas de negocio viven aquí y en ningún otro lado:
- *
- * 1. El total que se muestra se calcula SOLO con las opciones elegidas. Una
- *    opción descartada nunca suma al total: si sumara, el aprobador vería un
- *    monto que la solicitud nunca pidió. Cuando faltan precios o hay varias
- *    monedas el total se declara no sumable en vez de inventar una cifra.
- * 2. Una opción sin captura no dibuja una <img> rota: `CeldaCaptura` muestra
- *    un placeholder textual. `CeldaFuente` mantiene la regla estimado-vs-
- *    cotizado en el mismo lugar que las tablas del wizard.
- *
- * La captura se lee de `ruta_captura`, que es la única columna que persiste
- * [viaticos].[solicitud_opciones] (ver SolicitudOpcionDto): el resto de
- * `capturas[]` viaja solo en el body de PUT y no vuelve en el GET.
- */
-
-/** Sin precio real o marcado como estimado/referencia. */
 const esEstimado = (opcion: SolicitudOpcion): boolean =>
   !esOpcionCotizada(opcion) || opcion.precio === null;
 
 export interface TotalElegidas {
-  /** Suma completa (cotizado + referencia); null cuando no se puede sumar. */
   suma: number | null;
-  /** Solo precios reales: es lo autorizable. */
   totalCotizado: number | null;
-  /** Referencias estimadas/tabulador, nunca autorizables como reales. */
   totalEstimado: number | null;
-  /** Moneda de la suma, solo si todas las elegidas con importe comparten una. */
   moneda: string | null;
   monedasDistintas: string[];
   contadas: number;
   sinPrecio: number;
   totalElegidas: number;
-  /** Vuelos elegidos sin precio real; el backend bloquea la autorización. */
   vuelosPendientes: number;
 }
 
-/**
- * Total de las opciones ELEGIDAS. Las descartadas se ignoran por completo: no
- * se suman, no se mezclan por moneda ni entran en el conteo. Un precio real
- * (`cotizado`) y una referencia (`estimado`) se acumulan por separado.
- */
 export function totalDeOpcionesElegidas(opciones: SolicitudOpcion[]): TotalElegidas {
   const elegidas = opciones.filter((opcion) => opcion.fue_elegida);
   const conImporte = elegidas.flatMap((opcion) => {
@@ -92,7 +60,6 @@ export function totalDeOpcionesElegidas(opciones: SolicitudOpcion[]): TotalElegi
     return importes.length === 0 ? null : importes.reduce((total, valor) => total + valor, 0);
   };
 
-  // Con más de una moneda el total en una sola cifra sería una mentira.
   const totalCotizado = monedas.length > 1 ? null : sumar(true);
   const totalEstimado = monedas.length > 1 ? null : sumar(false);
   const suma = totalCotizado === null && totalEstimado === null
@@ -112,11 +79,6 @@ export function totalDeOpcionesElegidas(opciones: SolicitudOpcion[]): TotalElegi
   };
 }
 
-/**
- * Texto del total. Nunca devuelve `$0.00` cuando lo que falta es información.
- * Si hay precios reales y referencias, muestra "Cotizado · Referencia" para
- * que un estimado no vuelva a parecer el importe autorizable.
- */
 export function textoTotalElegidas(total: TotalElegidas): string {
   if (total.totalElegidas === 0) return 'Sin total: la solicitud no tiene opciones elegidas.';
   if (total.suma === null && total.contadas === 0) {
@@ -150,7 +112,6 @@ export function textoTotalElegidas(total: TotalElegidas): string {
   return texto;
 }
 
-/** `datos_json` llega como `unknown`; solo se lee `destino`, igual que el backend. */
 function destinoDesdeDatos(datos: unknown): string | null {
   if (typeof datos !== 'object' || datos === null) return null;
   const destino = (datos as { destino?: unknown }).destino;
@@ -221,25 +182,16 @@ function TarjetaOpcion({ opcion }: { opcion: SolicitudOpcion }) {
   );
 }
 
-/**
- * Origen del visor. El admin pasa la fila completa de la bandeja; el propio
- * solicitante, que no tiene fila de bandeja, pasa al menos `id_solicitud` y el
- * resto de la cabecera se arma con lo que devuelve `solicitudesApi.detalle`.
- */
 export type OrigenDetalleSolicitud = Pick<SolicitudBandeja, 'id_solicitud'> &
   Partial<SolicitudBandeja>;
 
 export interface DetalleSolicitudModalProps {
-  /** Solicitud a inspeccionar; null mantiene el modal cerrado. */
   solicitud: OrigenDetalleSolicitud | null;
   abierta: boolean;
   onCerrar: () => void;
 }
 
 export function DetalleSolicitudModal({ solicitud, abierta, onCerrar }: DetalleSolicitudModalProps) {
-  // El editor de ajustes se monta aqui (dentro del detalle) y solo para quien
-  // tiene `viaticos.ajustar`: es el unico punto desde donde el administrador
-  // llega a cambiar un vuelo, un precio o las partidas de una solicitud.
   const puedeAjustar = usePermission({ require: PERMISO_AJUSTAR });
   const id = solicitud?.id_solicitud ?? null;
   const [detalle, setDetalle] = useState<Solicitud | null>(null);

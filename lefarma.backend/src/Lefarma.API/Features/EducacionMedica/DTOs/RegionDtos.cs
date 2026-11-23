@@ -21,7 +21,6 @@ public class RegionEstadoResumenDto
 
 public class UpsertRegionRequest
 {
-    /// <summary>Gerencia dueña de la región (IMSS o Descentralizado). Inmutable al actualizar.</summary>
     public int IdTipoGerencia { get; set; }
 
     public string Nombre { get; set; } = string.Empty;
@@ -29,7 +28,6 @@ public class UpsertRegionRequest
     public decimal? CentroLongitud { get; set; }
     public bool? Activo { get; set; }
 
-    /// <summary>Estados que componen la región (reemplaza el mapeo completo de la región).</summary>
     public List<int> CodigoEstados { get; set; } = [];
 }
 
@@ -52,7 +50,6 @@ public class SugerenciaRegionOpcionDto
     public int IdRegion { get; set; }
     public string NombreRegion { get; set; } = string.Empty;
 
-    /// <summary>Distancia en km al centroide (solo para la opción por GPS).</summary>
     public double? DistanciaKm { get; set; }
 }
 
@@ -61,11 +58,9 @@ public class AplicarMapeoResponseDto
     public int TotalHospitales { get; set; }
     public List<AplicarMapeoDetalleDto> Detalles { get; set; } = [];
 
-    /// <summary>Hospitales sin región que se asignarían por cercanía al centroide de región.</summary>
     public int TotalPorGps { get; set; }
     public List<AplicarMapeoGpsDetalleDto> DetallesGps { get; set; } = [];
 
-    /// <summary>Hospitales que quedarían sin región tras ambos pases por falta de coordenadas.</summary>
     public int SinCoordenadas { get; set; }
 }
 
@@ -91,8 +86,6 @@ public class AplicarMapeoDetalleDto
     public string? NombreRegion { get; set; }
     public int Hospitales { get; set; }
 }
-
-// ---- DTOs del mapeo estado -> región ----
 
 public class RegionEstadoDto
 {

@@ -11,7 +11,6 @@ interface HorasVisitaModalProps {
   open: boolean;
   onClose: () => void;
   visita: RutaVisita | null;
-  /** En modo ajuste (versión Cerrada) el motivo es obligatorio (ADR-00010). */
   requiereMotivo: boolean;
   guardando?: boolean;
   onGuardar: (
@@ -20,7 +19,6 @@ interface HorasVisitaModalProps {
   ) => void | Promise<void>;
 }
 
-/** Edición de hora_salida/hora_llegada de una visita (normal en Creada; auditada en Cerrada). */
 export function HorasVisitaModal({
   open,
   onClose,

@@ -10,10 +10,6 @@ using PdfSharp.Pdf.IO;
 
 namespace Lefarma.UnitTests.Features.Sigma.PdfSignature;
 
-/// <summary>
-/// Pruebas de extremo a extremo del motor nativo con un almacén en memoria: el PDF
-/// resultante debe abrir sin contraseña, conservar páginas y no dejar texto extraíble.
-/// </summary>
 public sealed class CSharpPdfSignatureEngineTests : IDisposable
 {
     private readonly string _carpeta = Path.Combine(
@@ -36,7 +32,6 @@ public sealed class CSharpPdfSignatureEngineTests : IDisposable
         }
         catch (IOException)
         {
-            // La carpeta temporal puede quedar bloqueada por el antivirus; no invalida la prueba.
         }
     }
 

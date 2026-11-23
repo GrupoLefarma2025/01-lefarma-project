@@ -1,9 +1,3 @@
-/**
- * Plazas de cobro de referencia por corredor. El motor de costos todavía no
- * expone el desglose de casetas: solo estima el costo por kilómetro. Los km
- * están escalados a la distancia que muestra el motor y las tarifas son
- * referencias de auto 2026; la ruta y las plazas pueden variar.
- */
 export interface CasetaRuta {
   nombre: string;
   km: number;

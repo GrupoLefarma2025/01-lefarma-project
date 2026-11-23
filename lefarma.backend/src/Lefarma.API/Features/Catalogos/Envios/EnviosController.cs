@@ -21,9 +21,6 @@ public class EnviosController : ControllerBase
         _db = db;
     }
 
-    /// <summary>
-    /// Obtiene los folios de transporte externo disponibles (no usados en una orden activa).
-    /// </summary>
     [HttpGet("transportes")]
     [SwaggerOperation(Summary = "Folios de transporte disponibles",
         Description = "Lista los enviosCab con tipoTraslado = 'transporte externo' que no estén ya usados en una orden de compra activa. Opcionalmente excluye una orden (modo edición) para que su folio actual siga disponible.")]

@@ -6,16 +6,14 @@ namespace Lefarma.API.Domain.Interfaces.Config
     public interface IWorkflowEngine
     {
         Task<WorkflowEjecucionResult> EjecutarAccionAsync(WorkflowContext context);
-        //Task<ICollection<WorkflowAccion>> GetAccionesDisponiblesAsync(string codigoProceso, int idOrden, int idUsuario);
         
-        // Sobrecarga por idWorkflow
         Task<ICollection<WorkflowAccion>> GetAccionesDisponiblesAsync(int idWorkflow, int idOrden, int idUsuario, string tipoEntidad);
     }
 
     public record WorkflowContext(
         int IdWorkflow,
         int IdEntidad,
-        string TipoEntidad, // Ej: "ORDEN_COMPRA"
+        string TipoEntidad, 
         IWorkflowEntity Entidad,
         int IdAccion,
         int IdUsuario,

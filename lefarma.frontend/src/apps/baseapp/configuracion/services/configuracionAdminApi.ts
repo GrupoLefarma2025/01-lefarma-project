@@ -1,11 +1,3 @@
-/**
- * Cliente HTTP del módulo Configuración (solo endpoints administrativos).
- *
- * Todas las peticiones llevan timeout propio de 15 s y aceptan un
- * AbortSignal para cancelar al cerrar/desmontar. El `idOperacion` lo genera
- * el llamador y debe reutilizarse al reintentar una operación incierta.
- */
-
 import type { AxiosResponse } from 'axios';
 import apiClient from '@/shared/api/apiClient';
 import type { ApiError, ApiResponse } from '@/types/api.types';
@@ -44,7 +36,6 @@ function desenvuelve<T>(respuesta: AxiosResponse<ApiResponse<T>>): T {
     return cuerpo.data;
   }
 
-  // Tolerancia a endpoints que aún no envuelven la respuesta.
   return cuerpo as unknown as T;
 }
 
@@ -57,10 +48,6 @@ function paramsDeFiltros(filtros: FiltrosVariables): Record<string, string> {
   if (filtros.activo === false) params.activo = 'false';
   return params;
 }
-
-/* ------------------------------------------------------------------ */
-/* Variables                                                           */
-/* ------------------------------------------------------------------ */
 
 export async function listarVariables(
   filtros: FiltrosVariables,
@@ -135,10 +122,6 @@ export async function reactivarVariable(
   return desenvuelve(respuesta);
 }
 
-/* ------------------------------------------------------------------ */
-/* Historial                                                           */
-/* ------------------------------------------------------------------ */
-
 export async function listarHistorial(
   id: number,
   signal?: AbortSignal,
@@ -175,10 +158,6 @@ export async function restaurarVariable(
   return desenvuelve(respuesta);
 }
 
-/* ------------------------------------------------------------------ */
-/* Integraciones                                                       */
-/* ------------------------------------------------------------------ */
-
 export async function listarIntegraciones(signal?: AbortSignal): Promise<IntegracionCliente[]> {
   const respuesta = await apiClient.get<ApiResponse<IntegracionCliente[]>>(
     `${BASE}/integraciones-clientes`,
@@ -210,10 +189,6 @@ export async function revocarIntegracion(
   );
   return desenvuelve(respuesta) ?? null;
 }
-
-/* ------------------------------------------------------------------ */
-/* Módulos                                                             */
-/* ------------------------------------------------------------------ */
 
 export async function listarModulos(
   activo?: boolean,

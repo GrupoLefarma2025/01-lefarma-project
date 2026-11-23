@@ -9,11 +9,6 @@ using Microsoft.Extensions.Options;
 
 namespace Lefarma.UnitTests.Features.Viaticos;
 
-/// <summary>
-/// Pruebas unitarias del servicio de capturas (T8). El script real
-/// (captura-viaticos.mjs) y Chromium NO se invocan: el runner se sustituye
-/// por un fake que devuelve la salida controlada por el test.
-/// </summary>
 public class CapturasServiceTests : IDisposable
 {
     private readonly string _wwwroot;
@@ -22,7 +17,6 @@ public class CapturasServiceTests : IDisposable
 
     public CapturasServiceTests()
     {
-        // Tempdir aislado por prueba; se limpia en Dispose.
         var baseTmp = Path.Combine(Path.GetTempPath(), "lefarma-capturas-tests-" + Guid.NewGuid().ToString("N"));
         _wwwroot = Path.Combine(baseTmp, "wwwroot");
         _frontendRoot = Path.Combine(baseTmp, "lefarma.frontend");
@@ -37,13 +31,11 @@ public class CapturasServiceTests : IDisposable
 
     public void Dispose()
     {
-        try { Directory.Delete(Path.GetDirectoryName(_wwwroot)!, recursive: true); } catch { /* ignore */ }
+        try { Directory.Delete(Path.GetDirectoryName(_wwwroot)!, recursive: true); } catch { }
     }
 
     private CapturasService CrearServicio(CapturasSettings settings, ICapturasScriptRunner runner)
     {
-        // ScriptPath poblado: el servicio deriva frontend root del abuelo del script,
-        // y asi no depende de que ContentRootPath tenga un sibling lefarma.frontend.
         settings.ScriptPath = _scriptPath;
         var env = new FakeEnv(_wwwroot, _wwwroot);
         return new CapturasService(Options.Create(settings), env, NullLogger<CapturasService>.Instance, runner);
@@ -65,8 +57,6 @@ public class CapturasServiceTests : IDisposable
     [Fact]
     public async Task ForzarScript_ConModoAgente_UsaElScriptLocalSinLlamarAlAgente()
     {
-        // "Generar capturas" de una solicitud debe ser rapido: aunque el modo
-        // configurado sea agente, el lote usa el script local de Playwright.
         var runner = new RecordingRunner();
         var settings = new CapturasSettings
         {
@@ -151,7 +141,6 @@ public class CapturasServiceTests : IDisposable
             new CapturaItem { Url = "https://example.com/b", Nombre = "b" },
         };
 
-        // El servicio NO debe lanzar: debe capturar el error y devolver Results con ok:false.
         var resultado = await service.CapturarAsync(items, CancellationToken.None);
 
         resultado.Outcome.Should().Be(CapturaOutcome.Ok);
@@ -163,9 +152,6 @@ public class CapturasServiceTests : IDisposable
     [Fact]
     public async Task SalidaParseable_ReescribeRutaDelPng_AlPublicPath()
     {
-        // El script "devuelve" capturas/viaticos/foo.png; el servicio debe
-        // copiarlas a wwwroot/media/capturas-viaticos/foo.png y reescribir la
-        // ruta del DTO.
         var srcDir = Path.Combine(_frontendRoot, "public", "capturas", "viaticos");
         var fakePng = Path.Combine(srcDir, "foo.png");
         File.WriteAllBytes(fakePng, new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A });
@@ -206,13 +192,7 @@ public class CapturasServiceTests : IDisposable
         resultado.Results[0].Error.Should().NotBeNullOrEmpty();
     }
 
-    // -- Seguridad: el esquema http/https, los dominios prohibidos y los destinos
-    // internos se validan SIEMPRE, incluso con la configuracion real por
-    // defecto (WhitelistDomains vacio en appsettings.json). Antes quedaban
-    // dentro del if de la lista blanca, asi que con lista vacia no se validaba
-    // nada y el servidor aceptaba file:, data: y destinos internos.
-
-    [Fact]
+[Fact]
     public async Task ListaVacia_RechazaEsquemaFile_NoDevuelveOk()
     {
         var runner = new RecordingRunner();
@@ -299,9 +279,7 @@ public class CapturasServiceTests : IDisposable
         runner.Llamadas.Should().Be(0);
     }
 
-    // -- Fakes ---------------------------------------------------------------
-
-    private sealed class FakeEnv : IWebHostEnvironment
+private sealed class FakeEnv : IWebHostEnvironment
     {
         public FakeEnv(string webRoot, string contentRoot)
         {

@@ -22,11 +22,6 @@ import { cxpFirmaLegacyEndpoints, getCxpFirmaLegacyUrl } from '@/apps/cxp/servic
 
 const MAX_FIRMA_SIZE = 2 * 1024 * 1024;
 
-/**
- * Tarjeta de firma legacy exclusiva de CxP (contrato firma_path).
- * Clon del componente original previo al sistema RH (sin INE, sin
- * comprobación, reemplazo libre). Solo se usa en /cxp/configuracion.
- */
 export function CxpFirmaLegacyCard() {
   const [hasFirmaLegacy, setHasFirmaLegacy] = useState(false);
   const [firmaPreviewUrl, setFirmaPreviewUrl] = useState<string | null>(null);
@@ -46,7 +41,6 @@ export function CxpFirmaLegacyCard() {
         setHasFirmaLegacy(!!firmaPath);
       }
     } catch {
-      // Silent: the page must render even if the profile fetch fails
     }
   };
 
@@ -68,7 +62,6 @@ export function CxpFirmaLegacyCard() {
       return;
     }
 
-    // Abrir dialog de cropper
     setSelectedFile(file);
     setCropDialogOpen(true);
     if (fileInputRef.current) fileInputRef.current.value = '';
@@ -123,7 +116,7 @@ export function CxpFirmaLegacyCard() {
 
   return (
     <>
-      {/* Firma Digital Legacy CxP */}
+      {}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -192,7 +185,7 @@ export function CxpFirmaLegacyCard() {
         </CardContent>
       </Card>
 
-      {/* Dialog de elección: subir imagen o dibujar firma */}
+      {}
       <Dialog open={choiceDialogOpen} onOpenChange={setChoiceDialogOpen}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
@@ -239,7 +232,7 @@ export function CxpFirmaLegacyCard() {
         </DialogContent>
       </Dialog>
 
-      {/* Dialog de Signature Pad */}
+      {}
       <SignaturePadDialog
         open={padDialogOpen}
         onOpenChange={setPadDialogOpen}
@@ -250,7 +243,7 @@ export function CxpFirmaLegacyCard() {
         }}
       />
 
-      {/* Dialog de Cropper para Firma */}
+      {}
       <Dialog open={cropDialogOpen} onOpenChange={setCropDialogOpen}>
         <DialogContent className="max-w-3xl">
           <DialogHeader>

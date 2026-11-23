@@ -57,12 +57,6 @@ function formatoFecha(valor?: string | null): string {
   return fecha.toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
-/**
- * Distintivo del Dashboard de RH que se muestra dentro de la tarjeta «Mis pendientes»:
- * cuántas incidencias (solicitudes de cualquier categoría) tienen en el mes los
- * integrantes del equipo del usuario, contadas por el día de la incidencia. Al pulsarlo
- * abre el detalle con desglose por empleado, historial por solicitud y el combobox de meses.
- */
 export function MisAutorizacionesIncidenciasBadge({ refreshKey }: { refreshKey?: number } = {}) {
   const opciones = useMemo(() => opcionesUltimosMeses(), []);
   const [clave, setClave] = useState(() => {
@@ -117,7 +111,6 @@ export function MisAutorizacionesIncidenciasBadge({ refreshKey }: { refreshKey?:
 
   const abrirDetalle = () => setDetalleOpen(true);
 
-  // Historial del flujo de esa solicitud (misma línea de tiempo que en Mis solicitudes).
   const abrirHistorial = useCallback(
     async (idSolicitud: number) => {
       selectSolicitud(idSolicitud);

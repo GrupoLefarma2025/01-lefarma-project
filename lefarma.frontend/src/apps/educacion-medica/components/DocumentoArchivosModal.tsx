@@ -11,11 +11,6 @@ interface DocumentoArchivosModalProps {
   idEntidad: number;
 }
 
-/**
- * Archivos de un documento de Educación Médica en modal independiente
- * (listar, subir, ver, descargar, borrar). Compartido por la Bandeja de
- * Autorizaciones y el listado de Selecciones Mensuales.
- */
 export function DocumentoArchivosModal({
   open,
   onClose,

@@ -4,10 +4,6 @@ using Microsoft.Extensions.Options;
 
 namespace Lefarma.API.Infrastructure.Files;
 
-/// <summary>
-/// AES-256-GCM sobre disco. Envelope por archivo: [magic "LFC1"][nonce 12][tag 16][ciphertext].
-/// La clave viene de ArchivosSettings:EncryptionKey (base64, 32 bytes).
-/// </summary>
 public class AesFileCipher : IFileCipher
 {
     private static readonly byte[] Magic = "LFC1"u8.ToArray();

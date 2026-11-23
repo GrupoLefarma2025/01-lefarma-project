@@ -26,7 +26,6 @@ vi.mock('../../services/solicitudes.api', () => ({
 }));
 vi.mock('../../services/evidencias.api', () => ({
   evidenciasApi: {
-    // Promesa pendiente: el detalle no depende de las evidencias en estas pruebas.
     obtener: vi.fn(() => new Promise(() => {})),
     generar: vi.fn(),
     buscar: vi.fn(),
@@ -101,11 +100,9 @@ describe('MisViajesPage', () => {
     });
     render(<MisViajesPage hoy={new Date(2026, 10, 15)} />);
     await waitFor(() => expect(screen.getAllByTestId(/viaje-/)).toHaveLength(2));
-    // Sin filtro no se muestra la leyenda; al elegir periodo aparece el rango.
     expect(screen.queryByTestId('rango-visible')).not.toBeInTheDocument();
     await usuario.selectOptions(screen.getByLabelText('Periodo'), 'mes');
     expect(screen.getByTestId('rango-visible')).toHaveTextContent(/fecha de creación.*2026-11-01 al 2026-11-30/);
-    // Con referencia noviembre 2026 solo queda la de noviembre.
     await waitFor(() => expect(screen.getAllByTestId(/viaje-/)).toHaveLength(1));
   });
 
@@ -114,11 +111,9 @@ describe('MisViajesPage', () => {
     render(<MisViajesPage hoy={new Date(2026, 10, 15)} />);
     await screen.findAllByTestId(/^viaje-/);
 
-    // El bloque se anuncia con su nombre, pero arranca cerrado.
     const resumen = screen.getByText('Filtros', { selector: 'summary' });
     expect(resumen.parentElement).not.toHaveAttribute('open');
 
-    // Con un filtro aplicado el encabezado lo dice sin necesidad de abrirlo.
     await usuario.selectOptions(screen.getByLabelText('Periodo'), 'mes');
     expect(screen.getByText('1 aplicado')).toBeInTheDocument();
   });
@@ -171,14 +166,12 @@ describe('MisViajesPage', () => {
       },
     });
     render(<MisViajesPage />);
-    // La pestaña por defecto es Borradores: la enviada vive en la otra.
     await waitFor(() => expect(screen.getAllByTestId(/^viaje-/)).toHaveLength(1));
     expect(mocks.mis).toHaveBeenCalledWith(undefined);
     expect(screen.getByRole('tab', { name: /Borradores \(1\)/ })).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByRole('tab', { name: /Enviadas \(1\)/ })).toBeInTheDocument();
 
     const borrador = screen.getByTestId('viaje-1');
-    // El envío queda visible en la fila; editar y eliminar viven en el menú de tres puntos.
     expect(within(borrador).getByRole('button', { name: /Enviar a autorización/ })).toBeInTheDocument();
     expect(within(borrador).queryByRole('button', { name: /Editar/ })).not.toBeInTheDocument();
     await usuario.click(within(borrador).getByRole('button', { name: /Más acciones/ }));
@@ -264,7 +257,6 @@ describe('MisViajesPage', () => {
     await waitFor(() => expect(screen.getByTestId('detalle-viaje')).toHaveTextContent('Destino Uno'));
     expect(screen.getByTestId('detalle-viaje')).toHaveTextContent('Ejemplo');
     expect(screen.getByTestId('detalle-viaje')).toHaveTextContent('Compartido con Ana Acompañante');
-    // La elegida suma; la descartada se muestra pero no suma.
     expect(screen.getByTestId('detalle-viaje')).toHaveTextContent('Vuelo Y');
     expect(screen.queryAllByTestId('viaje-1')).toHaveLength(1);
   });
@@ -309,18 +301,14 @@ describe('MisViajesPage', () => {
     mocks.detalle.mockResolvedValue({ data: { success: true, data: solicitud(1, { datos }) } });
     render(<MisViajesPage />);
     await waitFor(() => expect(screen.getByTestId('viaje-1')).toBeInTheDocument());
-    // Sin acciones extra la fila muestra el botón completo, no un menú de "...".
     await usuario.click(within(screen.getByTestId('viaje-1')).getByRole('button', { name: /Ver detalle/ }));
     await waitFor(() => expect(screen.getByTestId('detalle-viaje')).toBeInTheDocument());
-    // La ruta calculada es la pestaña activa: es la que manda tras el envío.
     expect(screen.getByRole('tab', { name: 'Ruta calculada' })).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByRole('tab', { name: 'Viaje inicial' })).toBeInTheDocument();
-    // La ruta autorizada se habilita cuando el concentrado la modifique.
     expect(screen.getByRole('tab', { name: 'Ruta autorizada' })).toBeDisabled();
     expect(screen.getByTestId('diagrama-ruta-calculada')).toBeInTheDocument();
     expect(screen.getByTestId('detalle-viaje')).toHaveTextContent('Tultepec');
     expect(screen.getByTestId('detalle-viaje')).toHaveTextContent('489.3 km');
-    // La propuesta original sigue disponible en su pestaña.
     await usuario.click(screen.getByRole('tab', { name: 'Viaje inicial' }));
     expect(screen.getByTestId('detalle-viaje')).toHaveTextContent('Ruta del viaje');
     expect(screen.getByTestId('detalle-viaje')).toHaveTextContent('Fechas del viaje');
@@ -380,8 +368,6 @@ describe('MisViajesPage', () => {
   });
 });
 
-// -------- detalle en revisión (propuesta y comparador) --------
-
 const tramoCalculado = (de: string, a: string) => ({
   de,
   a,
@@ -436,7 +422,6 @@ const opcionBase = (extra: Partial<SolicitudOpcion>): SolicitudOpcion => ({
   ...extra,
 });
 
-/** Propuesta del revisor: dos tramos, costos en nodos y opciones elegidas. */
 const propuestaDeRuta = (): PropuestaRuta => ({
   calculo: {
     generado_en: '2026-11-06T09:00:00.000Z',
@@ -518,16 +503,13 @@ describe('VistaDetalle en revisión', () => {
     const tab = screen.getByRole('tab', { name: 'Inicial vs calculada' });
     expect(tab).toHaveAttribute('aria-selected', 'true');
 
-    // Lado izquierdo: lo que pidió el solicitante en el wizard.
     const inicial = screen.getByTestId('comparacion-viaje-inicial');
     expect(inicial).toHaveTextContent('Origen');
     expect(inicial).toHaveTextContent('1. Aguascalientes');
 
-    // Lado derecho: la ruta calculada, con su diagrama.
     const calculada = screen.getByTestId('comparacion-ruta-calculada');
     expect(calculada).toHaveTextContent('Destino original');
     expect(within(calculada).getByText('Ruta calculada')).toBeInTheDocument();
-    // Sin recálculo no hay propuesta: es la ruta calculada del viaje.
     expect(screen.queryByTestId('badge-propuesta')).not.toBeInTheDocument();
   });
 
@@ -571,7 +553,6 @@ describe('VistaDetalle en revisión', () => {
     expect(tab).toHaveAttribute('aria-selected', 'true');
     const diagrama = screen.getByTestId('diagrama-ruta-autorizada');
     expect(diagrama).toHaveTextContent('Destino original');
-    // Sin recálculo no hay propuesta: es la ruta original del viajero.
     expect(screen.queryByTestId('badge-propuesta')).not.toBeInTheDocument();
   });
 
@@ -603,14 +584,12 @@ describe('VistaDetalle en revisión', () => {
     const diagrama = screen.getByTestId('diagrama-ruta-autorizada');
     expect(diagrama).toHaveTextContent('Destino propuesto');
     expect(diagrama).not.toHaveTextContent('Destino original');
-    // Costo guardado en el nodo y, cuando falta, el de la opción elegida del tramo.
     expect(within(diagrama).getByText(/1,600\.00/)).toBeInTheDocument();
     expect(within(diagrama).getByText(/800\.00/)).toBeInTheDocument();
     expect(within(diagrama).getByRole('link', { name: /Ir a compra/ })).toHaveAttribute(
       'href',
       'https://propuesto',
     );
-    // La lista de opciones usa la versión mostrada, no las opciones guardadas.
     const opciones = screen.getByTestId('opciones-ruta-autorizada');
     expect(within(opciones).getByText('Vuelo Propuesto')).toBeInTheDocument();
     expect(within(opciones).queryByText('Vuelo Original')).not.toBeInTheDocument();

@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { API } from '@/shared/api/apiClient';
 import { ApiResponse } from '@/types/api.types';
@@ -84,18 +84,12 @@ interface LocalCanalTemplate {
   activo?: boolean;
 }
 
-/**
- * Valores del scope TIPO_GERENCIA para los mappings de Educación Médica.
- * Deben coincidir con el catálogo `educacion_medica.tipo_gerencia` (ids 1/2/3)
- * que envían los servicios al resolver el workflow.
- */
 const TIPOS_GERENCIA_MAPPING: { id: number; label: string }[] = [
   { id: 1, label: 'IMSS' },
   { id: 2, label: 'Descentralizado' },
   { id: 3, label: 'Privado' },
 ];
 
-/** Detecta si el JSON de un handler trae condiciones "aplica" con listas. */
 const tieneCondicionesHandler = (json?: string | null) => {
   if (!json) return false;
   try {
@@ -144,8 +138,7 @@ export default function WorkflowDiagram() {
     }
   };
 
-
-  const renderDiagram = () => {
+const renderDiagram = () => {
     if (!workflow || !workflow.pasos) return null;
 
     const sortedPasos = [...workflow.pasos].sort((a, b) => a.orden - b.orden);
@@ -153,25 +146,25 @@ export default function WorkflowDiagram() {
     return (
       <div className="relative w-full h-full overflow-auto">
         <div className="max-w-4xl mx-auto py-8 px-6">
-          {/* Timeline Container */}
+          {}
           <div className="relative">
-            {/* Línea vertical central */}
+            {}
             <div className="absolute left-12 top-0 bottom-0 w-0.5 bg-gradient-to-b from-blue-500/50 via-cyan-500/50 to-blue-500/50" />
 
-            {/* Steps */}
+            {}
             {sortedPasos.map((paso, index) => {
               const isLast = index === sortedPasos.length - 1;
               const acciones = paso.acciones || [];
 
               return (
                 <div key={paso.idPaso} className="relative mb-8 last:mb-0">
-                  {/* Dot on timeline */}
+                  {}
                   <div className="absolute left-12 -translate-x-1/2 mt-6">
                     <div className="h-8 w-8 rounded-full border-4 border-background bg-gradient-to-br from-blue-500 to-cyan-500 shadow-lg shadow-blue-500/20" />
                     <div className="absolute inset-0 h-8 w-8 rounded-full bg-blue-500 animate-ping opacity-20" />
                   </div>
 
-                  {/* Content Card */}
+                  {}
                   <div className="ml-24">
                     <div
                       className={`group relative rounded-lg border transition-all cursor-pointer ${
@@ -181,7 +174,7 @@ export default function WorkflowDiagram() {
                       }`}
                       onClick={() => setSelectedPaso(paso)}
                     >
-                      {/* Step Header */}
+                      {}
                       <div className="p-4 border-b border-border/50">
                         <div className="flex items-start justify-between gap-4">
                           <div className="flex-1">
@@ -203,7 +196,7 @@ export default function WorkflowDiagram() {
                             )}
                           </div>
 
-                          {/* Badges */}
+                          {}
                           <div className="flex flex-col gap-1">
                             {paso.requiereFirma && (
                               <Badge variant="outline" className="bg-blue-500/10 text-blue-600 border-blue-500/30 text-xs">
@@ -224,7 +217,7 @@ export default function WorkflowDiagram() {
                         </div>
                       </div>
 
-                      {/* Actions List */}
+                      {}
                       {acciones.length > 0 && (
                         <div className="p-4 space-y-2">
                           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
@@ -299,7 +292,7 @@ export default function WorkflowDiagram() {
 
   return (
     <div className="space-y-4 h-full">
-      {/* Header */}
+      {}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <Button
@@ -337,7 +330,7 @@ export default function WorkflowDiagram() {
         </div>
       </div>
 
-      {/* Tabs */}
+      {}
       <div className="flex items-center gap-2 border-b border-border">
         <Button
           variant={viewMode === 'diagram' ? 'default' : 'ghost'}
@@ -359,12 +352,12 @@ export default function WorkflowDiagram() {
         </Button>
       </div>
 
-      {/* Content */}
+      {}
       {viewMode === 'diagram' ? (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 h-[calc(100vh-280px)]">
-          {/* Main canvas */}
+          {}
           <div className="lg:col-span-2 relative flex flex-col gap-4">
-            {/* Legend - Simplified */}
+            {}
             <div className="bg-card rounded-lg border border-border p-3 shrink-0">
               <div className="flex items-center gap-6 text-xs flex-wrap">
                 <span className="text-muted-foreground font-semibold">Tipos de Acción:</span>
@@ -387,13 +380,13 @@ export default function WorkflowDiagram() {
               </div>
             </div>
 
-            {/* Diagram */}
+            {}
             <div className="flex-1 overflow-hidden">
               {renderDiagram()}
             </div>
           </div>
 
-          {/* Side panel - Sticky */}
+          {}
           <div className="lg:sticky lg:top-4 lg:self-start bg-card rounded-lg border border-border p-4 overflow-auto max-h-[calc(100vh-280px)]">
             {selectedPaso ? (
               <div className="space-y-4">
@@ -522,7 +515,6 @@ export default function WorkflowDiagram() {
   );
 }
 
-
 interface WorkflowEditorModalProps {
   workflow: WorkflowWithDetails;
   open?: boolean;
@@ -549,8 +541,7 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
   const [ejecutandoRecordatorios, setEjecutandoRecordatorios] = useState(false);
   const [camposModalOpen, setCamposModalOpen] = useState(false);
 
-
-  const [modalStates, setModalStates] = useState({
+const [modalStates, setModalStates] = useState({
     stepForm: false,
     actionModal: false,
     handlerModal: false,
@@ -570,7 +561,6 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
     }));
   };
 
-  // Scope types and mappings state (read-only scope types; mappings CRUD)
   const [scopeTypes, setScopeTypes] = useState<WorkflowScopeType[]>([]);
   const [mappings, setMappings] = useState<WorkflowMapping[]>([]);
   const [empresas, setEmpresas] = useState<any[]>([]);
@@ -594,8 +584,7 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
     try {
       const res = await API.get<any>('/config/workflows/scope-types');
       setScopeTypes(res.data?.data ?? []);
-    } catch (e) {
-      // ignore
+    } catch {
     }
   };
 
@@ -606,7 +595,6 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
     } catch { }
   };
 
-  // Load catalogs dynamically when scope type selection changes in the mapping form
   useEffect(() => {
     const loadCatalogo = async () => {
       const id = mappingPayload.idScopeType;
@@ -728,7 +716,6 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
 
   const handleSavePaso = async (updatedPaso: WorkflowPaso) => {
     try {
-      // Preparar el request para actualizar el paso
       const updateRequest = {
         nombrePaso: updatedPaso.nombrePaso,
         orden: updatedPaso.orden,
@@ -757,7 +744,6 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
         setEditingPaso(null);
         setIsCreatingPaso(false);
         toast.success(isCreatingPaso ? 'Paso creado correctamente' : 'Paso actualizado correctamente');
-        // Recargar el workflow completo para ver los cambios
         await onSave();
       } else {
         toast.error(isCreatingPaso ? 'Error al crear el paso' : 'Error al actualizar el paso');
@@ -817,7 +803,7 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
                 try {
                   const res = await API.get<any>(`/config/workflows/${workflow.idWorkflow}/recordatorios`);
                   setRecordatorios(res.data?.data ?? []);
-                } catch { /* silencioso */ }
+                } catch { }
               }}>
                 <Clock className="h-4 w-4" />
                 Recordatorios
@@ -952,7 +938,7 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
                     </Button>
                   </div>
                   
-                  {/* Lista de acciones por paso */}
+                  {}
                   <div className="space-y-4">
                     {workflow.pasos.map(paso => {
                       const acciones = paso.acciones || [];
@@ -1310,7 +1296,7 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
                           try {
                             const res = await API.get<any>(`/config/workflows/canal-templates`);
                             setCanalTemplates(res.data?.data ?? []);
-                          } catch { /* silencioso */ }
+                          } catch { }
                           toggleModal('plantillasModal', true);
                         }}
                       >
@@ -1356,7 +1342,7 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
                                         {catalogs.tiposNotificacion.find((t: any) => t.idTipo === notificacion.idTipoNotificacion)?.nombre || `Tipo #${notificacion.idTipoNotificacion}`}
                                       </Badge>
                                     ) : null}
-                                    {/* In App always on */}
+                                    {}
                                     <Badge variant="outline" className="text-xs bg-blue-500/10 text-blue-700 border-blue-500/30">
                                       <Bell className="mr-1 h-3 w-3" />
                                       In App
@@ -1454,7 +1440,7 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
                           try {
                             const res = await API.get<any>(`/config/workflows/canal-templates`);
                             setCanalTemplates(res.data?.data ?? []);
-                          } catch { /* silencioso */ }
+                          } catch { }
                           toggleModal('plantillasModal', true);
                         }}
                       >
@@ -1666,7 +1652,7 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
       </Dialog>
     )}
 
-    {/* Step Edit Form */}
+    {}
       {editingPaso && (
         <StepEditForm
           paso={editingPaso}
@@ -1681,7 +1667,7 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
         />
       )}
       
-      {/* Action Edit Modal */}
+      {}
       <ActionEditModal
         workflow={workflow}
         accion={editingAccion}
@@ -1714,7 +1700,7 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
         onChanged={onSave}
       />
       
-      {/* Condicion Edit Modal */}
+      {}
       <CondicionEditModal
         workflow={workflow}
         condicion={editingCondicion}
@@ -1727,7 +1713,7 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
         }}
       />
       
-      {/* Participante Edit Modal */}
+      {}
       <ParticipanteEditModal
         key={editingParticipante ? `p-${editingParticipante.idParticipante}` : 'p-closed'}
         workflow={workflow}
@@ -1743,7 +1729,7 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
         }}
       />
       
-      {/* Notificacion Edit Modal */}
+      {}
       <NotificacionEditModal
         workflow={workflow}
         notificacion={editingNotificacion}
@@ -1775,7 +1761,7 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
         Cancelar
       </Button>
       <Button 
-        type="submit" // Deberías añadir este state
+        type="submit" 
         onClick={handleSaveMapping} 
         className="gap-2"
       >
@@ -1796,7 +1782,7 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
 >
   <div className="space-y-4 p-4">
       <div className="grid grid-cols-2 gap-4">
-        {/* Selector de Nivel */}
+        {}
         <div className="space-y-2">
           <Label className="text-xs font-semibold uppercase">Nivel</Label>
           <Select 
@@ -1809,7 +1795,7 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
             </SelectContent>
           </Select>
         </div>
-        {/* Selector de Destino Dinámico */}
+        {}
         <div className="space-y-2">
           <Label className="text-xs font-semibold uppercase">Destino</Label>
           {(() => {
@@ -1850,9 +1836,7 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
     </div>
 </Modal>
 
-
-
-      {/* Plantillas Modal */}
+{}
       <Dialog open={modalStates.plantillasModal} onOpenChange={(open) => toggleModal('plantillasModal', open)}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
@@ -1919,7 +1903,7 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
           </div>
         </DialogContent>
       </Dialog>
-      {/* Template Edit Modal */}
+      {}
       <TemplateEditModal
         template={editingCanalTemplate}
         open={modalStates.canalTemplateModal}
@@ -1935,7 +1919,7 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
           setEditingCanalTemplate(null);
         }}
       />
-      {/* Recordatorio Edit Modal */}
+      {}
       <RecordatorioEditModal
         workflow={workflow}
         recordatorio={editingRecordatorio}

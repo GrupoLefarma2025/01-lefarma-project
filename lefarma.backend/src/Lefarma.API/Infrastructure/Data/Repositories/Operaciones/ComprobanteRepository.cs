@@ -24,7 +24,6 @@ public class ComprobanteRepository : BaseRepository<Comprobante>, IComprobanteRe
             .Where(c =>
                 (c.Activo ?? true) && c.DatosAdicionales != null
                 && EF.Functions.Like(c.DatosAdicionales, $"%\"uuid\":\"{uuid}\"%"))
-            // Prioriza los que tienen asignaciones para no reemplazar un CFDI ya registrado.
             .OrderByDescending(c => c.Asignaciones.Any(a => a.Activo))
             .FirstOrDefaultAsync(ct);
 

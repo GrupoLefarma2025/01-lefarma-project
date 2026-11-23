@@ -237,8 +237,6 @@ public class AsignadorEspecialistasService : IAsignadorEspecialistasService
                 .Where(r => idsRegiones.Contains(r.IdRegion))
                 .ToDictionaryAsync(r => r.IdRegion, ct);
 
-        // La carga y el "ya tiene visita" consideran planeación vigente de todas
-        // las gerencias: un especialista puede atender varias selecciones.
         var configuracion = await LeerConfiguracionSugerenciasAsync(ct);
         var margenConsulta = Math.Max(7, configuracion.VentanaDiasCercania);
         var inicioConsulta = new DateOnly(inicio.Year, inicio.Month, 1).AddDays(-margenConsulta);

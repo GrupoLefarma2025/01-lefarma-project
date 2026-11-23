@@ -1,9 +1,5 @@
 namespace Lefarma.API.Features.Sigma.Services.PdfSignature;
 
-/// <summary>
-/// Rectángulo en coordenadas de dibujo (origen arriba a la izquierda, y hacia abajo),
-/// que es el sistema que usan tanto el lienzo rasterizado como PDFsharp.
-/// </summary>
 public readonly record struct CajaDibujo(double X0, double Y0, double X1, double Y1)
 {
     public double Ancho => X1 - X0;
@@ -15,7 +11,6 @@ public readonly record struct CajaDibujo(double X0, double Y0, double X1, double
     public bool EsValida => Ancho > 0 && Alto > 0;
 }
 
-/// <summary>Rectángulo en coordenadas del contenido del PDF (origen abajo a la izquierda).</summary>
 public readonly record struct CajaContenido(double X0, double Y0, double X1, double Y1)
 {
     public double Ancho => X1 - X0;
@@ -25,23 +20,10 @@ public readonly record struct CajaContenido(double X0, double Y0, double X1, dou
     public bool EsValida => Ancho > 0 && Alto > 0;
 }
 
-/// <summary>Caja de la firma y línea base de cada línea de texto, en coordenadas de dibujo.</summary>
 public readonly record struct EstampaFirma(CajaDibujo CajaFirma, IReadOnlyList<double> LineasBase);
 
-/// <summary>
-/// Geometría del estampado. Es pura a propósito: las pruebas comparan los números
-/// contra el cálculo del script de Python sin abrir un PDF.
-/// </summary>
 public static class StampGeometry
 {
-    /// <summary>
-    /// Calcula la caja de la firma y las líneas base del texto con las mismas reglas
-    /// que <c>pdf_signature_replacer.py</c>: centro horizontal del texto, borde
-    /// superior del texto más el desplazamiento, y texto debajo de la firma.
-    /// </summary>
-    /// <param name="cajaTexto">Caja del texto encontrado, en coordenadas de dibujo.</param>
-    /// <param name="ajustes">Medidas del estampado.</param>
-    /// <param name="cantidadLineas">Líneas de texto que se dibujan debajo de la firma.</param>
     public static EstampaFirma Calcular(CajaDibujo cajaTexto, PdfSignatureSettings ajustes, int cantidadLineas)
     {
         var firmaX0 = cajaTexto.CentroX - (ajustes.AnchoFirma / 2) + ajustes.DesplazamientoX;
@@ -59,10 +41,6 @@ public static class StampGeometry
         return new EstampaFirma(cajaFirma, lineas);
     }
 
-    /// <summary>
-    /// Ajusta la imagen dentro de la caja conservando su proporción y centrándola,
-    /// igual que <c>insert_image(..., keep_proportion=True)</c> de PyMuPDF.
-    /// </summary>
     public static CajaDibujo AjustarImagen(double anchoImagen, double altoImagen, CajaDibujo destino)
     {
         if (anchoImagen <= 0 || altoImagen <= 0)
@@ -79,10 +57,6 @@ public static class StampGeometry
         return new CajaDibujo(x0, y0, x0 + ancho, y0 + alto);
     }
 
-    /// <summary>
-    /// Dimensiones visibles de una página según su rotación. PyMuPDF entrega la página
-    /// ya rotada; PdfPig entrega el tamaño sin rotar.
-    /// </summary>
     public static (double Ancho, double Alto) DimensionesVisuales(double anchoContenido, double altoContenido, int rotacion)
     {
         var normalizada = NormalizarRotacion(rotacion);
@@ -91,10 +65,6 @@ public static class StampGeometry
             : (anchoContenido, altoContenido);
     }
 
-    /// <summary>
-    /// Convierte una caja del contenido del PDF (y hacia arriba) a coordenadas visibles
-    /// (y hacia abajo), aplicando la rotación de la página como lo hace el visor.
-    /// </summary>
     public static CajaDibujo ContenidoAVisual(
         CajaContenido caja,
         double anchoContenido,
@@ -116,10 +86,6 @@ public static class StampGeometry
             esquinas.Max(p => p.Y));
     }
 
-    /// <summary>
-    /// Convierte una caja del contenido a coordenadas de dibujo sobre la página sin rotar
-    /// (camino vectorial): sólo invierte el eje vertical.
-    /// </summary>
     public static CajaDibujo ContenidoADibujo(CajaContenido caja, double altoContenido) =>
         new(caja.X0, altoContenido - caja.Y1, caja.X1, altoContenido - caja.Y0);
 

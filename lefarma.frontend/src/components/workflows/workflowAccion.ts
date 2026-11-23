@@ -1,9 +1,3 @@
-/**
- * Tipos y utilidades compartidas para los componentes de acción de workflow.
- * (Archivo sin componentes: requerido por la regla react-refresh/only-export-components.)
- */
-
-/** Metadata de un campo configurable del workflow (formulario dinámico de firma). */
 export interface WorkflowCampoMetadata {
   idWorkflowCampo: number;
   nombreTecnico: string;
@@ -12,7 +6,6 @@ export interface WorkflowCampoMetadata {
   sourceCatalog?: string | null;
 }
 
-/** Metadata de un handler de la acción (campo requerido, alerta pre-evaluada, etc.). */
 export interface AccionHandlerMetadata {
   idHandler: number;
   handlerKey: string;
@@ -24,16 +17,6 @@ export interface AccionHandlerMetadata {
   validacionMensaje?: string | null;
 }
 
-/**
- * Forma mínima de una acción del motor que necesitan los componentes compartidos.
- * Tanto `AccionDisponibleResponse` (RH) como `AccionDisponible` (Educación Médica)
- * la satisfacen estructuralmente.
- *
- * Los campos de firma dinámica (handlers/camposWorkflow/camposRequeridos) son
- * opcionales: si la acción no los trae, el modal se comporta como "comentario +
- * confirmar". Igual con adjuntos: se muestran solo si `permiteAdjunto`/`requiereAdjunto`
- * están activos en la configuración del paso.
- */
 export interface AccionWorkflow {
   idAccion: number;
   tipoAccionCodigo?: string | null;

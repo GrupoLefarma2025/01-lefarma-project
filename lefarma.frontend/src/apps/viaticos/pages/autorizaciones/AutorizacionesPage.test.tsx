@@ -29,14 +29,11 @@ vi.mock('../../services/aprobaciones.api', () => ({
 }));
 vi.mock('../../services/evidencias.api', () => ({
   evidenciasApi: {
-    // Promesa pendiente: el detalle no depende de las evidencias en estas pruebas.
     obtener: vi.fn(() => new Promise(() => {})),
     generar: vi.fn(),
     buscar: vi.fn(),
   },
 }));
-// El detalle completo tiene su propia prueba en MisViajesPage: aquí solo importa
-// que el diálogo lo muestre y que las dos salidas llamen a la API correcta.
 vi.mock('../mis-viajes/MisViajesPage', () => ({ VistaDetalle: () => <div>DETALLE_MARK</div> }));
 vi.mock('@/hooks/usePageTitle', () => ({ usePageTitle: vi.fn() }));
 vi.mock('sonner', () => ({ toast: { error: vi.fn(), success: vi.fn(), warning: vi.fn() } }));

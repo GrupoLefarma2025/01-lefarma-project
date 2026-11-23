@@ -1,12 +1,6 @@
 import { DIAS_RETENCION, MAXIMO_PENDIENTES } from './config';
 import type { EventoTelemetria } from './tipos';
 
-/**
- * Cola local de eventos en IndexedDB. Si el navegador niega la base (modo
- * privado, cuota llena, bloqueo del usuario) se sigue guardando en memoria: se
- * pierde al recargar, pero la sesión actual no se queda sin telemetría.
- */
-
 const NOMBRE_BD = 'lefarma-telemetria';
 const ALMACEN = 'pendientes';
 const VERSION_BD = 1;
@@ -151,7 +145,6 @@ export async function descartar(ids: number[]): Promise<void> {
       transaccion.onerror = () => rechazar(transaccion.error);
     });
   } catch {
-    // Si falla el borrado, el evento se reintenta; no hay nada más que hacer.
   }
 }
 
@@ -186,7 +179,6 @@ export async function limpiarViejos(): Promise<void> {
       }
     };
   } catch {
-    // Sin limpieza no pasa nada: la siguiente corrida lo intenta de nuevo.
   }
 }
 

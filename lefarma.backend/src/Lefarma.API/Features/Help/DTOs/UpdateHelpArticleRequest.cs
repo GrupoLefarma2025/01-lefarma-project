@@ -3,9 +3,6 @@ using Lefarma.API.Features.Help.DTOs;
 
 namespace Lefarma.API.Features.Help.DTOs;
 
-/// <summary>
-/// Request para actualizar un artículo de ayuda existente
-/// </summary>
 public record UpdateHelpArticleRequest
 {
     public int Id { get; init; }
@@ -19,9 +16,6 @@ public record UpdateHelpArticleRequest
     public bool Activo { get; init; }
 }
 
-/// <summary>
-/// Validador para UpdateHelpArticleRequest
-/// </summary>
 public class UpdateHelpArticleRequestValidator : AbstractValidator<UpdateHelpArticleRequest>
 {
     public UpdateHelpArticleRequestValidator()

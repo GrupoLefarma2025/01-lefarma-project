@@ -2,10 +2,6 @@ import { useState, type ReactNode } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-/**
- * Sección de ruta (Ida, Regreso o Destino N) que se puede plegar. Se usa en
- * boletos y en el desglose para que varios destinos no alarguen el panel.
- */
 export function GrupoRutaCollapsible({
   etiqueta,
   detalle,

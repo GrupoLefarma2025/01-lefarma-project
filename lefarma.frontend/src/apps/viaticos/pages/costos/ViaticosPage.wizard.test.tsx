@@ -21,8 +21,6 @@ vi.mock('sonner', () => ({ toast: { error: vi.fn(), success: vi.fn(), warning: v
 vi.mock('@/shared/auth/authStore', () => ({
   useAuthStore: (selector: (state: { user: { nombre?: string } | null }) => unknown) => selector({ user: null }),
 }));
-// jsdom no dibuja Leaflet: se sustituyen las primitivas por nodos planos para
-// poder abrir el SelectorRutaModal desde el paso 2.
 vi.mock('react-leaflet', async () => {
   const React = await import('react');
   const mapa = { setView: vi.fn(), flyTo: vi.fn() };
@@ -73,12 +71,10 @@ const calcular = () => screen.getByRole('button', { name: CALCULAR });
 const paso = (id: 1 | 2 | 3 | 4) => screen.getByTestId(`paso-${id}`);
 const destino = (indice: number) => screen.getByRole('group', { name: `Destino ${indice} de persona 1` });
 
-/** Visible = el panel del paso activo es el único sin la clase `hidden` de Tailwind. */
 function visibles(): number[] {
   return ([1, 2, 3, 4] as const).filter(id => !paso(id).className.split(/\s+/).includes('hidden'));
 }
 
-/** La barra se mide por el desplazamiento de su indicador, que es lo que se ve. */
 const barra = () => (screen.getByTestId('progreso-formulario').firstElementChild as HTMLElement).style.transform;
 
 async function montar() {
@@ -87,7 +83,6 @@ async function montar() {
   await waitFor(() => expect(screen.queryByText('Cargando hospitales…')).not.toBeInTheDocument());
 }
 
-/** Captura mínima y válida: nombre, origen y un destino en día laboral. */
 function capturarMinimo() {
   fireEvent.change(within(paso(1)).getByLabelText('Nombre'), { target: { value: 'Ana' } });
   fireEvent.change(screen.getByLabelText('Selecciona el origen'), { target: { value: '1' } });
@@ -150,7 +145,6 @@ describe('wizard de costos de ruta', () => {
   it('Siguiente queda bloqueado sin el dato mínimo del paso 1', async () => {
     await montar();
     expect(siguiente()).toBeDisabled();
-    // Nombre solo: aún falta origen y destino.
     fireEvent.change(within(paso(1)).getByLabelText('Nombre'), { target: { value: 'Ana' } });
     expect(siguiente()).toBeDisabled();
     capturarMinimo();
@@ -164,7 +158,6 @@ describe('wizard de costos de ruta', () => {
     expect(visibles()).toEqual([2]);
     fireEvent.click(atras());
     expect(visibles()).toEqual([1]);
-    // Se borra el origen: la solicitud vuelve a no existir.
     fireEvent.change(screen.getByLabelText('Selecciona el origen'), { target: { value: '' } });
     expect(siguiente()).toBeDisabled();
   });
@@ -186,7 +179,6 @@ describe('wizard de costos de ruta', () => {
     expect(within(paso(1)).getByLabelText('Gasolina')).toHaveValue('premium');
     expect(within(paso(1)).getByLabelText('Carro propio')).toBeChecked();
     expect(within(paso(1)).getByLabelText('Compartir viaje')).toBeChecked();
-    // Y la solicitud reconstruida conserva lo mismo: no se perdió nada.
     const preview = screen.getByLabelText('Solicitud JSON').textContent!;
     expect(preview).toContain('"gasolina": "premium"');
     expect(preview).toContain('"hora_entrada": "07:15"');
@@ -195,7 +187,6 @@ describe('wizard de costos de ruta', () => {
   it('el paso 2 arma la secuencia con el SelectorRutaModal y la confirmación reordena las paradas', async () => {
     await montar();
     capturarMinimo();
-    // Segunda parada, con fecha posterior para no solapar ventanas.
     fireEvent.click(within(paso(1)).getByRole('button', { name: 'Agregar destino' }));
     fireEvent.change(within(destino(2)).getByRole('combobox'), { target: { value: '1' } });
     fireEvent.change(within(destino(2)).getByLabelText('Día de presencia'), { target: { value: '2026-10-16' } });
@@ -231,7 +222,6 @@ describe('wizard de costos de ruta', () => {
     await waitFor(() => expect(mocks.calculate).toHaveBeenCalledTimes(1));
     fireEvent.click(siguiente());
     expect(visibles()).toEqual([4]);
-    // El importador queda cableado en el paso de resultados.
     expect(within(paso(4)).getByLabelText('JSON de la cotización')).toBeInTheDocument();
     expect(within(paso(4)).getByRole('button', { name: 'Cargar cotización' })).toBeInTheDocument();
   });
@@ -266,7 +256,6 @@ describe('wizard de costos de ruta', () => {
     elegir(0);
     enviar();
     await waitFor(() => expect(solicitudes.crear).toHaveBeenCalledTimes(1));
-    // El alta persiste el desglose; el motor vacio de este fixture no aporta gasolina/casetas.
     expect(solicitudes.crear.mock.calls[0][0].datos).toMatchObject({
       avion: 2450.5,
       autobus: null,
@@ -277,7 +266,6 @@ describe('wizard de costos de ruta', () => {
     });
     await waitFor(() => expect(solicitudes.guardarOpciones).toHaveBeenCalledWith(42, expect.anything()));
 
-    // Segunda cotizacion: el wizard ya tiene el id y lo reutiliza en vez de crear otra solicitud.
     pega();
     elegir(1);
     enviar();
@@ -336,7 +324,6 @@ describe('wizard de costos de ruta', () => {
       target: { value: JSON.stringify(cotizacion) },
     });
     fireEvent.click(within(paso(4)).getByRole('button', { name: 'Cargar cotización' }));
-    // Solo el hospedaje: avion y autobus quedan desconocidos.
     fireEvent.click(
       within(paso(4)).getByLabelText(`Elegir ${cotizacion.opciones[2].transportista} ${cotizacion.opciones[2].salida}`),
     );

@@ -6,13 +6,6 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Lefarma.API.Features.Config.Workflows.Handlers
 {
-    /// <summary>
-    /// Maneja campos Archivo genéricos: valida que exista un archivo activo de la entidad
-    /// etiquetado con el nombre técnico del campo (metadata.tipo = campo.NombreTecnico).
-    /// Si la configuración trae {"requiereRevision":true}, exige que el paso actual haya
-    /// quedado marcado como revisado y registra la revisión en el metadata del archivo.
-    /// Aplica a solicitudes de personal y órdenes de compra.
-    /// </summary>
     public class ArchivoWorkflowHandler : IWorkflowActionHandler
     {
         private readonly ApplicationDbContext _context;

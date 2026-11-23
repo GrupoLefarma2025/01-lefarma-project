@@ -10,27 +10,6 @@ import {
 } from '@/components/ui/select';
 import { AlertCircle, ArrowLeft, Building2, Building, MapPin } from 'lucide-react';
 
-/**
- * Slot `step3` de `<MultiStepLogin>` para CxP — selección de empresa, sucursal
- * y área. Es la presencia de este slot lo que dispara el flujo de 3 pasos del
- * login de CxP (cxp-app spec: contexto de órdenes de compra).
- *
- * Extracción del antiguo paso 3 del monolito `pages/auth/Login.tsx`: conserva
- * la misma estructura de formulario, la misma lógica de auto-selección (cuando
- * el usuario NO puede seleccionar empresas) y el mismo filtrado de sucursales y
- * áreas por empresa efectiva.
- *
- * CONTRATO CRÍTICO — el slot NO navega. Al enviar el formulario, llama
- * `loginStepThree(emp, suc)` que escribe `isAuthenticated: true` en el
- * authStore (verificado en `shared/auth/authStore.ts`). `<MultiStepLogin>`
- * observa ese flag y ejecuta el redirect a `?return=` o al destino configurado
- * (`dashboard`). Cualquier `navigate(...)` aquí duplicaría/competiría con el
- * redirect del shell.
- *
- * El slot es responsable exclusivamente de su estado de selección (empresa,
- * sucursal, área) y del banner de bienvenida/error; el chrome (logo, indicador
- * de pasos, fields de usuario/contraseña) vive en `<MultiStepLogin>`.
- */
 export function CxpContextSelection() {
   const {
     empresas,
@@ -49,7 +28,6 @@ export function CxpContextSelection() {
   const [selectedArea, setSelectedArea] = useState('');
   const [error, setError] = useState('');
 
-  // Auto-selección cuando el usuario NO puede cambiar empresa/sucursal/área.
   const autoSelectedEmpresa = useMemo(() => {
     if (puedeSeleccionarEmpresas || !usuarioDetalle) return null;
     const { idEmpresa } = usuarioDetalle;
@@ -87,7 +65,6 @@ export function CxpContextSelection() {
     return null;
   }, [puedeSeleccionarEmpresas, usuarioDetalle, autoSelectedEmpresa, areas]);
 
-  // Valores efectivos: auto-selección o los del usuario.
   const effectiveEmpresa = autoSelectedEmpresa ?? selectedEmpresa;
   const effectiveSucursal = autoSelectedSucursal ?? selectedSucursal;
   const effectiveArea = autoSelectedArea ?? selectedArea;
@@ -105,22 +82,12 @@ export function CxpContextSelection() {
     });
   }, [areas, effectiveEmpresa]);
 
-  // Empresas que se ofrecen en el selector: las dadas de baja no aparecen. Si
-  // el usuario NO puede elegir, se mantiene su empresa asignada para que el
-  // campo (deshabilitado) la muestre tal cual.
   const empresasDisponibles = useMemo(() => {
     if (!puedeSeleccionarEmpresas) return empresas;
     return empresas.filter((empresa) => empresa.activo !== false);
   }, [empresas, puedeSeleccionarEmpresas]);
 
-  // --- Ajustes de estado durante el render (recomendado vs. setState dentro de useEffect) ---
-
-  // Pre-cargar empresa/sucursal/área del usuario como DEFAULT cuando puede
-  // seleccionar (cuando no puede, ya se resuelven vía autoSelected*). Solo
-  // siembra valores editables; este slot solo se monta en loginStep === 3.
-  if (puedeSeleccionarEmpresas && usuarioDetalle && !selectedEmpresa) {
-    // Solo sembrar la empresa del detalle si sigue disponible en el selector:
-    // una empresa dada de baja no debe quedar seleccionada de forma invisible.
+if (puedeSeleccionarEmpresas && usuarioDetalle && !selectedEmpresa) {
     const empresaDisponible = empresasDisponibles.some(
       (empresa) => String(empresa.idEmpresa) === String(usuarioDetalle.idEmpresa)
     );
@@ -131,8 +98,6 @@ export function CxpContextSelection() {
     }
   }
 
-  // Si no hay un área válida para la empresa elegida, caer al primero [0]
-  // (no dejar vacío).
   if (
     effectiveEmpresa &&
     areasFiltradas.length > 0 &&
@@ -165,9 +130,6 @@ export function CxpContextSelection() {
     }
 
     try {
-      // Finaliza la sesión escribiendo `isAuthenticated: true` en el store.
-      // NO se navega aquí: `<MultiStepLogin>` observa `isAuthenticated` y
-      // ejecuta el redirect a `?return=` o `dashboard`.
       await loginStepThree(emp, suc);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Error al seleccionar ubicación';
@@ -203,7 +165,7 @@ export function CxpContextSelection() {
         </div>
       )}
 
-      {/* Empresa */}
+      {}
       <div className="space-y-2">
         <label className="flex items-center gap-2 text-sm font-medium">
           <Building2 className="h-4 w-4" />
@@ -234,7 +196,7 @@ export function CxpContextSelection() {
         </Select>
       </div>
 
-      {/* Sucursal */}
+      {}
       {(effectiveEmpresa || selectedEmpresa) && (
         <div className="space-y-2">
           <label className="flex items-center gap-2 text-sm font-medium">
@@ -274,7 +236,7 @@ export function CxpContextSelection() {
         </div>
       )}
 
-      {/* Área */}
+      {}
       {(effectiveEmpresa || selectedEmpresa) && (
         <div className="space-y-2">
           <label className="flex items-center gap-2 text-sm font-medium">

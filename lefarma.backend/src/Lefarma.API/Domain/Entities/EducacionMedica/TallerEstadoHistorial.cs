@@ -1,10 +1,5 @@
 namespace Lefarma.API.Domain.Entities.EducacionMedica;
 
-/// <summary>
-/// Evento de transición de la máquina de estados del taller (ADR-00008, revisión
-/// 2026-10-09): quién, cuándo, origen (Automatico/Manual) y motivo. Eventos inmutables;
-/// <see cref="Taller.Estado"/> conserva el estado actual.
-/// </summary>
 public class TallerEstadoHistorial
 {
     public const string OrigenAutomatico = "Automatico";

@@ -45,7 +45,6 @@ public class MedidaConfiguration : IEntityTypeConfiguration<Medida>
                 .HasColumnName("fecha_modificacion")
                 .HasDefaultValueSql("GETDATE()");
 
-            // Relaciones
             builder.HasMany(e => e.UnidadesMedida)
                 .WithOne(s => s.Medida)
                 .HasForeignKey(s => s.IdMedida)

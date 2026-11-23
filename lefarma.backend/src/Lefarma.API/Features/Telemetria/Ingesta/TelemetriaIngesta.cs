@@ -17,10 +17,6 @@ public enum ResultadoIngesta
 
 public sealed record RespuestaIngesta(string LoteId, ResultadoIngesta Resultado, int Eventos, string Mensaje);
 
-/// <summary>
-/// Punto único de entrada de la telemetría: valida el contexto, aplica las reglas
-/// de privacidad y encola el lote. Nunca escribe en disco.
-/// </summary>
 public sealed class TelemetriaIngesta
 {
     private const int MaximoEventosAnonimos = 5;
@@ -72,7 +68,6 @@ public sealed class TelemetriaIngesta
                 continue;
             }
 
-            // Las exclusiones protegen clics y puntero; los errores siempre se guardan.
             if (mapeado is not EventoError && RutaExcluida(evento.Ruta))
             {
                 continue;

@@ -108,7 +108,7 @@ export const FilterConfig = ({
 
   const handleReset = () => {
     onReset();
-    onApplyChanges?.(); // Sync columns immediately after reset
+    onApplyChanges?.(); 
     toast.success("Configuración restaurada a valores por defecto");
   };
 
@@ -135,7 +135,7 @@ export const FilterConfig = ({
             <TabsTrigger value="filtros">Filtros</TabsTrigger>
           </TabsList>
 
-          {/* Tab 1: Buscador */}
+          {}
           <TabsContent value="buscador" className="space-y-4 mt-4">
             <div className="space-y-3">
               <h3 className="font-medium">Buscar en estas columnas</h3>
@@ -165,7 +165,7 @@ export const FilterConfig = ({
             </div>
           </TabsContent>
 
-          {/* Tab 2: Visibilidad */}
+          {}
           <TabsContent value="visibilidad" className="space-y-4 mt-4">
             <div className="space-y-3">
               <h3 className="font-medium">Columnas visibles</h3>
@@ -195,7 +195,7 @@ export const FilterConfig = ({
             </div>
           </TabsContent>
 
-          {/* Tab 3: Filtros por columna */}
+          {}
           <TabsContent value="filtros" className="space-y-4 mt-4">
             <div className="space-y-4">
               {allColumns.filter(c => c.id !== undefined && c.id !== null).map((column) => {
@@ -214,7 +214,7 @@ export const FilterConfig = ({
                       </div>
                     </CollapsibleTrigger>
                     <CollapsibleContent className="px-3 pb-3 space-y-3">
-                      {/* Filter type selector */}
+                      {}
                       <div className="flex items-center gap-2 pt-2">
                         <Label className="text-xs whitespace-nowrap">Tipo de filtro:</Label>
                         <Select
@@ -233,7 +233,7 @@ export const FilterConfig = ({
                         </Select>
                       </div>
 
-                      {/* Filter inputs based on type */}
+                      {}
                       {filterType === 'text' && (
                         <div className="space-y-2 pl-2 border-l-2 ml-2">
                           <div className="flex items-center space-x-2">

@@ -102,11 +102,6 @@ public class SolicitudPersonalServiceTests
             Mock.Of<IWideEventAccessor>());
     }
 
-    /// <summary>
-    /// La lista incluye navegaciones requeridas (empresa, sucursal, tipo). El proveedor
-    /// InMemory replica el INNER JOIN del Include, así que sin las filas principales la
-    /// materialización devuelve cero aunque el conteo dé uno.
-    /// </summary>
     private static void SeedCatalogosDeSolicitud(ApplicationDbContext context)
     {
         context.Empresas.Add(new Empresa
@@ -913,8 +908,6 @@ public class SolicitudPersonalServiceTests
         var idUsuario = 123;
         var mes = new DateTime(DateTime.Now.Year, DateTime.Now.Month, 1);
 
-        // Día 1 justificado con omisión de entrada + salida (2 incidencias) y día 2 igual:
-        // al contar por día son 2 justificantes, dentro del tope de 2.
         var service = CreateService(
             context,
             empleadoRepository: MockEmpleado(),
@@ -1367,9 +1360,7 @@ public class SolicitudPersonalServiceTests
         result.Value.Items.Should().ContainSingle(i => i.Folio == "SOL-PENDIENTE");
     }
 
-    // ── Incidencias de los subordinados por mes (Dashboard RH) ────────────────
-
-    private static AsokamDbContext SeedUsuariosAsokam(params (int Id, string Nombre)[] usuarios)
+private static AsokamDbContext SeedUsuariosAsokam(params (int Id, string Nombre)[] usuarios)
     {
         var asokam = CreateAsokamInMemoryContext();
         foreach (var (id, nombre) in usuarios)
@@ -1410,9 +1401,6 @@ public class SolicitudPersonalServiceTests
             FechaInicio = dia,
         };
 
-    /// <summary>
-    /// El usuario 5 es jefe (nómina 500) de dos subordinados: 11 (nómina 501) y 12 (nómina 502).
-    /// </summary>
     private static Mock<IEmpleadoRepository> MockEmpleadosConSubordinados()
     {
         var empleados = new Mock<IEmpleadoRepository>();
@@ -1428,14 +1416,9 @@ public class SolicitudPersonalServiceTests
         return empleados;
     }
 
-    /// <summary>
-    /// Escenario del mes de referencia: dos solicitudes de subordinados con día en el mes
-    /// (una cerrada y una en revisión), una de otro mes y dos cancelada/rechazada que no
-    /// deben contar.
-    /// </summary>
     private static void SeedIncidenciasDeSubordinados(ApplicationDbContext context, DateTime mesBase)
     {
-        SeedCatalogosDeSolicitud(context); // tipo 1 = Permiso
+        SeedCatalogosDeSolicitud(context); 
 
         context.TiposSolicitud.Add(new TipoSolicitud
         {
@@ -1464,21 +1447,15 @@ public class SolicitudPersonalServiceTests
         var inicio = new DateTime(mesBase.Year, mesBase.Month, 1);
 
         context.SolicitudesPersonal.AddRange(
-            // Cuentan: día en el mes (una cerrada y una en revisión).
             SolicitudDelDia(1, "SOL-OK-1", idTipo: 2, idSolicitante: 11, idEstado: 7, inicio.AddDays(2)),
             SolicitudDelDia(2, "SOL-BORRADOR", idTipo: 1, idSolicitante: 12, idEstado: 2, inicio.AddDays(1)),
-            // No cuentan: día de otro mes.
             SolicitudDelDia(3, "SOL-OTRO-MES", idTipo: 1, idSolicitante: 11, idEstado: 7, inicio.AddDays(-1)),
-            // No cuentan: cancelada y rechazada.
             SolicitudDelDia(4, "SOL-CANCELADA", idTipo: 2, idSolicitante: 11, idEstado: 9, inicio.AddDays(4)),
             SolicitudDelDia(5, "SOL-RECHAZADA", idTipo: 2, idSolicitante: 11, idEstado: 8, inicio.AddDays(5)));
 
         context.WorkflowBitacoras.AddRange(
-            // Mi firma sobre la solicitud cerrada (la única que firmé).
             EventoBitacora(1, idUsuario: 5, idAccion: 100, idEntidad: 1, inicio.AddDays(3)),
-            // Firma de otro usuario: no cambia nada.
             EventoBitacora(2, idUsuario: 9, idAccion: 100, idEntidad: 1, inicio.AddDays(3)),
-            // Fila de paso omitido: no es una firma.
             EventoBitacora(3, idUsuario: 5, idAccion: 100, idEntidad: 1, inicio.AddDays(3),
                 snapshot: "{\"omisionAutomatica\":true,\"motivo\":\"NivelSinJefe\"}"));
     }

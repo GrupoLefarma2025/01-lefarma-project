@@ -1,6 +1,5 @@
 namespace Lefarma.API.Features.EducacionMedica.DTOs;
 
-/// <summary>Entrada de la bitácora de ajustes post-cierre (ADR-00010).</summary>
 public class AjustePostCierreDto
 {
     public int IdAjuste { get; set; }

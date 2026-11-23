@@ -65,7 +65,6 @@ export interface SolicitudPersonalResponse {
   idUsuarioSolicitante?: number;
   solicitanteNombre?: string;
   solicitantePuesto?: string;
-  /** Ubicación del empleado según Asistencias (vwEmpleados.ubicacion). */
   ubicacion?: string | null;
   idTipoSolicitud: number;
   tipoSolicitudNombre?: string;
@@ -275,10 +274,6 @@ export interface IncidenciaChecadoResponse {
   tipoSolicitudNombre?: string | null;
 }
 
-/**
- * Respuesta de "mis incidencias". Si checaDeshabilitado es true, el empleado
- * nunca tendrá incidencias (tiene Checa = "No") y la lista viene vacía.
- */
 export interface MisIncidenciasChecadoResponse {
   checaDeshabilitado: boolean;
   incidencias: IncidenciaChecadoResponse[];
@@ -455,7 +450,6 @@ export interface SolicitudPersonalFilterParams {
   max?: number;
   orderBy?: string;
   orderDirection?: string;
-  // Filtros estilo incidencias de checado
   periodo?: string;
   fechaInicio?: string;
   fechaFin?: string;
@@ -513,11 +507,6 @@ export interface UpdateIncidenciaChecadoConfigRequest extends CreateIncidenciaCh
   idConfig: number;
 }
 
-/**
- * Incidencias (solicitudes de cualquier categoría) de los subordinados del usuario cuyo
- * día cae en el mes indicado. Se cuentan por el día de la incidencia (no por el día de
- * la firma) y se excluyen las canceladas y rechazadas.
- */
 export interface AutorizacionesIncidenciasResponse {
   anio: number;
   mes: number;
@@ -539,9 +528,7 @@ export interface AutorizacionIncidenciaDetalle {
   empleadoNombre: string;
   tipoSolicitud: string;
   motivo?: string | null;
-  /** Fecha del día justificado (el eje del conteo). */
   fechaIncidencia?: string | null;
-  /** Día en que el jefe firmó la solicitud; nulo si aún no la ha firmado. */
   fechaAutorizacion?: string | null;
   estadoNombre?: string | null;
 }

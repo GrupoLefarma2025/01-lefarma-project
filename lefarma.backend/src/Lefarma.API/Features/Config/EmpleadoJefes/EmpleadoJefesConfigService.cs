@@ -12,7 +12,7 @@ namespace Lefarma.API.Features.Config.EmpleadoJefes
 {
     public class EmpleadoJefesConfigService : IEmpleadoJefesConfigService
     {
-        private const int MaxNivel = 5; // hoy la vista tiene 5 niveles; cambiar aquí si crece
+        private const int MaxNivel = 5; 
         private readonly ApplicationDbContext _context;
         private readonly AsokamDbContext _asokamContext;
         private readonly AsistenciasDbContext _asistenciasContext;
@@ -135,10 +135,6 @@ namespace Lefarma.API.Features.Config.EmpleadoJefes
             };
         }
 
-        /// <summary>
-        /// Resuelve la cadena de jefes (vista aplanada) en batch para un conjunto de usuarios.
-        /// La cadena es cruda: no aplica checks ni exclusiones (son por workflow).
-        /// </summary>
         private async Task<Dictionary<int, List<JefeCadenaNivelDto>>> ResolverCadenasAsync(
             Dictionary<int, long> nominaPorUsuario)
         {
@@ -297,7 +293,6 @@ namespace Lefarma.API.Features.Config.EmpleadoJefes
                 return CrearErrorSolicitudesSinNivel(bloqueadas);
             }
 
-            // Configuración de aplica
             var existentes = await _context.EmpleadoJefesConfig
                 .Where(c => c.IdUsuario == idUsuario)
                 .ToListAsync();
@@ -333,7 +328,6 @@ namespace Lefarma.API.Features.Config.EmpleadoJefes
                 e.FechaModificacion = DateTime.Now;
             }
 
-            // Overrides
             var overridesExistentes = await _context.EmpleadoJefesOverride
                 .Where(o => o.IdUsuario == idUsuario)
                 .ToListAsync();
@@ -450,9 +444,8 @@ namespace Lefarma.API.Features.Config.EmpleadoJefes
         }
 
         private sealed record SolicitudSinNivel(int IdSolicitud, string Folio, List<int> Niveles);
-        
 
-        public async Task<ErrorOr<WorkflowJefesExcluidosResponse>> GetExcluidosAsync(int idWorkflow)
+public async Task<ErrorOr<WorkflowJefesExcluidosResponse>> GetExcluidosAsync(int idWorkflow)
         {
             var ids = await _context.WorkflowJefesExcluidos
                 .AsNoTracking()

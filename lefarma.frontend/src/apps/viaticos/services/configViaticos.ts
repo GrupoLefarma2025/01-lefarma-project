@@ -1,4 +1,3 @@
-/** Configuración compartida de viáticos (tarifas de comida y jornada). */
 export interface ConfigViaticos {
   comidaMedia: string;
   comidaCompleta: string;
@@ -30,6 +29,5 @@ export function guardarConfigViaticos(config: ConfigViaticos): void {
   try {
     localStorage.setItem(CONFIG_VIATICOS_STORAGE_KEY, JSON.stringify(config));
   } catch {
-    // Si el navegador bloquea el almacenamiento, la configuración sigue en memoria.
   }
 }

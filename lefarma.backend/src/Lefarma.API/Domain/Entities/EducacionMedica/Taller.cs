@@ -1,11 +1,5 @@
 namespace Lefarma.API.Domain.Entities.EducacionMedica;
 
-/// <summary>
-/// Taller medico (aggregate root, ADR-00001 §1.2.6): una fila por taller con
-/// hospital/ubicacion, logistica de la Matriz (FOR-005/006/008) y estado del
-/// ciclo de firmas del papel. El factor cobertura_taller del ranking lee
-/// estado = Realizado por id_hospital.
-/// </summary>
 public class Taller
 {
     public const string EstadoCreada = "Creada";
@@ -46,20 +40,15 @@ public class Taller
     public int? IdUsuarioCreacion { get; set; }
     public int? IdUsuarioModificacion { get; set; }
 
-    // Matriz de talleres (ADR-00007): enlaces a la matriz individual (equipo + mes) y general (gerencia + mes)
     public int? IdMatrizIndividual { get; set; }
     public int? IdMatrizGeneral { get; set; }
     public int? IdRutaVisita { get; set; }
-    /// <summary>Tipo del taller (catálogo tipo_visita): promoción, informativa, captación de queja, otro.</summary>
     public int? IdTipoVisita { get; set; }
     public int? IdTemaTaller { get; set; }
     public string? Tema { get; set; }
 
-    /// <summary>Fecha real de cierre del taller (estado Realizado); indicadores/cobertura (ADR-00008).</summary>
     public DateOnly? FechaRealizado { get; set; }
-    /// <summary>1 = taller extraordinario (ADR-00011): hospital del catálogo fuera de la selección.</summary>
     public bool EsExtraordinario { get; set; }
-    /// <summary>Motivo obligatorio del taller extraordinario (imprevisto operativo).</summary>
     public string? MotivoExtraordinario { get; set; }
 
     public virtual MatrizIndividual? MatrizIndividual { get; set; }

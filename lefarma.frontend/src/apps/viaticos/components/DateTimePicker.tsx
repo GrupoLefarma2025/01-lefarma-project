@@ -10,16 +10,13 @@ import { ColumnasTiempo, partirHoraMinuto, formatoHora12h } from './ColumnasTiem
 
 export interface DateTimePickerProps {
   id: string;
-  /** Fecha 'yyyy-MM-dd' o ''. */
   fecha: string;
-  /** Hora 'HH:mm' o ''. */
   hora: string;
   onFecha: (fecha: string) => void;
   onHora: (hora: string) => void;
   placeholder?: string;
   disabled?: boolean;
   className?: string;
-  /** Mínimo elegible (fecha y hora), p. ej. la salida del origen o la llegada al destino. */
   desde?: { fecha: string; hora: string } | null;
 }
 
@@ -37,16 +34,6 @@ function dosDigitos(n: number): string {
   return String(n).padStart(2, '0');
 }
 
-/**
- * Fecha y hora en un solo campo: un botón abre un panel con el calendario y
- * las columnas de hora lado a lado (mismo patrón que el DatePicker). No se
- * ofrecen fechas ni horas anteriores a «ahorita» ni a `desde` (la referencia
- * se recalcula al abrir el panel). El panel se cierra al elegir el día cuando
- * ya hay una hora válida (capturada o preseleccionada con la hora actual); si
- * la hora queda fuera de rango se limpia y el panel sigue abierto. Con clic
- * fuera se puede cerrar en cualquier momento. Se muestra en 12 horas (AM/PM);
- * el valor se guarda en 24 horas.
- */
 export function DateTimePicker({
   id,
   fecha,
@@ -59,21 +46,16 @@ export function DateTimePicker({
   desde = null,
 }: DateTimePickerProps) {
   const [open, setOpen] = useState(false);
-  // Reloj de referencia del panel abierto: se refresca en cada apertura.
   const [ahora, setAhora] = useState(() => new Date());
   const [minutoElegido, setMinutoElegido] = useState(false);
-  // Al abrir con fecha y hora ya completas, cualquier ajuste que siga completo cierra.
   const completoAlAbrirRef = useRef(false);
 
   const fechaDate = parseFecha(fecha);
   const { hora: hh, minuto: mm } = partirHoraMinuto(hora);
   const horaActual = dosDigitos(ahora.getHours());
   const minutoActual = dosDigitos(ahora.getMinutes());
-  // Sin hora capturada, las columnas muestran la hora actual como selección inicial.
   const horaMostrada = hh || horaActual;
   const minutoMostrado = mm || minutoActual;
-  // Mínimo del panel: la mayor entre «ahorita» y `desde` (fecha y, en el mismo
-  // día, hora). Sin `desde` se ofrece solo lo posterior a «ahorita».
   const desdeDate = desde?.fecha ? parseFecha(desde.fecha) : undefined;
   const desdeEsHoy = Boolean(desdeDate && mismoDia(desdeDate, ahora));
   const { hora: desdeHora, minuto: desdeMinuto } = partirHoraMinuto(desde?.hora ?? '');
@@ -102,8 +84,6 @@ export function DateTimePicker({
       return;
     }
     onFecha(format(day, 'yyyy-MM-dd'));
-    // Sin hora completa, al elegir el día se preselecciona la hora/minuto actual
-    // (o el mínimo del día si `desde` cae más tarde).
     let horaValida = Boolean(hh && mm);
     if (!hh || !mm) {
       const ahoraNuevo = new Date();
@@ -116,23 +96,19 @@ export function DateTimePicker({
       onHora(`${h}:${m}`);
       horaValida = true;
     } else if (minHora && mismoDia(day, minDia) && `${hh}:${mm}` < `${minHora.hora}:${minHora.minuto}`) {
-      // Día mínimo con una hora ya fuera de rango: se limpia para elegir otra.
       onHora('');
       horaValida = false;
     }
-    // Con día y hora válida (capturada o preseleccionada) el panel cierra.
     if (horaValida) setOpen(false);
   }
 
   function elegirHora(parte: 'hora' | 'minuto', valor: string) {
-    // Sin la otra parte capturada, se usa la hora/minuto actual ya preseleccionado.
     const h = parte === 'hora' ? valor : (hh || horaMostrada);
     let m = parte === 'minuto' ? valor : (mm || minutoMostrado);
     if (minimo && h === minimo.hora && m && m < minimo.minuto) m = minimo.minuto;
     const completa = h && m ? `${h}:${m}` : '';
     if (completa) onHora(completa);
     if (parte === 'minuto') setMinutoElegido(true);
-    // Sin minuto explícito (y sin venir ya completo) el panel sigue abierto.
     const minutoListo = parte === 'minuto' || minutoElegido || completoAlAbrirRef.current;
     if (completa && fecha && minutoListo) setOpen(false);
   }

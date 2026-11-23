@@ -17,7 +17,6 @@ interface TallerHistorialEstadosModalProps {
   taller: Taller | null;
 }
 
-/** Historial de transiciones del taller (taller_estados_historial; ADR-00008). */
 export function TallerHistorialEstadosModal({
   open,
   onClose,

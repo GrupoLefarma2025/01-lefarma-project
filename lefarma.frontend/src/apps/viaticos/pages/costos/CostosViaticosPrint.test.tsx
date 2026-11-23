@@ -6,9 +6,6 @@ import { selectedCosts, selectedProposal } from './costosViaticosData';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-// Vitest (css: false) turns `?raw` CSS imports into empty strings, so read the
-// stylesheet from disk (vitest runs with the frontend root as cwd) to assert
-// the named print pages it declares.
 const printCss = readFileSync(
   join(process.cwd(), 'src/apps/viaticos/pages/costos/costosViaticosPrint.css'),
   'utf8',
@@ -107,18 +104,18 @@ describe('FOR-008 live printout hospedaje, comida and taxi', () => {
   it('prints the proposal hospedaje, comida and taxi amounts instead of a dash', () => {
     const { container } = render(<CostosViaticosPrint respuesta={printResponse()} solicitud={null} />);
     const cells = within(container.querySelectorAll('table')[1].querySelector('tbody tr')! as HTMLElement).getAllByRole('cell');
-    expect(cells[9]).toHaveTextContent('$850.00');  // Hospedaje: lo expone la propuesta
-    expect(cells[10]).toHaveTextContent('$120.00'); // Comida: viene en la propuesta
-    expect(cells[11]).toHaveTextContent('$60.00');  // Taxi: viene en la propuesta
+    expect(cells[9]).toHaveTextContent('$850.00');  
+    expect(cells[10]).toHaveTextContent('$120.00'); 
+    expect(cells[11]).toHaveTextContent('$60.00');  
   });
 
   it('totals hospedaje, comida and taxi in the footer', () => {
     const { container } = render(<CostosViaticosPrint respuesta={printResponse()} solicitud={null} />);
     const rows = container.querySelectorAll('table')[1].querySelectorAll('tbody tr');
     const footer = within(rows[rows.length - 1] as HTMLElement).getAllByRole('cell');
-    expect(footer[5]).toHaveTextContent('$850.00'); // Hospedaje
-    expect(footer[6]).toHaveTextContent('$120.00'); // Comida
-    expect(footer[7]).toHaveTextContent('$60.00');  // Taxi
+    expect(footer[5]).toHaveTextContent('$850.00'); 
+    expect(footer[6]).toHaveTextContent('$120.00'); 
+    expect(footer[7]).toHaveTextContent('$60.00');  
   });
 
   it('states the total already includes hospedaje, comida and taxi', () => {
@@ -178,8 +175,6 @@ describe('FOR-007 tick boxes mark exactly one answer', () => {
   it('answers "No" to the boleto question when no leg is bus or avion (metro/uber)', () => {
     const { container } = render(<CostosSolicitudPrint respuesta={printResponse('metro')} solicitud={solicitud} persona="Ana" />);
     const boleto = parrafo(container, '¿Requiere compra de boleto');
-    // El motor emite metro/uber/renta: solo bus/avion compran boleto; la
-    // pregunta siempre aplica y no puede quedar sin marcar.
     expect(boleto).toHaveTextContent('Si [ ] · No [X]');
   });
 

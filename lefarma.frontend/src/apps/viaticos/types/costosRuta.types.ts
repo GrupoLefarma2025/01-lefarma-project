@@ -1,9 +1,7 @@
-/** Punto capturado manualmente (mapa, búsqueda global o selector guiado). */
 export interface PuntoSeleccion {
   nombre: string;
   latitud: number;
   longitud: number;
-  /** Estado/municipio de la dirección elegida, cuando se conocen (búsqueda). */
   estado?: string;
   municipio?: string;
 }
@@ -40,9 +38,7 @@ export interface CostosRutaLugarInput {
   nombre: string;
   latitud: number;
   longitud: number;
-  /** Municipio del punto: el motor lo usa para consultar la ruta en la SCT. */
   municipio?: string;
-  /** Estado del punto (idem). */
   estado?: string;
   fecha_salida?: string;
   hora_salida?: string;
@@ -56,7 +52,6 @@ export interface CostosRutaLugarInput {
   hora_fin_actividad?: string;
 }
 
-/** Terminal del trayecto (aeropuerto o central) con su coordenada real. */
 export interface CostosRutaTerminal {
   nombre: string;
   latitud: number;
@@ -82,34 +77,23 @@ export interface CostosRutaOferta {
   a: string | null;
   salidaTxt: string;
   llegadaTxt: string;
-  /** Salida y llegada en ISO que expone el motor (pueden venir vacías). */
   salida?: string | null;
   llegada?: string | null;
   duracion: string;
   puertaAPuertaH: number | null;
-  /** Minutos antes de la salida (aeropuerto/abordaje). */
   minutosAntes?: number;
-  /** Minutos después de la llegada (bajar del avión y recoger maletas). */
   minutosDespues?: number;
-  /** Minutos estimados del taxi a la terminal (bus o avión). */
   minutosTaxi?: number;
-  /** Minutos del primer taxi: del punto de salida a su terminal. `null` = terminal desconocida. */
   minutosTaxiOrigen?: number | null;
-  /** Minutos del segundo taxi: de la terminal de llegada al punto final. `null` = terminal desconocida. */
   minutosTaxiDestino?: number | null;
-  /** Terminal de salida (aeropuerto o central) con coordenada real. */
   terminalOrigen?: CostosRutaTerminal | null;
-  /** Terminal de llegada (aeropuerto o central) con coordenada real. */
   terminalDestino?: CostosRutaTerminal | null;
   precioTxt: string;
   porPersona: boolean;
   costoGrupo: number;
   costoPorPersona: number;
-  /** Taxi punto↔terminal incluido en la oferta; 0 en auto/renta/taxi urbano. */
   costoTaxi?: number;
-  /** Primera mitad del taxi: punto de salida → su terminal. */
   costoTaxiOrigen?: number;
-  /** Segunda mitad del taxi: terminal de llegada → punto final. */
   costoTaxiDestino?: number;
   aTiempo: boolean;
   llegaTarde: boolean;
@@ -119,18 +103,14 @@ export interface CostosRutaOferta {
   nota: string;
   fuente: string;
   estimado: boolean;
-  /** cotizado | estimado | referencia_tabulador */
   tipoPrecio?: string;
   proveedor?: string;
   disponibilidad?: string;
   disponibilidadDetalle?: string;
-  /** Components already included in costoGrupo for newly calculated auto offers. */
   combustible?: number | null;
   casetasEstimadas?: number | null;
   comprar: CostosRutaCompra;
-  /** Ruta del PNG capturado (columna `ruta_captura` de solicitud_opciones). */
   rutaCaptura?: string;
-  /** Capturas del JSON de cotizacion de pi (URL o data URI); se usa la primera. */
   capturas?: string[];
 }
 
@@ -156,28 +136,21 @@ export interface CostosRutaHotel {
   distanciaKm?: number;
   precioNoche?: number;
   precioTotal?: number;
-  /** Calificación y reseñas (Google Places). */
   rating?: number | null;
   ratingCount?: number | null;
   direccion?: string | null;
-  /** Coordenadas del hotel (para el mapa de la ruta reconstruida). */
   latitud?: number;
   longitud?: number;
   motivo: string;
   fuente: string;
-  /** cotizado | estimado | referencia_tabulador */
   tipoPrecio?: string;
   proveedor?: string;
   disponibilidad?: string;
   disponibilidadDetalle?: string;
   link: string;
-  /** Link de Google Maps del hotel, solo para ver el mapa. */
   linkMapa?: string | null;
-  /** Respaldo de reserva en Booking por ciudad (no se usa para captura). */
   linkReserva?: string | null;
-  /** Ruta del PNG capturado (columna `ruta_captura` de solicitud_opciones). */
   rutaCaptura?: string;
-  /** Capturas del JSON de cotizacion de pi (URL o data URI); se usa la primera. */
   capturas?: string[];
 }
 
@@ -190,8 +163,6 @@ export interface CostosRutaPropuesta {
   llegadaFinal: string;
   margenMinimoMinutos: number;
   costoTotalMxn: number;
-  // Componentes del costo ya sumados dentro de costoTotalMxn; el motor los
-  // expone tal cual (backend CostosRutaDtos.cs) y no se recalculan aqui.
   comida: number;
   taxi: number;
   hospedaje: number;
@@ -205,7 +176,6 @@ export interface CostosRutaRutaTramo {
   de: string;
   a: string;
   km: number;
-  /** Trazado de la carretera: pares [latitud, longitud]. */
   grafica?: number[][];
   litros: number;
   gasolina: {
@@ -219,15 +189,11 @@ export interface CostosRutaRutaTramo {
 
 export interface CostosRutaCaseta {
   tramo: number;
-  /** Municipio de origen del tramo (para emparejar con el tramo del viaje). */
   deMunicipio?: string;
-  /** Municipio de destino del tramo. */
   aMunicipio?: string;
   nombre: string;
   carretera: string;
-  /** Kilómetro desde el origen donde está la plaza (SCT). */
   km: number;
-  /** Tarifa de automóvil en pesos (SCT). */
   tarifa: number;
   direccion: string;
   fuente: string;
@@ -267,7 +233,6 @@ export interface CostosRutaResultado {
   };
   hotelesPropuestos: CostosRutaHotel[];
   incumplimientos: string[];
-  /** Casetas de la ruta según la SCT (plaza, km, carretera y tarifa de auto). */
   casetas?: CostosRutaCaseta[];
   casetasDisponibilidad?: CostosRutaCasetaDisponibilidad[];
 }

@@ -45,7 +45,6 @@ describe('SolicitudesTable', () => {
 
     const rows = bodyRows(container);
     expect(rows).toHaveLength(10);
-    // folio, justificación, fecha creación, fechas, solicitante, creado por, estado y acciones
     rows.forEach((row) => expect(row.querySelectorAll('td')).toHaveLength(8));
     expect(screen.queryByText('Sin resultados.')).toBeNull();
   });

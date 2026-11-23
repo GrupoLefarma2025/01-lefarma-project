@@ -28,10 +28,6 @@ export interface DashboardData {
   recargar: () => void;
 }
 
-/**
- * Datos del dashboard de Educación Médica (ADR-00012, Fase 2): una sola llamada
- * al endpoint agregado; el backend filtra por permisos del usuario.
- */
 export function useDashboardData(): DashboardData {
   const [periodo] = useState(periodoActual);
   const [loading, setLoading] = useState(true);

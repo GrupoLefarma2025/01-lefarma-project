@@ -22,7 +22,6 @@ public sealed class TelemetriaRepositorioTests
     {
         var bytes = TelemetriaRepositorio.AABytes([1]);
 
-        // 1 en int32 little-endian: 01 00 00 00
         bytes.Should().Equal(1, 0, 0, 0);
     }
 

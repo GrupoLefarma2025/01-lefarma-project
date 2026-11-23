@@ -61,7 +61,6 @@ public class HospitalService : IHospitalService
         HospitalFilterParams filter,
         CancellationToken ct)
     {
-        // Regla de negocio explícita: el buscador/catálogo no ofrece Privados ni Distribuidores.
         filter.ExcluirTipos = ["Privado", "Distribuidor"];
 
         var extensiones = await _extensionRepository.GetAllAsync(ct);
@@ -189,8 +188,6 @@ public class HospitalService : IHospitalService
         {
             hospitales = filter.FiltroSede.ToLowerInvariant() switch
             {
-                // "sedes" excluye solo los marcados explícitamente como logísticos (0);
-                // los NULL (sin clasificar) se conservan para no ocultar hospitales.
                 "sedes" => hospitales.Where(h => h.Extension?.EsSedeTaller != false).ToList(),
                 "logisticos" => hospitales.Where(h => h.Extension?.EsSedeTaller == false).ToList(),
                 "sin-clasificar" => hospitales
@@ -428,7 +425,6 @@ public class HospitalService : IHospitalService
         int idUsuario,
         CancellationToken ct = default)
     {
-        // Universo = el mismo del catálogo: activos y sin Privado/Distribuidor.
         var hospitales = await _hospitalRepository.GetHospitalesAsync(
             new HospitalFilterParams { ExcluirTipos = ["Privado", "Distribuidor"] }, ct);
 
@@ -441,11 +437,9 @@ public class HospitalService : IHospitalService
         var existentes = await _extensionRepository.GetByHospitalIdsIncludingInactiveAsync(ids, ct);
         var idsConExtension = existentes.Select(e => e.IdHospital).ToHashSet();
 
-        // Gerencia por jerarquía institucional (espeja el script 0019).
         var tiposGerencia = await _tipoGerenciaRepository.GetAllAsync(ct);
         var idsPorGerencia = tiposGerencia.ToDictionary(t => t.Descripcion, t => t.IdTipoGerencia);
 
-        // Mapeo estado -> región por gerencia para asignar región al crear.
         var mapeos = await _regionRepository.GetMapeosAsync(ct);
         var regionPorEstado = mapeos
             .GroupBy(m => (m.IdTipoGerencia, m.CodigoEstado))
@@ -501,11 +495,6 @@ public class HospitalService : IHospitalService
         };
     }
 
-    /// <summary>
-    /// Gerencia por jerarquía institucional (espeja vw_hospitales_clasificados y el
-    /// script 0019): 385 o hijo de 385 -> IMSS Bienestar; 364 o hijo de 364 -> IMSS;
-    /// tipo Privado -> Privado; el resto (Gobierno, ISSSTE 370, tipo NULL) -> Descentralizado.
-    /// </summary>
     private static string ClasificarTipoGerencia(Hospital hospital)
     {
         if (hospital.CodigoContacto == 385 || hospital.CodigoContactoPrincipal == 385)
@@ -529,10 +518,6 @@ public class HospitalService : IHospitalService
         string MotivoClasificacion,
         bool RequiereRevision);
 
-    /// <summary>
-    /// Clasificación del contacto como unidad de atención, sede logística o contacto
-    /// no hospitalario. Reproduce la depuración aplicada en hospital_extension.
-    /// </summary>
     private static ClasificacionContacto ClasificarContacto(
         Hospital hospital,
         IReadOnlyCollection<Hospital> universo,
@@ -671,10 +656,6 @@ public class HospitalService : IHospitalService
     private static bool Contiene(string valor, params string[] terminos) =>
         terminos.Any(t => valor.Contains(t, StringComparison.Ordinal));
 
-    /// <summary>
-    /// ZMVM: CDMX (493) y municipios conurbados de Edomex (501); espeja la regla
-    /// del script 0017 (clasificar zona metropolitana).
-    /// </summary>
     private static bool ClasificarZonaMetropolitana(Hospital hospital)
     {
         if (!int.TryParse(hospital.CodigoEstado, out var codigoEstado))

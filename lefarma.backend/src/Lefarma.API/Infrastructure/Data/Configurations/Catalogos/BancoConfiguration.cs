@@ -7,16 +7,13 @@ public class BancoConfiguration : IEntityTypeConfiguration<Banco>
     {
         public void Configure(EntityTypeBuilder<Banco> builder)
         {
-            // Tabla
             builder.ToTable("bancos", "catalogos");
 
-            // Clave primaria
             builder.HasKey(b => b.IdBanco);
             builder.Property(b => b.IdBanco)
                 .HasColumnName("id_banco")
                 .ValueGeneratedOnAdd();
 
-            // Propiedades requeridas
             builder.Property(b => b.Nombre)
                 .HasColumnName("nombre")
                 .HasMaxLength(255)
@@ -54,7 +51,6 @@ public class BancoConfiguration : IEntityTypeConfiguration<Banco>
             builder.Property(b => b.FechaModificacion)
                 .HasColumnName("fecha_modificacion");
 
-            // Índices
             builder.HasIndex(b => b.NombreNormalizado)
                 .HasDatabaseName("ix_bancos_nombre_normalizado");
 

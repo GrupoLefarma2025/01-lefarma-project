@@ -4,12 +4,6 @@ using Microsoft.Extensions.Caching.Memory;
 
 namespace Lefarma.API.Services.Identity;
 
-/// <summary>
-/// Shared permission cache for both PermissionHandler and the my-permissions endpoint.
-/// Single source of truth for "what permissions does user X have right now".
-/// Cache duration: 5 minutes. Changes in app.RolesPermisos / app.UsuariosPermisos
-/// are reflected within that window with no restart or re-login.
-/// </summary>
 public class UserPermissionService
 {
     private readonly AsokamDbContext _db;
@@ -22,10 +16,6 @@ public class UserPermissionService
         _cache = cache;
     }
 
-    /// <summary>
-    /// Returns the set of permission codes for a user. Uses the shared IMemoryCache
-    /// with key "user_permissions_{userId}" — the same key the PermissionHandler uses.
-    /// </summary>
     public async Task<HashSet<string>> GetPermissionsAsync(int userId)
     {
         var cacheKey = $"user_permissions_{userId}";
@@ -39,9 +29,6 @@ public class UserPermissionService
         return permissions;
     }
 
-    /// <summary>
-    /// Force-refresh a user's permissions (call when admin changes their roles/permissions).
-    /// </summary>
     public async Task<HashSet<string>> RefreshAsync(int userId)
     {
         var permissions = await LoadFromDbAsync(userId);
@@ -62,9 +49,6 @@ public class UserPermissionService
             .ToListAsync();
 
         var now = DateTime.UtcNow;
-        // Se cargan también las filas con EsConcedido = 0: son denegaciones explícitas
-        // y restan el permiso que el usuario recibiría por sus roles (mismo criterio
-        // que app.sp_ObtenerPermisosUsuario del sistema anterior).
         var directPermissions = await _db.UsuariosPermisos
             .Where(up => up.IdUsuario == userId
                          && up.Permiso.EsActivo

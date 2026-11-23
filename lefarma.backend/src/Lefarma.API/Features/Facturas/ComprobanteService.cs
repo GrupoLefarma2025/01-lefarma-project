@@ -18,8 +18,6 @@ namespace Lefarma.API.Features.Facturas;
 
 public class ComprobanteService : IComprobanteService
 {
-    // Tolerancia monetaria por partida (5 centavos): absorbe diferencias de
-    // redondeo entre OC, CFDI y pago sin bloquear la asignación.
     private const decimal Tolerancia = 0.05m;
 
     private static readonly JsonSerializerOptions _jsonUtf8 = new()
@@ -110,9 +108,6 @@ public class ComprobanteService : IComprobanteService
 
             if (cfdi.Uuid is not null)
             {
-                // Un comprobante activo con el mismo UUID y sin asignaciones es un
-                // borrador de una carga que nunca se completo: se reemplaza.
-                // Si ya tiene asignaciones, el CFDI esta realmente registrado.
                 var duplicado = await _repo.GetActivoPorUuidAsync(cfdi.Uuid, ct);
                 if (duplicado is not null)
                 {
@@ -147,8 +142,6 @@ public class ComprobanteService : IComprobanteService
         await using var tx = await _db.Database.BeginTransactionAsync(ct);
         try
         {
-            // Baja del borrador abandonado dentro de la transaccion: si algo falla
-            // al registrar la nueva carga, el comprobante anterior no se pierde.
             if (idBorradorAbandonado is int idBorrador)
             {
                 var desactivado = await _db.Comprobantes
@@ -198,7 +191,6 @@ public class ComprobanteService : IComprobanteService
             _db.Comprobantes.Add(comprobante);
             await _db.SaveChangesAsync(ct);
 
-            // Obtener folio y contar archivos previos para nombrar archivos
             var folio = (await _db.OrdenesCompra
                 .Where(o => o.IdOrden == request.IdOrden)
                 .Select(o => o.Folio)
@@ -211,7 +203,6 @@ public class ComprobanteService : IComprobanteService
             var prefijo = esPago ? "Pago" : "Gasto";
             var n = countPrevios + 1;
 
-            // Subir XML si CFDI
             if (esCfdi && xmlContent != null && xmlFileName != null)
             {
                 var xmlName = $"{folio}-{prefijo}-{n}.xml";
@@ -405,7 +396,6 @@ public class ComprobanteService : IComprobanteService
 
         bool esCfdi = comprobante.TipoComprobante == "cfdi";
 
-        // Pre-validar cada partida
         foreach (var item in request.Asignaciones)
         {
             var partida = await _db.OrdenesCompraPartidas
@@ -485,7 +475,6 @@ public class ComprobanteService : IComprobanteService
                 }
             }
 
-            // Actualizar estado del comprobante: siempre Aplicado cuando todas las asignaciones estan hechas
             comprobante.Estado = 2;
             comprobante.FechaModificacion = DateTime.UtcNow;
 
@@ -534,7 +523,6 @@ public class ComprobanteService : IComprobanteService
 
     public async Task<ErrorOr<bool>> EliminarPorOrdenAsync(int idOrden, string categoria, int idUsuario, CancellationToken ct = default)
     {
-        // Buscar todos los comprobantes de la categoría para esta orden
         var comprobantes = await _db.Comprobantes
             .Include(c => c.Asignaciones)
             .Where(c => (c.Activo ?? true) && c.Categoria == categoria
@@ -555,8 +543,6 @@ public class ComprobanteService : IComprobanteService
         if (comprobante is null)
             return CommonErrors.NotFound("Comprobante", idComprobante.ToString());
 
-        // Si es un comprobante de pago y era el ultimo activo de la orden, se limpia la cuenta
-        // capturada por el tesorero (mismo criterio que el borrado masivo por orden).
         int? idOrden = null;
         if (comprobante.Categoria == "pago")
         {
@@ -648,20 +634,17 @@ public class ComprobanteService : IComprobanteService
                 bool esCfdi = comprobante.TipoComprobante == "cfdi";
                 bool esPago = comprobante.Categoria == "pago";
 
-                // Revertir asignaciones en partidas
                 foreach (var asignacion in comprobante.Asignaciones)
                     await RevertirAsignacionPartidaAsync(asignacion, esCfdi, esPago, ct);
 
-                // Soft-delete de asignaciones (se conservan para el historial de comprobantes)
                 await _db.ComprobantesPartidas
                     .Where(cp => cp.IdComprobante == comprobante.IdComprobante)
                     .ExecuteUpdateAsync(s => s.SetProperty(cp => cp.Activo, false), ct);
 
                 await DesactivarArchivosComprobanteAsync(comprobante.IdComprobante, idUsuario, ct);
 
-                //Se cambia a soft delete para mantener el historial de comprobantes eliminados
                 comprobante.Activo = false;
-                comprobante.Estado = 3; // Rechazado/Cancelado
+                comprobante.Estado = 3; 
                 comprobante.FechaModificacion = DateTime.UtcNow;
 
                 if (categoria == "pago" && idOrden.HasValue)
@@ -743,7 +726,6 @@ public class ComprobanteService : IComprobanteService
         .OrderByDescending(c => c.FechaCreacion)
         .ToListAsync(ct);
 
-        // Lookup de usuarios (AsokamDbContext)
         var usuariosIds = comprobantes.Select(c => c.IdUsuarioSubio).Distinct().ToList();
         var usuariosMap = usuariosIds.Count > 0
             ? await _asokamContext.Usuarios
@@ -770,9 +752,7 @@ public class ComprobanteService : IComprobanteService
         )).ToList();
     }
 
-    // ── Helpers ──────────────────────────────────────────────────────────────
-
-    private async Task RegistrarCuentaPagoTesoreroAsync(int idOrden, int idUsuario, SubirComprobanteRequest request, CancellationToken ct)
+private async Task RegistrarCuentaPagoTesoreroAsync(int idOrden, int idUsuario, SubirComprobanteRequest request, CancellationToken ct)
     {
         var orden = await _db.OrdenesCompra.FirstOrDefaultAsync(o => o.IdOrden == idOrden, ct);
         if (orden == null) return;
@@ -793,7 +773,6 @@ public class ComprobanteService : IComprobanteService
         var json = OrdenCompraDocumentoJson.MergeClavesJson(orden.IdsCuentasBancarias,
             new Dictionary<string, object?> { ["cuentaPagoTesorero"] = cuenta });
 
-        // ponytail: solo se escribe bitácora si hay al menos un dato de cuenta
         if (!string.IsNullOrWhiteSpace(banco) || !string.IsNullOrWhiteSpace(numeroCuenta) || !string.IsNullOrWhiteSpace(clabe))
             json = OrdenCompraDocumentoJson.AgregarPagoBitacora(json, idUsuario, banco, numeroCuenta, clabe);
 
@@ -905,7 +884,7 @@ public class ComprobanteService : IComprobanteService
                 ));
             }
         }
-        catch { /* JSON invalido */ }
+        catch { }
 
         return result;
     }

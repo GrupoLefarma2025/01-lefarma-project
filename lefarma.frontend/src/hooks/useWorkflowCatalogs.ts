@@ -60,7 +60,6 @@ export function useWorkflowCatalogs(): WorkflowCatalogs {
       const res = await API.get<{ data: WorkflowRolCatalogo[] }>('/Admin/roles');
       setRoles(res.data?.data ?? []);
     } catch {
-      // Silencioso: los catálogos se cargan bajo demanda
     } finally { setLoadingRoles(false); }
   }, [roles.length]);
 
@@ -71,7 +70,6 @@ export function useWorkflowCatalogs(): WorkflowCatalogs {
       const res = await API.get<{ data: WorkflowUsuarioCatalogo[] }>('/Admin/usuarios');
       setUsuarios(res.data?.data ?? []);
     } catch {
-      // Silencioso: los catálogos se cargan bajo demanda
     } finally { setLoadingUsuarios(false); }
   }, [usuarios.length]);
 
@@ -82,7 +80,6 @@ export function useWorkflowCatalogs(): WorkflowCatalogs {
       const res = await API.get<{ data: WorkflowTipoNotificacionCatalogo[] }>('/config/workflows/tipos-notificacion');
       setTiposNotificacion(res.data?.data ?? []);
     } catch {
-      // Silencioso: los catálogos se cargan bajo demanda
     } finally { setLoadingTiposNotificacion(false); }
   }, [tiposNotificacion.length]);
 
@@ -92,7 +89,6 @@ export function useWorkflowCatalogs(): WorkflowCatalogs {
     try {
       setEstados(await fetchWorkflowEstados(codigoProceso));
     } catch {
-      // Silencioso: los catálogos se cargan bajo demanda
     } finally { setLoadingEstados(false); }
   }, [estados.length]);
 

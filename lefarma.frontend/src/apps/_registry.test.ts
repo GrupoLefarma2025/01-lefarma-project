@@ -1,33 +1,19 @@
 import { describe, it, expect } from 'vitest';
 import { appRegistry, type AppRegistryEntry } from '@/apps/_registry';
 
-/**
- * Static App Registry contract (app-routing spec: "Static App Registry" /
- * "Launcher reads from the static registry" + base-app spec: "Adding an app
- * entry is code-only").
- *
- * These tests lock the MODULE SHAPE — that the launcher's source of truth is a
- * static, code-level array whose entries are well-formed. The render behavior
- * (one tile per entry) is covered by Home.test.tsx.
- */
 describe('apps/_registry — static app registry module', () => {
   it('exports appRegistry as an array', () => {
     expect(Array.isArray(appRegistry)).toBe(true);
   });
 
   it('every entry satisfies the AppRegistryEntry contract', () => {
-    // Empty registry is a legal runtime state (covered by Home.test.tsx); but any
-    // entry that IS present must be well-formed.
     appRegistry.forEach((entry: AppRegistryEntry) => {
       expect(typeof entry.id).toBe('string');
       expect(entry.id.length).toBeGreaterThan(0);
       expect(typeof entry.label).toBe('string');
       expect(entry.label.length).toBeGreaterThan(0);
       expect(typeof entry.path).toBe('string');
-      // Navigation target must be an absolute path (open-redirect / href safety).
       expect(entry.path.startsWith('/')).toBe(true);
-      // Hairline figure, when present, must reference a renderable component.
-      // React.forwardRef components are exotic objects (not functions), so accept both.
       if (entry.hairline !== undefined) {
         expect(entry.hairline).toBeTruthy();
         expect(['function', 'object']).toContain(typeof entry.hairline);
@@ -41,18 +27,12 @@ describe('apps/_registry — static app registry module', () => {
   });
 
   it('the launcher apps carry their Hairline figures', () => {
-    // The /hub tiles for these apps render a Hairline figure instead of the
-    // Lucide icon; lock the three integrations in place.
     for (const id of ['cxp', 'rh', 'educacion-medica', 'viaticos']) {
       expect(appRegistry.find((e) => e.id === id)?.hairline).toBeTruthy();
     }
   });
 
   it('adding an app entry is code-only (no shell wiring required)', () => {
-    // A developer adds a new object literal to the array; nothing else changes.
-    // This test documents that contract by constructing an ad-hoc entry that
-    // matches AppRegistryEntry and confirming it validates — proving new entries
-    // are pure data, not behavior that needs shell code changes.
     const candidate: AppRegistryEntry = {
       id: 'cxp',
       label: 'Cuentas por Pagar',

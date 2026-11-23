@@ -7,10 +7,6 @@ public static class RhMappings
 {
     public record UsuarioInfo(string Nombre, string? Puesto);
 
-    /// <summary>
-    /// Datos del empleado en Asistencias (vwEmpleados). Son la fuente oficial de lo que se
-    /// imprime en los formatos de RH, por encima de los catálogos de Lefarma.
-    /// </summary>
     public record EmpleadoAsistenciasInfo(
         string? EmpresaReal,
         string? Departamento,
@@ -103,7 +99,6 @@ public static class RhMappings
         return empleadosInfo.TryGetValue(id, out var info) ? info : null;
     }
 
-    /// <summary>Primer valor no vacío: el dato de Asistencias manda sobre el catálogo de Lefarma.</summary>
     private static string? PrimeroConValor(params string?[] valores) =>
         valores.Select(v => v?.Trim()).FirstOrDefault(v => !string.IsNullOrWhiteSpace(v));
 

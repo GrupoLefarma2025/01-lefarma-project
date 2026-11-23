@@ -3,9 +3,6 @@ using Lefarma.API.Features.Configuracion.DTOs;
 
 namespace Lefarma.API.Features.Configuracion;
 
-/// <summary>
-/// Administración de variables globales de configuración (CRUD, bitácora y restauración).
-/// </summary>
 public interface IConfiguracionService
 {
     Task<ErrorOr<List<ConfigVariableResponse>>> ListarAsync(

@@ -192,10 +192,6 @@ function pickIds<T>(
 
 function makeExampleColumn(ids: number[], fallback: string[]): string[] {
   if (ids.length === 0) return fallback;
-  // Fila 0: un proveedor con una cuenta → primer id del catálogo (si aplica)
-  // Fila 1: un proveedor sin cuenta → vacío
-  // Fila 2: un proveedor con una cuenta → primer id nuevamente (espeja fila 0)
-  // Fila 3: mismo proveedor que fila 2 con una SEGUNDA cuenta → id distinto si disponible
   const first = String(ids[0]);
   const second = ids.length > 1 ? String(ids[1]) : first;
   return [first, '', first, second];
@@ -296,8 +292,6 @@ export function buildErrorsCsv(
   const csv = BOM + [header, ...lines].join('\r\n');
   return new Blob([csv], { type: 'text/csv;charset=utf-8' });
 }
-
-// --- Vacaciones: días hábiles ---
 
 export interface DiaHabilCsvColumn {
   key: string;

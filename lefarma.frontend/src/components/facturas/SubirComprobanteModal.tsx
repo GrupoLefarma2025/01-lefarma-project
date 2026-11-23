@@ -142,9 +142,7 @@ export function SubirComprobanteModal({ open, onClose, idEmpresa, idOrden, idPas
     onClose();
   };
 
-  // ── XML parsing ──────────────────────────────────────────────────────────
-
-  const handleXmlChange = async (file: File) => {
+const handleXmlChange = async (file: File) => {
     setXmlFile(file);
     setCfdiPreview(null);
     setSubmitError(null);
@@ -160,9 +158,7 @@ export function SubirComprobanteModal({ open, onClose, idEmpresa, idOrden, idPas
     finally { setLoading(false); }
   };
 
-  // ── Step datos → archivos: crea comprobante ──────────────────────────────
-
-  const handleCrearComprobante = async () => {
+const handleCrearComprobante = async () => {
     if (!tipoComprobante) { toast.error('Selecciona el tipo de comprobante'); return; }
     if (esCfdi && !xmlFile) { toast.error('Debes cargar el XML del CFDI'); return; }
     if (!esCfdi && (!totalManual || Number(totalManual) <= 0)) { toast.error('Ingresa el total del comprobante'); return; }
@@ -189,9 +185,7 @@ export function SubirComprobanteModal({ open, onClose, idEmpresa, idOrden, idPas
     } finally { setLoading(false); }
   };
 
-  // ── Step archivos → asignar ──────────────────────────────────────────────
-
-  const handleArchivoSubido = async (archivos: Archivo[]) => {
+const handleArchivoSubido = async (archivos: Archivo[]) => {
     if (!comprobanteSubido) return;
     void archivos;
 
@@ -223,9 +217,7 @@ export function SubirComprobanteModal({ open, onClose, idEmpresa, idOrden, idPas
     setStep('asignar');
   };
 
-  // ── Step asignar → guardar ───────────────────────────────────────────────
-
-  const handleAsignar = async () => {
+const handleAsignar = async () => {
     if (!comprobanteSubido) return;
     const items: AsignacionItemRequest[] = asignaciones
       .filter(a => a.checked && Number(a.importe) > 0)
@@ -250,7 +242,6 @@ export function SubirComprobanteModal({ open, onClose, idEmpresa, idOrden, idPas
 
   const stepTitle = { datos: 'Datos del comprobante', archivos: 'Subir archivo', asignar: 'Asignar a partidas' }[step];
 
-  // Metadata para FileUploader
   const metadataArchivo = comprobanteSubido ? {
     modulo: 'ordenes_compra', origen: 'workflow',
     tipo: 'comprobante_gasto', idOrden: idOrden, idComprobante: comprobanteSubido.idComprobante,
@@ -287,7 +278,7 @@ export function SubirComprobanteModal({ open, onClose, idEmpresa, idOrden, idPas
         </div>
       }
     >
-      {/* Header con datos de la orden */}
+      {}
       {partidasPendientes.length > 0 && (
         <div className="rounded-lg border bg-muted/20 px-3 py-2.5 space-y-1.5 text-xs mb-4">
           <div className="flex items-center justify-between">
@@ -306,7 +297,7 @@ export function SubirComprobanteModal({ open, onClose, idEmpresa, idOrden, idPas
         </div>
       )}
 
-      {/* Indicadores de pasos */}
+      {}
       <div className="mb-4 flex items-center gap-1 text-xs">
         {(['datos', 'archivos', 'asignar'] as Step[]).map((s, i) => (
           <div key={s} className="flex items-center gap-1">
@@ -319,7 +310,7 @@ export function SubirComprobanteModal({ open, onClose, idEmpresa, idOrden, idPas
         ))}
       </div>
 
-      {/* ── Step: datos ── */}
+      {}
       {step === 'datos' && (
         <div className="space-y-4">
           <p className="text-xs text-muted-foreground">Ingresa los datos del comprobante a registrar.</p>
@@ -342,7 +333,7 @@ export function SubirComprobanteModal({ open, onClose, idEmpresa, idOrden, idPas
             {tipoComprobante && <p className="text-[10px] text-muted-foreground">{TIPOS.find(t => t.value === tipoComprobante)?.desc}</p>}
           </div>
 
-          {/* XML CFDI */}
+          {}
           {esCfdi && (
             <div className="space-y-2">
               <Label>Archivo XML CFDI <span className="text-red-500">*</span></Label>
@@ -396,7 +387,7 @@ export function SubirComprobanteModal({ open, onClose, idEmpresa, idOrden, idPas
             </div>
           )}
 
-          {/* Total manual (no CFDI) */}
+          {}
           {tipoComprobante && tipoComprobante !== 'cfdi' && (
             <div className="space-y-1.5">
               <Label>Total del comprobante <span className="text-red-500">*</span></Label>
@@ -406,7 +397,7 @@ export function SubirComprobanteModal({ open, onClose, idEmpresa, idOrden, idPas
             </div>
           )}
 
-          {/* Notas */}
+          {}
           <div className="space-y-1.5">
             <Label>Notas <span className="text-muted-foreground text-xs">(opcional)</span></Label>
             <Textarea value={notas} onChange={(e) => setNotas(e.target.value)} placeholder="Observaciones..." rows={2} />
@@ -414,7 +405,7 @@ export function SubirComprobanteModal({ open, onClose, idEmpresa, idOrden, idPas
         </div>
       )}
 
-      {/* ── Step: archivos — FileUploader ── */}
+      {}
       {step === 'archivos' && comprobanteSubido && (
         <>
           <p className="text-xs text-muted-foreground mb-3">Sube el archivo PDF o imagen del comprobante.</p>
@@ -426,7 +417,7 @@ export function SubirComprobanteModal({ open, onClose, idEmpresa, idOrden, idPas
         </>
       )}
 
-      {/* ── Step: asignar ── */}
+      {}
       {step === 'asignar' && comprobanteSubido && (
         <div className="space-y-3">
           <p className="text-xs text-muted-foreground">Distribuye el comprobante entre las partidas de la orden.</p>

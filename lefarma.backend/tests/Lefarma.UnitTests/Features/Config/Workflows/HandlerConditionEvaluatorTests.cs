@@ -155,7 +155,6 @@ public class HandlerConditionEvaluatorTests
     {
         await using var ctx = CrearContexto();
 
-        // tipo coincide pero empresa no → false
         var result = await Evaluar(
             ctx, """{"aplica":{"tipoSolicitud":[5],"empresa":[99]}}""",
             Solicitud(tipo: 5, empresa: 1));

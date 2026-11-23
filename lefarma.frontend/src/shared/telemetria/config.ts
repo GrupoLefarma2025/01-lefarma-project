@@ -1,9 +1,3 @@
-/**
- * Configuración del SDK de telemetría. Todo se puede apagar sin tocar código:
- * `VITE_TELEMETRIA_ACTIVA=false` en el build, `?autotest=true` en la URL,
- * `localStorage['telemetria:off'] = '1'` en el equipo, o la cabecera DNT.
- */
-
 const RUTAS_EXCLUIDAS = [
   '/login',
   '/perfil',
@@ -17,7 +11,6 @@ export const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
 export const RUTAS_SIN_CAPTURA = RUTAS_EXCLUIDAS;
 
-/** Tope del lote que acepta el backend (100 eventos / 256 KB; usamos 48 KB de margen). */
 export const MAXIMO_EVENTOS_LOTE = 100;
 export const TAMANO_MAXIMO_LOTE_BYTES = 48 * 1024;
 
@@ -59,7 +52,6 @@ function estaApagadaPorElUsuario(): boolean {
   }
 }
 
-/** `?telemetria=off` permite mostrar la app dentro de un iframe (mapa de calor) sin que se retroalimente. */
 function estaApagadaPorUrl(): boolean {
   try {
     return new URLSearchParams(window.location.search).get('telemetria') === 'off';

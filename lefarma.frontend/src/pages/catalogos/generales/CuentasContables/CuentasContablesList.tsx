@@ -47,7 +47,6 @@ export const NIVEL1_OPTIONS = [
   { value: '604', label: '604 — Gastos Administrativos (Operativos)' },
 ];
 
-/** Parsea "600-001-001-01" → { nivel1, nivel2, nivel3, nivel4 } */
 function parseCuenta(cuenta: string) {
   const parts = (cuenta || '').split('-');
   return {
@@ -58,7 +57,6 @@ function parseCuenta(cuenta: string) {
   };
 }
 
-/** Construye "600-001-001-01" a partir de las partes */
 function buildCuenta(nivel1: string, nivel2: string, nivel3: string, nivel4: string): string {
   const n1 = nivel1.padStart(3, '0');
   const n2 = nivel2.padStart(3, '0');
@@ -156,7 +154,6 @@ export default function CuentasContablesList() {
         setCentrosCosto(response.data.data || []);
       }
     } catch {
-      // silencioso — el select quedará vacío
     }
   };
 
@@ -167,7 +164,6 @@ export default function CuentasContablesList() {
         setEmpresas(response.data.data || []);
       }
     } catch {
-      // silencioso
     }
   };
 
@@ -391,7 +387,7 @@ export default function CuentasContablesList() {
   return (
     <TooltipProvider>
       <div className="space-y-6">
-        {/* Toolbar */}
+        {}
         <div className="flex items-center justify-between gap-4 flex-wrap">
           <div className="relative max-w-sm flex-1">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -462,7 +458,7 @@ export default function CuentasContablesList() {
           </PermissionElement>
         </div>
 
-        {/* Tabla */}
+        {}
         <div className="relative">
           {!loading && cuentas.length === 0 ? (
             <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border bg-card py-16 text-center">
@@ -498,7 +494,7 @@ export default function CuentasContablesList() {
           )}
         </div>
 
-        {/* Modal */}
+        {}
         <Modal
           id="modal-cuenta-contable"
           open={modalOpen}
@@ -523,7 +519,7 @@ export default function CuentasContablesList() {
         >
           <Form {...form}>
             <form className="space-y-4">
-              {/* Cuenta Mayor (AAA), Sub-cuenta (BBB), Analítica (CCC), Auxiliar (DD) */}
+              {}
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
                 <FormField
                   control={form.control}

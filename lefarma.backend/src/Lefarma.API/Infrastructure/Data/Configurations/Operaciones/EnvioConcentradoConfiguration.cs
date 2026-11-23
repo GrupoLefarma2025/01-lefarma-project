@@ -31,7 +31,6 @@ namespace Lefarma.API.Infrastructure.Data.Configurations.Operaciones
             
             builder.Property(e => e.Activo).HasColumnName("activo").HasDefaultValue(true);
             
-            // Relación muchos a muchos con ordenes_compra
             builder.HasMany(e => e.Ordenes)
                 .WithMany()
                 .UsingEntity<Dictionary<string, object>>(

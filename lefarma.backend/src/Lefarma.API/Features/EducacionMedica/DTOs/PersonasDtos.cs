@@ -32,10 +32,8 @@ public class CrearEjecutivoSuplenteRequest
     [Range(1, int.MaxValue, ErrorMessage = "El usuario es obligatorio.")]
     public int IdUsuario { get; set; }
 
-    /// <summary>NULL = todas las gerencias.</summary>
     public int? IdTipoGerencia { get; set; }
 
-    /// <summary>NULL = todas las regiones.</summary>
     public int? IdRegionCatalogo { get; set; }
 
     public bool Activo { get; set; } = true;
@@ -43,10 +41,8 @@ public class CrearEjecutivoSuplenteRequest
 
 public class ActualizarEjecutivoSuplenteRequest
 {
-    /// <summary>NULL = todas las gerencias.</summary>
     public int? IdTipoGerencia { get; set; }
 
-    /// <summary>NULL = todas las regiones.</summary>
     public int? IdRegionCatalogo { get; set; }
 
     public bool? Activo { get; set; }

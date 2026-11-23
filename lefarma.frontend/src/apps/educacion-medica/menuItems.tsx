@@ -20,10 +20,6 @@ import {
 } from 'lucide-react';
 import type { SidebarMenuItemConfig } from '@/components/layout/sidebar-types';
 
-/**
- * Códigos de permiso del módulo (espejo de `Permissions.EducacionMedica` en el backend
- * y de `Asokam.app.Permisos`; ver ADR-00009). El sidebar oculta los items sin permiso.
- */
 const PERMISOS = {
   hub: 'baseapp.hub.puede_ver_educacion_medica',
   hospitalesVer: 'educacion_medica.hospitales.puede_ver',
@@ -35,11 +31,6 @@ const PERMISOS = {
   talleresCapturar: 'educacion_medica.talleres.puede_capturar',
 } as const;
 
-/**
- * Config de navegación del sidebar de Educación Médica. Los paths son
- * absolutos con el prefijo `/educacion-medica/` (Educación Médica está montada
- * en `/educacion-medica/`).
- */
 export const educacionMedicaMenuItems: SidebarMenuItemConfig[] = [
   {
     title: 'Dashboard',

@@ -54,7 +54,6 @@ type SidebarNavItem = {
 
 type SidebarNavGroup = SidebarNavItem[];
 
-// Navigation items
 const navigationItems: SidebarNavGroup = [
   {
     title: "Inicio",
@@ -64,7 +63,6 @@ const navigationItems: SidebarNavGroup = [
   },
 ];
 
-// Documents items
 const documentsItems: SidebarNavGroup = [
   {
     title: "Cargar Documentos",
@@ -99,25 +97,6 @@ const documentsItems: SidebarNavGroup = [
   },
 ];
 
-// Teams data
-// const teams = [
-//   {
-//     name: "Grupo Lefarma",
-//     logo: "GL",
-//     plan: "Enterprise",
-//   },
-//   {
-//     name: "Acme Corp.",
-//     logo: "AC",
-//     plan: "Startup",
-//   },
-//   {
-//     name: "Evil Corp.",
-//     logo: "E",
-//     plan: "Free",
-//   },
-// ];
-
 export function AppSidebar() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -126,9 +105,6 @@ export function AppSidebar() {
 
   const handleLogout = () => {
     logout();
-    // Vuelve a la entrada del módulo (tarjeta de acceso de SIGMA), no al
-    // login global de Lefarma: así el usuario puede entrar con otra cuenta o
-    // como visitante sin salir de SIGMA.
     navigate("/SIGMA");
   };
 
@@ -161,7 +137,7 @@ export function AppSidebar() {
                     <span className="truncate font-semibold">
                       Grupo Lefarma
                     </span>
-                    {/* <span className="truncate text-xs">Enterprise</span> */}
+                    {}
                   </div>
                   <ChevronDown className="ml-auto" />
                 </SidebarMenuButton>
@@ -181,33 +157,10 @@ export function AppSidebar() {
                     />
                   </div>
                   Grupo Lefarma
-                  {/* <Badge variant="outline" className="ml-auto">
-                    Enterprise
-                  </Badge> */}
+                  {}
                 </DropdownMenuItem>
-                {/* {teams.map((team, index) => (
-                  <DropdownMenuItem key={team.name} className="gap-2 p-2">
-                    <div className="flex size-6 items-center justify-center rounded-sm border">
-                      <span className="text-xs font-medium">{team.logo}</span>
-                    </div>
-                    <span className="truncate">{team.name}</span>
-                    <Badge
-                      variant="secondary"
-                      className="ml-auto text-xs shrink-0"
-                    >
-                      {team.plan}
-                    </Badge>
-                  </DropdownMenuItem>
-                ))} */}
-                {/* <DropdownMenuSeparator />
-                <DropdownMenuItem className="gap-2 p-2">
-                  <div className="flex size-6 items-center justify-center rounded-md border border-dashed">
-                    <Plus className="size-4" />
-                  </div>
-                  <div className="font-medium text-muted-foreground truncate">
-                    Agregar equipo
-                  </div>
-                </DropdownMenuItem> */}
+                {}
+                {}
               </DropdownMenuContent>
             </DropdownMenu>
           </SidebarMenuItem>
@@ -299,37 +252,7 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
-
-        {/* Plataforma section - commented out temporarily
-        <SidebarGroup>
-          <SidebarGroupLabel>Plataforma</SidebarGroupLabel>
-          <SidebarGroupAction title="Agregar proyecto">
-            <Plus />
-            <span className="sr-only">Agregar Proyecto</span>
-          </SidebarGroupAction>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {platformItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={isActiveRoute(item.url)}
-                    tooltip={item.title}
-                  >
-                    <button
-                      onClick={() => navigate(item.url)}
-                      className="w-full overflow-hidden"
-                    >
-                      <item.icon className="shrink-0" />
-                      <span className="truncate">{item.title}</span>
-                    </button>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-        */}
+{}
       </SidebarContent>
 
       <SidebarFooter>

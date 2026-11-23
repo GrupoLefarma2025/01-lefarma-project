@@ -136,9 +136,7 @@ public class TalleresController : ControllerBase
         }
     }
 
-    // ----- Solicitudes de cambio del equipo (ADR-00010, decisiones 13-15) -----
-
-    [HttpPost("{idTaller:int}/solicitudes-cambio")]
+[HttpPost("{idTaller:int}/solicitudes-cambio")]
     [HasPermission(Permissions.EducacionMedica.TalleresVer)]
     [SwaggerOperation(
         Summary = "Solicitar cambio del taller (equipo)",
@@ -212,9 +210,7 @@ public class TalleresController : ControllerBase
         }
     }
 
-    // ----- Impartición (ADR-00008): material, asistencias, evidencias, estado, historial e imprimibles -----
-
-    [HttpGet("{idTaller:int}/material")]
+[HttpGet("{idTaller:int}/material")]
     [HasPermission(Permissions.EducacionMedica.TalleresVer)]
     [SwaggerOperation(
         Summary = "Material del taller (FOR-007)",

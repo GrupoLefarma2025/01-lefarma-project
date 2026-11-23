@@ -137,7 +137,7 @@ interface SnippetVisible {
 
 export function ConfiguracionVariablesPage() {
   usePageTitle('Configuración');
-  usePermissionVersion(); // re-render cuando cambian los permisos
+  usePermissionVersion(); 
 
   const puedeCrear = tienePermiso(PERMISOS_CONFIGURACION.crear);
   const puedeActualizar = tienePermiso(PERMISOS_CONFIGURACION.actualizar);
@@ -244,13 +244,11 @@ export function ConfiguracionVariablesPage() {
   const moduloGlobal = modulos.find((modulo) => modulo.clave === 'global') ?? null;
   const modulosPorId = new Map(modulos.map((modulo) => [modulo.idModulo, modulo]));
 
-  /** Módulo de una variable; las variables sin módulo pertenecen a «Global». */
   const moduloDeVariable = (variable: VariableConfiguracion): ModuloConfig | null =>
     variable.idModulo != null
       ? (modulosPorId.get(variable.idModulo) ?? null)
       : moduloGlobal;
 
-  /** Desde cuándo se considera «actualizada» una variable; null = sin filtro. */
   let desdeActualizado: number | null = null;
   if (actualizadoFiltro !== 'todos') {
     const limite = new Date();
@@ -770,7 +768,7 @@ export function ConfiguracionVariablesPage() {
       </details>
 
       <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
-        {/* Filtros */}
+        {}
         <div className="flex flex-wrap items-center gap-2 border-b border-border bg-muted/20 p-2.5">
           <div className="relative min-w-[240px] flex-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
@@ -899,7 +897,7 @@ export function ConfiguracionVariablesPage() {
           </div>
         </div>
 
-        {/* Contenido */}
+        {}
         {cargando && variables.length === 0 ? (
           <InlineLoader message="Cargando variables…" />
         ) : error ? (

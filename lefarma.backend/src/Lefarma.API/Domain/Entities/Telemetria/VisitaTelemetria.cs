@@ -1,6 +1,5 @@
 namespace Lefarma.API.Domain.Entities.Telemetria;
 
-/// <summary>Una visita (sesión de navegación) con su entrada y duración.</summary>
 public class VisitaTelemetria
 {
     public long IdVisita { get; set; }

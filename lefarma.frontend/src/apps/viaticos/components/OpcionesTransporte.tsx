@@ -132,8 +132,6 @@ function ordenarPorHora(a: CostosRutaOferta, b: CostosRutaOferta): number {
 }
 
 function ordenarResto(a: CostosRutaOferta, b: CostosRutaOferta): number {
-  // Las que llegan tarde van antes que las que salen antes de que el viajero
-  // pueda tomar la terminal; ambas quedan después de las viables.
   if (a.noTomable !== b.noTomable) return a.noTomable ? 1 : -1;
   if (a.noTomable) return ordenarPorPrecio(a, b);
   return (a.minutosTarde || 0) - (b.minutosTarde || 0) || ordenarPorPrecio(a, b);
@@ -199,23 +197,14 @@ export interface OpcionesTransporteProps {
   ofertas: CostosRutaOferta[];
   opcionElegidaId?: string | null;
   onElegir: (oferta: CostosRutaOferta) => void;
-  /** Tab que se abre por defecto: vuelo en rutas largas, bus en cortas. */
   modoInicial?: TipoTransporte;
-  /** Hora de salida del tramo (ISO local) para priorizar cercanía. */
   salidaReferencia?: string | null;
-  /** Cuántas opciones mostrar antes de "Ver todos". */
   limite?: number;
-  /** La consulta real de vuelos está en curso. */
   cargando?: boolean;
-  /** Aviso cuando la consulta real falló y se usan estimados. */
   aviso?: string | null;
-  /** Oferta cuyo precio se está confirmando con la vista previa. */
   precioEnCursoId?: string | null;
-  /** Mensaje por oferta cuando la vista previa no pudo confirmar. */
   avisoPrecio?: Record<string, string>;
-  /** Se dispara al abrir un tab; el padre decide si consulta la fuente real. */
   onSolicitarReales?: (tipo: TipoTransporte) => void;
-  /** Reintenta la consulta real. */
   onReintentar?: () => void;
 }
 

@@ -30,7 +30,6 @@ const DESTINO_VISUAL: Record<DestinoConfig, { icono: LucideIcon; clase: string }
   },
 };
 
-/** Destinos habilitados de una variable, cada uno con su color e icono. */
 export function DestinosVariable({ variable, className }: DestinosVariableProps) {
   const activos = DESTINOS.filter((destino) => variable[destino.campo]);
 

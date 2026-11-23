@@ -15,9 +15,7 @@ public class ConfiguracionValueValidatorTests
 
     private static JsonElement JsonNulo() => Json("null");
 
-    // ------------------------------------------------------------- tipos base
-
-    [Theory]
+[Theory]
     [InlineData("string", "\"texto\"")]
     [InlineData("text", "\"texto largo\"")]
     [InlineData("integer", "123")]
@@ -91,9 +89,7 @@ public class ConfiguracionValueValidatorTests
         resultado.FirstError.Description.Should().Contain("obligatorio");
     }
 
-    // ------------------------------------------------------------------ rangos
-
-    [Fact]
+[Fact]
     public void Validar_Rango_Devuelve_Ruta_Del_Extremo_Invalido()
     {
         var resultado = ConfiguracionValueValidator.Validar(
@@ -115,9 +111,7 @@ public class ConfiguracionValueValidatorTests
             .IsError.Should().BeFalse();
     }
 
-    // ------------------------------------------------------------ restricciones
-
-    [Fact]
+[Fact]
     public void Validar_String_Respeta_MinLength_Y_MaxLength()
     {
         var esquema = Json("{\"type\":\"string\",\"minLength\":3,\"maxLength\":5}");
@@ -157,9 +151,7 @@ public class ConfiguracionValueValidatorTests
         ConfiguracionValueValidator.Validar("decimal", Json("10.5"), esquema).IsError.Should().BeTrue();
     }
 
-    // ------------------------------------------------------------------- enum
-
-    [Fact]
+[Fact]
     public void Validar_Enum_Con_Enum_Declarado()
     {
         var esquema = Json("{\"type\":\"string\",\"enum\":[\"activo\",\"inactivo\"]}");
@@ -181,9 +173,7 @@ public class ConfiguracionValueValidatorTests
         ConfiguracionValueValidator.Validar("enum", Json("\"México\""), esquema).IsError.Should().BeTrue();
     }
 
-    // ----------------------------------------------------------------- object
-
-    [Fact]
+[Fact]
     public void Validar_Object_Exige_Propiedades_Requeridas()
     {
         var esquema = Json(
@@ -228,9 +218,7 @@ public class ConfiguracionValueValidatorTests
         resultado.FirstError.Description.Should().Contain("smtp.puerto");
     }
 
-    // ------------------------------------------------------------------ array
-
-    [Fact]
+[Fact]
     public void Validar_Array_Valida_Cada_Elemento()
     {
         var esquema = Json("{\"type\":\"array\",\"items\":{\"type\":\"integer\"}}");
@@ -242,9 +230,7 @@ public class ConfiguracionValueValidatorTests
         resultado.FirstError.Description.Should().Contain("valor[1]");
     }
 
-    // ---------------------------------------------------------------- esquema
-
-    [Fact]
+[Fact]
     public void Validar_Esquema_Invalido_Se_Rechaza()
     {
         ConfiguracionValueValidator.ValidarEsquema(Json("[1,2]")).IsError.Should().BeTrue();

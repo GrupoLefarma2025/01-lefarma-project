@@ -7,16 +7,13 @@ public class EmpresaConfiguration : IEntityTypeConfiguration<Empresa>
     {
         public void Configure(EntityTypeBuilder<Empresa> builder)
         {
-            // Tabla
             builder.ToTable("empresas", "catalogos");
 
-            // Clave primaria
             builder.HasKey(e => e.IdEmpresa);
             builder.Property(e => e.IdEmpresa)
                 .HasColumnName("id_empresa")
                 .ValueGeneratedOnAdd();
 
-            // Propiedades requeridas
             builder.Property(e => e.Nombre)
                 .HasColumnName("nombre")
                 .HasMaxLength(255)
@@ -93,18 +90,15 @@ public class EmpresaConfiguration : IEntityTypeConfiguration<Empresa>
             builder.Property(e => e.FechaModificacion)
                 .HasColumnName("fecha_modificacion");
 
-            // Relaciones
             builder.HasMany(e => e.Sucursales)
                 .WithOne(s => s.Empresa)
                 .HasForeignKey(s => s.IdEmpresa)
                 .OnDelete(DeleteBehavior.Restrict);
-            //.HasConstraintName("FK_sucursales_empresas");
 
             builder.HasMany(e => e.Areas)
                 .WithOne(a => a.Empresa)
                 .HasForeignKey(a => a.IdEmpresa)
                 .OnDelete(DeleteBehavior.Restrict);
-            //.HasConstraintName("FK_areas_empresas");
         }
     }
 }

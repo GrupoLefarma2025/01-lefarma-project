@@ -1,10 +1,3 @@
-/**
- * Utilidades del módulo Configuración:
- *  - normalización de tipoDato / clave
- *  - constructor visual ⇄ JSON Schema
- *  - valores dinámicos, validación y diff para el historial
- */
-
 import type { ApiError } from '@/types/api.types';
 import { checkPermission } from '@/utils/permissions';
 import {
@@ -19,12 +12,7 @@ import {
   type TipoDatoRango,
 } from './types';
 
-/* ------------------------------------------------------------------ */
-/* Texto y claves                                                      */
-/* ------------------------------------------------------------------ */
-
 export const CLAVE_REGEX = /^[a-z][a-zA-Z0-9_]*(\.[a-z][a-zA-Z0-9_]*)+$/;
-/** Clave de una variable con módulo: `modulo.namespace.clave` (3 segmentos). */
 export const CLAVE_MODULO_REGEX = /^[a-z][a-zA-Z0-9_]*(\.[a-z][a-zA-Z0-9_]*){2}$/;
 export const NOMBRE_CAMPO_REGEX = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
@@ -32,12 +20,10 @@ export function sinAcentos(texto: string): string {
   return texto.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 }
 
-/** Convierte texto libre a camelCase: "Días límite" → "diasLimite". */
 export function aCamelCase(texto: string): string {
   const limpio = sinAcentos(texto).trim();
   if (!limpio) return '';
 
-  // Respeta camelCase ya escrito; normaliza siglas en mayúsculas.
   if (/^[a-zA-Z][a-zA-Z0-9]*$/.test(limpio)) {
     if (limpio === limpio.toUpperCase()) return limpio.toLowerCase();
     return limpio.charAt(0).toLowerCase() + limpio.slice(1);
@@ -55,42 +41,27 @@ export function aCamelCase(texto: string): string {
     : `v${resultado.charAt(0).toUpperCase()}${resultado.slice(1)}`;
 }
 
-/** namespace + nombre → "viaticos.diasLimite". Sin namespace no inventa uno. */
 export function construirClave(namespace: string, nombre: string): string {
   const ns = aCamelCase(namespace);
   const clave = aCamelCase(nombre);
   return ns && clave ? `${ns}.${clave}` : '';
 }
 
-/**
- * Segmentos de una clave separados por punto.
- * `viaticos.catalogo.diasLimite` → `['viaticos','catalogo','diasLimite']`.
- */
 export function segmentosDeClave(clave: string): string[] {
   return clave.split('.').filter(Boolean);
 }
 
-/**
- * Módulo de una clave: el primer segmento cuando la clave tiene tres partes.
- * `viaticos.catalogo.diasLimite` → `viaticos`. En claves de dos segmentos no hay módulo.
- */
 export function moduloDeClave(clave: string): string | null {
   const partes = segmentosDeClave(clave);
   return partes.length >= 3 ? partes[0] : null;
 }
 
-/**
- * Namespace de una clave: el segundo segmento cuando la clave incluye módulo
- * (`viaticos.catalogo.diasLimite` → `catalogo`); si no, la parte anterior al primer punto.
- * `pruebas.entero` → `pruebas`. Si no hay punto, devuelve la clave completa.
- */
 export function namespaceDeClave(clave: string): string {
   const partes = segmentosDeClave(clave);
   if (partes.length >= 3) return partes[1];
   return partes[0] ?? clave;
 }
 
-/** Namespaces únicos de un listado de variables, ordenados alfabéticamente. */
 export function namespacesDeVariables(
   variables: ReadonlyArray<{ clave: string }>,
 ): string[] {
@@ -99,16 +70,6 @@ export function namespacesDeVariables(
   );
 }
 
-/**
- * Patrones de claves permitidas para una llave de integración según el alcance
- * elegido. Sin módulo, namespace ni clave devuelve una lista vacía (sin restricción).
- *
- * - Clave → coincidencia exacta.
- * - Módulo y namespace → `modulo.namespace.*`.
- * - Sólo módulo → `modulo.*`.
- * - Sólo namespace → un patrón por módulo que tenga ese namespace; las claves
- *   legadas de dos segmentos se cubren con `namespace.*`.
- */
 export function patronesAlcanceIntegracion(
   variables: ReadonlyArray<{ clave: string }>,
   modulo: string | null,
@@ -139,11 +100,6 @@ export function patronesAlcanceIntegracion(
   return patrones;
 }
 
-/**
- * Normaliza un segmento de clave mientras se escribe: minúsculas, los espacios
- * se vuelven `_` y cualquier signo fuera de `a-z0-9_` se descarta.
- * `Días límite!` → `dias_limite`.
- */
 export function aSegmentoClave(texto: string): string {
   return sinAcentos(texto)
     .toLowerCase()
@@ -154,11 +110,6 @@ export function aSegmentoClave(texto: string): string {
     .replace(/^\d+_?/, '');
 }
 
-/**
- * Igual que `aSegmentoClave`, pero conserva el `_` final que produce un espacio
- * recién escrito. Si se recortara, el espacio desaparecería antes de la
- * siguiente letra y nunca se vería el guion bajo.
- */
 export function aSegmentoClaveAlEscribir(texto: string): string {
   const normalizado = aSegmentoClave(texto);
   return /\s$/.test(texto) && normalizado ? `${normalizado}_` : normalizado;
@@ -181,10 +132,6 @@ export function validarClave(
   }
   return null;
 }
-
-/* ------------------------------------------------------------------ */
-/* Normalización de tipoDato                                           */
-/* ------------------------------------------------------------------ */
 
 const ALIAS_TIPO: Record<string, TipoDatoConfig> = {
   textocorto: 'texto_corto',
@@ -250,7 +197,6 @@ function firmaTipo(tipo: string): string {
   return sinAcentos(tipo).toLowerCase().replace(/[\s_\-.]/g, '');
 }
 
-/** Devuelve el tipo canónico o `null` si el backend usa un valor desconocido. */
 export function normalizarTipoDato(tipo: string | null | undefined): TipoDatoConfig | null {
   if (!tipo) return null;
   const firma = firmaTipo(tipo);
@@ -261,12 +207,10 @@ export function normalizarTipoDato(tipo: string | null | undefined): TipoDatoCon
   return directo ? directo.valor : null;
 }
 
-/** Tipo utilizable por la UI; los desconocidos se editan como JSON libre. */
 export function tipoEfectivo(tipo: string | null | undefined): TipoDatoConfig {
   return normalizarTipoDato(tipo) ?? 'json';
 }
 
-/** Traduce el tipo de la UI al valor canónico que persiste el backend. */
 export function tipoDatoBackend(tipo: string): string {
   const normalizado = normalizarTipoDato(tipo);
   return normalizado ? TIPO_DATO_BACKEND[normalizado] : tipo;
@@ -279,10 +223,6 @@ export function etiquetaTipo(tipo: string): string {
   }
   return tipo || 'Desconocido';
 }
-
-/* ------------------------------------------------------------------ */
-/* JSON helpers                                                        */
-/* ------------------------------------------------------------------ */
 
 export function esObjetoPlano(valor: unknown): valor is Record<string, unknown> {
   return typeof valor === 'object' && valor !== null && !Array.isArray(valor);
@@ -310,11 +250,6 @@ export function parsearJson(texto: string): ResultadoJson {
   }
 }
 
-/**
- * Valor inicial de un campo agregado a una lista. Es un valor estructural para
- * que el editor pueda abrir una fila nueva; la validación seguirá exigiendo que
- * el usuario lo complete cuando corresponda.
- */
 export function valorPorDefecto(tipo: string, esquema?: JsonSchemaNodo | null): unknown {
   const t = tipoEfectivo(tipo);
   switch (t) {
@@ -347,10 +282,6 @@ export function valorPorDefecto(tipo: string, esquema?: JsonSchemaNodo | null): 
   }
 }
 
-/**
- * Valor inicial al seleccionar un tipo en el formulario principal.
- * No inventa un dato de negocio: textos vacíos, números/booleanos sin elegir.
- */
 export function valorInicialFormulario(tipo: string, esLista = false): unknown {
   if (esLista) return [];
   const t = tipoEfectivo(tipo);
@@ -372,7 +303,6 @@ export function valorInicialFormulario(tipo: string, esLista = false): unknown {
   }
 }
 
-/** Normaliza lo que llega del backend para que los editores no truenen. */
 export function valorDesdeServidor(tipo: string, valor: unknown): unknown {
   const t = tipoEfectivo(tipo);
   switch (t) {
@@ -411,7 +341,6 @@ export function valorDesdeServidor(tipo: string, valor: unknown): unknown {
   }
 }
 
-/** Resumen de una línea para la tabla. */
 export function resumirValor(valor: unknown, maximo = 72): string {
   if (valor === null || valor === undefined) return '—';
   if (typeof valor === 'string') {
@@ -431,10 +360,6 @@ export function resumirValor(valor: unknown, maximo = 72): string {
     return String(valor);
   }
 }
-
-/* ------------------------------------------------------------------ */
-/* Fechas                                                              */
-/* ------------------------------------------------------------------ */
 
 const FORMATO_FECHA = new Intl.DateTimeFormat('es-MX', {
   day: '2-digit',
@@ -457,7 +382,6 @@ export function formatearFecha(valor: string | null | undefined, conHora = false
   return conHora ? FORMATO_FECHA_HORA.format(fecha) : FORMATO_FECHA.format(fecha);
 }
 
-/** Fecha de una entrada de bitácora (`fecha` legado o `fechaCreacion`). */
 export function fechaBitacora(entrada: {
   fecha?: string;
   fechaCreacion?: string;
@@ -465,12 +389,10 @@ export function fechaBitacora(entrada: {
   return entrada.fecha ?? entrada.fechaCreacion ?? '';
 }
 
-/** ISO → valor para <input type="datetime-local">. */
 export function aDatetimeLocal(valor: unknown): string {
   if (typeof valor !== 'string' || !valor) return '';
   const fecha = new Date(valor);
   if (Number.isNaN(fecha.getTime())) {
-    // Ya viene en formato local (sin zona): recorta a minutos.
     const match = valor.match(/^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2})/);
     return match ? match[1] : '';
   }
@@ -480,14 +402,12 @@ export function aDatetimeLocal(valor: unknown): string {
   )}:${pad(fecha.getMinutes())}`;
 }
 
-/** <input type="datetime-local"> → ISO UTC. */
 export function desdeDatetimeLocal(valor: string): string {
   if (!valor) return '';
   const fecha = new Date(valor);
   return Number.isNaN(fecha.getTime()) ? valor : fecha.toISOString();
 }
 
-/** Fecha ISO → "YYYY-MM-DD" para <input type="date">. */
 export function aFechaInput(valor: unknown): string {
   if (typeof valor !== 'string') return '';
   const match = valor.match(/^(\d{4}-\d{2}-\d{2})/);
@@ -498,23 +418,12 @@ export function aFechaInput(valor: unknown): string {
   return `${fecha.getFullYear()}-${pad(fecha.getMonth() + 1)}-${pad(fecha.getDate())}`;
 }
 
-/** Hora ISO → "HH:mm" / "HH:mm:ss" para <input type="time">. */
 export function aHoraInput(valor: unknown): string {
   if (typeof valor !== 'string') return '';
   const match = valor.match(/(\d{2}:\d{2}(?::\d{2})?)/);
   return match ? match[1] : '';
 }
 
-/* ------------------------------------------------------------------ */
-/* Constructor visual ⇄ JSON Schema                                    */
-/* ------------------------------------------------------------------ */
-
-/**
- * UUID v4 compatible con contextos HTTP no seguros. `crypto.randomUUID()`
- * no existe en todos los navegadores cuando la aplicación se sirve por HTTP;
- * `crypto.getRandomValues` sí está disponible y permite generar la operación
- * idempotente sin dejar el formulario bloqueado.
- */
 function uuidV4(): string {
   const cryptoApi = globalThis.crypto;
 
@@ -546,7 +455,6 @@ export function campoVacio(): SchemaField {
   };
 }
 
-/** Esquema de un rango: objeto `{ desde, hasta }` del tipo base. */
 export function esquemaRango(tipo: TipoDatoRango): JsonSchemaNodo {
   const base: JsonSchemaNodo =
     tipo === 'rango_fecha'
@@ -565,7 +473,6 @@ export function esquemaRango(tipo: TipoDatoRango): JsonSchemaNodo {
   };
 }
 
-/** Reconoce el esquema de un rango; null si no tiene esa forma. */
 function tipoDeEsquemaRango(nodo: JsonSchemaNodo): TipoDatoRango | null {
   if (nodo.type !== 'object') return null;
   const desde = nodo.properties?.desde;
@@ -616,7 +523,6 @@ function esquemaDeTipo(tipo: TipoCampoConstructor): JsonSchemaNodo {
   }
 }
 
-/** Esquema de un tipo simple, sin objetos ni selecciones configuradas. */
 export function esquemaBaseDeTipo(tipo: TipoCampoConstructor): JsonSchemaNodo {
   return esquemaDeTipo(tipo);
 }
@@ -630,7 +536,6 @@ export function esquemaDeCampo(campo: SchemaField): JsonSchemaNodo {
   const descripcion = campo.descripcion?.trim();
   if (descripcion) base.description = descripcion;
 
-  // Compatibilidad con el modelo anterior de "Lista" como tipo.
   if (campo.tipo === 'lista' && !campo.esLista) {
     return {
       ...base,
@@ -690,10 +595,8 @@ function esquemaDeItemLista(campo: SchemaField): JsonSchemaNodo {
   return esquemaDeTipo(itemTipo);
 }
 
-/** Configuración editable de una variable para construir su JSON Schema. */
 export interface ConfiguracionEsquema {
   tipo: string;
-  /** Convierte la configuración base en un arreglo de ese tipo. */
   esLista?: boolean;
   campos: SchemaField[];
   opciones: string[];
@@ -704,11 +607,9 @@ export interface ConfiguracionEsquema {
   itemClavesAdicionales?: boolean;
 }
 
-/** Construye el JSON Schema completo de la variable. */
 export function construirEsquema(config: ConfiguracionEsquema): JsonSchemaNodo | null {
   const t = tipoEfectivo(config.tipo);
 
-  // Compatibilidad con el modelo anterior de listas con itemTipo.
   if (t === 'lista' && !config.esLista) {
     const itemTipo = config.itemTipo ?? 'texto_corto';
     if (itemTipo === 'objeto') {
@@ -772,7 +673,6 @@ export interface ItemListaConfig {
   opciones: string[];
 }
 
-/** Extrae la configuración del `items` de una lista existente. */
 export function itemListaDeEsquema(esquema: unknown): ItemListaConfig {
   const nodo = esObjetoPlano(esquema) ? (esquema as JsonSchemaNodo) : null;
   const items =
@@ -822,12 +722,10 @@ function opcionesDeNodo(nodo: JsonSchemaNodo): string[] {
   return [];
 }
 
-/** Tipo del editor para un nodo de esquema (para editores anidados). */
 export function tipoEditorDeEsquema(nodo: JsonSchemaNodo | null | undefined): TipoDatoConfig {
   return nodo ? tipoDeNodo(nodo) : 'texto_corto';
 }
 
-/** Convierte un JSON Schema existente al modelo del constructor. */
 export function esquemaACampos(esquema: unknown): SchemaField[] {
   if (!esObjetoPlano(esquema)) return [];
   const nodo = esquema as JsonSchemaNodo;
@@ -843,8 +741,6 @@ export function esquemaACampos(esquema: unknown): SchemaField[] {
       : hijo;
     const tipoOriginal = tipoDeNodo(nodoBase);
 
-    // El editor actual modela una lista como tipo base + casilla "Lista".
-    // El único caso que conserva el tipo Lista es una lista de listas.
     if (esArray && tipoOriginal === 'lista') {
       return {
         id: nuevoIdCampo(),
@@ -884,11 +780,6 @@ export function clavesAdicionalesDeEsquema(esquema: JsonSchemaNodo | null): bool
   return esquema?.additionalProperties === true;
 }
 
-/**
- * Ajusta un valor al esquema actual: elimina claves no declaradas cuando
- * `additionalProperties` es false y depura recursivamente listas/objetos.
- * Evita que el backend rechace propiedades que ya no existen en el esquema.
- */
 export function depurarValorSegunEsquema(
   valor: unknown,
   esquema: JsonSchemaNodo | null,
@@ -920,7 +811,6 @@ export function depurarValorSegunEsquema(
   return valor;
 }
 
-/** Valida el árbol del constructor; devuelve mensajes legibles. */
 export function validarConstructor(campos: SchemaField[], ruta = ''): string[] {
   const errores: string[] = [];
   const vistos = new Set<string>();
@@ -977,10 +867,6 @@ export function validarConstructor(campos: SchemaField[], ruta = ''): string[] {
 
   return errores;
 }
-
-/* ------------------------------------------------------------------ */
-/* Validación de valores contra el esquema                             */
-/* ------------------------------------------------------------------ */
 
 function validarContraEsquema(
   valor: unknown,
@@ -1060,7 +946,6 @@ function validarContraEsquema(
 
 const REGEX_FECHA_RANGO = /^\d{4}-\d{2}-\d{2}$/;
 
-/** Valida un rango `{ desde, hasta }` del tipo indicado y su orden. */
 function validarRangoVariable(tipo: TipoDatoRango, valor: unknown): string[] {
   if (!esObjetoPlano(valor)) {
     return ['Completa el rango con un valor desde y uno hasta.'];
@@ -1131,7 +1016,6 @@ function validarRangoVariable(tipo: TipoDatoRango, valor: unknown): string[] {
   return errores;
 }
 
-/** Valida el valor según el tipo de la variable. Devuelve mensajes. */
 export function validarValorVariable(
   tipo: string,
   valor: unknown,
@@ -1208,17 +1092,9 @@ export function validarValorVariable(
   return errores;
 }
 
-/* ------------------------------------------------------------------ */
-/* Permisos                                                            */
-/* ------------------------------------------------------------------ */
-
 export function tienePermiso(codigo: string): boolean {
   return checkPermission({ require: codigo });
 }
-
-/* ------------------------------------------------------------------ */
-/* Errores / operaciones                                               */
-/* ------------------------------------------------------------------ */
 
 export function esCancelado(error: unknown): boolean {
   const e = error as { message?: string; name?: string };
@@ -1240,7 +1116,6 @@ export function mensajeError(error: unknown, porDefecto = 'Ocurrió un error ine
   return porDefecto;
 }
 
-/** Descripciones de los errores de validación del backend. */
 export function detallesError(error: unknown): string[] {
   const errores = (error as ApiError)?.errors;
   if (!Array.isArray(errores)) return [];
@@ -1249,17 +1124,12 @@ export function detallesError(error: unknown): string[] {
     .filter((descripcion): descripcion is string => Boolean(descripcion));
 }
 
-/** Mensaje + detalles de validación en una sola línea. */
 export function mensajeErrorCompleto(error: unknown, porDefecto?: string): string {
   return [mensajeError(error, porDefecto), ...detallesError(error)]
     .filter(Boolean)
     .join(' · ');
 }
 
-/**
- * Un fallo es reintentable si pudo haber sido un timeout o una caída
- * temporal: en ese caso se conserva el idOperacion para reintentar.
- */
 export function esErrorReintentable(error: unknown): boolean {
   const status = (error as ApiError)?.statusCode;
   if (status === undefined) return true;
@@ -1275,17 +1145,12 @@ export function nuevoIdOperacion(): string {
   return uuidV4();
 }
 
-/** Clave estable para rastrear el idOperacion de una acción. */
 export function claveOperacionEstado(
   accion: 'desactivar' | 'reactivar',
   idVariable: number,
 ): string {
   return `${accion}:${idVariable}`;
 }
-
-/* ------------------------------------------------------------------ */
-/* Diff para historial                                                 */
-/* ------------------------------------------------------------------ */
 
 export interface CambioDiff {
   ruta: string;
@@ -1413,7 +1278,6 @@ export function etiquetaAccion(accion: string): string {
   return ETIQUETAS_ACCION[clave] ?? (accion || 'Cambio');
 }
 
-/** true cuando el destino del filtro de la lista está soportado. */
 export function esDestino(valor: string): valor is DestinoConfig {
   return valor === 'backend' || valor === 'frontend' || valor === 'sql' || valor === 'integraciones';
 }

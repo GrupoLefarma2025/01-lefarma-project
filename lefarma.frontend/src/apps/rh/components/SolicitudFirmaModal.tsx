@@ -140,7 +140,6 @@ function getCamposParaAccion(accion: AccionDisponibleResponse | null): CampoForm
         }
       }
     } catch {
-      /* ignore */
     }
   }
   return result;
@@ -166,17 +165,12 @@ export function SolicitudFirmaModal({
   const [archivosExistentes, setArchivosExistentes] = useState<ArchivoListItem[]>([]);
   const [revisiones, setRevisiones] = useState<Record<string, boolean>>({});
   const [confirmDiscard, setConfirmDiscard] = useState(false);
-  // Cubre el tramo entre el clic y el cierre: el padre apaga isSubmitting antes de que el modal
-  // se cierre, y sin esta bandera el velo desaparecía un instante dejando el modal «pausado».
   const [procesando, setProcesando] = useState(false);
   const [incidenciasAutorizadasMes, setIncidenciasAutorizadasMes] = useState<number | null>(null);
   const initialCamposRef = useRef<Record<string, unknown>>({});
 
   const camposParaAccion = useMemo(() => getCamposParaAccion(accion), [accion]);
 
-  // Aviso de solo lectura para el jefe: cuántas incidencias tiene su gente en el mes de la
-  // incidencia que está autorizando. Solo se consulta cuando la acción es AUTORIZAR sobre
-  // una incidencia; no ejecuta nada.
   const periodoConteo = useMemo(() => {
     const fecha = solicitud.fechaInicio ? new Date(solicitud.fechaInicio) : null;
     if (fecha && !Number.isNaN(fecha.getTime())) {
@@ -282,7 +276,6 @@ export function SolicitudFirmaModal({
   const esRetorno = accion?.tipoAccionCodigo === 'DEVOLVER';
 
   const cerrar = useCallback(() => {
-    // Los archivos ya subidos quedan asociados a la solicitud (no se borran al cerrar).
     setComentario('');
     setCamposValues({});
     setArchivoSubidos({});
@@ -338,7 +331,6 @@ export function SolicitudFirmaModal({
               .filter((i) => i.value && i.label);
             setCatalogos((prev) => ({ ...prev, [campo.sourceCatalog!]: normalized }));
           } catch {
-            /* silent */
           }
         });
       Promise.all(fetches).finally(() => setLoadingCatalogos(false));

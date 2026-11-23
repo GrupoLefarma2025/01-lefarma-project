@@ -7,65 +7,43 @@ public class UsuarioDetalle
     public int? IdArea { get; set; }
     public int? IdCentroCosto { get; set; }
 
-    // Información laboral
     public string? Puesto { get; set; }
     public string? NumeroEmpleado { get; set; }
-    /// <summary>
-    /// Ruta del archivo de firma digital del usuario (contrato exclusivo de la versión CXP).
-    /// El sistema RH no la escribe ni la usa.
-    /// </summary>
     public string? FirmaPath { get; set; }
 
-    /// <summary>
-    /// Puntero a la firma cifrada vigente del sistema RH (nombre lógico sin .enc).
-    /// Único campo que define "tener firma" para RH; los usuarios legacy lo tienen nulo.
-    /// </summary>
     public string? FirmaPathCifrada { get; set; }
 
-    /// <summary>
-    /// Historial de eventos de la firma digital (JSON: subida, eliminacion, solicitud,
-    /// habilitacion). El estado (subidas, cambio habilitado, solicitud pendiente) se
-    /// deriva del historial via Domain.Firmas.FirmaControl.
-    /// Regla: solo la subida inicial es libre; reemplazos requieren habilitación RH.
-    /// </summary>
     public string? FirmaControlJson { get; set; }
 
-    // Contacto
     public string? TelefonoOficina { get; set; }
     public string? Extension { get; set; }
     public string? Celular { get; set; }
     public string? TelegramChat { get; set; }
 
-    // Configuración de notificaciones
     public bool NotificarEmail { get; set; } = true;
     public bool NotificarApp { get; set; } = true;
     public bool NotificarWhatsapp { get; set; } = false;
     public bool NotificarSms { get; set; } = false;
     public bool NotificarTelegram { get; set; } = false;
 
-    // Filtros específicos de notificación
     public bool NotificarSoloUrgentes { get; set; } = false;
     public bool NotificarResumenDiario { get; set; } = true;
     public bool NotificarRechazos { get; set; } = true;
     public bool NotificarVencimientos { get; set; } = true;
 
-    // Continuidad operativa
     public int? IdUsuarioDelegado { get; set; }
     public DateTime? DelegacionHasta { get; set; }
 
-    // Configuración de interfaz
     public string? AvatarUrl { get; set; }
     public string TemaInterfaz { get; set; } = "light";
     public string? DashboardInicio { get; set; }
 
-    // Destinatarios predeterminados de notificaciones de incidencias de checado (JSON array de IDs)
     public string? DestinatariosIncidenciasDefault { get; set; }
 
     public bool Activo { get; set; } = true;
     public DateTime FechaCreacion { get; set; }
     public DateTime FechaModificacion { get; set; }
 
-    // Navigation properties
     public Empresa Empresa { get; set; } = null!;
     public Sucursal Sucursal { get; set; } = null!;
     public Area? Area { get; set; }

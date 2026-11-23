@@ -21,10 +21,6 @@ public interface IEmpleadoRepository
         IEnumerable<long> nominas,
         CancellationToken cancellationToken = default);
 
-    /// <summary>
-    /// Nóminas de los empleados que reportan a la nómina indicada en cualquiera de los
-    /// niveles de jefe (vwEmpleadosYJefes de Asistencias).
-    /// </summary>
     Task<List<long>> ObtenerNominasSubordinadosAsync(
         long nomina,
         CancellationToken cancellationToken = default);
@@ -40,9 +36,6 @@ public interface IEmpleadoRepository
         int idUsuario,
         CancellationToken cancellationToken = default);
 
-    /// <summary>
-    /// Empleados de Asistencias para varios usuarios (una consulta por nómina y una por correo).
-    /// </summary>
     Task<Dictionary<int, VwEmpleado>> ObtenerEmpleadosPorUsuariosAsync(
         IEnumerable<int> idsUsuarios,
         CancellationToken cancellationToken = default);

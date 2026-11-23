@@ -59,7 +59,6 @@ function renderModal(isSubmitting: boolean) {
 
 async function renderAndSettle(isSubmitting: boolean) {
   const result = renderModal(isSubmitting);
-  // Deja resolver la carga de archivos existentes que arranca el modal al abrirse.
   await act(async () => {
     await Promise.resolve();
     await Promise.resolve();

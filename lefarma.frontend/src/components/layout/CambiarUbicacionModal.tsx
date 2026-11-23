@@ -38,7 +38,6 @@ export default function CambiarUbicacionModal({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // Resetear cuando se abre el modal
   useEffect(() => {
     if (open) {
       setSelectedEmpresa('');
@@ -48,7 +47,6 @@ export default function CambiarUbicacionModal({
     }
   }, [open]);
 
-  // Filtrar sucursales cuando se selecciona una empresa
   useEffect(() => {
     if (selectedEmpresa) {
       const filtradas = sucursales.filter((s) => {
@@ -58,7 +56,6 @@ export default function CambiarUbicacionModal({
       });
       setSucursalesFiltradas(filtradas);
 
-      // Auto-seleccionar si solo hay una
       if (filtradas.length === 1) {
         const sucursal = filtradas[0];
         if (sucursal.idSucursal && sucursal.idSucursal !== undefined) {
@@ -82,7 +79,6 @@ export default function CambiarUbicacionModal({
         authService.getSucursales(),
       ]);
 
-      // Solo empresas activas: una empresa dada de baja no se ofrece.
       setEmpresas(empresasData.filter((empresa) => empresa.activo !== false));
       setSucursales(sucursalesData);
     } catch (err: unknown) {
@@ -142,7 +138,7 @@ export default function CambiarUbicacionModal({
         </DialogHeader>
 
         <div className="space-y-4 py-4">
-          {/* Info del usuario */}
+          {}
           {user?.nombre && (
             <div className="text-center py-2 px-4 bg-muted rounded-lg">
               <p className="text-sm text-muted-foreground">Usuario</p>
@@ -150,7 +146,7 @@ export default function CambiarUbicacionModal({
             </div>
           )}
 
-          {/* Error */}
+          {}
           {error && (
             <div className="flex items-center gap-2 rounded-md border border-red-200 bg-red-50 p-3 text-red-800">
               <AlertCircle className="h-4 w-4 shrink-0" />
@@ -158,7 +154,7 @@ export default function CambiarUbicacionModal({
             </div>
           )}
 
-          {/* Loading */}
+          {}
           {isLoading && (
             <div className="flex items-center justify-center py-8">
               <Loader2 className="h-6 w-6 animate-spin text-primary" />
@@ -168,7 +164,7 @@ export default function CambiarUbicacionModal({
             </div>
           )}
 
-          {/* Selección de Empresa */}
+          {}
           {!isLoading && (
             <div className="space-y-2">
               <label className="text-sm font-medium flex items-center gap-2">
@@ -197,7 +193,7 @@ export default function CambiarUbicacionModal({
             </div>
           )}
 
-          {/* Selección de Sucursal */}
+          {}
           {selectedEmpresa && !isLoading && (
             <div className="space-y-2">
               <label className="text-sm font-medium flex items-center gap-2">
@@ -238,7 +234,7 @@ export default function CambiarUbicacionModal({
           )}
         </div>
 
-        {/* Botones */}
+        {}
         <div className="flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2">
           <Button
             variant="outline"

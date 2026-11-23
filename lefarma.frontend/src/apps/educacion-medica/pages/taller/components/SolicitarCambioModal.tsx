@@ -51,10 +51,6 @@ interface SolicitarCambioModalProps {
   onCreated: () => void;
 }
 
-/**
- * "Solicitar cambio" del equipo (ADR-00010): con el candado puesto o la matriz fuera
- * de captura, el cambio viaja como solicitud al CEM (diff antes/después + motivo).
- */
 export function SolicitarCambioModal({
   open,
   onClose,

@@ -3,9 +3,6 @@ using Lefarma.API.Features.Help.DTOs;
 
 namespace Lefarma.API.Features.Help.DTOs;
 
-/// <summary>
-/// Request para crear un nuevo artículo de ayuda
-/// </summary>
 public record CreateHelpArticleRequest
 {
     public string Titulo { get; init; } = string.Empty;
@@ -17,9 +14,6 @@ public record CreateHelpArticleRequest
     public int Orden { get; init; }
 }
 
-/// <summary>
-/// Validador para CreateHelpArticleRequest
-/// </summary>
 public class CreateHelpArticleValidator : AbstractValidator<CreateHelpArticleRequest>
 {
     public CreateHelpArticleValidator()

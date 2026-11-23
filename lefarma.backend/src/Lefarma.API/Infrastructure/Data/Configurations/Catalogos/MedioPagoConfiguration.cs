@@ -7,16 +7,13 @@ public class MedioPagoConfiguration : IEntityTypeConfiguration<MedioPago>
     {
         public void Configure(EntityTypeBuilder<MedioPago> builder)
         {
-            // Tabla
             builder.ToTable("medios_pago", "catalogos");
 
-            // Clave primaria
             builder.HasKey(e => e.IdMedioPago);
             builder.Property(e => e.IdMedioPago)
                 .HasColumnName("id_medio_pago")
                 .ValueGeneratedOnAdd();
 
-            // Propiedades requeridas
             builder.Property(e => e.Nombre)
                 .HasColumnName("nombre")
                 .HasMaxLength(255)
@@ -73,7 +70,6 @@ public class MedioPagoConfiguration : IEntityTypeConfiguration<MedioPago>
             builder.Property(e => e.FechaModificacion)
                 .HasColumnName("fecha_modificacion");
 
-            // Índices para búsqueda optimizada
             builder.HasIndex(e => e.NombreNormalizado)
                 .HasDatabaseName("idx_medios_pago_nombre_normalizado");
 

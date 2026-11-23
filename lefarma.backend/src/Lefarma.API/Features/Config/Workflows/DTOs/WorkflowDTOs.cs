@@ -1,8 +1,5 @@
 namespace Lefarma.API.Features.Config.Workflows.DTOs
 {
-// ============================================================================
-    // Response DTOs auxiliares (deben estar antes de WorkflowResponse)
-    // ============================================================================
     public class CondicionResponse
     {
         public int IdCondicion { get; set; }
@@ -43,9 +40,6 @@ namespace Lefarma.API.Features.Config.Workflows.DTOs
         public List<WorkflowNotificacionCanalDto> Canales { get; set; } = new();
     }
 
-    // ============================================================================
-    // Main Response DTOs
-    // ============================================================================
     public class WorkflowResponse
     {
         public int IdWorkflow { get; set; }
@@ -181,9 +175,6 @@ namespace Lefarma.API.Features.Config.Workflows.DTOs
         public bool PermiteEditar { get; set; }
     }
 
-    // ============================================================================
-    // Accion DTOs
-    // ============================================================================
     public class CreateAccionRequest
     {
         public int IdTipoAccion { get; set; }
@@ -244,9 +235,6 @@ namespace Lefarma.API.Features.Config.Workflows.DTOs
         public bool Activo { get; set; } = true;
     }
 
-    // ============================================================================
-    // Condicion DTOs
-    // ============================================================================
     public class CreateCondicionRequest
     {
         public required string CampoEvaluacion { get; set; }
@@ -266,9 +254,6 @@ namespace Lefarma.API.Features.Config.Workflows.DTOs
         public bool Activo { get; set; } = true;
     }
 
-    // ============================================================================
-    // Participante DTOs
-    // ============================================================================
     public class CreateParticipanteRequest
     {
         public int? IdRol { get; set; }
@@ -287,9 +272,6 @@ namespace Lefarma.API.Features.Config.Workflows.DTOs
         public bool Activo { get; set; } = true;
     }
 
-    // ============================================================================
-    // Notificacion DTOs
-    // ============================================================================
     public class CreateNotificacionRequest
     {
         public int? IdPasoDestino { get; set; }
@@ -322,9 +304,6 @@ namespace Lefarma.API.Features.Config.Workflows.DTOs
         public List<WorkflowNotificacionCanalDto> Canales { get; set; } = new();
     }
 
-    // ============================================================================
-    // Canal Template DTOs
-    // ============================================================================
     public class WorkflowCanalTemplateResponse
     {
         public int IdTemplate { get; set; }
@@ -350,9 +329,6 @@ namespace Lefarma.API.Features.Config.Workflows.DTOs
         public bool Activo { get; set; } = true;
     }
 
-    // ============================================================================
-    // Tipo Notificacion DTOs
-    // ============================================================================
     public class WorkflowTipoNotificacionResponse
     {
         public int IdTipo { get; set; }
@@ -364,9 +340,6 @@ namespace Lefarma.API.Features.Config.Workflows.DTOs
         public bool Activo { get; set; }
     }
 
-    // ============================================================================
-    // Recordatorio DTOs
-    // ============================================================================
     public class WorkflowRecordatorioCanalDto
     {
         public int? IdRecordatorioCanal { get; set; }
@@ -471,7 +444,6 @@ namespace Lefarma.API.Features.Config.Workflows.DTOs
         public List<WorkflowRecordatorioCanalDto> Canales { get; set; } = new();
     }
 
-    // Scope types and mappings DTOs
     public class WorkflowScopeTypeResponse
     {
         public int IdScopeType { get; set; }

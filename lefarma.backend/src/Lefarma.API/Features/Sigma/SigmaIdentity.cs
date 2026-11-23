@@ -2,11 +2,6 @@ using System.Security.Claims;
 
 namespace Lefarma.API.Features.Sigma;
 
-/// <summary>
-/// Resuelve el actor de la petición: usuario de Active Directory autenticado por JWT
-/// (claims Name = SamAccountName, domain = Dominio, NameIdentifier = IdUsuario) o,
-/// si no hay JWT, visitante externo con la cabecera <c>X-Sigma-Visitor</c>.
-/// </summary>
 public sealed class SigmaIdentity
 {
     private readonly IHttpContextAccessor _httpContextAccessor;
@@ -18,7 +13,6 @@ public sealed class SigmaIdentity
         _visitorTokens = visitorTokens;
     }
 
-    /// <summary>Devuelve el actor de la petición o null si no hay identidad válida.</summary>
     public SigmaActor? Resolve()
     {
         var context = _httpContextAccessor.HttpContext;

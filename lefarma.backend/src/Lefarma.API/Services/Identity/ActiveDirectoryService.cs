@@ -10,10 +10,6 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace Lefarma.API.Services.Identity;
-/// <summary>
-/// Service for LDAP/Active Directory authentication and user management.
-/// Uses System.DirectoryServices.Protocols for cross-platform LDAP support.
-/// </summary>
 public class ActiveDirectoryService : IActiveDirectoryService
 {
     private readonly LdapOptions _options;
@@ -34,7 +30,6 @@ public class ActiveDirectoryService : IActiveDirectoryService
             .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
     }
 
-    /// <inheritdoc />
     public IReadOnlyList<LdapDomainOptions> GetConfiguredDomains()
     {
         return _options.Domains.AsReadOnly();
@@ -47,7 +42,6 @@ public class ActiveDirectoryService : IActiveDirectoryService
             .FirstOrDefaultAsync(dc => dc.Dominio == dominio, cancellationToken);
     }
 
-    /// <inheritdoc />
     public async Task<ErrorOr<bool>> AuthenticateAsync(
         string username,
         string password,
@@ -92,7 +86,6 @@ public class ActiveDirectoryService : IActiveDirectoryService
         }
     }
 
-    /// <inheritdoc />
     public async Task<ErrorOr<ActiveDirectoryUser?>> GetUserAsync(
         string username,
         CancellationToken cancellationToken = default)
@@ -104,15 +97,10 @@ public class ActiveDirectoryService : IActiveDirectoryService
 
         try
         {
-            // User information is retrieved from vwDirectorioActivo view
-            // This method should be called from a service that has access to the database
-            // The actual database query will be handled by a separate repository/service
-            // This is a placeholder that should be implemented with actual database access
 
             await Task.CompletedTask;
             _logger.LogDebug("GetUserAsync llamado para usuario {Username}", username);
 
-            // Return null - actual implementation should query vwDirectorioActivo
             return (ActiveDirectoryUser?)null;
         }
         catch (OperationCanceledException)
@@ -127,16 +115,11 @@ public class ActiveDirectoryService : IActiveDirectoryService
         }
     }
 
-    /// <summary>
-    /// Internal method to validate credentials against LDAP.
-    /// </summary>
     private bool ValidateCredentialsInternalAsync(
         string username,
         string password,
         DominioConfig domainConfig)
     {
-        // Build the base DN for the domain
-        // Example: domain "asokam" with BaseDn "com.mx" -> DC=asokam,DC=com,DC=mx
         var domainBaseDn = BuildBaseDn(domainConfig);
 
         _logger.LogInformation(
@@ -154,14 +137,11 @@ public class ActiveDirectoryService : IActiveDirectoryService
                 ? AuthType.Basic
                 : AuthType.Negotiate;
 
-            // Configure timeouts to prevent blocking
             var timeoutSeconds = 30;
             connection.Timeout = TimeSpan.FromSeconds(timeoutSeconds);
             connection.SessionOptions.SendTimeout = TimeSpan.FromSeconds(timeoutSeconds);
             connection.SessionOptions.TcpKeepAlive = false;
 
-            // Build the User Principal Name (UPN)
-            // Format: username@domain.basedn (e.g., usuario@asokam.com.mx)
             var userPrincipalName = $"{username}@{domainConfig.Dominio.ToLowerInvariant()}.{domainConfig.BaseDn}";
             var credential = new NetworkCredential(userPrincipalName, password);
 
@@ -172,7 +152,6 @@ public class ActiveDirectoryService : IActiveDirectoryService
 
             _logger.LogDebug("Bind exitoso para {UPN}", userPrincipalName);
 
-            // Bind successful - authentication complete
             _logger.LogInformation(
                 "Autenticacion exitosa para usuario {Username} en servidor {Server}:{Port}",
                 username, domainConfig.Servidor, domainConfig.Puerto);
@@ -194,10 +173,6 @@ public class ActiveDirectoryService : IActiveDirectoryService
         }
     }
 
-    /// <summary>
-    /// Builds the base DN from domain configuration.
-    /// Example: domain "asokam" with BaseDn "com.mx" -> DC=asokam,DC=com,DC=mx
-    /// </summary>
     private static string BuildBaseDn(DominioConfig config)
     {
         var parts = new List<string> { $"DC={config.Dominio.ToLowerInvariant()}" };
@@ -205,9 +180,6 @@ public class ActiveDirectoryService : IActiveDirectoryService
         return string.Join(",", parts);
     }
 
-    /// <summary>
-    /// Escapes special characters in LDAP filter values.
-    /// </summary>
     private static string EscapeLdapFilter(string value)
     {
         if (string.IsNullOrEmpty(value))

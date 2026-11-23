@@ -65,7 +65,6 @@ namespace Lefarma.API.Features.Config.Engine
             if (accion is null)
                 return new WorkflowEjecucionResult(false, "Acción no válida para el estado actual.", null, null);
 
-            // Validar que el usuario puede ejecutar acciones en este paso
             var idUsuarioSolicitante = ctx.Entidad is Lefarma.API.Domain.Entities.Rh.SolicitudPersonal sp
                 ? sp.IdUsuarioSolicitante ?? ctx.Entidad.IdUsuarioCreador
                 : ctx.Entidad.IdUsuarioCreador;
@@ -75,7 +74,6 @@ namespace Lefarma.API.Features.Config.Engine
             var esAccionCancelar = accion.TipoAccion?.Codigo == "CANCELAR";
             var puedeComoCreador = esCreador && esAccionCancelar;
 
-            // La acción CANCELAR es exclusiva del creador
             if (esAccionCancelar && !esCreador)
                 return new WorkflowEjecucionResult(false, "Solo el creador puede cancelar la entidad.", null, null);
 
@@ -90,7 +88,6 @@ namespace Lefarma.API.Features.Config.Engine
                 .OrderBy(h => h.OrdenEjecucion)
                 .ToList();
 
-            // Condiciones por handler: solo se ejecutan los que aplican a la entidad actual
             var handlersAplicables = new List<WorkflowAccionHandler>();
             foreach (var handler in actionHandlers)
             {
@@ -130,7 +127,6 @@ namespace Lefarma.API.Features.Config.Engine
                 }
             }
 
-            // Evaluar condiciones dinámicas (ej: Total > 100,000 → desviar a Firma 5)
             int? idPasoDestino = accion.IdPasoDestino;
             foreach (var condicion in accion.Condiciones.Where(c => c.Activo))
             {
@@ -145,7 +141,6 @@ namespace Lefarma.API.Features.Config.Engine
                 ? workflow.Pasos.FirstOrDefault(p => p.IdPaso == idPasoDestino.Value && p.Activo)
                 : null;
 
-            // Auto-skip de pasos de jefe sin jefe efectivo para el creador
             const int maxSaltos = 10;
             var saltos = 0;
             var pasosOmitidos = new List<(WorkflowPaso Paso, WorkflowAccion AccionAvance, int Nivel, MotivoOmisionJefe? Motivo, int? IdDestino)>();
@@ -160,7 +155,7 @@ namespace Lefarma.API.Features.Config.Engine
                     .OrderByDescending(a => a.TipoAccion != null && a.TipoAccion.Codigo == "APROBAR")
                     .ThenBy(a => a.IdAccion)
                     .FirstOrDefault();
-                if (accionAvance is null) break; // sin salida automática: queda como paso actual
+                if (accionAvance is null) break; 
 
                 int? destino = accionAvance.IdPasoDestino;
                 foreach (var condicion in accionAvance.Condiciones.Where(c => c.Activo))
@@ -173,8 +168,6 @@ namespace Lefarma.API.Features.Config.Engine
                 saltos++;
             }
 
-            // Fase 2 (T6): firma del usuario actuante al momento del evento (reimpresión fiel).
-            // OC conserva la firma legacy de CxP cuando el usuario aún no tiene firma cifrada RH.
             var firmasUsuario = await _context.UsuariosDetalle
                 .AsNoTracking()
                 .Where(d => d.IdUsuario == ctx.IdUsuario)
@@ -187,7 +180,6 @@ namespace Lefarma.API.Features.Config.Engine
                     ? firmasUsuario?.FirmaPath
                     : null;
 
-            // Registrar en bitácora la omisión de cada paso saltado
             foreach (var (pasoOmitido, accionAvance, nivel, motivo, destino) in pasosOmitidos)
             {
                 _context.WorkflowBitacoras.Add(new WorkflowBitacora
@@ -213,7 +205,6 @@ namespace Lefarma.API.Features.Config.Engine
                 });
             }
 
-            // Registrar en bitácora inmutable la transición ejecutada
             var snapshot = new Dictionary<string, object?>
             {
                 ["idWorkflow"] = workflow.IdWorkflow,
@@ -228,7 +219,7 @@ namespace Lefarma.API.Features.Config.Engine
             {
                 TipoEntidad = ctx.TipoEntidad,
                 IdEntidad = ctx.IdEntidad,
-                IdOrden = ctx.TipoEntidad == CodigoProceso.ORDEN_COMPRA ? ctx.IdEntidad : null, // Se mantiene para no romper compatibilidad con bitácora existente de órdenes
+                IdOrden = ctx.TipoEntidad == CodigoProceso.ORDEN_COMPRA ? ctx.IdEntidad : null, 
                 IdWorkflow = workflow.IdWorkflow,
                 IdPaso = nuevoPaso?.IdPaso ?? accion.PasoOrigen.IdPaso,
                 IdAccion = accion.IdAccion,
@@ -239,12 +230,6 @@ namespace Lefarma.API.Features.Config.Engine
             });
             await _context.SaveChangesAsync();
 
-            // Si la acción requiere envío concentrado, comunicar con sistema externo
-            if (accion.EnviaConcentrado)
-            {
-                Console.WriteLine($"[EnvioConcentrado] Entidad {ctx.IdEntidad} #{ctx.IdEntidad} - Acción {accion.IdAccion} requiere envío concentrado. Comunicando con sistema externo");
-            }
-
             return new WorkflowEjecucionResult(
                 Exitoso: true,
                 Error: null,
@@ -253,19 +238,15 @@ namespace Lefarma.API.Features.Config.Engine
             );
         }
 
-
-        public async Task<ICollection<WorkflowAccion>> GetAccionesDisponiblesAsync(
+public async Task<ICollection<WorkflowAccion>> GetAccionesDisponiblesAsync(
             int idWorkflow, int idEntidad, int idUsuario, string tipoEntidad)
         {
-            // Resolver el contexto de la entidad segun tipo
             var entityContext = await ResolveEntityContextAsync(tipoEntidad, idEntidad);
             if (entityContext?.IdPasoActual is null) return Array.Empty<WorkflowAccion>();
 
-            // Validar que el idWorkflow guardado en la entidad coincida
             if (entityContext.IdWorkflow != idWorkflow)
                 return Array.Empty<WorkflowAccion>();
 
-            // Cargar workflow con pasos, acciones y participantes por el idWorkflow
             var workflow = await _workflowRepo.GetQueryable()
                 .Include(w => w.Pasos)
                     .ThenInclude(p => p.AccionesOrigen)
@@ -293,7 +274,6 @@ namespace Lefarma.API.Features.Config.Engine
             var tieneAccionCancelar = pasoActual.AccionesOrigen
                 .Any(a => a.Activo && a.TipoAccion != null && a.TipoAccion.Codigo == "CANCELAR");
 
-            // Si no es participante ni creador con acción cancelar, no hay acciones disponibles
             if (!esParticipante && !(esCreador && tieneAccionCancelar))
                 return Array.Empty<WorkflowAccion>();
 
@@ -301,17 +281,14 @@ namespace Lefarma.API.Features.Config.Engine
 
             if (esCreador && (pasoActual.EsInicio || esParticipanteExplicito))
             {
-                // Creador en paso inicial o como participante explícito: ve todas las acciones
                 accionesFiltradas = acciones;
             }
             else if (esCreador && tieneAccionCancelar)
             {
-                // Creador NO participante explícito: solo CANCELAR
                 accionesFiltradas = acciones.Where(a => a.TipoAccion != null && a.TipoAccion.Codigo == "CANCELAR");
             }
             else if (esParticipanteExplicito)
             {
-                // Participante explícito (no creador): ve todo menos CANCELAR
                 accionesFiltradas = acciones.Where(a => a.TipoAccion == null || a.TipoAccion.Codigo != "CANCELAR");
             }
             else
@@ -321,7 +298,6 @@ namespace Lefarma.API.Features.Config.Engine
 
             var accionesResult = accionesFiltradas.ToList();
 
-            // Algun accion del paso tiene condiciones de enrutamiento
             if (pasoActual.AccionesOrigen.Any(a => a.Condiciones.Any()))
             {
                 var aprobaciones = accionesResult
@@ -356,18 +332,15 @@ namespace Lefarma.API.Features.Config.Engine
 
         private async Task<bool> IsUsuarioParticipanteAsync(WorkflowPaso paso, int idUsuario, int idUsuarioCreador, int? idUsuarioSolicitante = null)
         {
-            // Si es el paso inicial, el creador de la orden siempre puede ejecutar acciones
             if (paso.EsInicio && idUsuario == idUsuarioCreador)
                 return true;
 
             var participantes = paso.Participantes.Where(p => p.Activo).ToList();
-            if (!participantes.Any()) return true; // Si no hay participantes definidos, permitir a todos
+            if (!participantes.Any()) return true; 
 
-            // Verificar asignación directa por usuario
             if (participantes.Any(p => p.IdUsuario == idUsuario))
                 return true;
 
-            // Verificar asignación por rol
             var rolesUsuario = await _asokamContext.UsuariosRoles
                 .Where(ur => ur.IdUsuario == idUsuario && (ur.FechaExpiracion == null || ur.FechaExpiracion > DateTime.UtcNow))
                 .Select(ur => ur.IdRol)
@@ -376,7 +349,6 @@ namespace Lefarma.API.Features.Config.Engine
             if (participantes.Any(p => p.IdRol.HasValue && rolesUsuario.Contains(p.IdRol.Value)))
                 return true;
 
-            // Verificar asignación por jefe inmediato (por nivel, con checks y exclusiones)
             foreach (var p in participantes.Where(p => p.RequiereJefeInmediato))
             {
                 var jefe = await _jefeInmediatoResolver.ResolverJefeEfectivoAsync(
@@ -423,10 +395,6 @@ namespace Lefarma.API.Features.Config.Engine
         private record WorkflowEntityContext(
             int IdWorkflow, int? IdPasoActual, int IdUsuarioCreador, int? IdUsuarioSolicitante);
 
-        /// <summary>
-        /// Un paso se omite si TODOS sus participantes activos son de tipo jefe inmediato
-        /// y ninguno tiene un jefe efectivo (check activo, cadena resoluble, usuario existe, no excluido).
-        /// </summary>
         private async Task<(bool Omitir, int Nivel, MotivoOmisionJefe? Motivo)> DebeOmitirsePasoJefeAsync(
             WorkflowPaso paso, int idUsuarioBase)
         {
@@ -440,7 +408,7 @@ namespace Lefarma.API.Features.Config.Engine
                 var nivel = p.NivelJefe ?? 1;
                 var jefe = await _jefeInmediatoResolver.ResolverJefeEfectivoAsync(paso.IdWorkflow, idUsuarioBase, nivel);
                 if (jefe.IdUsuario.HasValue)
-                    return (false, nivel, null); // hay jefe efectivo -> NO omitir
+                    return (false, nivel, null); 
                 ultimoMotivo = jefe.MotivoOmision;
             }
 
@@ -449,7 +417,6 @@ namespace Lefarma.API.Features.Config.Engine
 
         private static bool EvaluarCondicion(WorkflowCondicion c, WorkflowContext ctx)
         {
-            // Leer propiedad directa de OrdenCompra (IgnoreCase)
             var prop = ctx.Entidad.GetType().GetProperty(
                 c.CampoEvaluacion,
                 System.Reflection.BindingFlags.IgnoreCase | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
@@ -459,14 +426,12 @@ namespace Lefarma.API.Features.Config.Engine
             var propValue = prop.GetValue(ctx.Entidad);
             if (propValue is null) return false;
 
-            // Booleanos: true/false
             if (c.Operador is "true" or "false")
             {
                 var esVerdadero = propValue is bool b ? b : false;
                 return c.Operador == "true" ? esVerdadero : !esVerdadero;
             }
 
-            // Numéricos: >, >=, <, <=, =, !=
             if (decimal.TryParse(propValue.ToString(), out var v) &&
                 decimal.TryParse(c.ValorComparacion, out var cmp))
             {

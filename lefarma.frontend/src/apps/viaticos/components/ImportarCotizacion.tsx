@@ -16,26 +16,11 @@ import { analizarCotizacion, desgloseConceptos, opcionesParaEnvio, textoPrecio }
 import { MiniaturaCaptura } from './celdasCotizacion';
 
 export interface ImportarCotizacionProps {
-  /** Solicitud destino. Si es null, el borrador se crea al enviar. */
   solicitudId?: number | null;
-  /**
-   * Gasolina, casetas, comida y taxi de la propuesta elegida en el wizard.
-   * Solo el wizard los conoce: el motor de costos de ruta los calcula en
-   * memoria y no los persiste. `null` (o ausente) significa "no se sabe" y
-   * viaja como `null`.
-   */
   conceptosMotor?: ConceptosMotor | null;
-  /** Se dispara con la solicitud persistida una vez enviada la cotización. */
   onEnviada?: (solicitud: Solicitud) => void;
 }
 
-/**
- * Importador del JSON que devuelve el agente externo: lo valida contra el
- * contrato (schemas/cotizacionViajes.esquema.ts), lo muestra como tabla con
- * link de compra y capturas, deja elegir opciones y las envia con el PUT de
- * opciones. La nota de cobertura se muestra siempre: esta pantalla no promete
- * cobertura total de transportistas.
- */
 export function ImportarCotizacion({ solicitudId = null, conceptosMotor = null, onEnviada }: ImportarCotizacionProps) {
   const [texto, setTexto] = useState('');
   const [cotizacion, setCotizacion] = useState<Cotizacion | null>(null);
@@ -45,7 +30,6 @@ export function ImportarCotizacion({ solicitudId = null, conceptosMotor = null, 
   const [errorEnvio, setErrorEnvio] = useState<string | null>(null);
   const [solicitudEnviada, setSolicitudEnviada] = useState<Solicitud | null>(null);
 
-  /** Cargar: si el JSON no valida, muestra el error y no toca filas ni estado. */
   const cargar = () => {
     const resultado = analizarCotizacion(texto);
     if (!resultado.valido) {
@@ -72,10 +56,6 @@ export function ImportarCotizacion({ solicitudId = null, conceptosMotor = null, 
     setEnviando(true);
     setErrorEnvio(null);
     try {
-      // El desglose por concepto solo puede armarse aqui: avion/autobus/
-      // hospedaje dependen de las filas elegidas de la cotizacion de pi, y
-      // gasolina/casetas/comida/taxi llegan del motor de costos de ruta via
-      // `conceptosMotor`.
       const desglose = desgloseConceptos(filas, conceptosMotor);
       const id =
         solicitudId ??
@@ -102,8 +82,6 @@ export function ImportarCotizacion({ solicitudId = null, conceptosMotor = null, 
       const respuesta = await solicitudesApi.guardarOpciones(id, opcionesParaEnvio(filas));
       const solicitud = respuesta.data.data;
       setSolicitudEnviada(solicitud);
-      // Best-effort: no bloquea el guardado; el botón "Generar capturas"
-      // sigue disponible si el sitio no permite capturar en este momento.
       generarCapturasEnSegundoPlano(solicitud.id_solicitud);
       onEnviada?.(solicitud);
     } catch (error) {

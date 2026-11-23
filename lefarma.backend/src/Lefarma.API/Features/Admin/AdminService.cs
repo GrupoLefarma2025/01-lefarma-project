@@ -38,7 +38,6 @@ public class AdminService : BaseService, IAdminService
         {
             var usuarios = await _repository.GetAllUsuariosAsync();
 
-            // Obtener detalles de usuarios
             var usuariosIds = usuarios.Select(u => u.IdUsuario).ToList();
             var detallesLista = await _repository.GetUsuariosDetalleAsync(usuariosIds);
             var detalles = detallesLista.ToDictionary(ud => ud.IdUsuario);
@@ -47,8 +46,6 @@ public class AdminService : BaseService, IAdminService
                 detalles.ContainsKey(u.IdUsuario) ? detalles[u.IdUsuario] : null
             )).ToList();
 
-            // Puesto y área oficiales (Asistencias.dbo.vwEmpleados): app.Usuarios.Puesto
-            // está en 'Sin asignar' y catalogos.areas es un catálogo heredado de puestos.
             await AsignarPuestoYAreaEmpleadoAsync(response);
 
             EnrichWideEvent(action: "GetAllUsuarios", count: response.Count, additionalContext: new Dictionary<string, object>
@@ -76,7 +73,6 @@ public class AdminService : BaseService, IAdminService
                 return CommonErrors.NotFound("Usuario", id.ToString());
             }
 
-            // Obtener detalle del usuario
             var detalle = await _repository.GetUsuarioDetalleAsync(id);
 
             var response = usuario.ToResponse(detalle);
@@ -161,21 +157,18 @@ public class AdminService : BaseService, IAdminService
                 await _repository.AsignarPermisosAUsuarioAsync(id, request.PermisosIds);
             }
 
-            // Actualizar o crear detalle del usuario
             if (request.Detalle != null)
             {
                 var detalle = await _repository.GetUsuarioDetalleAsync(id);
 
                 if (detalle == null)
                 {
-                    // Crear nuevo detalle
                     detalle = new UsuarioDetalle
                     {
                         IdUsuario = id,
                         FechaCreacion = DateTime.UtcNow
                     };
 
-                    // Actualizar propiedades del detalle
                     detalle.IdEmpresa = request.Detalle.IdEmpresa;
                     detalle.IdSucursal = request.Detalle.IdSucursal;
                     detalle.IdArea = request.Detalle.IdArea;
@@ -208,15 +201,12 @@ public class AdminService : BaseService, IAdminService
                 }
                 else
                 {
-                    // Actualizar detalle existente
                     detalle.IdEmpresa = request.Detalle.IdEmpresa;
                     detalle.IdSucursal = request.Detalle.IdSucursal;
                     detalle.IdArea = request.Detalle.IdArea;
                     detalle.IdCentroCosto = request.Detalle.IdCentroCosto;
                     detalle.Puesto = request.Detalle.Puesto;
                     detalle.NumeroEmpleado = request.Detalle.NumeroEmpleado;
-                    // No sobreescribir FirmaPath cuando el request no lo trae: la firma
-                    // cambia solo vía POST /profile/firma (regla de un solo cambio RH).
                     if (!string.IsNullOrWhiteSpace(request.Detalle.FirmaPath))
                         detalle.FirmaPath = request.Detalle.FirmaPath;
                     detalle.TelefonoOficina = request.Detalle.TelefonoOficina;
@@ -255,12 +245,6 @@ public class AdminService : BaseService, IAdminService
         }
     }
 
-    /// <summary>
-    /// Completa PuestoEmpleado y AreaEmpleado desde Asistencias.dbo.vwEmpleados, la
-    /// fuente oficial del portal de incidencias (resuelve por nómina y cae a correo).
-    /// Best-effort: si Asistencias no responde, la lista se devuelve sin esos datos en
-    /// lugar de fallar.
-    /// </summary>
     private async Task AsignarPuestoYAreaEmpleadoAsync(ICollection<UsuarioResponse> usuarios)
     {
         if (usuarios.Count == 0) return;
@@ -426,10 +410,8 @@ public class AdminService : BaseService, IAdminService
                 return CommonErrors.NotFound("Rol", id.ToString());
             }
 
-            // Obtener IDs de usuarios asignados
             var usuarioIds = rol.UsuariosRoles.Select(ur => ur.IdUsuario).ToList();
 
-            // Obtener datos completos de usuarios
             var usuarios = new List<Usuario>();
             foreach (var usuarioId in usuarioIds)
             {

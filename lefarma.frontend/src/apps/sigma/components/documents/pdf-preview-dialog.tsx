@@ -38,7 +38,6 @@ import {
   XCircle,
 } from "lucide-react";
 
-
 interface PDFPreviewDialogProps {
   document: Document | null;
   open: boolean;
@@ -73,10 +72,6 @@ interface PdfControlsState {
   showThumbnails: boolean;
 }
 
-/**
- * El visor muestra el PDF con el visor nativo del navegador (iframe).
- * Imprimir, descargar, abrir en pestaña y pantalla completa actúan sobre el documento.
- */
 const INITIAL_PDF_CONTROLS: PdfControlsState = {
   pageNumber: 1,
   numPages: 0,
@@ -149,7 +144,6 @@ export function PDFPreviewDialog({
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [pdfControls, setPdfControls] = useState<PdfControlsState>(INITIAL_PDF_CONTROLS);
 
-  // Convertir el contenido del documento a una URL utilizable por el iframe.
   const pdfUrl = useMemo(() => {
     const fileUrl = doc?.fileUrl;
     if (!fileUrl) return null;
@@ -162,7 +156,6 @@ export function PDFPreviewDialog({
       return fileUrl;
     }
 
-    // Si llega como base64 sin prefijo, se envuelve como data URL de PDF.
     return `data:application/pdf;base64,${fileUrl}`;
   }, [doc?.fileUrl]);
 
@@ -180,7 +173,6 @@ export function PDFPreviewDialog({
     try {
       await onDocumentLoad(doc.id, value);
     } catch {
-      // La página que carga el documento reporta el error al usuario.
     } finally {
       setIsLoadingDocument(false);
     }
@@ -202,7 +194,6 @@ export function PDFPreviewDialog({
       htmlDocument.body.removeChild(link);
       setTimeout(() => URL.revokeObjectURL(downloadUrl), 100);
     } catch {
-      // Si el navegador bloquea la descarga, el usuario puede abrir el PDF en otra pestaña.
     }
   };
 
@@ -245,7 +236,6 @@ export function PDFPreviewDialog({
     (a) => (a.tipoDocumento || "Principal").toLowerCase() !== "principal"
   );
 
-  // Pantalla completa: segundo diálogo sin bordes que ocupa todo el viewport.
   if (isFullscreen) {
     return (
       <Dialog open={true} onOpenChange={() => setIsFullscreen(false)}>
@@ -295,7 +285,7 @@ export function PDFPreviewDialog({
             Visualiza y gestiona el documento seleccionado
           </DialogDescription>
 
-          {/* Botón de maximizar al lado del cierre del diálogo */}
+          {}
           <Button
             variant="ghost"
             size="icon"
@@ -307,7 +297,7 @@ export function PDFPreviewDialog({
             <Maximize className="h-4 w-4" />
           </Button>
 
-          {/* Header compacto para móvil */}
+          {}
           <div className="block md:hidden">
             <div className="flex items-start gap-3 px-3 pb-2 pt-2 pr-14">
               <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary ring-1 ring-primary/20">
@@ -424,7 +414,7 @@ export function PDFPreviewDialog({
               </div>
             )}
 
-            {/* Detalles y acciones en móvil */}
+            {}
             <Accordion type="single" collapsible className="border-t">
               <AccordionItem value="details" className="border-0">
                 <AccordionTrigger className="px-3 py-2 text-xs font-medium text-muted-foreground hover:text-foreground">
@@ -487,7 +477,7 @@ export function PDFPreviewDialog({
             </Accordion>
           </div>
 
-          {/* Header compacto para escritorio */}
+          {}
           <div className="hidden md:flex flex-wrap items-center gap-x-3 gap-y-1.5 bg-background/80 px-3 py-1.5 pr-20 backdrop-blur">
             <div className="flex min-w-[240px] flex-1 items-center gap-2.5">
               <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary ring-1 ring-primary/20">
@@ -665,7 +655,7 @@ export function PDFPreviewDialog({
           </div>
         </DialogHeader>
 
-        {/* Vista previa del PDF */}
+        {}
         <div className="flex-1 min-h-0 overflow-hidden flex">
           <aside
             className={cn(

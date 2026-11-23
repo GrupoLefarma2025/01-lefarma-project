@@ -10,7 +10,6 @@ namespace Lefarma.API.Infrastructure.Data.Configurations.Config
         {
             builder.ToTable("usuario_alcance_empresa", "config");
 
-            // PK compuesta: un usuario no repite la misma empresa.
             builder.HasKey(a => new { a.IdUsuario, a.IdEmpresa });
 
             builder.Property(a => a.IdUsuario)

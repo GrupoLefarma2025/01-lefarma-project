@@ -4,10 +4,6 @@ using Microsoft.Extensions.Options;
 
 namespace Lefarma.API.Features.Sigma.Services.PdfSignature;
 
-/// <summary>
-/// Implementación real del almacén: Dapper contra la base legacy y copias de trabajo
-/// en <c>Sigma:StoragePath</c>, con las mismas cuatro sentencias del script de Python.
-/// </summary>
 public sealed class PdfDocumentStore : IPdfDocumentStore
 {
     private const string SqlObtener =
@@ -67,7 +63,6 @@ public sealed class PdfDocumentStore : IPdfDocumentStore
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            // Igual que el script, la copia es informativa: si falla, se avisa y se sigue.
             _logger.LogWarning(ex, "No se pudo guardar la copia {Sufijo} del documento {Id}.", sufijo, idDocumento);
         }
 

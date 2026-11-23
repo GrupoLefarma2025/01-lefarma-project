@@ -5,16 +5,6 @@ using System.Diagnostics;
 using System.Security.Claims;
 
 namespace Lefarma.API.Infrastructure.Middleware;
-/// <summary>
-/// Middleware that creates and emits a WideEvent for each HTTP request.
-/// Implements the "one rich event per request" logging philosophy (loggingsucks.com).
-///
-/// Flow:
-/// 1. Create WideEvent at start -> store in HttpContext.Items
-/// 2. Services can enrich it via IWideEventAccessor
-/// 3. Emit ONE single log at the end (finally block)
-/// 4. If error occurs, persist to database via ErrorLogService
-/// </summary>
 public sealed class WideEventLoggingMiddleware(
     RequestDelegate next,
     IServiceScopeFactory scopeFactory)
@@ -26,17 +16,13 @@ public sealed class WideEventLoggingMiddleware(
 
     public async Task InvokeAsync(HttpContext context)
     {
-        // Habilitar buffering para poder releer el body en caso de error (POST/PUT/PATCH)
         context.Request.EnableBuffering();
 
         var stopwatch = Stopwatch.StartNew();
         var wideEvent = CreateWideEvent(context);
 
-        // Correlación visible para el navegador: el SDK de telemetría guarda esta
-        // cabecera junto al error HTTP y así se cruza con Serilog y ErrorLog.
         context.Response.Headers["X-Request-Id"] = context.TraceIdentifier;
 
-        // Store WideEvent in HttpContext.Items for enrichment by services
         context.Items[WideEventKey] = wideEvent;
 
         try
@@ -48,7 +34,6 @@ public sealed class WideEventLoggingMiddleware(
         catch (Exception ex)
         {
             stopwatch.Stop();
-            // Leer el body ANTES de guardar en BD (el context todavía está activo)
             TryEnrichWithRequestBody(wideEvent, context);
             EmitError(wideEvent, context, stopwatch.ElapsedMilliseconds, ex);
             throw;
@@ -77,7 +62,6 @@ public sealed class WideEventLoggingMiddleware(
             Version = "1.0.0"
         };
 
-        // HTTP Context
         var userAgent = context.Request.Headers.UserAgent.ToString();
         wideEvent.UserAgent = userAgent.Length > 512 ? userAgent[..512] : userAgent;
         wideEvent.IpAddress = GetClientIpAddress(context);
@@ -91,7 +75,6 @@ public sealed class WideEventLoggingMiddleware(
         evt.DurationMs = durationMs;
         evt.Status = GetStatusCategory(context.Response.StatusCode);
 
-        // Si es error de cliente y no se ha enriquecido desde el servicio marcar que el error viene del resultado HTTP
         if (context.Response.StatusCode >= 400 && context.Response.StatusCode < 500
        && string.IsNullOrEmpty(evt.ErrorType))
         {
@@ -100,15 +83,12 @@ public sealed class WideEventLoggingMiddleware(
             evt.ErrorMessage = "Error en la petición HTTP";
         }
 
-        // Si es error de servidor (>= 500), capturar request body y guardar en BD
         if (context.Response.StatusCode >= 500)
         {
-            // Leer el body AQUÍ (síncrono, el context todavía está activo en el pipeline)
             TryEnrichWithRequestBody(evt, context);
             SaveErrorToDatabase(evt, null);
         }
 
-        // Para operaciones mutantes exitosas con entidad enriquecida → audit log
         if (context.Response.StatusCode is >= 200 and < 300
             && context.Request.Method is "POST" or "PUT" or "PATCH" or "DELETE"
             && !string.IsNullOrEmpty(evt.EntityType))
@@ -116,7 +96,6 @@ public sealed class WideEventLoggingMiddleware(
             SaveAuditToDatabase(evt);
         }
 
-        // Emit ONE single log with the enriched WideEvent
         evt.EmitWithSampling(_serilogLogger);
     }
 
@@ -129,17 +108,11 @@ public sealed class WideEventLoggingMiddleware(
         evt.ErrorMessage = ex.Message;
         evt.ErrorCode = ex.HResult.ToString();
 
-        // Guardar en BD (excepción no controlada)
          SaveErrorToDatabase(evt, ex);
 
-        // Always emit full event for errors
         evt.Emit(_serilogLogger);
     }
 
-    /// <summary>
-    /// Lee el request body y lo agrega al WideEvent como 'request_data'.
-    /// Solo aplica para POST/PUT/PATCH. Máximo 8KB para evitar guardar payloads grandes.
-    /// </summary>
     private static void TryEnrichWithRequestBody(WideEvent wideEvent, HttpContext context)
     {
         try
@@ -163,13 +136,9 @@ public sealed class WideEventLoggingMiddleware(
         }
         catch
         {
-            // Ignorar errores al leer el body - nunca romper el flujo
         }
     }
 
-    /// <summary>
-    /// Guarda un registro de auditoría de negocio de forma asíncrona (fire-and-forget)
-    /// </summary>
     private void SaveAuditToDatabase(WideEvent evt)
     {
         _ = Task.Run(async () =>
@@ -187,9 +156,6 @@ public sealed class WideEventLoggingMiddleware(
         });
     }
 
-    /// <summary>
-    /// Guarda un error en la base de datos de forma asíncrona (fire-and-forget)
-    /// </summary>
     private void SaveErrorToDatabase(WideEvent evt, Exception? ex)
     {
         _ = Task.Run(async () =>
@@ -202,7 +168,6 @@ public sealed class WideEventLoggingMiddleware(
             }
             catch (Exception dbEx)
             {
-                // Último recurso: si falla el guardado en BD, al menos lo emitimos a Serilog
                 _serilogLogger.Error(dbEx, "Failed to persist ErrorLog to database. RequestId: {RequestId}", evt.RequestId);
             }
         });
@@ -231,15 +196,8 @@ public sealed class WideEventLoggingMiddleware(
     };
 }
 
-/// <summary>
-/// Extension methods for registering WideEventLoggingMiddleware.
-/// </summary>
 public static class WideEventLoggingMiddlewareExtensions
 {
-    /// <summary>
-    /// Adds Wide Event logging middleware to the pipeline.
-    /// Creates one rich log event per HTTP request with full context.
-    /// </summary>
     public static IApplicationBuilder UseWideEventLogging(this IApplicationBuilder builder)
     {
         return builder.UseMiddleware<WideEventLoggingMiddleware>();

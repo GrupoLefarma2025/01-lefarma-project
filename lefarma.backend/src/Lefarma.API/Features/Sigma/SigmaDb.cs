@@ -5,10 +5,6 @@ using Microsoft.Data.SqlClient;
 
 namespace Lefarma.API.Features.Sigma;
 
-/// <summary>
-/// Acceso Dapper a la base legacy Asokam (módulo Documentos, puerto de SIGMA).
-/// Los procedimientos viven en el esquema <c>app</c>; también admite SQL directo.
-/// </summary>
 public sealed class SigmaDb
 {
     private readonly string _connectionString;
@@ -19,7 +15,6 @@ public sealed class SigmaDb
             ?? throw new InvalidOperationException("Falta la cadena de conexión 'AsokamConnection'.");
     }
 
-    /// <summary>Ejecuta una consulta (SP por defecto) y devuelve todas las filas mapeadas.</summary>
     public async Task<IReadOnlyList<T>> QueryAsync<T>(
         string sql,
         object? parametros = null,
@@ -31,7 +26,6 @@ public sealed class SigmaDb
         return filas.AsList();
     }
 
-    /// <summary>Ejecuta una consulta (SP por defecto) y devuelve la primera fila o null.</summary>
     public async Task<T?> QueryFirstOrDefaultAsync<T>(
         string sql,
         object? parametros = null,
@@ -42,7 +36,6 @@ public sealed class SigmaDb
         return await conexion.QueryFirstOrDefaultAsync<T>(new CommandDefinition(sql, parametros, commandType: tipoComando, cancellationToken: ct));
     }
 
-    /// <summary>Ejecuta una sentencia y devuelve las filas afectadas.</summary>
     public async Task<int> ExecuteAsync(
         string sql,
         object? parametros = null,
@@ -53,7 +46,6 @@ public sealed class SigmaDb
         return await conexion.ExecuteAsync(new CommandDefinition(sql, parametros, commandType: tipoComando, cancellationToken: ct));
     }
 
-    /// <summary>Ejecuta una sentencia y devuelve el primer valor escalar.</summary>
     public async Task<T?> ExecuteScalarAsync<T>(
         string sql,
         object? parametros = null,
@@ -64,10 +56,6 @@ public sealed class SigmaDb
         return await conexion.ExecuteScalarAsync<T>(new CommandDefinition(sql, parametros, commandType: tipoComando, cancellationToken: ct));
     }
 
-    /// <summary>
-    /// Ejecuta un SP que devuelve dos result sets (sp_ObtenerFlujoDocumento) y los mapea.
-    /// Se lee con SqlDataReader para tolerar SPs que solo devuelven el primero (RAISERROR/RETURN).
-    /// </summary>
     public async Task<(IReadOnlyList<TFirst> Primero, IReadOnlyList<TSecond> Segundo)> QueryMultipleAsync<TFirst, TSecond>(
         string procedimiento,
         object? parametros = null,

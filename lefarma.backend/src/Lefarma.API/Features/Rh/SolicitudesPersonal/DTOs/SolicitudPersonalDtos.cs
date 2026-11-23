@@ -23,7 +23,6 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal.DTOs
         public int? IdUsuarioSolicitante { get; set; }
         public string? SolicitanteNombre { get; set; }
         public string? SolicitantePuesto { get; set; }
-        /// <summary>Ubicación del empleado según Asistencias (vwEmpleados.ubicacion).</summary>
         public string? Ubicacion { get; set; }
 
         public int IdTipoSolicitud { get; set; }
@@ -77,13 +76,8 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal.DTOs
         public int Page { get; set; } = 1;
         public int PageSize { get; set; } = 20;
         public bool SoloConteo { get; set; }
-        /// <summary>
-        /// Lista de la pestaña "En trámite": solo solicitudes no terminales, incluyendo
-        /// las propias de este mes y el anterior y todas las que el usuario debe firmar.
-        /// </summary>
         public bool SoloPendientes { get; set; }
 
-        // Filtros adicionales estilo incidencias de checado
         public string? Periodo { get; set; }
         public DateTime? FechaInicio { get; set; }
         public DateTime? FechaFin { get; set; }
@@ -120,11 +114,6 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal.DTOs
         public TimeSpan? Salio { get; set; }
     }
 
-    /// <summary>
-    /// Solicitudes (incidencias, permisos y demás categorías) del equipo del usuario cuyo
-    /// día cae en el mes indicado. Se cuentan por el día de la incidencia (no por el día
-    /// de la firma) y se excluyen las canceladas y rechazadas.
-    /// </summary>
     public class AutorizacionesIncidenciasResponse
     {
         public int Anio { get; set; }
@@ -149,9 +138,7 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal.DTOs
         public string EmpleadoNombre { get; set; } = string.Empty;
         public string TipoSolicitud { get; set; } = string.Empty;
         public string? Motivo { get; set; }
-        /// <summary>Fecha del día justificado (el eje del conteo).</summary>
         public DateTime? FechaIncidencia { get; set; }
-        /// <summary>Día en que el jefe firmó la solicitud; nulo si aún no la ha firmado.</summary>
         public DateTime? FechaAutorizacion { get; set; }
         public string? EstadoNombre { get; set; }
     }

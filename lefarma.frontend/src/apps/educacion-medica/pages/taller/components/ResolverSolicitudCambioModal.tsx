@@ -67,10 +67,6 @@ interface ResolverSolicitudCambioModalProps {
   onResolved: () => void;
 }
 
-/**
- * Resolución de la solicitud de cambio del equipo por el CEM (ADR-00010):
- * aprobar aplica el ajuste (misma lógica + auditoría); rechazar solo registra motivo.
- */
 export function ResolverSolicitudCambioModal({
   open,
   onClose,

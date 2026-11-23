@@ -4,12 +4,6 @@ import { PageLoader } from '@/components/ui/page-loader';
 import Hero from '@/pages/Hero';
 
 export interface LandingRouteProps {
-  /**
-   * Dónde aterrizan los usuarios autenticados desde el índice raíz. Por
-   * defecto '/dashboard' para preservar el comportamiento histórico del
-   * root-build. El subárbol del shell no renderiza <LandingRoute/> (usa su
-   * propio resolvedor de índice).
-   */
   authenticatedRedirect?: string;
 }
 
@@ -27,12 +21,6 @@ export const LandingRoute = ({ authenticatedRedirect = '/dashboard' }: LandingRo
 };
 
 export interface ProtectedRouteProps {
-  /**
-   * A dónde se envía a los usuarios no autenticados. Por defecto '/' (el
-   * landing Hero) para preservar el comportamiento histórico — el landing
-   * mismo presenta la entrada de login. El subárbol del shell sobrescribe
-   * esto con su login por-app.
-   */
   unauthRedirect?: string;
 }
 
@@ -44,11 +32,6 @@ export const ProtectedRoute = ({ unauthRedirect = '/' }: ProtectedRouteProps = {
   if (!isInitialized) return <PageLoader />;
 
   if (!isAuthenticated) {
-    // Preserva el destino deseado vía `?return=` para que la página de login
-    // pueda redirigir de vuelta tras una autenticación exitosa (spec
-    // app-routing: Authentication Guard "preserving the return URL"). Refleja
-    // el patrón de RequireAuth. Aditivo para el variant root (unauthRedirect
-    // por defecto '/'; el landing Hero ignora el query param).
     const from = location.pathname + location.search;
     return <Navigate to={`${unauthRedirect}?return=${encodeURIComponent(from)}`} replace />;
   }
@@ -57,12 +40,6 @@ export const ProtectedRoute = ({ unauthRedirect = '/' }: ProtectedRouteProps = {
 };
 
 export interface PublicOnlyRouteProps {
-  /**
-   * A dónde se envía a los usuarios autenticados cuando tocan una ruta
-   * solo-pública (ej. la página de login). Por defecto '/dashboard'
-   * (comportamiento root). El subárbol del shell sobrescribe esto con un
-   * destino relativo al subárbol.
-   */
   authenticatedRedirect?: string;
 }
 

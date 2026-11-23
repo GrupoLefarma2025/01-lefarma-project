@@ -7,9 +7,6 @@ using Swashbuckle.AspNetCore.Annotations;
 
 namespace Lefarma.API.Features.Configuracion;
 
-/// <summary>
-/// Sincronización de variables de configuración para el frontend.
-/// </summary>
 [ApiController]
 [Route("api/configuracion/frontend")]
 [EndpointGroupName("Configuracion")]
@@ -23,7 +20,6 @@ public class ConfiguracionFrontendController : ControllerBase
         _service = service;
     }
 
-    /// <summary>Consulta puntual del estado actual de un conjunto de claves.</summary>
     [HttpPost("consultar")]
     [SwaggerOperation(
         Summary = "Consultar variables para frontend",
@@ -43,7 +39,6 @@ public class ConfiguracionFrontendController : ControllerBase
         }));
     }
 
-    /// <summary>Sincronización incremental desde una revisión.</summary>
     [HttpPost("sync")]
     [SwaggerOperation(
         Summary = "Sincronizar variables para frontend",

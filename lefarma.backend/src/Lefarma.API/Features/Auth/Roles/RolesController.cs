@@ -6,13 +6,9 @@ using Microsoft.AspNetCore.Mvc;
 using Swashbuckle.AspNetCore.Annotations;
 
 namespace Lefarma.API.Features.Auth.Roles;
-/// <summary>
-/// Controller for Rol catalog operations
-/// </summary>
 [Route("api/auth/roles")]
 [ApiController]
 [EndpointGroupName("Auth")]
-//[HasPermission(Permissions.Usuarios.View)]
 public class RolesController : ControllerBase
 {
     private readonly IRolCatalogService _rolCatalogService;
@@ -22,9 +18,6 @@ public class RolesController : ControllerBase
         _rolCatalogService = rolCatalogService;
     }
 
-    /// <summary>
-    /// Gets all roles for catalog selection
-    /// </summary>
     [HttpGet]
     [SwaggerOperation(
         Summary = "Obtener todos los roles",

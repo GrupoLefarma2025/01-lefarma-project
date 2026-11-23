@@ -15,12 +15,6 @@ using Swashbuckle.AspNetCore.Annotations;
 
 namespace Lefarma.API.Features.Viaticos;
 
-/// <summary>
-/// Datos de solo lectura para el concentrado de viáticos que se muestra en
-/// la pantalla de envío concentrado de CxP. La tabla
-/// <c>dbo.infoMacroViaticos</c> la llena un proceso externo y no forma parte
-/// del modelo EF; se consulta con SQL crudo para no acoplar el esquema.
-/// </summary>
 [ApiController]
 [Route("api/viaticos/macro-concentrado")]
 [EndpointGroupName("Viaticos")]
@@ -46,11 +40,6 @@ public class MacroConcentradoController : ControllerBase
     private int GetUserId() =>
         int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
 
-    /// <summary>
-    /// Lee los folios ya enviados en el MetadataJSON de <c>app.Documentos</c>.
-    /// Si Asokam no está disponible, devuelve un conjunto vacío para no romper
-    /// la pantalla: la tabla vuelve a mostrar todos los viáticos.
-    /// </summary>
     private async Task<HashSet<string>> ObtenerFoliosEnviadosAsync(CancellationToken ct)
     {
         var folios = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -99,11 +88,6 @@ public class MacroConcentradoController : ControllerBase
         return folios;
     }
 
-    /// <summary>
-    /// Devuelve todas las filas de <c>dbo.infoMacroViaticos</c> ordenadas por
-    /// fecha, nombre, gerencia y renglón. Es la fuente de la pestaña Viáticos
-    /// del concentrado de CxP.
-    /// </summary>
     [HttpGet]
     [SwaggerOperation(
         Summary = "Concentrado macro de viáticos",
@@ -164,8 +148,6 @@ public class MacroConcentradoController : ControllerBase
         }
         catch (SqlException ex) when (ex.Number == 208)
         {
-            // La tabla todavía no existe en este ambiente (p. ej. LefarmaDev).
-            // El concentrado se muestra vacío en vez de romper la pantalla.
             _logger.LogWarning(ex, "La tabla dbo.infoMacroViaticos no existe; se devuelve un concentrado vacío.");
 
             return Ok(new ApiResponse<IReadOnlyList<MacroViaticoResponse>>
@@ -177,12 +159,6 @@ public class MacroConcentradoController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// Guarda el PDF del concentrado de viáticos en <c>app.Documentos</c> con
-    /// el mismo patrón que el envío normal del concentrado de órdenes de
-    /// compra. No crea <c>DocumentosInterfaseOC</c> porque los viáticos no
-    /// tienen un <c>EnvioConcentrado</c> de órdenes asociado.
-    /// </summary>
     [HttpPost("pdf")]
     [RequestSizeLimit(25_000_000)]
     [SwaggerOperation(

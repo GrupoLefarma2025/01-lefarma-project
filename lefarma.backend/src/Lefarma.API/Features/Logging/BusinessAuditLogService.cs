@@ -6,11 +6,6 @@ using System.Text.Json;
 
 namespace Lefarma.API.Features.Logging;
 
-/// <summary>
-/// Persiste auditoría de operaciones de negocio en logs.audit_logs.
-/// Se invoca automáticamente desde WideEventLoggingMiddleware para POST/PUT/PATCH/DELETE exitosos
-/// cuando el servicio ha enriquecido el WideEvent con EntityType.
-/// </summary>
 public class BusinessAuditLogService(ApplicationDbContext context) : IBusinessAuditLogService
 {
     private readonly ApplicationDbContext _context = context;
@@ -54,14 +49,9 @@ public class BusinessAuditLogService(ApplicationDbContext context) : IBusinessAu
         }
         catch
         {
-            // Si falla el audit log, no romper la aplicación
         }
     }
 
-    /// <summary>
-    /// Extrae el nombre legible de la entidad desde AdditionalContext.
-    /// BaseService guarda: wideEvent.AddContext(EntityName.ToLower(), { "nombre": "...", ... })
-    /// </summary>
     private static string? ExtractNombre(WideEvent wideEvent)
     {
         if (string.IsNullOrEmpty(wideEvent.EntityType))

@@ -4,10 +4,6 @@ using Lefarma.API.Features.OrdenesCompra.Captura.DTOs;
 
 namespace Lefarma.UnitTests;
 
-/// <summary>
-/// Pruebas del campo AjusteRedondeo por partida: rango de validación (±5) y el
-/// efecto en el total de la partida (solo ajusta el total final, no subtotal/IVA).
-/// </summary>
 public class AjusteRedondeoTests
 {
     private static CreatePartidaRequest NewPartida(decimal? ajusteRedondeo = null) => new()
@@ -83,7 +79,7 @@ public class AjusteRedondeoTests
 
         var total = OrdenCompraService.CalcularTotalPartida(partida);
 
-        total.Should().Be(232m); // (100*2) * 1.16
+        total.Should().Be(232m); 
     }
 
     [Fact]

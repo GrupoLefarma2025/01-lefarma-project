@@ -4,13 +4,6 @@ using Lefarma.API.Features.Viaticos;
 
 namespace Lefarma.UnitTests.Features.Viaticos;
 
-/// <summary>
-/// Reglas de <see cref="SolicitudOpcionesParser"/>: el mismo parser valida la
-/// cotizacion del viajero (PUT /opciones) y la ruta que autoriza el revisor
-/// (POST /autorizar). Aqui se cubre el contrato de <c>url_compra</c> opcional
-/// sin levantar HTTP: texto vacio, null o ausente se guardan como null; un tipo
-/// distinto sigue siendo un error claro con el indice de la opcion.
-/// </summary>
 public class SolicitudOpcionesParserTests
 {
     private const int IdSolicitud = 42;

@@ -1,14 +1,5 @@
 import type { DestinoV2, OrigenV2, PasoPersonaV2 } from '../../types/wizardV2.types';
 
-/**
- * Fixtures SANITIZADOS y deterministas para revisión visual del asistente.
- *
- * - Nombres ficticios; ningún dato real de empleados ni cuadernos privados.
- * - Solo MXN; coordenadas fijas dentro de México.
- * - Solo existen cuando `VIATICOS_FIXTURES_ACTIVOS` es verdadero (desarrollo
- *   explícito con `VITE_VIATICOS_FIXTURES=1`). El formulario productivo nunca
- *   los ve y nunca envían nada por sí solos.
- */
 export const VIATICOS_FIXTURES_ACTIVOS =
   import.meta.env.DEV === true && import.meta.env.VITE_VIATICOS_FIXTURES === '1';
 

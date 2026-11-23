@@ -30,10 +30,7 @@ export const vacacionesApi = {
   getUsuariosAfectados: (idDiaHabil: number) =>
     API.get<ApiResponse<UsuarioAfectadoResponse[]>>(`${BASE}/dias-habiles/${idDiaHabil}/usuarios`),
 
-  /* getDiasUsuario: (params: DiaUsuarioRequest) =>
-    API.get<ApiResponse<DiaUsuarioResponse[]>>(`${BASE}/dias-usuario`, { params }), */
-
-  getSaldos: (filters: SaldoVacacionesRequest) =>
+getSaldos: (filters: SaldoVacacionesRequest) =>
     API.get<ApiResponse<SaldoVacacionesResponse[]>>(`${BASE}/saldos`, { params: filters }),
 
   getSaldoDetalle: (id: number) =>

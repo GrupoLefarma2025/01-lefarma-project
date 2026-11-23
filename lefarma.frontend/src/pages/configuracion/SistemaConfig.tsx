@@ -70,7 +70,7 @@ export function SistemaConfig() {
 
   return (
     <div className="space-y-6">
-      {/* Información del Sistema (info técnica del build) */}
+      {}
       <Card>
         <CardHeader>
           <CardTitle>Información del Sistema</CardTitle>
@@ -90,7 +90,7 @@ export function SistemaConfig() {
         </CardContent>
       </Card>
 
-      {/* Variables de Entorno Frontend */}
+      {}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -118,7 +118,7 @@ export function SistemaConfig() {
         </CardContent>
       </Card>
 
-      {/* Variables de Entorno Backend */}
+      {}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -134,7 +134,7 @@ export function SistemaConfig() {
             <p className="text-sm text-muted-foreground">Cargando configuración del backend...</p>
           ) : backendConfig ? (
             <div className="space-y-6">
-              {/* JWT Settings */}
+              {}
               <div className="space-y-3">
                 <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
                   <Shield className="h-4 w-4" />
@@ -156,7 +156,7 @@ export function SistemaConfig() {
                 </div>
               </div>
 
-              {/* Email Settings */}
+              {}
               <div className="space-y-3">
                 <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
                   <Globe className="h-4 w-4" />
@@ -186,7 +186,7 @@ export function SistemaConfig() {
                 </div>
               </div>
 
-              {/* Telegram Settings */}
+              {}
               <div className="space-y-3">
                 <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
                   <Send className="h-4 w-4" />
@@ -214,7 +214,7 @@ export function SistemaConfig() {
         </CardContent>
       </Card>
 
-      {/* Configuración Global (variables configurables en runtime) */}
+      {}
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
@@ -235,7 +235,7 @@ export function SistemaConfig() {
           </div>
         </CardHeader>
         <CardContent className="space-y-6">
-          {/* Configuración de Sesión */}
+          {}
           <div className="space-y-3">
             <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
               <Clock className="h-4 w-4" />
@@ -253,7 +253,7 @@ export function SistemaConfig() {
             </div>
           </div>
 
-          {/* Configuración de Archivos */}
+          {}
           <div className="space-y-3">
             <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
               <HardDrive className="h-4 w-4" />
@@ -276,7 +276,7 @@ export function SistemaConfig() {
             </div>
           </div>
 
-          {/* Configuración de UI Global */}
+          {}
           <div className="space-y-3">
             <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
               <Globe className="h-4 w-4" />
@@ -302,7 +302,7 @@ export function SistemaConfig() {
             </div>
           </div>
 
-          {/* Configuración de Negocio */}
+          {}
           <div className="space-y-3">
             <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
               <DollarSign className="h-4 w-4" />
@@ -328,7 +328,7 @@ export function SistemaConfig() {
             </div>
           </div>
 
-          {/* Configuración de Seguridad */}
+          {}
           <div className="space-y-3">
             <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
               <Shield className="h-4 w-4" />
@@ -359,7 +359,7 @@ export function SistemaConfig() {
             </div>
           </div>
 
-          {/* Metadata */}
+          {}
           <div className="pt-4 border-t border-border">
             <div className="flex items-center justify-between text-xs text-muted-foreground">
               <span>Última actualización: {new Date(globalConfig.metadata.updatedAt).toLocaleString('es-HN')}</span>
@@ -378,7 +378,7 @@ export function SistemaConfig() {
         </CardContent>
       </Card>
 
-      {/* Estado de Servicios */}
+      {}
       <Card>
         <CardHeader>
           <CardTitle>Estado de Servicios</CardTitle>

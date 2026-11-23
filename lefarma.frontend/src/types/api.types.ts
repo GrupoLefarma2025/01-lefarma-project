@@ -1,5 +1,3 @@
-﻿// Tipos para respuestas de la API
-
 export interface ErrorDetail {
   code: string;
   description: string;

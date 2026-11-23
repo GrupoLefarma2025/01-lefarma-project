@@ -34,14 +34,6 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Textarea } from '@/components/ui/textarea';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-// import {
-//   Dialog,
-//   DialogContent,
-//   DialogDescription,
-//   DialogFooter,
-//   DialogHeader,
-//   DialogTitle,
-// } from '@/components/ui/dialog';
 import {
   Loader2,
   Plus,
@@ -158,7 +150,6 @@ const ordenCompraSchema = z
     partidas: z.array(partidaSchema).min(1, 'Debe incluir al menos una partida'),
   })
   .superRefine((data, ctx) => {
-    // Validaciones de proveedor a nivel orden (cuando NO es por partida)
     if (!data.agregarProveedorPorPartida && !data.sinDatosFiscales) {
       if (!data.idProveedor || data.idProveedor === 0) {
         ctx.addIssue({
@@ -167,7 +158,6 @@ const ordenCompraSchema = z
           path: ['idProveedor'],
         });
       }
-      // Si hay proveedor seleccionado, la cuenta bancaria es requerida
       if (data.idProveedor && data.idProveedor > 0) {
         if (!data.idCuentaBancaria || data.idCuentaBancaria === 0) {
           ctx.addIssue({
@@ -178,7 +168,6 @@ const ordenCompraSchema = z
         }
       }
     }
-    // Validaciones de proveedor por partida (cuando ES por partida)
     if (data.agregarProveedorPorPartida) {
       data.partidas.forEach((partida, idx) => {
         if (!partida.idProveedor || partida.idProveedor === 0) {
@@ -188,7 +177,6 @@ const ordenCompraSchema = z
             path: ['partidas', idx, 'idProveedor'],
           });
         }
-        // Cuando hay proveedor por partida, la cuenta bancaria es requerida
         if (partida.idProveedor && partida.idProveedor > 0) {
           if (!partida.idCuentaBancaria || partida.idCuentaBancaria === 0) {
             ctx.addIssue({
@@ -266,7 +254,6 @@ function NumericInput({
     let raw = e.target.value;
     if (!hasValidNumericFormat(raw)) return;
 
-    // Qitar ceros a la izquierda al escribir después de un 0 inicial (ej: '05' → '5', '0.5' se mantiene)
     if (raw.length > 1 && raw[0] === '0' && raw[1] !== '.') {
       raw = raw.replace(/^0+/, '') || '0';
     }
@@ -313,7 +300,6 @@ function NumericInput({
   );
 }
 
-// Componente para secciones con icono
 function FormSection({
   icon: Icon,
   title,
@@ -353,10 +339,10 @@ function UnidadMedidaSelector({
   const unidadesPorMedida = useMemo(() => {
     const grupos: Record<number, { medida: Medida; unidades: UnidadMedida[] }> = {};
     unidadesMedida.forEach((unidad) => {
-      if(!unidad.activo) return; // Solo incluir unidades activas 
+      if(!unidad.activo) return; 
       const medidaId = unidad.idMedida || 0;
       const medida = medidas.find((m) => m.idMedida === medidaId);
-      if (!medida || !medida.activo) return; // Solo incluir medidas activas y existentes
+      if (!medida || !medida.activo) return; 
       if (!grupos[medidaId]) {
         grupos[medidaId] = {
           medida: medida || {
@@ -456,7 +442,6 @@ function UnidadMedidaSelector({
   );
 }
 
-// Empresa corporativa Grupo Lefarma — validado contra catalogos.empresas (IdEmpresa = 12)
 const ID_EMPRESA_GRUPO_LEFARMA = 12;
 
 export default function CrearOrdenCompra() {
@@ -496,9 +481,6 @@ export default function CrearOrdenCompra() {
   const [proveedores, setProveedores] = useState<Proveedor[]>([]);
   const [buscandoProveedor, setBuscandoProveedor] = useState(false);
   const [proveedorNoExiste, setProveedorNoExiste] = useState(false);
-  // [COMENTADO] Dialogo proveedor nuevo - ya no se usa en el flujo de ordenes
-  // const [mostrarDialogoProveedor, setMostrarDialogoProveedor] = useState(false);
-  // const [valuesPendientes, setValuesPendientes] = useState<FormValues | null>(null);
   const catalogFetched = useRef(false);
   const form = useForm<FormValues>({
     resolver: zodResolver(ordenCompraSchema),
@@ -537,7 +519,6 @@ export default function CrearOrdenCompra() {
           (e) => String(e.idEmpresa) === String(empresaSession?.idEmpresa)
         );
 
-    // Grupo Lefarma (12) es contexto corporativo, no una empresa emisora de OC.
     return lista.filter(
       (e) =>
         Number(e.idEmpresa) !== ID_EMPRESA_GRUPO_LEFARMA ||
@@ -570,7 +551,6 @@ export default function CrearOrdenCompra() {
   const esTransporte = tipoGastoSeleccionado != null && tipoGastoSeleccionado.nombre.toLowerCase() === 'transportistas';
 
   useEffect(() => {
-    // Cargar folios de transporte disponibles cuando el tipo de gasto es Transportes
     if (esTransporte) {
       const url = isEditing && id ? `/catalogos/envios/transportes?idOrden=${id}` : '/catalogos/envios/transportes';
       API.get<ApiResponse<{ codigoEnvio: number; nombreTraslado: string | null }[]>>(url)
@@ -588,7 +568,6 @@ export default function CrearOrdenCompra() {
 
   useEffect(() => {
     if (sinDatosFiscales) {
-      // Limpiar proveedor y cuentas cuando se activa sinDatosFiscales
       form.setValue('idProveedor', null);
       setSelectedProveedorId(0);
       setSelectedCuentaBancariaId(null);
@@ -636,10 +615,8 @@ export default function CrearOrdenCompra() {
     };
   }, [watchedPartidas]);
   const fetchCatalogs = () => {
-    // Cargar todos los catálogos en paralelo sin bloquear la UI
     const errors: string[] = [];
 
-    // Catálogos esenciales - Empresas, Sucursales, Áreas
     Promise.all([
       authService.getEmpresas().catch((err) => {
         console.error('[fetchCatalogs] Error al cargar Empresas:', err);
@@ -749,7 +726,6 @@ export default function CrearOrdenCompra() {
         errors.push('Tipos de Gasto');
       });
 
-    // Mostrar errores acumulados después de un tiempo
     setTimeout(() => {
       if (errors.length > 0) {
         toast.warning(`No tienes permisos para ver: ${errors.join(', ')}`);
@@ -807,7 +783,6 @@ export default function CrearOrdenCompra() {
   const [numeroMensualidades, setNumeroMensualidades] = useState<number>(1);
   const [formasPago, setFormasPago] = useState<FormaPago[]>([]);
 
-  // Anticipo/Contado = pago unico: numero de pagos fijo en 1 (cubre seleccion y orden cargada)
   const esFormaPagoUnico = (() => {
     const f = formasPago.find((fp) => fp.idFormaPago === selectedFormaPagoId);
     return !!f && /anticipo|contado/i.test(f.nombre);
@@ -854,7 +829,6 @@ export default function CrearOrdenCompra() {
     fetchCatalogs();
   }, []);
 
-  // Cargar orden existente para edición
   useEffect(() => {
     if (!isEditing || !id) return;
 
@@ -966,11 +940,6 @@ export default function CrearOrdenCompra() {
   }, [isEditing, id, loadingCatalogs]);
 
   const handleSave = async (values: FormValues) => {
-    console.log('🔵 [handleSave] ===== INICIO handleSave =====');
-    console.log('🔵 [handleSave] Values recibidos del form:', JSON.stringify(values, null, 2));
-    console.log('🔵 [handleSave] selectedProveedorId:', selectedProveedorId);
-    console.log('🔵 [handleSave] isEditing:', isEditing);
-    console.log('🔵 [handleSave] id (URL):', id);
 
     setIsSaving(true);
     if (sinFirma) {
@@ -981,8 +950,6 @@ export default function CrearOrdenCompra() {
       return;
     }
     try {
-      // Regla de negocio: una OC del grupo lefarma (idempresa 12) no puede
-      // guardarse sin cambiar la empresa en Datos Generales.
       if (values.idEmpresa === ID_EMPRESA_GRUPO_LEFARMA) {
         toast.error('Necesitas cambiar la empresa de la orden de compra', {
           description: `La orden no puede quedar con la empresa Grupo Lefarma. Selecciona otra empresa en Datos Generales para continuar.`,
@@ -996,7 +963,6 @@ export default function CrearOrdenCompra() {
         return;
       }
 
-      console.log('🔵 [handleSave] Validando fecha límite...');
       const fechaLimite = new Date(values.fechaLimitePago);
       const today = new Date();
       today.setHours(0, 0, 0, 0);
@@ -1006,7 +972,6 @@ export default function CrearOrdenCompra() {
         return;
       }
 
-      // Si el tipo de gasto es Transportes, el folio de transporte es obligatorio
       const tipoSel = tiposGasto.find((t) => t.idTipoGasto === values.idTipoGasto);
       const esTransporteForm = tipoSel != null && tipoSel.nombre.toLowerCase() === 'transportistas';
       if (esTransporteForm && !values.folioTransporte) {
@@ -1015,43 +980,28 @@ export default function CrearOrdenCompra() {
         return;
       }
 
-      // Si agregarProveedorPorPartida está activo, no necesita proveedor a nivel orden
       if (values.agregarProveedorPorPartida) {
-        console.log('🔵 [handleSave] agregarProveedorPorPartida=true → guardarOrden');
         await guardarOrden(values);
         return;
       }
 
-      // Si ya tenemos el ID del proveedor (seleccionado del catálogo), proceder directamente
       if (selectedProveedorId > 0) {
-        console.log(
-          '🔵 [handleSave] selectedProveedorId > 0 → guardarOrden con idProveedor:',
-          selectedProveedorId
-        );
-        // Actualizar el values con el selectedProveedorId antes de guardar
         values.idProveedor = selectedProveedorId;
         await guardarOrden(values);
         return;
       }
 
-      // Si el form ya tiene un idProveedor (cargado desde BD o establecido de otra forma)
       if (values.idProveedor && values.idProveedor > 0) {
-        console.log(
-          '🔵 [handleSave] values.idProveedor > 0 → guardarOrden con:',
-          values.idProveedor
-        );
         await guardarOrden(values);
         return;
       }
 
-      // Sin proveedor seleccionado y no es sinDatosFiscales
       if (!values.sinDatosFiscales) {
         toast.error('Seleccione un proveedor o marque "Sin Datos Fiscales"');
         setIsSaving(false);
         return;
       }
 
-      // Sin datos fiscales - guardar sin proveedor
       await guardarOrden(values);
     } catch (error) {
       console.error('🔴 [handleSave] ERROR:', error);
@@ -1070,13 +1020,9 @@ export default function CrearOrdenCompra() {
   };
 
   const guardarOrden = async (values: FormValues) => {
-    console.log('🟢 [guardarOrden] ===== INICIO guardarOrden =====');
-    console.log('🟢 [guardarOrden] isEditing:', isEditing);
-    console.log('🟢 [guardarOrden] selectedCuentaBancariaId:', selectedCuentaBancariaId);
 
     setIsSaving(true);
     try {
-      console.log('🟢 [guardarOrden] Construyendo payload...');
       const payload: CreateOrdenCompraRequest = {
         idEmpresa: values.idEmpresa,
         idSucursal: values.idSucursal,
@@ -1116,20 +1062,11 @@ export default function CrearOrdenCompra() {
         })),
       };
 
-      console.log('🟢 [guardarOrden] Payload construido:', JSON.stringify(payload, null, 2));
-      console.log(
-        '🟢 [guardarOrden] Haciendo request API:',
-        isEditing ? `PUT /ordenes/${id}` : 'POST /ordenes'
-      );
-
-      const response = isEditing
+const response = isEditing
         ? await API.put<ApiResponse<void>>(`/ordenes/${id}`, payload)
         : await API.post<ApiResponse<void>>('/ordenes', payload);
 
-      console.log('🟢 [guardarOrden] Response recibido:', JSON.stringify(response.data, null, 2));
-
-      if (response.data.success) {
-        console.log('🟢 [guardarOrden] ✅ Éxito - navigate a /cxp/ordenes/autorizaciones');
+if (response.data.success) {
         toast.success(
           isEditing
             ? 'Orden de compra actualizada correctamente.'
@@ -1156,37 +1093,8 @@ export default function CrearOrdenCompra() {
     }
   };
 
-  // [COMENTADO] Ya no se usa - El diálogo de crear proveedor inline se eliminó del flujo
-  // Se mantiene por si se necesita en el futuro
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const confirmarGuardarProveedorNuevo = async () => {
-    // setMostrarDialogoProveedor(false);
-    // if (!valuesPendientes) return;
-    // setIsSaving(true);
-    // try {
-    //   const createProveedorPayload = {
-    //     razonSocial: valuesPendientes.razonSocialProveedor,
-    //     rfc: valuesPendientes.rfcProveedor || null,
-    //     codigoPostal: valuesPendientes.codigoPostalProveedor || null,
-    //     regimenFiscalId: valuesPendientes.idRegimenFiscal || null,
-    //     usoCfdi: valuesPendientes.usoCFDI || null,
-    //     sinDatosFiscales: valuesPendientes.sinDatosFiscales,
-    //   };
-    //   const provResponse = await API.post<ApiResponse<Proveedor>>('/catalogos/Proveedores', createProveedorPayload);
-    //   if (!provResponse.data.success || !provResponse.data.data) {
-    //     toast.error(provResponse.data.message ?? 'Error al registrar el proveedor');
-    //     setIsSaving(false);
-    //     return;
-    //   }
-    //   const newProveedorId = provResponse.data.data.idProveedor;
-    //   setSelectedProveedorId(newProveedorId);
-    //   valuesPendientes.idProveedor = newProveedorId;
-    //   await guardarOrden(valuesPendientes);
-    // } catch (error) {
-    //   const apiError = error as { errors?: Array<{ description: string }>; message?: string };
-    //   toast.error(apiError.message ?? 'Error al registrar el proveedor');
-    //   setIsSaving(false);
-    // }
   };
   if (loadingCatalogs) {
     return (
@@ -1200,7 +1108,7 @@ export default function CrearOrdenCompra() {
       {sinFirma && <SignatureAlert />}
       <Form {...form}>
         <form className="space-y-6">
-          {/* Card: Datos Generales */}
+          {}
           <Collapsible
             open={datosGeneralesOpen}
             onOpenChange={setDatosGeneralesOpen}
@@ -1219,7 +1127,7 @@ export default function CrearOrdenCompra() {
               </CollapsibleTrigger>
               <CollapsibleContent>
                 <CardContent className="space-y-6">
-                  {/* Sección: Ubicación */}
+                  {}
                   <FormSection icon={Building2} title="Ubicación">
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                       <FormField
@@ -1371,7 +1279,7 @@ export default function CrearOrdenCompra() {
               </CollapsibleContent>
             </Card>
           </Collapsible>
-          {/* Card: Datos del Proveedor */}
+          {}
           <Card>
             <CardHeader className="pb-4">
               <CardTitle className="flex items-center gap-2 text-lg font-semibold">
@@ -1440,7 +1348,6 @@ export default function CrearOrdenCompra() {
                           setBusqueda(valor);
                           setBuscado(true);
                           setSelectedIndex(0);
-                          // Filtrar client-side de los proveedores ya cargados
                           if (!valor || valor.length < 1) {
                             setProveedores(allProveedores);
                           } else {
@@ -1490,7 +1397,6 @@ export default function CrearOrdenCompra() {
                                   setBusqueda('');
                                   setBuscado(false);
                                   setSelectedIndex(0);
-                                  // Cargar todos los proveedores autorizados al abrir
                                   cargarTodosProveedores();
                                 }
                               }}
@@ -1875,31 +1781,12 @@ export default function CrearOrdenCompra() {
                     </FormItem>
                   )}
                 />
-                  {/* <FormField
-                  control={form.control}
-                  name="notasGenerales"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Notas Generales</FormLabel>
-                      <FormControl>
-                        <Textarea
-                          placeholder="Información adicional relevante para esta orden de compra..."
-                          rows={3}
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormDescription className="text-xs">
-                        Cualquier información adicional sobre la orden que deba ser considerada
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                /> */}
+                  {}
               </div>
             </CardContent>
           </Card>
 
-          {/* Card: Partidas */}
+          {}
           <Card>
             <CardHeader className="sticky top-0 z-10 rounded-t-xl bg-card pb-4">
               <div className="flex flex-col gap-4">
@@ -2270,7 +2157,6 @@ export default function CrearOrdenCompra() {
                               const [busqueda, setBusqueda] = useState('');
                               const [buscado, setBuscado] = useState(false);
                               const [selectedIndex, setSelectedIndex] = useState(0);
-                              // Filtrar de allProveedores (independiente del selector de arriba)
                               const partidaProveedores = useMemo(() => {
                                 if (!busqueda || busqueda.length < 1) return allProveedores;
                                 return allProveedores.filter(
@@ -2327,7 +2213,6 @@ export default function CrearOrdenCompra() {
                                         setBusqueda('');
                                         setBuscado(false);
                                         setSelectedIndex(0);
-                                        // Siempre cargar/recargar proveedores al abrir
                                         cargarTodosProveedores();
                                       }
                                     }}
@@ -2365,7 +2250,6 @@ export default function CrearOrdenCompra() {
                                               setBusqueda(val);
                                               setBuscado(true);
                                               setSelectedIndex(0);
-                                              // La búsqueda se filtra client-side via partidaProveedores
                                             }}
                                             onKeyDown={handleKeyDown}
                                             className="flex-1 bg-transparent outline-none placeholder:text-slate-400"
@@ -2483,7 +2367,7 @@ export default function CrearOrdenCompra() {
             </CardContent>
           </Card>
 
-          {/* Card: Resumen */}
+          {}
           <Card>
             <CardHeader className="pb-4">
               <CardTitle className="text-lg font-semibold">Resumen</CardTitle>
@@ -2667,7 +2551,7 @@ export default function CrearOrdenCompra() {
             </CardContent>
           </Card>
 
-          {/* Botones de Acción */}
+          {}
           <div className="flex justify-end gap-3 pt-4">
             <Button
               type="button"
@@ -2680,11 +2564,8 @@ export default function CrearOrdenCompra() {
               type="button"
               disabled={isSaving}
               onClick={() => {
-                console.log('🔵 [BOTON GUARDAR] ===== CLICK EN BOTON GUARDAR ORDEN =====');
-                console.log('🔵 [BOTON GUARDAR] isSaving:', isSaving);
                 form.handleSubmit(
                   (values) => {
-                    console.log('🔵 [BOTON GUARDAR] ✅ Validación PASÓ, llamando handleSave...');
                     handleSave(values);
                   },
                   (errors) => {
@@ -2719,7 +2600,6 @@ export default function CrearOrdenCompra() {
                     };
 
                     const missing: string[] = [];
-                    const devDetails: string[] = [];
 
                     for (const [key, err] of Object.entries(errors as Record<string, unknown>)) {
                       if (!err) continue;
@@ -2735,7 +2615,6 @@ export default function CrearOrdenCompra() {
                             const msg = fieldErr.message ?? '';
                             const generic = !msg || msg === 'Required' || msg === 'Invalid input';
                             missing.push(`Partida ${n}: ${generic ? label : msg}`);
-                            devDetails.push(`  partidas[${idx}].${campo} → ${msg}`);
                           }
                         }
                       } else if (typeof err === 'object' && 'message' in (err as object)) {
@@ -2743,16 +2622,8 @@ export default function CrearOrdenCompra() {
                         const generic = !msg || msg === 'Required' || msg === 'Invalid input';
                         const label = FIELD_NAMES[key] ?? key;
                         missing.push(generic ? label : msg);
-                        devDetails.push(`  ${key} → ${msg}`);
                       }
                     }
-
-                    console.group('🔴 Validación FALLÓ');
-                    console.log('Campos faltantes:', missing);
-                    console.log('Detalle por campo:');
-                    devDetails.forEach((d) => console.log(d));
-                    console.log('Objeto completo:', errors);
-                    console.groupEnd();
 
                     if (missing.length > 0) {
                       toast.error('Revisa los campos marcados', {
@@ -2777,32 +2648,7 @@ export default function CrearOrdenCompra() {
         </form>
       </Form>
 
-      {/*
-      [COMENTADO] Dialogo crear proveedor inline - ya no se usa
-      <Dialog open={mostrarDialogoProveedor} onOpenChange={setMostrarDialogoProveedor}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Proveedor no registrado</DialogTitle>
-            <DialogDescription>
-              El proveedor con RFC <strong>{form.getValues('rfcProveedor')}</strong> no existe en el
-              catálogo.
-              <br />
-              <br />
-              Será enviado primero para su autorización antes de procesar la orden de compra.
-              <br />
-              <br />
-              ¿Desea continuar?
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => setMostrarDialogoProveedor(false)}>
-              Cancelar
-            </Button>
-            <Button onClick={confirmarGuardarProveedorNuevo}>Sí, continuar</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-      */}
+      {}
     </div>
   );
 }

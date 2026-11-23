@@ -23,10 +23,6 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { cn } from '@/lib/utils';
 
-// ============================================================================
-// Context
-// ============================================================================
-
 interface Column {
   id: string;
   name: string;
@@ -59,10 +55,6 @@ function useKanban<T extends KanbanItem = KanbanItem>() {
   }
   return context as unknown as KanbanContextValue<T>;
 }
-
-// ============================================================================
-// Provider
-// ============================================================================
 
 interface KanbanProviderProps<T extends KanbanItem = KanbanItem> {
   columns: Column[];
@@ -117,7 +109,6 @@ export function KanbanProvider<T extends KanbanItem>({
 
     if (!activeItem) return;
 
-    // Si over es una columna
     const overColumn = columns.find((c) => c.id === overId);
     if (overColumn) {
       if (activeItem.column !== overColumn.id) {
@@ -129,7 +120,6 @@ export function KanbanProvider<T extends KanbanItem>({
       return;
     }
 
-    // Si over es un item
     if (overItem && activeItem.column !== overItem.column) {
       const newData = data.map((item) =>
         item.id === activeId ? { ...item, column: overItem.column } : item
@@ -170,7 +160,7 @@ export function KanbanProvider<T extends KanbanItem>({
         <DragOverlay>
           {activeId ? (
             <div className="opacity-50">
-              {/* Overlay content */}
+              {}
             </div>
           ) : null}
         </DragOverlay>
@@ -178,10 +168,6 @@ export function KanbanProvider<T extends KanbanItem>({
     </KanbanContext.Provider>
   );
 }
-
-// ============================================================================
-// Board (Column)
-// ============================================================================
 
 interface KanbanBoardProps {
   id: string;
@@ -206,10 +192,6 @@ export function KanbanBoard({ id, children }: KanbanBoardProps) {
   );
 }
 
-// ============================================================================
-// Header
-// ============================================================================
-
 interface KanbanHeaderProps {
   children: React.ReactNode;
 }
@@ -221,10 +203,6 @@ export function KanbanHeader({ children }: KanbanHeaderProps) {
     </div>
   );
 }
-
-// ============================================================================
-// Cards Container
-// ============================================================================
 
 interface KanbanCardsProps<T extends KanbanItem = KanbanItem> {
   id: string;
@@ -247,10 +225,6 @@ export function KanbanCards<T extends KanbanItem>({
     </SortableContext>
   );
 }
-
-// ============================================================================
-// Card
-// ============================================================================
 
 interface KanbanCardProps {
   id: string;

@@ -8,7 +8,6 @@ interface SolicitudHeaderCardProps {
       | null
       | undefined
   ) => { nombre: string; color: string };
-  /** Versión de una sola línea, para modales densos (p. ej. historial con zoom alto). */
   compact?: boolean;
 }
 

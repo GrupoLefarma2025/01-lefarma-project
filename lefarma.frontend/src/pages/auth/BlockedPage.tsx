@@ -2,14 +2,10 @@
 import { Button } from '@/components/ui/button';
 import { ShieldAlert, ArrowLeft, LayoutDashboard } from 'lucide-react';
 
-
 export default function BlockedPage() {
   const navigate = useNavigate();
   const { pathname } = useLocation();
 
-  // La página se monta en cada subárbol (/cxp/bloqueado, /rh/bloqueado,
-  // /educacion-medica/bloqueado), así que el dashboard de destino depende del
-  // app actual. No existe /dashboard raíz. Detección igual que SignatureAlert.
   const appPrefix = ['/cxp', '/rh', '/educacion-medica'].find((p) =>
     pathname.startsWith(p)
   );

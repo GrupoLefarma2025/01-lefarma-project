@@ -1,8 +1,3 @@
-// Validador propio del contrato de cotizacion de viajes (JSON Schema draft
-// 2020-12). Subconjunto soportado: type, required, properties,
-// additionalProperties, items, enum, const, allOf, if/then. Sin ajv ni
-// dependencias nuevas; el keyword 'format' no se evalua (es anotacion).
-
 export type Esquema = {
   type?: string | string[];
   const?: unknown;

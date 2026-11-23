@@ -4,10 +4,6 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Lefarma.API.Features.Configuracion;
 
-/// <summary>
-/// Valida la API key contra config.integraciones: activa, no expirada y con hash correcto.
-/// Actualiza la última utilización cuando la autenticación es exitosa.
-/// </summary>
 public class IntegracionApiKeyService : IIntegracionApiKeyService
 {
     private readonly ApplicationDbContext _context;

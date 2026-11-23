@@ -1,9 +1,5 @@
 namespace Lefarma.API.Features.Sigma.DTOs;
 
-// Puerto del servicio de documentos de Asokam (/asokam/pdf-signature) que vive en
-// P:\Trabajo\core-manager; aquí sólo se traen las lecturas que usa la bandeja de SIGMA.
-
-/// <summary>Fila del listado de documentos (sp_ObtenerDocumentos).</summary>
 public sealed record PdfSignatureDocumentoDto
 {
     public Guid Id { get; init; }
@@ -66,9 +62,6 @@ internal sealed record PdfSignatureDocumentoDetalleRow
     public bool? TieneDocumentoLigado { get; init; }
 }
 
-// Escrituras del servicio de PDFs (subir, autorizar, rechazar, eliminar y verificar).
-
-/// <summary>Petición de autorización o rechazo de un documento.</summary>
 public sealed record AutorizarRechazarPdfRequest
 {
     public Guid IdDocumento { get; init; }
@@ -76,7 +69,6 @@ public sealed record AutorizarRechazarPdfRequest
     public string? Motivo { get; init; }
 }
 
-/// <summary>Fila de resultado de <c>app.sp_GestionarDocumento</c>.</summary>
 internal sealed record GestionDocumentoResultado
 {
     public int Codigo { get; init; }

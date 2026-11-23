@@ -7,11 +7,6 @@ using Microsoft.Extensions.Logging;
 
 namespace Lefarma.API.Features.EducacionMedica;
 
-/// <summary>
-/// Impartición de talleres (ADR-00008, revisión 2026-10-09): material (FOR-007),
-/// asistencias (FOR-008), evidencias, máquina de estados con historial e imprimibles.
-/// Sin workflow: las transiciones se validan aquí.
-/// </summary>
 public class TallerImparticionService : ITallerImparticionService
 {
     private const string RolGerenteVentas = "Gerente de Ventas";
@@ -35,9 +30,7 @@ public class TallerImparticionService : ITallerImparticionService
         _logger = logger;
     }
 
-    // ----- Material (FOR-007) -----
-
-    public async Task<TallerMaterialDto?> GetMaterialAsync(int idTaller, CancellationToken ct = default)
+public async Task<TallerMaterialDto?> GetMaterialAsync(int idTaller, CancellationToken ct = default)
     {
         _ = await ObtenerTallerAsync(idTaller, ct);
 
@@ -102,7 +95,6 @@ public class TallerImparticionService : ITallerImparticionService
             throw new InvalidOperationException("La recepción del material ya fue confirmada.");
         }
 
-        // Patrón bitácora: la firma digital es la del perfil del usuario que confirma.
         var tieneFirma = await _profileService.HasFirmaAsync(idUsuario, ct);
         if (tieneFirma.IsError || !tieneFirma.Value)
         {
@@ -134,9 +126,7 @@ public class TallerImparticionService : ITallerImparticionService
         return await ArmarMaterialDtoAsync(material, ct);
     }
 
-    // ----- Asistencias (FOR-008) -----
-
-    public async Task<List<TallerAsistenciaDto>> GetAsistenciasAsync(int idTaller, CancellationToken ct = default)
+public async Task<List<TallerAsistenciaDto>> GetAsistenciasAsync(int idTaller, CancellationToken ct = default)
     {
         _ = await ObtenerTallerAsync(idTaller, ct);
 
@@ -234,9 +224,7 @@ public class TallerImparticionService : ITallerImparticionService
         await _context.SaveChangesAsync(ct);
     }
 
-    // ----- Evidencias -----
-
-    public async Task<List<TallerEvidenciaDto>> GetEvidenciasAsync(int idTaller, CancellationToken ct = default)
+public async Task<List<TallerEvidenciaDto>> GetEvidenciasAsync(int idTaller, CancellationToken ct = default)
     {
         _ = await ObtenerTallerAsync(idTaller, ct);
 
@@ -291,9 +279,7 @@ public class TallerImparticionService : ITallerImparticionService
         await _context.SaveChangesAsync(ct);
     }
 
-    // ----- Máquina de estados (ADR-00008 revisado) -----
-
-    public async Task<TallerDto> CambiarEstadoAsync(int idTaller, CambiarEstadoTallerRequest request, int idUsuario, CancellationToken ct = default)
+public async Task<TallerDto> CambiarEstadoAsync(int idTaller, CambiarEstadoTallerRequest request, int idUsuario, CancellationToken ct = default)
     {
         var taller = await ObtenerTallerAsync(idTaller, ct);
         var nuevoEstado = request.NuevoEstado.Trim();
@@ -399,9 +385,7 @@ public class TallerImparticionService : ITallerImparticionService
             .ToList();
     }
 
-    // ----- Imprimibles (FOR-007 / FOR-008) -----
-
-    public async Task<TallerDocumentoMaterialDto> GetDocumentoMaterialAsync(int idTaller, CancellationToken ct = default)
+public async Task<TallerDocumentoMaterialDto> GetDocumentoMaterialAsync(int idTaller, CancellationToken ct = default)
     {
         var taller = await ObtenerTallerAsync(idTaller, ct);
         var material = await _context.TalleresMateriales.AsNoTracking()
@@ -429,9 +413,7 @@ public class TallerImparticionService : ITallerImparticionService
         };
     }
 
-    // ----- Helpers -----
-
-    private async Task<Taller> ObtenerTallerAsync(int idTaller, CancellationToken ct)
+private async Task<Taller> ObtenerTallerAsync(int idTaller, CancellationToken ct)
     {
         return await _context.Talleres
             .Include(t => t.Recursos)

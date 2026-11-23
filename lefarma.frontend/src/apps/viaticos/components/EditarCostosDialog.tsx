@@ -21,10 +21,8 @@ import type {
   SolicitudOpcion,
 } from '../types/solicitud.types';
 
-/** Tipos de transporte que se pagan por tramo y alimentan el costo de la ruta. */
 const TRANSPORTE_PRINCIPAL = ['autobus', 'vuelo', 'auto', 'renta'];
 
-/** Misma regla que el backend: un precio vacío solo se acepta si el costo es estimado. */
 function fuenteEstimada(fuente: string | null | undefined): boolean {
   return (fuente ?? '').toLowerCase().includes('estimado');
 }
@@ -33,7 +31,6 @@ function esEstimada(opcion: SolicitudOpcion): boolean {
   return opcion.precio === null || opcion.datos?.tipo_precio === 'estimado';
 }
 
-/** Texto del campo a número. `null` = vacío; `NaN` = inválido. */
 function aNumero(texto: string): number | null {
   const limpio = texto.trim();
   if (limpio === '') return null;
@@ -51,11 +48,6 @@ function precioPrincipal(opciones: OpcionCotizacion[], indiceTramo: number): num
   return opcion?.precio ?? null;
 }
 
-/**
- * Recalcula el costo de cada tramo y de cada parada del diagrama con los
- * precios capturados. El resto del cálculo (tiempos, km, casetas, hoteles) no
- * cambia: solo se editan importes.
- */
 function recalcularCosto(calculo: CalculoViaje, opciones: OpcionCotizacion[]): CalculoViaje {
   const tramos = calculo.tramos.map((tramo, indice) => {
     const precio = precioPrincipal(opciones, indice);
@@ -66,7 +58,6 @@ function recalcularCosto(calculo: CalculoViaje, opciones: OpcionCotizacion[]): C
         ...calculo.ruta,
         nodos: calculo.ruta.nodos.map((nodo) => {
           const coincidencia = /^(\d+)\./.exec(nodo.titulo.trim());
-          // `datos.tramo` es índice base cero; la parada numerada "1." es la 0.
           const precio = coincidencia ? precioPrincipal(opciones, Number(coincidencia[1]) - 1) : null;
           return precio === null ? nodo : { ...nodo, costo: precio };
         }),
@@ -84,20 +75,12 @@ function descripcionOpcion(opcion: SolicitudOpcion): string {
 }
 
 export interface EditarCostosDialogProps {
-  /** Cálculo que se está revisando (el guardado o la propuesta en curso). */
   calculo: CalculoViaje;
-  /** Opciones de esa misma versión: elegidas y descartadas. */
   opciones: SolicitudOpcion[];
   onOpenChange: (abierto: boolean) => void;
-  /** Devuelve la propuesta con los importes capturados, sin guardarla. */
   onGuardar: (propuesta: PropuestaRuta) => void;
 }
 
-/**
- * Edición de importes antes de autorizar. Se monta solo cuando está abierto,
- * así cada apertura parte de los precios vigentes. No escribe en el servidor:
- * entrega una propuesta que el revisor confirma al autorizar.
- */
 export function EditarCostosDialog({
   calculo,
   opciones,

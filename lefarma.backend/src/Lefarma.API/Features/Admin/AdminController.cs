@@ -44,22 +44,7 @@ public class AdminController : ControllerBase
         }));
     }
 
-    //[HttpPost("usuarios")]
-    //[SwaggerOperation(Summary = "Crear usuario")]
-    //public async Task<IActionResult> CreateUsuario(CreateUsuarioRequest request)
-    //{
-    //    var result = await _adminService.CreateUsuarioAsync(request);
-    //    return result.ToActionResult(this, data => CreatedAtAction(
-    //        nameof(GetUsuario),
-    //        new { id = data.IdUsuario },
-    //        new ApiResponse<UsuarioResponse>
-    //        {
-    //            Success = true,
-    //            Data = data
-    //        }));
-    //}
-
-    [HttpPut("usuarios/{id}")]
+[HttpPut("usuarios/{id}")]
     [SwaggerOperation(Summary = "Actualizar usuario")]
     public async Task<IActionResult> UpdateUsuario(int id, UpdateUsuarioRequest request)
     {
@@ -269,29 +254,5 @@ public class AdminController : ControllerBase
 
     #region Asignaciones
 
-    //[HttpPost("usuarios/{usuarioId}/roles")]
-    //[SwaggerOperation(Summary = "Asignar roles a usuario")]
-    //public async Task<IActionResult> AsignarRolesAUsuario(int usuarioId, AsignarRolesRequest request)
-    //{
-    //    var result = await _adminService.AsignarRolesAUsuarioAsync(usuarioId, request.RolesIds);
-    //    return result.ToActionResult(this, data => Ok(new ApiResponse<bool>
-    //    {
-    //        Success = true,
-    //        Message = "Roles asignados exitosamente"
-    //    }));
-    //}
-
-    //[HttpPost("roles/{rolId}/permisos")]
-    //[SwaggerOperation(Summary = "Asignar permisos a rol")]
-    //public async Task<IActionResult> AsignarPermisosARol(int rolId, AsignarPermisosRequest request)
-    //{
-    //    var result = await _adminService.AsignarPermisosARolAsync(rolId, request.PermisosIds);
-    //    return result.ToActionResult(this, data => Ok(new ApiResponse<bool>
-    //    {
-    //        Success = true,
-    //        Message = "Permisos asignados exitosamente"
-    //    }));
-    //}
-
-    #endregion
+#endregion
 }

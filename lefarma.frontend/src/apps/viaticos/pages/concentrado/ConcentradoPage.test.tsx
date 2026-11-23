@@ -22,7 +22,6 @@ vi.mock('@/hooks/usePermission', () => ({
 vi.mock('@/hooks/usePageTitle', () => ({ usePageTitle: vi.fn() }));
 vi.mock('sonner', () => ({ toast: { error: vi.fn(), success: vi.fn(), warning: vi.fn() } }));
 
-/** Fecha local en ISO (aaaa-mm-dd); `toISOString` es UTC y correría el día. */
 function isoLocal(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
@@ -40,12 +39,9 @@ const fila: SolicitudBandeja = {
   periodo: '2026-11',
   gerencia: '',
   destino: 'Destino Uno',
-  // Al concentrado llega lo que ya autorizó la pantalla de Autorizaciones.
   estado: 'autorizada',
   total: 2000,
-  // El concentrado revisa las que ya pasaron por los cálculos.
   recalculada: true,
-  // El filtro de fecha por defecto es «Todas»: la fila se ve sin tocar nada.
   fecha_creacion: `${HOY}T10:00:00`,
 };
 
@@ -73,8 +69,6 @@ const detalleOk = {
             debeEstarHora: '10:00',
           },
         ],
-        // La revisión del concentrado trabaja sobre la ruta calculada: sin ella
-        // el detalle cae al modo legado y no hay pestaña que revisar.
         calculo: {
           generado_en: '2026-11-04T10:00:00Z',
           margen: 0.1,
@@ -121,10 +115,8 @@ describe('ConcentradoPage', () => {
     render(<ConcentradoPage />);
     await waitFor(() => expect(screen.getByTestId('concentrado-5')).toBeInTheDocument());
 
-    // El nombre de la página vive en la barra superior y en la pestaña del navegador.
     expect(screen.queryByRole('heading', { name: /^concentrado de viáticos$/i })).toBeNull();
 
-    // Los filtros se pliegan, pero el encabezado deja claro que están ahí.
     const resumen = screen.getByText('Filtros', { selector: 'summary' });
     expect(resumen).toBeInTheDocument();
     expect(resumen.parentElement).not.toHaveAttribute('open');
@@ -137,7 +129,6 @@ describe('ConcentradoPage', () => {
     await usuario.click(within(screen.getByTestId('concentrado-5')).getByRole('button', { name: /Ver detalle/ }));
     await waitFor(() => expect(screen.getByTestId('revision-solicitud')).toBeInTheDocument());
     const revision = screen.getByTestId('revision-solicitud');
-    // El detalle arranca en la ruta que se va a autorizar y conserva el desglose.
     expect(revision).toHaveTextContent('Ruta autorizada');
     expect(revision).toHaveTextContent('Vuelo Elegido');
     expect(revision).toHaveTextContent(/3,500/);
@@ -152,13 +143,11 @@ describe('ConcentradoPage', () => {
     await usuario.click(within(screen.getByTestId('concentrado-5')).getByRole('button', { name: /Ver detalle/ }));
     await waitFor(() => expect(screen.getByTestId('revision-solicitud')).toBeInTheDocument());
 
-    // Autorizar y rechazar viven en Autorizaciones: aquí solo se consulta.
     const revision = screen.getByTestId('revision-solicitud');
     expect(within(revision).queryByRole('button', { name: /autorizar/i })).not.toBeInTheDocument();
     expect(within(revision).queryByRole('button', { name: /rechazar/i })).not.toBeInTheDocument();
     expect(within(revision).queryByRole('button', { name: /recalcular ruta/i })).not.toBeInTheDocument();
     expect(within(revision).getByRole('button', { name: /cerrar/i })).toBeInTheDocument();
-    // El detalle sigue entrando por la ruta que quedó autorizada.
     expect(screen.getByRole('tab', { name: 'Ruta autorizada' })).toHaveAttribute('aria-selected', 'true');
   });
 
@@ -175,10 +164,8 @@ describe('ConcentradoPage', () => {
     });
     render(<ConcentradoPage />);
     await waitFor(() => expect(screen.getByTestId('concentrado-5')).toBeInTheDocument());
-    // La cola de autorización todavía no llega al concentrado.
     expect(screen.queryByTestId('concentrado-6')).not.toBeInTheDocument();
 
-    // Sin recorte por fecha: el periodo por defecto es "Todas".
     expect(screen.getByLabelText(/periodo/i)).toHaveValue('todas');
     expect(screen.queryByTestId('rango-visible')).not.toBeInTheDocument();
 
@@ -202,14 +189,12 @@ describe('ConcentradoPage', () => {
     });
     render(<ConcentradoPage />);
 
-    // Con "Todas" no hay recorte: aparecen las dos.
     await waitFor(() => expect(screen.getByTestId('concentrado-7')).toBeInTheDocument());
     expect(screen.getByTestId('concentrado-8')).toBeInTheDocument();
 
     await usuario.selectOptions(screen.getByLabelText(/periodo/i), 'hoy');
     await usuario.selectOptions(screen.getByLabelText(/buscar por/i), 'viaje');
 
-    // El viaje del 7 está en curso hoy; el del 8 empieza en diez días.
     expect(screen.getByTestId('concentrado-7')).toBeInTheDocument();
     expect(screen.queryByTestId('concentrado-8')).not.toBeInTheDocument();
   });
@@ -222,7 +207,6 @@ describe('ConcentradoPage', () => {
     render(<ConcentradoPage />);
     await waitFor(() => expect(screen.getByTestId('concentrado-5')).toBeInTheDocument());
 
-    // La identidad que usa la persona es el folio, no el id interno.
     expect(within(screen.getByTestId('concentrado-5')).getByText('VIA-TEST-0005')).toBeInTheDocument();
 
     await usuario.click(screen.getByRole('checkbox', { name: /incluir VIA-TEST-0005 en el concentrado/i }));
@@ -243,7 +227,6 @@ describe('ConcentradoPage', () => {
     render(<ConcentradoPage />);
     await waitFor(() => expect(screen.getByTestId('concentrado-5')).toBeInTheDocument());
 
-    // Al concentrado llega lo ya autorizado: se puede marcar sin más pasos.
     const casilla = screen.getByRole('checkbox', { name: /incluir VIA-TEST-0005 en el concentrado/i });
     expect(casilla).not.toBeDisabled();
     expect(screen.getByRole('button', { name: /generar concentrado \(0\)/i })).toBeDisabled();
@@ -251,20 +234,17 @@ describe('ConcentradoPage', () => {
 
     await usuario.click(casilla);
     expect(screen.getByRole('button', { name: /generar concentrado \(1\)/i })).toBeEnabled();
-    // El documento ya no lleva aviso de revisión: se imprime lo marcado a secas.
     expect(screen.queryByText(/documento de revisión/i)).toBeNull();
 
     await usuario.click(screen.getByRole('button', { name: /generar concentrado \(1\)/i }));
     const documento = document.querySelector('#concentrado-viaticos-print');
     expect(documento).not.toBeNull();
-    // Se imprime lo marcado: ya no se filtra por estado al armar el FOR-008.
     expect(documento).toHaveTextContent('Destino Uno');
     expect(documento).toHaveTextContent('Persona Solicitante');
   });
 
   it('el botón Vista previa manda directo al diálogo de impresión', async () => {
     const usuario = userEvent.setup();
-    // jsdom no implementa la impresión ni el decode de imágenes del portal.
     const imprimir = vi.spyOn(window, 'print').mockImplementation(() => {});
     Object.defineProperty(HTMLImageElement.prototype, 'decode', {
       configurable: true,
@@ -279,7 +259,6 @@ describe('ConcentradoPage', () => {
     await usuario.click(screen.getByRole('button', { name: /^vista previa$/i }));
 
     await waitFor(() => expect(imprimir).toHaveBeenCalled());
-    // El visor queda detrás como vista previa en pantalla.
     expect(document.querySelector('#concentrado-viaticos-print')).not.toBeNull();
 
     imprimir.mockRestore();
@@ -293,11 +272,8 @@ describe('ConcentradoPage', () => {
 
     await usuario.selectOptions(screen.getByLabelText(/periodo/i), 'personalizado');
     expect(screen.getByText(/elige la fecha inicial y la final/i)).toBeInTheDocument();
-    // Sin ambas fechas no se recorta nada.
     expect(screen.getByTestId('concentrado-5')).toBeInTheDocument();
 
-    // Los inputs date se llenan con change, no tecleando: jsdom no simula sus
-    // segmentos de edición.
     fireEvent.change(screen.getByLabelText(/desde/i), { target: { value: HOY } });
     fireEvent.change(screen.getByLabelText(/hasta/i), { target: { value: HOY } });
     expect(screen.getByTestId('rango-visible')).toHaveTextContent('al');
@@ -329,7 +305,6 @@ describe('ConcentradoPage', () => {
     const documento = document.querySelector('#concentrado-viaticos-print') as HTMLElement;
     expect(documento).toHaveTextContent(/Gerencia: Descentralizado/i);
     expect(documento).toHaveTextContent(/Gerencia: IMSS/i);
-    // Un subtotal por bloque; el total general sigue en el pie.
     expect(documento.querySelectorAll('.concentrado-subtotal-grupo')).toHaveLength(2);
   });
 
@@ -348,7 +323,6 @@ describe('ConcentradoPage', () => {
     await waitFor(() => expect(screen.getByTestId('concentrado-31')).toBeInTheDocument());
 
     expect(within(screen.getByTestId('concentrado-31')).getByText('Aéreo')).toBeInTheDocument();
-    // "Solicitado" es un estado del viaje, no un dato faltante.
     expect(within(screen.getByTestId('concentrado-32')).getByText('Solicitado')).toBeInTheDocument();
     expect(within(screen.getByTestId('concentrado-33')).getByText('Sin clasificar')).toBeInTheDocument();
   });
@@ -375,12 +349,10 @@ describe('ConcentradoPage', () => {
     render(<ConcentradoPage />);
     await waitFor(() => expect(screen.getByTestId('concentrado-5')).toBeInTheDocument());
 
-    // La solicitud a la agencia también se manda antes de autorizar.
     const casilla = screen.getByRole('checkbox', { name: /incluir VIA-TEST-0005 en el concentrado/i });
     expect(casilla).not.toBeDisabled();
     await usuario.click(casilla);
 
-    // El documento de avión se pide con su botón: la vista previa no cambia de formato.
     await usuario.click(screen.getByRole('button', { name: /solicitud de avión/i }));
 
     const documento = document.querySelector('#concentrado-vuelos-print') as HTMLElement;
@@ -392,7 +364,6 @@ describe('ConcentradoPage', () => {
     expect(documento).toHaveTextContent('10/11/2026');
     expect(documento).toHaveTextContent('Puebla');
     expect(documento).toHaveTextContent('Impartición de talleres');
-    // El portal del FOR-008 no se monta en este formato.
     expect(document.querySelector('#concentrado-viaticos-print')).toBeNull();
   });
 });

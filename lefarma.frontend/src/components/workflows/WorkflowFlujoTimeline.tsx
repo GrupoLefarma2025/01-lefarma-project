@@ -107,23 +107,14 @@ interface NoAplicaTimelineItem {
 type TimelineItem = PasoTimelineItem | OmitidosTimelineItem | NoAplicaTimelineItem;
 
 interface WorkflowFlujoTimelineProps {
-  /** Paso actual del documento en su workflow. */
   idPasoActual: number | null;
-  /** Estado del workflow (para detectar estados terminales por nombre). */
   estadoNombre?: string | null;
   pasos: WorkflowPasoFlowResponse[];
   historial: HistorialWorkflowItemResponse[];
-  /** Nombres de los jefes que se esperan en cada paso (se muestran antes de la firma). */
   responsablesPorPaso?: ReadonlyMap<number, string[]>;
-  /** Subtítulo del encabezado; por defecto "Paso a paso del documento". */
   descripcion?: string;
 }
 
-/**
- * Línea de tiempo del flujo de un documento: pasos con eventos, devoluciones,
- * omisiones automáticas y pasos que no aplican. Compartido por todos los módulos
- * (RH y Educación Médica); solo cambia el contexto desde donde se abre.
- */
 export function WorkflowFlujoTimeline({
   idPasoActual,
   estadoNombre,
@@ -389,7 +380,7 @@ export function WorkflowFlujoTimeline({
 
   return (
     <div className="space-y-2">
-      {/* Header resumen */}
+      {}
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
         <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
           <p className="text-sm font-medium">Línea de tiempo del flujo</p>
@@ -400,8 +391,7 @@ export function WorkflowFlujoTimeline({
         </Badge>
       </div>
 
-
-      {/* Timeline */}
+{}
       <div className="relative">
         <div className="absolute bottom-0 left-[1.375rem] top-3 w-px bg-border" />
         <div className="space-y-1">
@@ -539,13 +529,11 @@ function PasoItem({
   const DotIcon = dotConfig.icon;
   const comentarioPaso = comentariosPorPaso.get(paso.idPaso);
   const responsables = responsablesPorPaso?.get(paso.idPaso) ?? [];
-  // Se muestra mientras el paso sigue pendiente (actual o sin actividad); en
-  // pasos ya resueltos el evento ya indica quién firmó.
   const mostrarResponsables = responsables.length > 0 && (isActual || eventos.length === 0);
 
   return (
     <div className="relative pl-10">
-      {/* Dot */}
+      {}
       <div
         className={`absolute left-3 top-3 z-10 flex h-5 w-5 items-center justify-center rounded-full border-2 ${dotConfig.className}`}
       >
@@ -559,7 +547,7 @@ function PasoItem({
         ) : null}
       </div>
 
-      {/* Card */}
+      {}
       <div className={`rounded-lg border border-l-4 p-3 text-xs ${cardClass}`}>
         <div className="flex items-start justify-between gap-2">
           <div className="flex min-w-0 items-center gap-2">
@@ -587,7 +575,7 @@ function PasoItem({
           </div>
         )}
 
-        {/* Resumen del último evento ejecutado en el paso */}
+        {}
         {ultimoEventoActividad ? (
           <div className="mt-2 space-y-1.5">
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
@@ -621,7 +609,7 @@ function PasoItem({
           </div>
         )}
 
-        {/* Historial completo */}
+        {}
         {eventosActividad.length > 1 && (
           <div className="mt-2">
             <Button

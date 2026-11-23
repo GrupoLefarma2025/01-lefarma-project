@@ -12,9 +12,6 @@ using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 
 namespace Lefarma.API.Services.Identity;
-/// <summary>
-/// Service for JWT token generation, validation, and refresh token management.
-/// </summary>
 public class TokenService : ITokenService
 {
     private readonly JwtSettings _jwtSettings;
@@ -33,7 +30,6 @@ public class TokenService : ITokenService
         _signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_jwtSettings.SecretKey));
     }
 
-    /// <inheritdoc />
     public async Task<ErrorOr<string>> GenerateAccessTokenAsync(
         Usuario usuario,
         long? sesionId = null,
@@ -124,7 +120,6 @@ public class TokenService : ITokenService
         }
     }
 
-    /// <inheritdoc />
     public async Task<ErrorOr<string>> GenerateRefreshTokenAsync(
         Usuario usuario,
         long? sesionId = null,
@@ -138,7 +133,6 @@ public class TokenService : ITokenService
 
         try
         {
-            // Generate a cryptographically secure random token
             var refreshTokenValue = GenerateSecureToken();
             var tokenHash = HashToken(refreshTokenValue);
             var jtiAccess = Guid.NewGuid().ToString();
@@ -162,7 +156,6 @@ public class TokenService : ITokenService
                 "Generated refresh token for user {UserId}, expires at {Expiration}",
                 usuario.IdUsuario, refreshToken.FechaExpiracion);
 
-            // Return the raw token value (not hashed) - this is the only time it's available
             return refreshTokenValue;
         }
         catch (Exception ex)
@@ -172,7 +165,6 @@ public class TokenService : ITokenService
         }
     }
 
-    /// <inheritdoc />
     public async Task<ErrorOr<ClaimsPrincipal>> ValidateAccessTokenAsync(
         string token,
         CancellationToken cancellationToken = default)
@@ -194,7 +186,7 @@ public class TokenService : ITokenService
                 ValidIssuer = _jwtSettings.Issuer,
                 ValidAudience = _jwtSettings.Audience,
                 IssuerSigningKey = _signingKey,
-                ClockSkew = TimeSpan.Zero // No clock skew tolerance
+                ClockSkew = TimeSpan.Zero 
             };
 
             var principal = tokenHandler.ValidateToken(token, validationParameters, out var validatedToken);
@@ -231,7 +223,6 @@ public class TokenService : ITokenService
         }
     }
 
-    /// <inheritdoc />
     public async Task<ErrorOr<RefreshToken>> ValidateRefreshTokenAsync(
         string token,
         CancellationToken cancellationToken = default)
@@ -267,7 +258,6 @@ public class TokenService : ITokenService
                 return CommonErrors.Validation("token", "El refresh token ha expirado");
             }
 
-            // Mark as used
             refreshToken.FechaUso = DateTime.UtcNow;
             await _context.SaveChangesAsync(cancellationToken);
 
@@ -282,7 +272,6 @@ public class TokenService : ITokenService
         }
     }
 
-    /// <inheritdoc />
     public async Task<ErrorOr<bool>> RevokeRefreshTokenAsync(
         string token,
         string? reason = null,
@@ -324,7 +313,6 @@ public class TokenService : ITokenService
         }
     }
 
-    /// <inheritdoc />
     public async Task<ErrorOr<bool>> RevokeAllUserTokensAsync(
         int usuarioId,
         string? reason = null,
@@ -364,7 +352,6 @@ public class TokenService : ITokenService
         }
     }
 
-    /// <inheritdoc />
     public string? GetJwtId(string token)
     {
         if (string.IsNullOrWhiteSpace(token))
@@ -384,7 +371,6 @@ public class TokenService : ITokenService
         }
     }
 
-    /// <inheritdoc />
     public int? GetUserIdFromToken(string token)
     {
         if (string.IsNullOrWhiteSpace(token))
@@ -414,9 +400,6 @@ public class TokenService : ITokenService
 
     #region Private Methods
 
-    /// <summary>
-    /// Generates a cryptographically secure random token.
-    /// </summary>
     private static string GenerateSecureToken()
     {
         var randomBytes = new byte[64];
@@ -425,9 +408,6 @@ public class TokenService : ITokenService
         return Convert.ToBase64String(randomBytes);
     }
 
-    /// <summary>
-    /// Hashes a token using SHA256 for secure storage.
-    /// </summary>
     private static string HashToken(string token)
     {
         var bytes = Encoding.UTF8.GetBytes(token);

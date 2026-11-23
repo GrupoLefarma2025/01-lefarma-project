@@ -19,30 +19,22 @@ import { LineaConCoordenadas } from './LineaConCoordenadas';
 import { buscarCaptura } from '../services/capturas.api';
 
 export interface TablaOpcionesProps {
-  /** Etiqueta del tramo, para el encabezado de la tabla. */
   titulo: string;
   ofertas: CostosRutaOferta[];
-  /** Clave de la fila elegida (id de la oferta); se resalta en la tabla. */
   opcionElegidaId?: string | null;
   onElegir?: (oferta: CostosRutaOferta) => void;
-  /** Id de la oferta cuyo precio real se está confirmando (vista previa). */
   precioEnCursoId?: string | null;
-  /** Aviso por oferta cuando la vista previa no pudo confirmar el precio. */
   avisoPrecio?: Record<string, string>;
 }
 
 const SIN_URL =
   'Esta opción no trae URL de compra: el cálculo no la trajo y no hay un enlace real al que enviarte. Pide la cotización al proveedor o recalcula cuando exista la fuente.';
 
-/** Modo de transporte como badge: bus, avión y taxi con color propio; el resto neutro. */
 const BADGE_MODO: Record<string, { texto: string; clase: string }> = {
   bus: { texto: 'Bus', clase: 'border-sky-200 bg-sky-50 text-sky-700' },
   avion: { texto: 'Avión', clase: 'border-violet-200 bg-violet-50 text-violet-700' },
   taxi: { texto: 'Taxi', clase: 'border-amber-200 bg-amber-50 text-amber-800' },
   uber: { texto: 'Taxi', clase: 'border-amber-200 bg-amber-50 text-amber-800' },
-  // Transporte urbano: metro, metrobús, tren ligero o camión. El sistema
-  // concreto va en la línea ("Transporte público (Metro / Metrobús)"), no en
-  // el modo. "metro" es la clave vieja y se pinta igual.
   publico: { texto: 'Público', clase: 'border-teal-200 bg-teal-50 text-teal-700' },
   metro: { texto: 'Público', clase: 'border-teal-200 bg-teal-50 text-teal-700' },
 };
@@ -60,7 +52,6 @@ const MESES = [
   'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre',
 ];
 
-/** "23/10 14:30" (formato del motor) -> fecha en letra y hora, por separado. */
 function partirFechaHora(texto: string): { fecha: string; hora: string } | null {
   const partes = /^(\d{1,2})\/(\d{1,2})\s+(\d{1,2}:\d{2})$/.exec(texto.trim());
   if (!partes) return null;
@@ -70,11 +61,6 @@ function partirFechaHora(texto: string): { fecha: string; hora: string } | null 
   return { fecha: `${dia} de ${MESES[mes - 1]}`, hora: partes[3] };
 }
 
-/**
- * Salida y llegada como dos badges: la fecha en letra ("23 de octubre") y la
- * hora en 12 h ("2:30 PM"), igual que el encabezado del tramo. Si el texto no
- * trae el formato esperado se pinta intacto: nunca se pierde la información.
- */
 function FechaHoraBadges({ texto }: { texto: string }) {
   const partes = partirFechaHora(texto);
   if (!partes) return <>{texto}</>;
@@ -90,7 +76,6 @@ function FechaHoraBadges({ texto }: { texto: string }) {
   );
 }
 
-/** Minutos como "2 h" / "30 min" / "2 h 30 min". */
 function minutosTexto(minutos: number): string {
   const horas = Math.floor(minutos / 60);
   const resto = minutos % 60;
@@ -99,41 +84,28 @@ function minutosTexto(minutos: number): string {
     .join(' ');
 }
 
-/** "10h 43m" (formato del motor) -> 643 minutos; `null` si no trae el formato. */
 function minutosDeDuracion(duracion: string): number | null {
   const partes = duracion.match(/(\d+)\s*h\s*(\d+)\s*m/i);
   if (!partes) return null;
   return Number(partes[1]) * 60 + Number(partes[2]);
 }
 
-/** Minutos como "10h 43m", el mismo formato que usa el motor. */
 function duracionHm(minutos: number): string {
   return `${Math.floor(minutos / 60)}h ${String(minutos % 60).padStart(2, '0')}m`;
 }
 
-/**
- * Qué significa la columna. El usuario pidió que quede explícito que el total
- * no es solo el viaje: suma lo que hay que estar ahí antes y el taxi a la
- * terminal que estima el motor.
- */
 const AYUDA_TIEMPO_TOTAL =
   'Tiempo total = lo que dura el viaje + lo que hay que estar ahí antes (abordaje en la terminal o el aeropuerto) + el traslado en taxi a la terminal. En vuelos también cuenta bajar y recoger maletas.';
 
 const AYUDA_SALE_ANTES =
   'Sale antes de tu hora de salida: para tomarlo tendrías que salir del origen antes de la hora que declaraste, contando el traslado y el tiempo de estar en la terminal. Si puedes salir más temprano, ajusta tu hora de salida en el origen.';
 
-/**
- * Desglose del tiempo total de una oferta. `duracion` es puerta a puerta (ya
- * trae el abordaje), así que el viaje puro es la diferencia; el taxi a la
- * terminal lo estima el motor y se suma aparte.
- */
 function desgloseTiempo(oferta: CostosRutaOferta): {
   total: number;
   viaje: number;
   antes: number;
   despues: number;
   taxi: number;
-  /** El motor ya manda los dos taxis por separado (aunque alguno sea desconocido). */
   conDesgloseTaxi: boolean;
   taxiOrigen: number | null;
   taxiDestino: number | null;
@@ -145,8 +117,6 @@ function desgloseTiempo(oferta: CostosRutaOferta): {
   const despues = oferta.minutosDespues ?? 0;
   const taxi = oferta.minutosTaxi ?? 0;
   const viaje = Math.max(0, puertaAPuerta - antes - despues);
-  // Dos taxis: punto → terminal y terminal → punto. `null` es "no se sabe
-  // dónde está la terminal"; un cálculo viejo puede no traer ni el campo.
   const conDesgloseTaxi = oferta.minutosTaxiOrigen != null
     || oferta.minutosTaxiDestino != null
     || 'minutosTaxiOrigen' in oferta
@@ -163,11 +133,6 @@ function desgloseTiempo(oferta: CostosRutaOferta): {
   };
 }
 
-/**
- * Terminal del extremo del viaje: la que informa el proveedor (ClickBus) o,
- * si no hay, la que estima el motor. Se muestra con sus coordenadas; sin
- * terminal no pinta nada, para no dejar lineas vacias en la tabla.
- */
 function TerminalLinea({ terminal }: { terminal?: CostosRutaTerminal | null }) {
   if (!terminal?.nombre) return null;
   const texto =
@@ -181,14 +146,8 @@ function TerminalLinea({ terminal }: { terminal?: CostosRutaTerminal | null }) {
   );
 }
 
-/** Capturas ya tomadas en esta sesión del navegador, por URL. */
 const capturasPorUrl = new Map<string, string>();
 
-/**
- * Cualquier enlace externo http(s) se puede capturar: con el modo agente del
- * backend, OpenCode navega el sitio real (aunque el deep link no traiga los
- * resultados); en modo script el worker de Playwright tambien lo intenta.
- */
 function esCapturable(url: string | undefined): boolean {
   if (typeof url !== 'string' || !/^https?:\/\//i.test(url)) return false;
   try {
@@ -207,11 +166,7 @@ function etiquetaTipoPrecio(oferta: CostosRutaOferta): string {
 }
 
 export function TablaOpciones({ titulo, ofertas, opcionElegidaId, onElegir, precioEnCursoId, avisoPrecio }: TablaOpcionesProps) {
-  // Sin capturas automaticas: la busqueda real se pide fila por fila con Volver a buscar.
   const capturas = Object.fromEntries(capturasPorUrl) as Record<string, string>;
-  // Capturas pedidas con "Volver a buscar" en esta sesion, por id de oferta.
-  // Se separan de `capturas` (indexado por URL) porque dos filas pueden
-  // compartir enlace y cada una tiene su propia busqueda.
   const [rebuscadas, setRebuscadas] = useState<Record<string, string>>({});
   const [rebuscando, setRebuscando] = useState<Record<string, boolean>>({});
 
@@ -233,8 +188,6 @@ export function TablaOpciones({ titulo, ofertas, opcionElegidaId, onElegir, prec
         throw new Error(resultado.error ?? 'El agente no devolvio ninguna captura.');
       }
       capturasPorUrl.set(url, resultado.archivo);
-      // La oferta es un objeto de trabajo del wizard (no una prop de React):
-      // dejar la ruta in situ hace que viaje al enviar la solicitud.
       oferta.rutaCaptura = resultado.archivo;
       setRebuscadas((previo) => ({ ...previo, [oferta.id]: resultado.archivo as string }));
       if (resultado.error) {
@@ -316,7 +269,7 @@ export function TablaOpciones({ titulo, ofertas, opcionElegidaId, onElegir, prec
                         </Tooltip>
                       </TooltipProvider>
                     )}
-                    {/* "Tarde" es solo llegar después del límite: salir antes no lo es. */}
+                    {}
                     {o.llegaTarde && (
                       <Badge
                         variant="destructive"
@@ -349,8 +302,6 @@ export function TablaOpciones({ titulo, ofertas, opcionElegidaId, onElegir, prec
                     if (d.antes > 0) filas.push({ etiqueta: 'En terminal', valor: minutosTexto(d.antes) });
                     if (d.despues > 0) filas.push({ etiqueta: 'Maletas', valor: minutosTexto(d.despues) });
                     if (d.conDesgloseTaxi) {
-                      // Son dos taxis. El que no se puede estimar (terminal por
-                      // confirmar) se declara; nunca se pinta un 0 inventado.
                       const valorTaxi = (minutos: number | null) => {
                         if (minutos === null) return 'por confirmar';
                         return minutos > 0 ? minutosTexto(minutos) : 'sin traslado';
@@ -431,9 +382,6 @@ export function TablaOpciones({ titulo, ofertas, opcionElegidaId, onElegir, prec
                       </a>
                     </Button>
                   ) : (
-                    // Sin URL no hay enlace roto: botón deshabilitado con el motivo explained.
-                    // El texto `sr-only` es el motivo para lector de pantalla: un <button disabled>
-                    // no dispara hover, así que el tooltip por sí solo no es accesible.
                     <TooltipProvider delayDuration={200}>
                       <Tooltip>
                         <TooltipTrigger asChild>

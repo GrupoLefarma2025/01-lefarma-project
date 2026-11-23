@@ -188,14 +188,12 @@ export default function CrearSolicitudPersonal() {
     return tiposSolicitud.filter((t) => t.categoria === selectedCategoria);
   }, [tiposSolicitud, selectedCategoria]);
 
-  // Reset idTipoSolicitud when category changes
   useEffect(() => {
     if (selectedCategoria && selectedTipoSolicitud?.categoria !== selectedCategoria) {
       form.setValue('idTipoSolicitud', 0);
     }
   }, [selectedCategoria, selectedTipoSolicitud, form]);
 
-  // Auto-calculate from detalle (Vacaciones) or fechaInicio/fechaFin (others)
   useEffect(() => {
     const det = watchedDetalle ?? [];
     if (esMultiDia && det.length > 0) {
@@ -271,7 +269,6 @@ export default function CrearSolicitudPersonal() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Load data for edit mode
   useEffect(() => {
     if (!isEditing || !id || loadingCatalogs || tiposSolicitud.length === 0) return;
 
@@ -394,7 +391,7 @@ export default function CrearSolicitudPersonal() {
     <div className="space-y-6">
       <Form {...form}>
         <form className="space-y-6">
-          {/* Card: Datos Generales */}
+          {}
           <Collapsible defaultOpen={false}>
             <Card>
               <CollapsibleTrigger asChild>
@@ -500,7 +497,7 @@ export default function CrearSolicitudPersonal() {
             </Card>
           </Collapsible>
 
-          {/* Card: Tipo de Solicitud */}
+          {}
           <Card>
             <CardHeader className="pb-4">
               <CardTitle className="flex items-center gap-2 text-lg font-semibold">
@@ -607,7 +604,7 @@ export default function CrearSolicitudPersonal() {
             </CardContent>
           </Card>
 
-          {/* Card: Fechas */}
+          {}
           <Card>
             <CardHeader className="pb-4">
               <CardTitle className="flex items-center gap-2 text-lg font-semibold">
@@ -731,7 +728,7 @@ export default function CrearSolicitudPersonal() {
             </CardContent>
           </Card>
 
-          {/* Card: Resumen */}
+          {}
           <Card>
             <CardContent className="space-y-3 pt-6">
               <div className="rounded-lg border border-primary/30 bg-primary/10 p-3 shadow-sm">
@@ -777,7 +774,7 @@ export default function CrearSolicitudPersonal() {
             </CardContent>
           </Card>
 
-          {/* Botones de Acción */}
+          {}
           <div className="flex justify-end gap-3 pt-4">
             <Button
               type="button"

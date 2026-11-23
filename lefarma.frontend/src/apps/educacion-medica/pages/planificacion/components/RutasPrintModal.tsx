@@ -214,7 +214,7 @@ export function RutasPrintModal({ open, onOpenChange, encabezado, equipos }: Rut
         </div>
       </Modal>
 
-      {/* Copia exclusiva para impresión: flujo normal de página, sin animaciones del diálogo */}
+      {}
       {createPortal(
         <div id="rutas-print" className="hidden print:block">
           <ContenidoRutasImpresion encabezado={encabezado} equipos={equiposFiltrados} />

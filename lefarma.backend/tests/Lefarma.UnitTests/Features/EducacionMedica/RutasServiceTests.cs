@@ -295,7 +295,6 @@ public class RutasServiceTests
     public async Task GenerarAsync_Debe_MantenerCiudadJuntaEnUnDia()
     {
         SeedSeleccionAutorizada(cantidadHospitales: 4);
-        // Hospitales 1-3 en Monterrey, 4 en Reynosa (lejana).
         foreach (var h in _seleccionRepo.Hospitales.Where(h => h.IdSeleccionHospital <= 3))
         {
             h.CiudadMunicipio = "Monterrey";
@@ -341,7 +340,6 @@ public class RutasServiceTests
         dias.Should().HaveCount(2);
         dias[0].Should().HaveCount(3);
         dias[1].Should().HaveCount(2);
-        // Días hábiles consecutivos (1 sep 2026 = martes → 2 sep = miércoles)
         dias[1].Key.Should().Be(dias[0].Key.AddDays(1));
     }
 
@@ -349,7 +347,6 @@ public class RutasServiceTests
     public async Task GenerarAsync_NoDebe_FragmentarCiudadQueNoCabeEnLoQueQuedaDelDia()
     {
         SeedSeleccionAutorizada(cantidadHospitales: 4);
-        // Aguascalientes (1-2) y San Luis Potosí (3-4): bloques de 2.
         foreach (var h in _seleccionRepo.Hospitales.Where(h => h.IdSeleccionHospital <= 2))
         {
             h.CiudadMunicipio = "Aguascalientes";
@@ -371,7 +368,6 @@ public class RutasServiceTests
         var visitas = resultado.Rutas.Single().Visitas;
         var dias = visitas.GroupBy(v => v.FechaVisita).OrderBy(g => g.Key).ToList();
 
-        // Ningún día mezcla ciudades: cada bloque viaja junto (ids 1-2 = Ags, 3-4 = SLP).
         dias.Should().HaveCount(2);
         dias.Should().OnlyContain(g =>
             g.Select(v => v.IdSeleccionHospital).All(id => id <= 2) ||
@@ -381,9 +377,6 @@ public class RutasServiceTests
     [Fact]
     public async Task GenerarAsync_EstrategiaCentroide_Debe_LlenarElDiaAunqueMezcleCiudades()
     {
-        // Mismo escenario que el test de no-fragmentación, pero con el criterio clásico:
-        // los hospitales se ordenan por distancia al centroide y el día se llena hasta 3
-        // aunque queden ciudades mezcladas.
         SeedSeleccionAutorizada(cantidadHospitales: 4);
         foreach (var h in _seleccionRepo.Hospitales.Where(h => h.IdSeleccionHospital <= 2))
         {
@@ -518,11 +511,9 @@ public class RutasServiceTests
             v.FechaVisita.DayOfWeek != DayOfWeek.Saturday && v.FechaVisita.DayOfWeek != DayOfWeek.Sunday);
         visitas.GroupBy(v => v.FechaVisita).Should().OnlyContain(g => g.Count() <= 3);
 
-        // Semana ISO 36 (mar 01 - vie 04 sep 2026): tope semanal de 8
         var primeraSemana = visitas.Count(v => v.FechaVisita >= new DateOnly(2026, 9, 1) && v.FechaVisita <= new DateOnly(2026, 9, 6));
         primeraSemana.Should().Be(8);
 
-        // Posiciones únicas por día
         visitas.GroupBy(v => new { v.FechaVisita, v.Orden }).Should().OnlyContain(g => g.Count() == 1);
     }
 
@@ -801,13 +792,11 @@ public class RutasServiceTests
         SeedSeleccionAutorizada(cantidadHospitales: 2);
         var service = CreateService();
         await service.GenerarAsync(1, idUsuario: 99);
-        // Simula una versión ya confirmada (el flujo de confirmación se cubre en FirmarVersionAsync_*)
         foreach (var r in _rutaRepo.Rutas) r.Estado = Ruta.EstadoCerrada;
 
         var ruta = _rutaRepo.Rutas.Single();
         var visita = _rutaRepo.Visitas.First();
 
-        // En Cerrada el movimiento es ajuste post-cierre (ADR-00010): sin permiso debe lanzar.
         var act = () => service.MoverVisitaAsync(ruta.IdRuta, visita.IdRutaVisita,
             new MoverVisitaRequest { FechaVisita = new DateOnly(2026, 9, 3), Orden = 1, Motivo = "Reagenda" }, idUsuario: 99);
 
@@ -818,7 +807,6 @@ public class RutasServiceTests
     public async Task AgregarVisitaAsync_HospitalYaEnOtraRuta_Debe_Lanzar()
     {
         SeedSeleccionAutorizada(cantidadHospitales: 2, conRegionSegunda: true);
-        // El hospital 1 se agrega manualmente a una segunda ruta del mismo equipo-version
         var ruta1 = await _rutaRepo.CreateAsync(new Ruta
         {
             IdSeleccionMensual = 1, IdEquipo = EquipoId, Version = 1,
@@ -851,7 +839,7 @@ public class RutasServiceTests
     public async Task AgregarVisitaAsync_HospitalRegionDeOtroEquipo_Debe_Lanzar()
     {
         SeedSeleccionAutorizada(cantidadHospitales: 1, conRegionSegunda: true);
-        _seleccionRepo.Hospitales.Single().IdRegion = 2; // Región 02 → equipo 8
+        _seleccionRepo.Hospitales.Single().IdRegion = 2; 
         var ruta = await _rutaRepo.CreateAsync(new Ruta
         {
             IdSeleccionMensual = 1, IdEquipo = EquipoId, Version = 1,
@@ -901,7 +889,7 @@ public class RutasServiceTests
             IdSeleccionHospital = 1,
             IdSeleccionMensual = 1,
             IdHospital = 101,
-            IdRegion = 1, // Región 01 → EquipoId
+            IdRegion = 1, 
         });
         var ruta = await _rutaRepo.CreateAsync(new Ruta
         {
@@ -929,7 +917,6 @@ public class RutasServiceTests
         _workflow.Asokam.GenEstados.Add(new GenEstado { CodigoEstado = 19, NombreEstado = "Nuevo León" });
         await _workflow.Asokam.SaveChangesAsync();
 
-        // El hospital de la visita pertenece a la institución padre 900 (IMSS).
         _hospitalMock
             .Setup(r => r.GetByIdsAsync(It.IsAny<IEnumerable<int>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((IEnumerable<int> ids, CancellationToken _) =>
@@ -1013,7 +1000,6 @@ public class RutasServiceTests
     [Fact]
     public async Task GetAsignacionesAsync_SeleccionProxima_Debe_Incluir()
     {
-        // La vigencia puede empezar en los próximos días: la planeación recién autorizada es la que se trabaja.
         var seleccion = SeedSeleccionAutorizada(cantidadHospitales: 1);
         seleccion.FechaInicioVigencia = new DateOnly(2026, 11, 1);
         seleccion.FechaFinVigencia = new DateOnly(2026, 12, 31);
@@ -1113,31 +1099,26 @@ public async Task GetAsignacionesAsync_ConRango_Debe_FiltrarYExponerHoras()
     {
         var lunes = new DateOnly(2026, 9, 7);
 
-        // Misma región en días consecutivos = 1 viaje
         ViajesForaneos.Contar(
         [
             (lunes, true, 1), (lunes.AddDays(1), true, 1),
         ]).Should().Be(1);
 
-        // Cambio de región entre días consecutivos = 2 viajes
         ViajesForaneos.Contar(
         [
             (lunes, true, 1), (lunes.AddDays(1), true, 2),
         ]).Should().Be(2);
 
-        // Días no consecutivos de la misma región = 2 viajes
         ViajesForaneos.Contar(
         [
             (lunes, true, 1), (lunes.AddDays(2), true, 1),
         ]).Should().Be(2);
 
-        // Visitas locales no cuentan
         ViajesForaneos.Contar(
         [
             (lunes, false, 1), (lunes.AddDays(1), false, 1), (lunes.AddDays(2), false, 2),
         ]).Should().Be(0);
 
-        // Foraneo sin clasificar cuenta como foraneo
         ViajesForaneos.Contar(
         [
             (lunes, true, null),
@@ -1157,9 +1138,7 @@ public async Task GetAsignacionesAsync_ConRango_Debe_FiltrarYExponerHoras()
         resultado.Avisos.Should().Contain(a => a.Contains("sin ruta"));
     }
 
-    // ----- Ajustes post-cierre (ADR-00010) y visitas extraordinarias (ADR-00011) -----
-
-    private const int IdCem = 800;
+private const int IdCem = 800;
 
     private static DateOnly ProximoLunes()
     {
@@ -1284,7 +1263,6 @@ public async Task GetAsignacionesAsync_ConRango_Debe_FiltrarYExponerHoras()
     public async Task MoverVisita_EnCerrada_ExcedeCapacidad_Debe_AvisarSinBloquear()
     {
         var (ruta, visita) = SembrarRutaCerradaConVisita();
-        // El día destino ya tiene 3 visitas (tope 3/día): en ajuste se permite con aviso.
         var destino = DateOnly.FromDateTime(DateTime.Today).AddDays(-3);
         _rutaRepo.Visitas.AddRange(
             new RutaVisita { IdRutaVisita = 101, IdRuta = ruta.IdRuta, IdSeleccionHospital = 2, IdHospital = 102, FechaVisita = destino, Orden = 2 },

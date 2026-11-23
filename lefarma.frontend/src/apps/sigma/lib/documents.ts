@@ -1,6 +1,5 @@
 export type DocumentStatus = "pending" | "approved" | "rejected" | "processing";
 
-/** Respuesta cruda del servicio de documentos (tolera PascalCase y camelCase). */
 export interface RawDocumentoApi {
   Id?: string | number;
   id?: string | number;
@@ -38,11 +37,10 @@ export interface Document {
   observations?: string;
   attentionComments?: string;
   attentionDate?: Date;
-  fileUrl?: string; // URL del archivo (blob o base64) para el visor
-  tieneDocumentoLigado?: boolean; // Indica si tiene documento de soporte ligado
+  fileUrl?: string; 
+  tieneDocumentoLigado?: boolean; 
 }
 
-// Simulación de base de datos en localStorage
 export const documentsStorage = {
   getAll(): Document[] {
     if (typeof window === "undefined") return [];

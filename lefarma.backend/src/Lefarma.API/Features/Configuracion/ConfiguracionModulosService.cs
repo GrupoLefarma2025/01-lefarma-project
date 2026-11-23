@@ -8,16 +8,10 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Lefarma.API.Features.Configuracion;
 
-/// <summary>
-/// Catálogo de módulos de configuración. La clave del módulo es un slug
-/// inmutable que sirve de prefijo a las claves de sus variables.
-/// </summary>
 public sealed partial class ConfiguracionModulosService : IConfiguracionModulosService
 {
-    /// <summary>Módulo por omisión: no puede desactivarse.</summary>
     private const string ClaveGlobal = "global";
 
-    /// <summary>Paleta de identificación de módulos; el color inicial se elige al azar.</summary>
     private static readonly string[] ColoresModulo =
     [
         "#eb6c36",

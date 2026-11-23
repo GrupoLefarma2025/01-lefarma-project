@@ -1,7 +1,7 @@
 ﻿import { useState, useEffect, useMemo, useCallback, memo } from 'react';
 import { DataTable } from '@/components/ui/data-table';
 import type { ColumnDef } from '@/components/ui/data-table';
-import { Shield, Plus, Pencil, Trash2, Search, Loader2, /* RefreshCcw, */ /* UserMinus, */ Users, Key, UserCog, X, ChevronDown, ChevronUp } from 'lucide-react';
+import { Shield, Plus, Pencil, Trash2, Search, Loader2, Users, Key, UserCog, X, ChevronDown, ChevronUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Modal } from '@/components/ui/modal';
@@ -29,7 +29,6 @@ import { usePageTitle } from '@/hooks/usePageTitle';
 import { cn } from '@/lib/utils';
 import { toApiError } from '@/utils/errors';
 
-
 const rolSchema = z.object({
   nombreRol: z.string().min(3, 'El nombre debe tener al menos 3 caracteres'),
   descripcion: z.string().optional().or(z.literal('')),
@@ -40,7 +39,6 @@ const rolSchema = z.object({
 
 type RolFormValues = z.infer<typeof rolSchema>;
 
-// Componente memoizado para la sección de usuarios
 const UsuariosSection = memo(({
   usuariosIds,
   usuarios,
@@ -105,7 +103,6 @@ const UsuariosSection = memo(({
   </div>
 ));
 
-// Componente memoizado para la sección de permisos
 const PermisosSection = memo(({
   permisosIds,
   permisosPorCategoria,
@@ -193,7 +190,6 @@ export default function RolesList() {
   const [roles, setRoles] = useState<Rol[]>([]);
   const [permisos, setPermisos] = useState<Permiso[]>([]);
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
-  // const [rolConUsuarios, setRolConUsuarios] = useState<RolConUsuarios | null>(null);
   const [loading, setLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [search, setSearch] = useState('');
@@ -240,7 +236,6 @@ export default function RolesList() {
 
   const handleCreate = () => {
     setSelectedId(null);
-    // setRolConUsuarios(null);
     setCollapsedCategories(new Set());
     form.reset({
       nombreRol: '',
@@ -267,11 +262,9 @@ export default function RolesList() {
       usuariosIds: [],
     });
 
-    // Cargar usuarios del rol
     try {
       const response = await API.get<ApiResponse<RolConUsuarios>>(`/Admin/roles/${rol.idRol}/usuarios`);
       if (response.data.success && response.data.data) {
-        // setRolConUsuarios(response.data.data);
         form.setValue('usuariosIds', response.data.data.usuarios.map(u => u.idUsuario));
       }
     } catch (error) {
@@ -312,7 +305,6 @@ export default function RolesList() {
   const handleSave = async (values: RolFormValues) => {
     setIsSaving(true);
     try {
-      // Guardar datos básicos del rol y permisos
       const rolData = {
         nombreRol: values.nombreRol,
         descripcion: values.descripcion,
@@ -328,7 +320,6 @@ export default function RolesList() {
         throw new Error(rolResponse.data.message || 'Error al guardar el rol');
       }
 
-      // Si es edición, guardar los usuarios
       if (isEditing && selectedId) {
         await API.put(`/Admin/roles/${selectedId}/usuarios`, { usuariosIds: values.usuariosIds });
       }
@@ -454,16 +445,7 @@ export default function RolesList() {
     },
   ];
 
-  // const permisoOptions = useMemo(() => {
-  //   return permisos.map(p => ({
-  //     label: `${p.categoria ? `[${p.categoria}] ` : ''}${p.nombrePermiso}`,
-  //     value: String(p.idPermiso),
-  //     icon: Key,
-  //     categoria: p.categoria || 'Sin categoría',
-  //   }));
-  // }, [permisos]);
-
-  const permisosPorCategoria = useMemo(() => {
+const permisosPorCategoria = useMemo(() => {
     const grupos: Record<string, Permiso[]> = {};
     permisos.forEach(p => {
       const cat = p.categoria || 'Sin categoría';
@@ -483,7 +465,6 @@ export default function RolesList() {
       }));
   }, [usuarios]);
 
-  // useWatch es más eficiente que form.watch() - solo re-renderiza cuando estos valores cambian
   const permisosIds = useWatch({ control: form.control, name: 'permisosIds' }) || [];
   const usuariosIds = useWatch({ control: form.control, name: 'usuariosIds' }) || [];
 
@@ -549,7 +530,7 @@ export default function RolesList() {
       >
         <Form {...form}>
           <form className="space-y-6 max-h-[70vh] overflow-y-auto pr-2">
-            {/* Datos básicos */}
+            {}
             <div className="grid grid-cols-1 gap-4">
               <FormField
                 control={form.control}
@@ -593,7 +574,7 @@ export default function RolesList() {
               />
             </div>
 
-            {/* Usuarios Asignados */}
+            {}
             {isEditing && (
               <UsuariosSection
                 usuariosIds={usuariosIds}
@@ -603,7 +584,7 @@ export default function RolesList() {
               />
             )}
 
-            {/* Permisos por categoría */}
+            {}
             <PermisosSection
               permisosIds={permisosIds}
               permisosPorCategoria={permisosPorCategoria}
@@ -615,7 +596,7 @@ export default function RolesList() {
         </Form>
       </Modal>
 
-      {/* Modal para agregar usuarios */}
+      {}
       <Modal
         id="modal-usuarios"
         open={isUsuariosModalOpen}

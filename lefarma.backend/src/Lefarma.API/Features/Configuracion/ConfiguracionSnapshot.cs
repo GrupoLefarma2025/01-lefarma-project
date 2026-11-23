@@ -2,9 +2,6 @@ using System.Text.Json;
 
 namespace Lefarma.API.Features.Configuracion;
 
-/// <summary>
-/// Snapshot completo de una variable tal como se guarda en la bitácora (camelCase).
-/// </summary>
 public sealed record ConfiguracionSnapshot(
     long IdVariable,
     string Clave,
@@ -20,11 +17,6 @@ public sealed record ConfiguracionSnapshot(
     bool Activo,
     long Version);
 
-/// <summary>
-/// Campos editables recuperados de un snapshot de bitácora para restaurar una versión.
-/// Las banderas indican si la propiedad venía presente en el JSON (para distinguir
-/// "no definida" de "definida como null").
-/// </summary>
 public sealed record ConfiguracionValoresRestaurables
 {
     public string? Nombre { get; init; }

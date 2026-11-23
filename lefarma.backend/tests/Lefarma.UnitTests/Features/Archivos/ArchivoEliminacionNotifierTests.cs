@@ -31,19 +31,14 @@ public class ArchivoEliminacionNotifierTests
     [Fact]
     public void DebeNotificar_Debe_Respetar_Entidad_Creador_Y_Eliminador()
     {
-        // Entidad distinta de OrdenCompra: nunca se avisa.
         ArchivoEliminacionNotifier.DebeNotificar("Archivo", 5, 9).Should().BeFalse();
 
-        // El creador elimina su propio archivo: no se avisa.
         ArchivoEliminacionNotifier.DebeNotificar("OrdenCompra", 5, 5).Should().BeFalse();
 
-        // Otro usuario elimina el archivo del creador: se avisa.
         ArchivoEliminacionNotifier.DebeNotificar("OrdenCompra", 5, 9).Should().BeTrue();
 
-        // Sin usuario de eliminación registrado: se avisa.
         ArchivoEliminacionNotifier.DebeNotificar("OrdenCompra", 5, null).Should().BeTrue();
 
-        // Creador desconocido (0): se avisa aunque coincida con el eliminador.
         ArchivoEliminacionNotifier.DebeNotificar("OrdenCompra", 0, 0).Should().BeTrue();
     }
 
@@ -160,17 +155,14 @@ public class ArchivoEliminacionNotifierTests
     [Fact]
     public void ResolverCorreosAdicionales_Debe_Preferir_La_Variable_Y_Caer_A_La_Configuracion()
     {
-        // La variable del módulo Configuración manda sobre appsettings.
         ArchivoEliminacionNotifier.ResolverCorreosAdicionales(
                 new[] { "variable@b.com" },
                 new[] { "config@b.com" })
             .Should().Equal("variable@b.com");
 
-        // Sin variable disponible se usa la lista de appsettings.
         ArchivoEliminacionNotifier.ResolverCorreosAdicionales(null, new[] { "config@b.com" })
             .Should().Equal("config@b.com");
 
-        // Variable vacía: configuración explícita, no se cae al respaldo.
         ArchivoEliminacionNotifier.ResolverCorreosAdicionales(Array.Empty<string>(), new[] { "config@b.com" })
             .Should().BeEmpty();
 

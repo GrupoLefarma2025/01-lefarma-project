@@ -46,7 +46,6 @@ import { toApiError } from '@/utils/errors';
 import { JefesExcluidosModal } from '@/components/workflows/JefesExcluidosModal';
 import { useWorkflowCatalogs } from '@/hooks/useWorkflowCatalogs';
 
-
 const workflowSchema = z.object({
   nombre: z.string().min(3, 'El nombre debe tener al menos 3 caracteres'),
   descripcion: z.string().optional().or(z.literal('')),
@@ -61,7 +60,6 @@ const workflowSchema = z.object({
 type WorkflowFormValues = z.infer<typeof workflowSchema>;
 type WorkflowRequest = WorkflowFormValues & { idWorkflow: number };
 
-/** Procesos/códigos conocidos del sistema (evita que se capturen códigos arbitrarios). */
 const PROCESOS_CONOCIDOS: { value: string; label: string }[] = [
   { value: 'ORDEN_COMPRA', label: 'Orden de Compra' },
   { value: 'SOLICITUD_PERSONAL', label: 'Solicitud de Personal' },
@@ -105,8 +103,6 @@ export default function WorkflowsList() {
     },
   });
 
-  // Opciones del select de código de proceso: conocidos + los que ya existan en BD
-  // (para no bloquear códigos en uso que no estén en la lista).
   const procesosDisponibles = useMemo(() => {
     const mapa = new Map<string, string>();
     for (const proceso of PROCESOS_CONOCIDOS) {
@@ -407,7 +403,7 @@ export default function WorkflowsList() {
 
   return (
     <div className="space-y-6">
-      {/* Encabezado */}
+      {}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Workflows</h1>
@@ -417,7 +413,7 @@ export default function WorkflowsList() {
         </div>
       </div>
 
-      {/* Búsqueda y acciones */}
+      {}
       <div className="flex items-center justify-between gap-4">
         <div className="relative max-w-sm flex-1">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -433,7 +429,7 @@ export default function WorkflowsList() {
         </Button>
       </div>
 
-      {/* Tabla */}
+      {}
       <div className="relative">
         {!loading && workflows.length === 0 ? (
           <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border bg-card py-16 text-center">
@@ -467,7 +463,7 @@ export default function WorkflowsList() {
         )}
       </div>
 
-      {/* Modal: Nuevo/Editar Workflow */}
+      {}
       <Modal
         id="modal-workflow"
         open={modalStates.newWorkflow}
@@ -597,7 +593,7 @@ export default function WorkflowsList() {
         </Form>
       </Modal>
 
-      {/* Modal: Jefes Excluidos */}
+      {}
       {excluidosWorkflow && (
         <JefesExcluidosModal
           idWorkflow={excluidosWorkflow.idWorkflow}

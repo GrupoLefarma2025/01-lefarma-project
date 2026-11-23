@@ -134,9 +134,6 @@ public class ConfigRankingService : IConfigRankingService
             .Where(c => c.Nombre == origen.Nombre)
             .MaxAsync(c => (int?)c.Version, cancellationToken) ?? 0;
 
-        // V1: solo una configuracion activa. La nueva version reemplaza a la anterior.
-        // Vigencia automatica: la nueva inicia HOY y la anterior termina AYER
-        // (no es editable desde la UI).
         var fechaInicioNueva = DateOnly.FromDateTime(DateTime.UtcNow);
 
         var activas = await _context.ConfigsRanking

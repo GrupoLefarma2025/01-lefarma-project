@@ -130,7 +130,6 @@ export const solicitudesPersonalApi = {
     API.get<ApiResponse<SolicitudPersonalResponse>>(`/solicitudes-personal/${id}`),
 };
 
-/** Incidencias que el jefe autenticado autorizó en un mes (por fecha de su firma). */
 export const autorizacionesIncidenciasApi = {
   get: (params: { anio: number; mes: number }) =>
     API.get<ApiResponse<AutorizacionesIncidenciasResponse>>(

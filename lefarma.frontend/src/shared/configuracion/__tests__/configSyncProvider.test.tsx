@@ -93,8 +93,6 @@ function setupSession(authenticated = true): void {
 
 async function flush(): Promise<void> {
   await act(async () => {
-    // Varios turnos de microtask: syncNow -> respuesta -> applyChanges ->
-    // setState del provider.
     for (let i = 0; i < 10; i += 1) {
       await Promise.resolve();
     }
@@ -170,8 +168,6 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  // Desmontar ANTES de tocar los stores: si el provider sigue suscrito a
-  // authStore, los setState del reset disparan renders fuera de act().
   cleanup();
   resetConfigRuntimeForTests();
   resetConfiguracionStoreForTests();
@@ -224,7 +220,6 @@ describe('ConfigSyncProvider', () => {
     await renderProvider();
     expect(apiMocks.sync).toHaveBeenCalledTimes(1);
 
-    // Primer reintento programado a 2 s.
     await advance(2000);
     await flush();
 

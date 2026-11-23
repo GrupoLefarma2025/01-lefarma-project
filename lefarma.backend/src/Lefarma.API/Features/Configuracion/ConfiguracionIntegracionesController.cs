@@ -10,11 +10,6 @@ using Swashbuckle.AspNetCore.Annotations;
 
 namespace Lefarma.API.Features.Configuracion;
 
-/// <summary>
-/// Clientes de integración (API keys) y API externa de consulta de variables.
-/// Los endpoints administrativos requieren el permiso configuracion.api_keys;
-/// los endpoints externos se autentican con el encabezado X-API-Key.
-/// </summary>
 [ApiController]
 [Route("api/configuracion")]
 [EndpointGroupName("Configuracion")]
@@ -31,10 +26,7 @@ public class ConfiguracionIntegracionesController : ControllerBase
         _service = service;
     }
 
-    // ------------------------------------------------------- administración
-
-    /// <summary>Lista los clientes de integración.</summary>
-    [HttpGet("integraciones-clientes")]
+[HttpGet("integraciones-clientes")]
     [SwaggerOperation(
         Summary = "Listar clientes de integración",
         Description = "Lista los clientes de integración. Nunca devuelve la llave completa ni el hash.")]
@@ -52,7 +44,6 @@ public class ConfiguracionIntegracionesController : ControllerBase
         }));
     }
 
-    /// <summary>Crea un cliente de integración y devuelve su llave una sola vez.</summary>
     [HttpPost("integraciones-clientes")]
     [SwaggerOperation(
         Summary = "Crear cliente de integración",
@@ -73,7 +64,6 @@ public class ConfiguracionIntegracionesController : ControllerBase
         }));
     }
 
-    /// <summary>Revoca un cliente de integración.</summary>
     [HttpPost("integraciones-clientes/{id:int}/revocar")]
     [SwaggerOperation(
         Summary = "Revocar cliente de integración",
@@ -92,10 +82,7 @@ public class ConfiguracionIntegracionesController : ControllerBase
         }));
     }
 
-    // -------------------------------------------------------------- externo
-
-    /// <summary>Consulta externa de una variable (API key).</summary>
-    [AllowAnonymous]
+[AllowAnonymous]
     [HttpGet("integraciones/variables/{clave}")]
     [SwaggerOperation(
         Summary = "API externa: obtener una variable",
@@ -111,7 +98,6 @@ public class ConfiguracionIntegracionesController : ControllerBase
         return ResultadoExterno(result);
     }
 
-    /// <summary>Consulta externa por lote (API key).</summary>
     [AllowAnonymous]
     [HttpPost("integraciones/variables/consultar")]
     [SwaggerOperation(

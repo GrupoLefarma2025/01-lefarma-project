@@ -253,7 +253,6 @@ namespace Lefarma.API.Features.Rh.Vacaciones
                 await _context.SaveChangesAsync();
                 await transaction.CommitAsync();
 
-                //Obtener el numero de usuarios que estan en la empresa donde se cargaron los dias no habiles
                 var usuariosAfectados = await _context.UsuariosDetalle
                     .AsNoTracking()
                     .Where(u => u.IdEmpresa == idEmpresa && u.Activo)
@@ -852,7 +851,6 @@ namespace Lefarma.API.Features.Rh.Vacaciones
 
             var usuarios = await query.ToListAsync();
 
-            // Obtener nombres de Asokam
             var idsUsuarios = usuarios.Select(x => x.u.IdUsuario).Distinct().ToList();
             var nombres = await _asokamContext.Usuarios
                 .AsNoTracking()

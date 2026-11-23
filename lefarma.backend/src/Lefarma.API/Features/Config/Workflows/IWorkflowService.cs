@@ -21,7 +21,6 @@ public interface IWorkflowService
         Task<ErrorOr<WorkflowPasoResponse>> UpdatePasoAsync(int idWorkflow, int idPaso, UpdatePasoRequest request);
         Task<ErrorOr<bool>> DeletePasoAsync(int idWorkflow, int idPaso);
 
-        // Acciones
         Task<ErrorOr<WorkflowAccionResponse>> CreateAccionAsync(int idWorkflow, int idPaso, CreateAccionRequest request);
         Task<ErrorOr<WorkflowAccionResponse>> UpdateAccionAsync(int idWorkflow, int idPaso, int idAccion, UpdateAccionRequest request);
         Task<ErrorOr<bool>> DeleteAccionAsync(int idWorkflow, int idPaso, int idAccion);
@@ -29,37 +28,30 @@ public interface IWorkflowService
         Task<ErrorOr<WorkflowAccionHandlerResponse>> UpdateAccionHandlerAsync(int idWorkflow, int idAccion, int idHandler, UpdateAccionHandlerRequest request);
         Task<ErrorOr<bool>> DeleteAccionHandlerAsync(int idWorkflow, int idAccion, int idHandler);
 
-        // Condiciones
         Task<ErrorOr<CondicionResponse>> CreateCondicionAsync(int idWorkflow, int idAccion, CreateCondicionRequest request);
         Task<ErrorOr<CondicionResponse>> UpdateCondicionAsync(int idWorkflow, int idAccion, int idCondicion, UpdateCondicionRequest request);
         Task<ErrorOr<bool>> DeleteCondicionAsync(int idWorkflow, int idAccion, int idCondicion);
 
-        // Participantes
         Task<ErrorOr<ParticipanteResponse>> CreateParticipanteAsync(int idWorkflow, int idPaso, CreateParticipanteRequest request);
         Task<ErrorOr<ParticipanteResponse>> UpdateParticipanteAsync(int idWorkflow, int idPaso, int idParticipante, UpdateParticipanteRequest request);
         Task<ErrorOr<bool>> DeleteParticipanteAsync(int idWorkflow, int idPaso, int idParticipante);
 
-        // Notificaciones
         Task<ErrorOr<NotificacionResponse>> CreateNotificacionAsync(int idWorkflow, int idAccion, CreateNotificacionRequest request);
         Task<ErrorOr<NotificacionResponse>> UpdateNotificacionAsync(int idWorkflow, int idAccion, int idNotificacion, UpdateNotificacionRequest request);
         Task<ErrorOr<bool>> DeleteNotificacionAsync(int idWorkflow, int idAccion, int idNotificacion);
 
-        // Campos configurables
         Task<ErrorOr<IEnumerable<WorkflowCampoResponse>>> GetAllCamposAsync();
         Task<ErrorOr<WorkflowCampoResponse>> CreateCampoAsync(CreateWorkflowCampoRequest request);
         Task<ErrorOr<WorkflowCampoResponse>> UpdateCampoAsync(int idWorkflowCampo, UpdateWorkflowCampoRequest request);
         Task<ErrorOr<bool>> DeleteCampoAsync(int idWorkflowCampo);
 
-        // Canal Templates
         Task<ErrorOr<IEnumerable<WorkflowCanalTemplateResponse>>> GetCanalTemplatesAsync();
         Task<ErrorOr<WorkflowCanalTemplateResponse>> CreateCanalTemplateAsync(CreateCanalTemplateRequest request);
         Task<ErrorOr<WorkflowCanalTemplateResponse>> UpsertCanalTemplateAsync(string codigoCanal, UpsertCanalTemplateRequest request);
 
-        // Tipos Notificacion
         Task<ErrorOr<IEnumerable<WorkflowTipoNotificacionResponse>>> GetTiposNotificacionAsync();
         Task<ErrorOr<IEnumerable<WorkflowNotificacionesPlantillaResponse>>> GetPlantillasBaseAsync(string? tipoNotificacion, string? canal);
 
-        // Recordatorios
         Task<ErrorOr<IEnumerable<WorkflowRecordatorioResponse>>> GetRecordatoriosAsync(int idWorkflow);
         Task<ErrorOr<WorkflowRecordatorioResponse>> CreateRecordatorioAsync(int idWorkflow, CreateRecordatorioRequest request);
         Task<ErrorOr<WorkflowRecordatorioResponse>> UpdateRecordatorioAsync(int idWorkflow, int idRecordatorio, UpdateRecordatorioRequest request);

@@ -9,17 +9,8 @@ import type {
   RetornoV2,
 } from '../types/wizardV2.types';
 
-/**
- * Frontera tipada entre el asistente nuevo y el algoritmo legacy.
- *
- * REGLA: este adaptador solo CONSTRUYE `CostosRutaRequest` para
- * `POST /viaticos/costos-ruta/calcular`. Nunca envía un esquema distinto al
- * endpoint legacy y nunca modifica `costosRutaForm.ts` ni el backend.
- */
-
 export const MONEDA_PERMITIDA = 'MXN';
 
-/** Jornada por defecto: no se vuelve a pedir en el asistente nuevo. */
 const TRABAJO_POR_DEFECTO = {
   hora_entrada: '07:00',
   hora_salida: '18:30',
@@ -32,7 +23,6 @@ export interface AdaptarTramoArgs {
   modoTransporte: ModoTransporteV2;
   origen: OrigenV2;
   destino: DestinoV2;
-  /** Horario laboral con el que el motor sugiere transporte. */
   jornada?: { horaEntrada: string; horaSalida: string };
 }
 
@@ -57,10 +47,6 @@ function lugarOrigen(origen: OrigenV2, errors: string[]): CostosRutaLugarInput |
   return { orden: 1, tipo: 'salida', nombre: punto.nombre.trim(), latitud: punto.latitud, longitud: punto.longitud };
 }
 
-/**
- * Un tramo = origen + UN destino. El endpoint legacy calcula el tramo completo;
- * el asistente llama una vez por tramo para la comparación incremental.
- */
 export function adaptarTramoACostosRuta(args: AdaptarTramoArgs): AdaptarTramoSalida {
   const errors: string[] = [];
   const nombre = args.nombreViajero.trim();
@@ -68,8 +54,6 @@ export function adaptarTramoACostosRuta(args: AdaptarTramoArgs): AdaptarTramoSal
 
   const salida = lugarOrigen(args.origen, errors);
   if (salida) {
-    // La salida del origen es opcional: el motor la deriva de la llegada al
-    // primer destino. Va completa o no va; una fecha suelta la rechaza.
     const { fechaSalida, horaSalida } = args.origen;
     if (fechaSalida || horaSalida) {
       if (!esFecha(fechaSalida) || !esHora(horaSalida)) {
@@ -126,8 +110,6 @@ export function adaptarTramoACostosRuta(args: AdaptarTramoArgs): AdaptarTramoSal
         {
           nombre,
           carro_propio: args.modoTransporte === 'propio',
-          // Carro propio SIEMPRE usa Magna; en modo solicitado el combustible
-          // lo pone el proveedor, así que Magna es solo el valor del contrato.
           gasolina: 'magna',
           draft: false,
           trabajo: {
@@ -144,7 +126,6 @@ export function adaptarTramoACostosRuta(args: AdaptarTramoArgs): AdaptarTramoSal
   };
 }
 
-/** Rango total derivado de la cronología. No se captura como paso inicial. */
 export function rangoDelViaje(
   origen: OrigenV2,
   destinos: DestinoV2[],
@@ -168,12 +149,10 @@ export function rangoDelViaje(
   return { inicio: fechas[0], fin: fechas[fechas.length - 1] };
 }
 
-/** Verdadero cuando hay más de una moneda: el prototipo no las suma. */
 export function hayMonedaMezclada(opciones: { moneda: string | null }[]): boolean {
   return new Set(opciones.map((o) => o.moneda ?? MONEDA_PERMITIDA)).size > 1;
 }
 
-/** Solo el avión pregunta por equipaje documentado. */
 export function esOfertaVuelo(oferta: { modo: string }): boolean {
   return oferta.modo === 'avion';
 }

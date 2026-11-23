@@ -5,11 +5,6 @@ using Lefarma.API.Shared.Constants;
 
 namespace Lefarma.UnitTests.Features.Viaticos;
 
-/// <summary>
-/// Cubre los helpers extraidos de AprobacionesController a
-/// <see cref="ClaimsPrincipalExtensions"/>.
-/// Mismo patron historico que Educacion Medica: claims tipo <c>permission</c>.
-/// </summary>
 public class PermisosHelperTests
 {
     [Fact]
@@ -31,7 +26,7 @@ public class PermisosHelperTests
     [Fact]
     public void TienePermiso_PrincipalSinAutenticar_RetornaFalse()
     {
-        var anonimo = new ClaimsPrincipal(new ClaimsIdentity()); // sin autenticacion
+        var anonimo = new ClaimsPrincipal(new ClaimsIdentity()); 
 
         anonimo.TienePermiso(Permissions.Viaticos.Autorizar).Should().BeFalse();
     }

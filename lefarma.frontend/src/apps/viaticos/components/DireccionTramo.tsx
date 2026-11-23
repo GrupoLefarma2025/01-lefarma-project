@@ -1,10 +1,6 @@
 import { ArrowRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-/**
- * Dirección de un tramo: origen atenuado, flecha marcada y destino en
- * negritas, para leer de un golpe de dónde a dónde va lo que se está viendo.
- */
 export function DireccionTramo({
   desde,
   hasta,
@@ -13,7 +9,6 @@ export function DireccionTramo({
 }: {
   desde: string;
   hasta: string;
-  /** Versión chica para pestañas. */
   compacto?: boolean;
   className?: string;
 }) {

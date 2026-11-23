@@ -1,10 +1,5 @@
 namespace Lefarma.API.Domain.Entities.Archivos;
 
-/// <summary>
-/// Bitácora de un archivo eliminado o reemplazado. Conserva el contexto del
-/// borrado y la ruta del binario que se movió a la carpeta privada.
-/// La fila es inmutable: no se actualiza ni se borra.
-/// </summary>
 public class ArchivoEliminado
 {
     public int Id { get; set; }
@@ -23,7 +18,6 @@ public class ArchivoEliminado
     public int? IdUsuarioSubio { get; set; }
     public DateTime? FechaSubida { get; set; }
     public int? IdUsuarioElimina { get; set; }
-    /// <summary>Nula en las bajas migradas: de esos borrados no se conoce la fecha.</summary>
     public DateTime? FechaEliminacion { get; set; }
     public string Motivo { get; set; } = "Eliminacion";
 }

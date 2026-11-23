@@ -90,7 +90,6 @@ public class MatrizTalleresService : IMatrizTalleresService
         _ = await ObtenerMatrizAsync(idMatrizGeneral, ct)
             ?? throw new InvalidOperationException($"La matriz general {idMatrizGeneral} no existe.");
 
-        // Matrices individuales con talleres en esta general (panel "Matrices por equipo")
         var idsIndividuales = await _context.Talleres.AsNoTracking()
             .Where(t => t.IdMatrizGeneral == idMatrizGeneral && t.IdMatrizIndividual != null && t.Activo)
             .Select(t => t.IdMatrizIndividual!.Value)
@@ -498,7 +497,6 @@ public class MatrizTalleresService : IMatrizTalleresService
 
         var (workflow, pasoActual) = await ObtenerContextoWorkflowAsync(matriz, ct);
 
-        // Solo en el paso de costos (PREPARACION) y solo su participante (AEM)
         var estadoPaso = await _context.WorkflowEstados.AsNoTracking()
             .FirstOrDefaultAsync(e => e.IdEstado == pasoActual.IdEstado, ct);
         if (estadoPaso?.Codigo != EstadoPasoCostos)
@@ -592,7 +590,6 @@ public class MatrizTalleresService : IMatrizTalleresService
 
         var codigoAccion = accion.TipoAccion?.Codigo ?? string.Empty;
 
-        // Firma digital obligatoria solo en los pasos de firma (el paso de costos del AEM no la pide)
         if (pasoActual.RequiereFirma)
         {
             var tieneFirma = await _profileService.HasFirmaAsync(idUsuario);
@@ -611,9 +608,6 @@ public class MatrizTalleresService : IMatrizTalleresService
             throw new InvalidOperationException(validacion.FirstError.Description);
         }
 
-        // Salvaguarda (Opción B): a partir de la SEGUNDA firma (CA en la cadena estándar), ningún
-        // avance (AUTORIZAR o CERRAR) progresa si hay talleres sin costos, aunque el paso del AEM
-        // se elimine del admin.
         var pasosFirma = workflow.Pasos
             .Where(p => p.Activo && !p.EsInicio && !p.EsFinal && p.RequiereFirma)
             .OrderBy(p => p.Orden)
@@ -643,8 +637,6 @@ public class MatrizTalleresService : IMatrizTalleresService
         matriz.IdEstado = resultado.NuevoIdEstado ?? matriz.IdEstado;
         matriz.IdUsuarioModificacion = idUsuario;
 
-        // Cierre final (DC): los talleres de la matriz pasan automáticamente a Programado
-        // (ADR-00008 revisión 2026-10-09) con historial de origen Automático.
         var pasoResultante = workflow.Pasos.FirstOrDefault(p => p.IdPaso == matriz.IdPasoActual);
         if (pasoResultante?.EsFinal == true && codigoAccion == "CERRAR")
         {
@@ -817,7 +809,6 @@ public class MatrizTalleresService : IMatrizTalleresService
 
         var detalle = await ArmarDetalleAsync(matriz, idUsuario: 0, ct);
 
-        // Firmas: eventos de avance de la bitácora (ENVIAR/AUTORIZAR), con nombre del firmante
         var eventos = await _context.WorkflowBitacoras.AsNoTracking()
             .Where(b => b.TipoEntidad == CodigoProceso.EDUCACION_MEDICA_MATRIZ && b.IdEntidad == idMatrizGeneral)
             .OrderBy(b => b.FechaEvento)
@@ -867,9 +858,7 @@ public class MatrizTalleresService : IMatrizTalleresService
         };
     }
 
-    // ----- Helpers -----
-
-    private async Task<MatrizGeneral?> ObtenerMatrizAsync(int idMatrizGeneral, CancellationToken ct)
+private async Task<MatrizGeneral?> ObtenerMatrizAsync(int idMatrizGeneral, CancellationToken ct)
     {
         return await _context.MatricesGenerales
             .Include(m => m.TipoGerencia)
@@ -895,7 +884,6 @@ public class MatrizTalleresService : IMatrizTalleresService
         return (workflow, pasoActual);
     }
 
-    /// <summary>Salvaguarda Opción B: todos los talleres deben tener al menos un recurso con costo capturado.</summary>
     private async Task ValidarCostosCapturadosAsync(int idMatrizGeneral, CancellationToken ct)
     {
         var talleresSinCostos = await _context.Talleres.AsNoTracking()
@@ -1121,10 +1109,6 @@ public class MatrizTalleresService : IMatrizTalleresService
         }).ToList();
     }
 
-    /// <summary>
-    /// Solicitudes de cambio pendientes por taller (join para ordenar/destacar la Matriz
-    /// General; ADR-00010 decisión 15 — sin consultar la tabla desde el listado).
-    /// </summary>
     private async Task<Dictionary<int, TallerSolicitudCambioResumenDto>> CargarSolicitudesPendientesAsync(
         IEnumerable<Taller> talleres,
         CancellationToken ct)

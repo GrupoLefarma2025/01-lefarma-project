@@ -2,7 +2,6 @@
 import type { HelpArticle } from '@/types/help.types';
 import { helpService } from '@/services/helpService';
 
-
 interface HelpState {
   articles: HelpArticle[];
   selectedArticle: HelpArticle | null;
@@ -46,7 +45,6 @@ export const useHelpStore = create<HelpState>()((set) => ({
     }
     try {
       const articles = await helpService.getByModule(modulo);
-      // Filtrar por tipo si se especifica
       const filtered = tipo 
         ? articles.filter(a => a.tipo === tipo || a.tipo === 'ambos')
         : articles;

@@ -16,20 +16,11 @@ import { VistaDetalle } from '../mis-viajes/MisViajesPage';
 import { opcionesDePropuesta } from '../mis-viajes/viajes.helpers';
 
 export interface RevisarSolicitudDialogProps {
-  /** Solicitud a revisar; `null` mantiene el diálogo cerrado. */
   idSolicitud: number | null;
   onClose: () => void;
-  /** Se llama después de autorizar o rechazar con el mensaje a mostrar. */
   onResuelta: (mensaje: string) => void;
 }
 
-/**
- * Revisión de una solicitud pendiente. Arranca con la comparación «inicial vs
- * calculada» (el viajero ya pasó por los cálculos en Mis viajes) y ofrece las
- * dos acciones del revisor —recalcular el viaje o editar costos— antes de
- * autorizar o rechazar. La propuesta vive solo en memoria: se guarda al
- * autorizar.
- */
 export function RevisarSolicitudDialog({ idSolicitud, onClose, onResuelta }: RevisarSolicitudDialogProps) {
   const [detalle, setDetalle] = useState<Solicitud | null>(null);
   const [cargando, setCargando] = useState(false);
@@ -71,7 +62,6 @@ export function RevisarSolicitudDialog({ idSolicitud, onClose, onResuelta }: Rev
     };
   }, [idSolicitud]);
 
-  /** Versión que se edita: la propuesta en curso o el cálculo guardado. */
   const versionBase = useMemo(() => {
     if (!detalle) return null;
     if (propuesta) {

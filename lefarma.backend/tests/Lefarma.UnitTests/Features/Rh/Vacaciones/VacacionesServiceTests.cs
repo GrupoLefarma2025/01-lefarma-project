@@ -35,7 +35,6 @@ public class VacacionesServiceTests
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
-            // La vista real es keyless; para pruebas InMemory necesita clave.
             modelBuilder.Ignore<VwEmpleado>();
             modelBuilder.Entity<VwEmpleado>().HasKey(e => e.Id);
         }

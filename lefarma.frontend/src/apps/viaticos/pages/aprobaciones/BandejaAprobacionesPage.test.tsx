@@ -14,7 +14,6 @@ const permisos = vi.hoisted(() => ({ codigos: [] as string[] }));
 vi.mock('@/shared/api/apiClient', () => ({ API: { get: mocks.get, post: mocks.post } }));
 vi.mock('sonner', () => ({ toast: { success: mocks.success, error: mocks.error } }));
 vi.mock('@/hooks/usePageTitle', () => ({ usePageTitle: vi.fn() }));
-// El hook real lee el store de auth; aqui se decide el permisoDirectamente.
 vi.mock('@/hooks/usePermission', () => ({
   usePermission: ({ require: requerido }: { require?: string }) =>
     !requerido || permisos.codigos.includes(requerido),
@@ -93,13 +92,11 @@ describe('BandejaAprobacionesPage', () => {
       expect(filas()).toHaveLength(1);
       return filas();
     });
-    // null es "no se sabe", no "costo cero".
     expect(within(fila).getByText('—')).toBeDefined();
     expect(within(fila).queryByText('$0.00')).toBeNull();
   });
 
   it('renderiza el nombre del solicitante tal cual lo resuelve el directorio', async () => {
-    // El backend ya aplica su propio fallback "Usuario #<id>": no se maquilla.
     mocks.get.mockResolvedValue(ok([solicitud({ nombre_solicitante: 'Usuario #7' })]));
 
     render(<BandejaAprobacionesPage />);
@@ -133,7 +130,6 @@ describe('BandejaAprobacionesPage', () => {
 
     await waitFor(() => expect(within(filas()[0]).getByText('Autorizada')).toBeDefined());
     expect(mocks.post).toHaveBeenCalledWith('/viaticos/solicitudes/101/autorizar');
-    // Solo la carga inicial: la fila se parchea en local.
     expect(mocks.get).toHaveBeenCalledTimes(1);
   });
 

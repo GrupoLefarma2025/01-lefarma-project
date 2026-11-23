@@ -27,13 +27,11 @@ public class SeleccionMensual : IWorkflowEntity
     public int? IdUsuarioCreacion { get; set; }
     public int? IdUsuarioModificacion { get; set; }
 
-    // Workflow (ADR-00006): la selección es la entidad del proceso EDUCACION_MEDICA / SUBPROCESO=1
     public int? IdWorkflow { get; set; }
     public int? IdPasoActual { get; set; }
     public int? IdEstado { get; set; }
     public virtual WorkflowEstados? EstadoWorkflow { get; set; }
 
-    // IWorkflowEntity (implementación explícita: las columnas de auditoría son nullable)
     int IWorkflowEntity.Id { get => IdSeleccionMensual; set => IdSeleccionMensual = value; }
     int IWorkflowEntity.IdWorkflow { get => IdWorkflow ?? 0; set => IdWorkflow = value; }
     int? IWorkflowEntity.IdPasoActual { get => IdPasoActual; set => IdPasoActual = value; }

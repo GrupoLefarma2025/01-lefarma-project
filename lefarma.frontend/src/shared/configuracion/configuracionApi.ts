@@ -9,7 +9,6 @@ import type {
 import { CONFIGURACION_REQUEST_TIMEOUT_MS } from './types';
 
 export interface ConfiguracionRequestOptions {
-  /** Signal externo (p. ej. el dueño del componente se desmontó). */
   signal?: AbortSignal;
 }
 
@@ -22,13 +21,6 @@ function createAbortError(): Error {
   return error;
 }
 
-/**
- * POST con timeout duro de 15 s + AbortController propio + soporte de un
- * AbortSignal externo.
- *
- * No implementa reintentos: la política de reintentos vive en configRuntime /
- * ConfigSyncProvider para no multiplicar peticiones.
- */
 async function postConfiguracion<TBody>(
   path: string,
   body: TBody,
@@ -74,10 +66,6 @@ async function postConfiguracion<TBody>(
 }
 
 export const configuracionApi = {
-  /**
-   * Pide en lote SOLO las variables indicadas.
-   * `revision` es opcional: en un refresh se envía la revisión cacheada.
-   */
   consultar: (
     variables: ConfiguracionConsultaVariable[],
     options?: ConfiguracionRequestOptions
@@ -86,9 +74,6 @@ export const configuracionApi = {
     return postConfiguracion(CONSULTAR_PATH, body, options?.signal);
   },
 
-  /**
-   * Sincroniza cambios desde una revisión para TODAS las claves indicadas.
-   */
   sync: (
     desde: number,
     claves: string[],

@@ -13,12 +13,10 @@ vi.mock('@/shared/api/apiClient', () => ({ API: { get: mocks.get } }));
 vi.mock('../../services/costosRuta.api', () => ({ costosRutaApi: { calcular: mocks.calculate } }));
 vi.mock('@/hooks/usePageTitle', () => ({ usePageTitle: vi.fn() }));
 vi.mock('sonner', () => ({ toast: { error: mocks.error, success: mocks.success, warning: mocks.warning } }));
-// El usuario en sesión es opcional: sin nombre, el formulario es capturable a mano.
 vi.mock('@/shared/auth/authStore', () => ({
   useAuthStore: (selector: (state: { user: { nombre?: string } | null }) => unknown) =>
     selector({ user: auth.nombre ? { nombre: auth.nombre } : null }),
 }));
-// El mapa real (Leaflet) no renderiza en jsdom; se ejerce el cableado del formulario.
 vi.mock('../../components/PuntoMapaPicker', () => ({
   PuntoMapaPicker: ({ value, onChange }: { value: PuntoSeleccion | null; onChange: (punto: PuntoSeleccion | null) => void }) => (
     <div>
@@ -29,7 +27,6 @@ vi.mock('../../components/PuntoMapaPicker', () => ({
     </div>
   ),
 }));
-// Exercise form wiring, not Radix's popup implementation or live authentication.
 vi.mock('@/apps/educacion-medica/components/CatalogoSearchSelect', () => ({
   CatalogoSearchSelect: ({ items, value, onChange, disabled, placeholder }: {
     items: CatalogoItem[]; value: number | null; onChange: (value: number | null) => void;
@@ -201,7 +198,6 @@ describe('hospital working-day form', () => {
     expect(screen.getByRole('button', { name: 'Agregar persona (9/9)' })).toBeDisabled();
     expect(screen.getAllByRole('button', { name: 'Duplicar itinerario para otra persona' })).toHaveLength(9);
     for (const button of screen.getAllByRole('button', { name: 'Duplicar itinerario para otra persona' })) expect(button).toBeDisabled();
-    // Con la suite completa en paralelo, las 9 personas superan los 5 s por defecto.
   }, 15000);
 
   it('visibly blocks overlapping full days, missing stops and inverted hours', async () => {

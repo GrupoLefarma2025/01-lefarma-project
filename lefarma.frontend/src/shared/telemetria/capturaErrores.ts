@@ -4,12 +4,6 @@ import { pedirEnvio } from './emisor';
 import { calcularHuella } from './huella';
 import type { TipoError } from './tipos';
 
-/**
- * Captura de errores del navegador: excepciones sueltas, promesas rechazadas,
- * recursos que no cargan, la pantalla que nunca se dibuja y los fallos HTTP que
- * reporta el interceptor. Todos los errores se guardan antes de enviarse.
- */
-
 const ULTIMOS = new Map<string, number>();
 const VENTANA_DUPLICADO_MS = 15_000;
 
@@ -31,11 +25,6 @@ function recortar(texto: string | undefined, maximo: number): string | undefined
   return texto.length > maximo ? texto.slice(0, maximo) : texto;
 }
 
-/**
- * Contexto que acompaña a TODO error, aunque el origen no aporte nada: la
- * pantalla, el tamaño de la ventana, el idioma y la zona horaria explican la
- * mayoría de los fallos que solo se ven en la máquina de una persona.
- */
 function contextoDeLaVista(): Record<string, unknown> {
   const conexion = (
     navigator as Navigator & { connection?: { effectiveType?: string } }
@@ -51,7 +40,6 @@ function contextoDeLaVista(): Record<string, unknown> {
   };
 }
 
-/** Une el contexto de la vista con el específico del error (el específico manda). */
 export function combinarContexto(extra?: string): string {
   const base = contextoDeLaVista();
   if (extra) {
@@ -107,7 +95,6 @@ async function registrar(datos: DatosError): Promise<void> {
 
     pedirEnvio();
   } catch {
-    // Si la telemetría falla, jamás debe romper la aplicación.
   }
 }
 
@@ -173,7 +160,6 @@ interface ArranquePendiente {
   url?: string;
 }
 
-/** El script inline de `index.html` deja aquí lo que falle antes del bundle. */
 function drenarArranquePendiente(): void {
   const ventana = window as unknown as {
     __telemetriaArranque?: ArranquePendiente[];
@@ -245,11 +231,6 @@ export interface FalloDeRed {
   contexto?: string;
 }
 
-/**
- * Fallo sin respuesta del servidor: conexión rechazada, restablecida, DNS,
- * tiempo agotado o bloqueo del navegador. Antes no quedaba registrado en
- * ningún sitio y es justo el que explica el aviso de «sin conexión».
- */
 export function registrarFalloDeRed(fallo: FalloDeRed): void {
   const metodo = (fallo.metodo || 'GET').toUpperCase();
   const detalle = fallo.detalle ? ` — ${fallo.detalle}` : '';
@@ -278,7 +259,6 @@ function instalarCentinelaDePantallaEnBlanco(): void {
         });
       }
     } catch {
-      // Silencio: el centinela es un extra, no una garantía.
     }
   }, 10_000);
 }

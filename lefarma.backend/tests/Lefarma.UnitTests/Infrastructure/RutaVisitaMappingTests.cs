@@ -6,11 +6,6 @@ using Xunit;
 
 namespace Lefarma.UnitTests.Infrastructure;
 
-/// <summary>
-/// Regresion: el script 0007 declara educacion_medica.rutas_visitas.orden como
-/// TINYINT, pero el entity usa int. Sin conversion explicita, materializar con
-/// SqlClient lanza InvalidCastException (Byte -> Int32) en GetVisitasAsync.
-/// </summary>
 public class RutaVisitaMappingTests
 {
     private static ApplicationDbContext CrearContexto()

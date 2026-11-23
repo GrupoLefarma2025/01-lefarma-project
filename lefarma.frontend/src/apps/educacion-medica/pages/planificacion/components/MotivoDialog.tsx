@@ -15,10 +15,6 @@ interface MotivoDialogProps {
   onConfirmar: (motivo: string) => void | Promise<void>;
 }
 
-/**
- * Diálogo de motivo del modo ajuste (ADR-00010): todo cambio post-cierre exige
- * motivo obligatorio y queda auditado en ajustes_post_cierre.
- */
 export function MotivoDialog({
   open,
   onClose,

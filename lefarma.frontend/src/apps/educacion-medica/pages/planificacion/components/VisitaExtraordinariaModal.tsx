@@ -24,10 +24,6 @@ interface VisitaExtraordinariaModalProps {
   onCreated: (avisos: string[]) => void;
 }
 
-/**
- * Alta de visita extraordinaria (ADR-00011): hospital del catálogo (FOR-002) fuera de
- * la selección, equipo explícito (get-or-create de su ruta), fecha y motivo obligatorio.
- */
 export function VisitaExtraordinariaModal({
   open,
   onClose,

@@ -17,10 +17,6 @@ public interface IHospitalService
         Domain.Interfaces.EducacionMedica.HospitalFilterParams? filter = null,
         CancellationToken ct = default);
 
-    /// <summary>
-    /// Crea las extensiones faltantes de los hospitales del catálogo (activos, sin
-    /// Privado/Distribuidor). Las extensiones existentes NO se modifican.
-    /// </summary>
     Task<DTOs.SincronizarHospitalesResponse> SincronizarExtensionesAsync(
         int idUsuario,
         CancellationToken ct = default);

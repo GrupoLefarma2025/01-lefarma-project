@@ -14,18 +14,6 @@ import { useSigmaAuth } from '@/apps/sigma/store/sigmaAuth';
 import { useAuthStore } from '@/shared/auth/authStore';
 import coverImg from '@/apps/sigma/assets/logo.png';
 
-/**
- * Entrada pública de SIGMA.
- *
- * Reproduce la pantalla de acceso de SIGMA (portada, usuario, dominio,
- * contraseña y acceso anónimo) sobre la autenticación real de Lefarma: los dos
- * pasos se ejecutan aquí mismo con `loginStepOne` / `loginStepTwo`, sin
- * credenciales propias del módulo.
- *
- * La estructura y las clases son las de `my-app/app/routes/login.tsx`, incluido
- * el modo compacto (pantallas de menos de 800 px de alto o 480 px de ancho),
- * para que se vea igual que el login original.
- */
 export default function EntradaSigma() {
   const navigate = useNavigate();
   const { isAuthenticated } = useSigmaAuth();
@@ -74,7 +62,6 @@ export default function EntradaSigma() {
 
   const paso = loginStep === 2 ? 2 : 1;
 
-  // Mismas medidas que el login de SIGMA según el tamaño del viewport.
   const controlSizeClass = isCompactViewport ? 'h-9 text-sm' : 'h-12 text-base';
   const buttonSizeClass = isCompactViewport ? 'h-10 text-sm' : 'h-12 text-base';
   const formSpacingClass = isCompactViewport ? 'space-y-3' : 'space-y-5';
@@ -163,7 +150,7 @@ export default function EntradaSigma() {
       <div
         className={`flex w-full max-w-sm flex-col overflow-hidden rounded-xl border bg-card/85 shadow-2xl backdrop-blur sm:max-w-md lg:max-w-lg ${cardMaxHeightClass}`}
       >
-        {/* Portada: mismo tratamiento que en SIGMA */}
+        {}
         <div className={`flex w-full items-center justify-center bg-white dark:bg-white ${coverPaddingClass}`}>
           <div
             className="flex w-full items-center justify-center overflow-hidden rounded-xl shadow-md dark:shadow-xl"
@@ -179,7 +166,7 @@ export default function EntradaSigma() {
         </div>
 
         <div className={`flex-1 overflow-y-auto ${cardBodyPadding}`}>
-          {/* Encabezado */}
+          {}
           <div className="mb-6 text-center">
             <div className="relative mb-2 flex items-center justify-center gap-2">
               {paso === 2 && (
@@ -206,7 +193,7 @@ export default function EntradaSigma() {
             </p>
           </div>
 
-          {/* Error */}
+          {}
           {error && (
             <div className="mb-6 rounded-xl border border-destructive/20 bg-destructive/10 p-4">
               <div className="flex items-center gap-3 text-destructive">
@@ -287,7 +274,7 @@ export default function EntradaSigma() {
                           value={domain || ''}
                           className="my-1 cursor-pointer rounded-lg px-4 py-3 text-base focus:bg-primary/10 data-[highlighted]:bg-primary/10"
                         >
-                          {/* Igual que SIGMA: nombre del usuario y debajo el dominio */}
+                          {}
                           <div className="flex items-baseline gap-2">
                             <span className="font-semibold text-foreground">{nombreDominio}</span>
                             <small className="text-xs font-normal text-muted-foreground/70">
@@ -336,7 +323,7 @@ export default function EntradaSigma() {
             </form>
           )}
 
-          {/* Pie */}
+          {}
           <div className="mt-8 space-y-4">
             {paso === 1 && (
               <div className="text-center">

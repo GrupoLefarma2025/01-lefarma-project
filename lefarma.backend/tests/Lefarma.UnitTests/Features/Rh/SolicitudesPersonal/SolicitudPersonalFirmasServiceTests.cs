@@ -295,8 +295,6 @@ public class SolicitudPersonalFirmasServiceTests
             IdTipoSolicitud = 11,
             FechaCreacion = DateTime.Now
         };
-        // El solicitante (500) es distinto de quien envía (123): el documento
-        // en app.Documentos debe quedar a nombre del solicitante.
         solicitud.IdUsuarioSolicitante = 500;
         context.SolicitudesPersonal.Add(solicitud);
         await context.SaveChangesAsync();

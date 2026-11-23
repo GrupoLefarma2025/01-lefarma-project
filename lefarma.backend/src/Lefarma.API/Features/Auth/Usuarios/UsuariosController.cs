@@ -8,13 +8,9 @@ using Microsoft.AspNetCore.Mvc;
 using Swashbuckle.AspNetCore.Annotations;
 
 namespace Lefarma.API.Features.Auth.Usuarios;
-/// <summary>
-/// Controller for Usuario catalog operations
-/// </summary>
 [Route("api/auth/usuarios")]
 [ApiController]
 [EndpointGroupName("Auth")]
-//[HasPermission(Permissions.Usuarios.View)]
 public class UsuariosController : ControllerBase
 {
     private readonly IUsuarioCatalogService _usuarioCatalogService;
@@ -28,9 +24,6 @@ public class UsuariosController : ControllerBase
         _usuarioConfiguracionRepository = usuarioConfiguracionRepository;
     }
 
-    /// <summary>
-    /// Gets all active usuarios for catalog selection
-    /// </summary>
     [HttpGet]
     [SwaggerOperation(
         Summary = "Obtener todos los usuarios activos",
@@ -48,9 +41,6 @@ public class UsuariosController : ControllerBase
         });
     }
 
-    /// <summary>
-    /// Gets the default notification recipients for the authenticated user
-    /// </summary>
     [HttpGet("destinatarios-default")]
     [SwaggerOperation(
         Summary = "Obtener destinatarios predeterminados",

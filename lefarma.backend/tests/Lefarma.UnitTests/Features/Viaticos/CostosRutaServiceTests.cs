@@ -18,7 +18,6 @@ namespace Lefarma.UnitTests.Features.Viaticos;
 
 public class CostosRutaServiceTests
 {
-    // Verbatim payload from the previous editable demo (no DTO construction).
     private const string OriginalSnakePayload = """
     {"personas":[{"nombre":"Ana","carro_propio":true,"gasolina":"magna","draft":true,
     "trabajo":{"hora_entrada":"08:00","hora_salida":"18:30","primer_dia_laboral":1,"ultimo_dia_laboral":5},
@@ -30,7 +29,6 @@ public class CostosRutaServiceTests
     "fecha_inicio_actividad":"2026-10-16","hora_inicio_actividad":"09:00","fecha_fin_actividad":"2026-10-16","hora_fin_actividad":"12:00"}]}]}
     """;
 
-    // Match the MVC registration in Program.cs without starting the app or its database services.
     private static ServiceProvider CreateMvcServices()
     {
         var services = new ServiceCollection();
@@ -42,11 +40,6 @@ public class CostosRutaServiceTests
 
     private static readonly JsonSerializerOptions MvcJson = GetMvcJson();
 
-    /// <summary>
-    /// Contexto EF InMemory. El motor lee la configuracion de viaticos desde la
-    /// base (tabla viaticos.config_parametros); con InMemory esa lectura falla
-    /// y el motor sigue con los valores por defecto.
-    /// </summary>
     private static ApplicationDbContext CrearContexto()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
@@ -134,7 +127,6 @@ public class CostosRutaServiceTests
         var response = result.Value.Should().BeOfType<ApiResponse<CostosRutaResponse>>().Subject;
         response.Success.Should().BeTrue();
         response.Data!.Propuestas.Should().HaveCount(6);
-        // draft:true may insert an overnight stop; retain the calculator's behavior.
         response.Data.Resultados[0].Tramos.Should().HaveCount(response.Data.Resultados[0].Propuesta.Lugares.Count - 1);
         response.Data.Resultados[0].Tramos.Count.Should().BeGreaterThanOrEqualTo(2);
         var destination = response.Data.Resultados[0].Propuesta.Lugares.First(l => Equals(l["nombre"], "Taller Puebla 1"));
@@ -242,8 +234,6 @@ public class CostosRutaServiceTests
         }
     }
 
-    // Overpass responde 5 hoteles cercanos; el resto de las llamadas externas
-    // fallan para forzar los fallbacks a seed (OSRM/CNE/ClickBus).
     private sealed class HotelesOverpassHandler : HttpMessageHandler
     {
         private const string OverpassJson = """
@@ -267,8 +257,6 @@ public class CostosRutaServiceTests
         }
     }
 
-    // Handler que falla todas las llamadas externas: fuerza los fallbacks a
-    // seed dentro de CalculoCostosRuta (equivale a los stubs anteriores).
     private sealed class FallaTodoHandler : HttpMessageHandler
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
@@ -338,7 +326,6 @@ public class CostosRutaServiceTests
             ["barata", "rapida", "equilibrada", "tipo1-carro", "tipo2-bus", "tipo3-avion"]);
         resp.Categorias.Should().HaveCount(9);
 
-        // Totales coherentes: subtotal = litros * precio + casetas (magna 23.5 seed).
         foreach (var t in r.RutaArmada.Tramos)
         {
             t.Litros.Should().BeApproximately(t.Km / 12.0, 0.01);
@@ -355,9 +342,6 @@ public class CostosRutaServiceTests
     [Fact]
     public async Task Propuesta_ExponeComidaYTaxiQueYaSumanElTotal()
     {
-        // Puntos a ~11 km del centroide de su ciudad: siguen "snappeando" a la
-        // ciudad (<= 25 km) pero no al centro (> 3 km), que es la condicion para
-        // que MillaExtra cuente un taxi real y no 0.
         var (http, cache) = Infra();
         CostosRutaPersonaInput Persona() => new()
         {
@@ -384,25 +368,18 @@ public class CostosRutaServiceTests
         };
         var resp = await CalculoCostosRuta.CalcularAsync(new CostosRutaRequest { Personas = [Persona()] }, http, cache);
 
-        // La comida (>= 1 dia x 600) es componente de TODAS las propuestas.
         resp.Propuestas.Should().OnlyContain(p => p.Comida > 0);
 
-        // El viaje largo genera avion; esa propuesta paga taxi extra y su
-        // comida queda expuesta tal cual la sumo el total.
         var avion = resp.Propuestas.Single(p => p.Clave == "tipo3-avion");
         avion.Tramos.Should().Contain(t => t.Modo == "avion");
         avion.Taxi.Should().BeGreaterThan(0);
         avion.Comida.Should().BeGreaterThan(0);
-        // Es un componente del total, no una copia de el.
         avion.Taxi.Should().BeLessThan(avion.CostoTotalMxn);
     }
 
     [Fact]
     public async Task Hospedaje_ConAlternativas_SoloSumaLaTarifaDelTabuladorUnaVez()
     {
-        // Un pernocte de 1 noche en Puebla (tarifa tabulador 1500) para el que
-        // Overpass devuelve 5 hoteles alternativos SIN precio propio: son un
-        // menu de opciones, no 6 reservas simultaneas.
         CostosRutaPersonaInput Persona() => new()
         {
             Nombre = "Ana",
@@ -446,17 +423,14 @@ public class CostosRutaServiceTests
         using var cache = new MemoryCache(new MemoryCacheOptions());
         var resp = await CalculoCostosRuta.CalcularAsync(new CostosRutaRequest { Personas = [Persona()] }, http, cache);
 
-        // La lista ofrecida al viajero conserva las 5 alternativas de Overpass.
         resp.Resultados[0].HotelesPropuestos.Should().HaveCount(6);
 
-        const double tarifaPuebla = 1500; // Viaticos["PUE"].HospedajeNoche
+        const double tarifaPuebla = 1500; 
         foreach (var p in resp.Propuestas)
         {
-            // hospedaje = total - transporte (tramos) - taxi - comida
             var hospedaje = p.CostoTotalMxn - p.Tramos.Sum(t => t.Costo) - p.Taxi - p.Comida;
             hospedaje.Should().BeApproximately(tarifaPuebla, 1.0,
                 "un pernocte de 1 noche debe sumar la tarifa tabulador UNA vez, aunque haya 5 alternativas");
-            // Ahora expuesto en la propuesta (paso 3), tal cual lo sumo el total.
             p.Hospedaje.Should().Be(tarifaPuebla);
         }
     }
@@ -464,8 +438,6 @@ public class CostosRutaServiceTests
     [Fact]
     public async Task Hospedaje_En_Ciudad_No_Sembrada_UsaLaZonaDefault_NoCDMX()
     {
-        // Cuernavaca no esta en las 9 ciudades puntuales y queda fuera del radio
-        // de snap (25 km). Usa la zona E (resto) y NO hereda los $3,533 de CDMX.
         CostosRutaPersonaInput Persona() => new()
         {
             Nombre = "Ana",
@@ -518,9 +490,6 @@ public class CostosRutaServiceTests
     [Fact]
     public async Task Hospedaje_UsaElMunicipioDeLaBd_AntesQueElNombreDelPunto()
     {
-        // La direccion del mapa puede ser una localidad ("Manzana Cuarta...").
-        // El catalogo viaticos.municipios_cat debe resolver Ixtlahuaca sin
-        // depender de Nominatim ni del texto de la direccion.
         CostosRutaPersonaInput Persona() => new()
         {
             Nombre = "Ana",
@@ -579,8 +548,6 @@ public class CostosRutaServiceTests
     [Fact]
     public async Task Xalapa_Puebla_Leon_Documenta_Seeds()
     {
-        // Expected con seeds (sin red: OSRM = hav*1.25, gasolina 23.5/25.5, caseta ~1.4/km):
-        // XAL→PUE ~230 km carretera, PUE→BJX ~480 km (aérea >300 → incluye avión).
         var (http, cache) = Infra();
         CostosRutaPersonaInput Persona() => new()
         {
@@ -616,13 +583,9 @@ public class CostosRutaServiceTests
 
         resp.Resultados.Should().HaveCount(1);
         resp.Resultados[0].Tramos.Should().HaveCount(2);
-        // Sin carro propio: tramo sin auto propio, pero sí renta/bus.
         resp.Resultados[0].Tramos[0].Opciones.Should().NotContain(o => o.Modo == "auto");
         resp.Resultados[0].Tramos[0].Opciones.Should().Contain(o => o.Modo == "bus");
-        // PUE→BJX supera 300 km aéreos: hay avión estimado.
         resp.Resultados[0].Tramos[1].Opciones.Should().Contain(o => o.Modo == "avion" && o.Estimado);
-        // El taxi punto↔terminal viaja en la oferta para que el frontend lo
-        // pueda persistir; no se queda solo en la propuesta del backend.
         var bus = resp.Resultados[0].Tramos[0].Opciones.First(o => o.Modo == "bus");
         bus.CostoTaxi.Should().BeGreaterThan(0);
         bus.CostoTaxi.Should().BeApproximately(bus.CostoTaxiOrigen + bus.CostoTaxiDestino, 0.01);
@@ -637,8 +600,6 @@ public class CostosRutaServiceTests
     [Fact]
     public async Task Viaje_Sin_Iata_Usa_Aeropuerto_Cercano_Y_Taxi()
     {
-        // Tekax no tiene IATA ni ruta directa de ClickBus: el motor debe volar
-        // a Merida (MID) y cobrar el taxi MID -> Tekax, sin exigir punto a punto.
         var (http, cache) = Infra();
         var resp = await CalculoCostosRuta.CalcularAsync(new CostosRutaRequest
         {
@@ -689,9 +650,6 @@ public class CostosRutaServiceTests
     [Fact]
     public async Task Ofertas_Del_Mismo_Tramo_Tienen_Id_Unico_Y_La_Recomendacion_Apunta_Al_Mejor()
     {
-        // Tramo corto intra-CDMX: el motor ofrece varios taxis en modo "uber"
-        // (Taxi libre, sitio, radio, UberX, Uber Comfort, DiDi). Antes del arreglo
-        // todos compartían el id p0-t1-uber y React los recibía con clave duplicada.
         var (http, cache) = Infra();
         CostosRutaPersonaInput Persona() => new()
         {
@@ -724,10 +682,8 @@ public class CostosRutaServiceTests
         tramo.Opciones.Where(o => o.Modo == "uber").Should().HaveCountGreaterThan(1,
             "el escenario necesita varias ofertas uber que antes colisionaban en el id");
 
-        // Todas las ofertas del motor (categorías por modo) tienen id único.
         resp.Categorias.Values.SelectMany(o => o).Select(o => o.Id).Should().OnlyHaveUniqueItems();
 
-        // La recomendación marca la oferta más barata del tramo y su id apunta a ESA oferta.
         var recomendacion = resp.Recomendaciones.Single();
         var marcada = resp.Categorias.Values.SelectMany(o => o).Single(o => o.Id == recomendacion.MejorOfertaId);
         var viables = tramo.Opciones.Where(o => o.ATiempo).ToList();
@@ -739,9 +695,6 @@ public class CostosRutaServiceTests
     [Fact]
     public async Task Enlace_De_Primera_Plus_Abre_Su_Busqueda_Con_La_Ruta_Y_La_Fecha()
     {
-        // Primera Plus no vende en ClickBus: el boton debe abrir SU buscador ya
-        // resuelto con la ruta y la fecha (ciudad en el origen, terminal en el
-        // destino), no la portada comercial.
         using var handler = new PrimeraPlusPlacesHandler();
         using var http = new HttpClient(handler);
         using var cache = new MemoryCache(new MemoryCacheOptions());
@@ -788,8 +741,6 @@ public class CostosRutaServiceTests
     [Fact]
     public async Task Primera_Plus_Resuelve_Un_Municipio_Que_No_Esta_En_Su_Catalogo()
     {
-        // "La Aldea" no existe en Primera Plus: el enlace debe usar la ciudad
-        // real del punto (Morelia), no caer en la pagina de busqueda vacia.
         using var handler = new PrimeraPlusPlacesHandler();
         using var http = new HttpClient(handler);
         using var cache = new MemoryCache(new MemoryCacheOptions());
@@ -836,9 +787,6 @@ public class CostosRutaServiceTests
     [Fact]
     public async Task ClickBus_UsaLaTerminalMasCercana_CuandoLaLocalidadNoEstaEnSuCatalogo()
     {
-        // VIA-21-0027 cae en "Manzana Cuarta De Santa Cruz Tepexpan", una
-        // localidad que ClickBus no lista. Debe usar Toluca (mismo estado, ~32
-        // km) en vez de dejar el autobus sin link.
         using var handler = new ClickBusCercanoHandler();
         using var http = new HttpClient(handler);
         using var cache = new MemoryCache(new MemoryCacheOptions());
@@ -857,8 +805,6 @@ public class CostosRutaServiceTests
     [Fact]
     public async Task Vuelos_Estimados_Abren_Una_Busqueda_Real_Con_La_Ruta_Y_La_Fecha()
     {
-        // Las aerolineas no cotizan en el motor: el boton debe abrir una
-        // busqueda real (Kayak) en vez de la portada de la aerolinea.
         var (http, cache) = Infra();
         var request = new CostosRutaRequest
         {
@@ -909,8 +855,6 @@ public class CostosRutaServiceTests
         string origen, double latOrigen, double lonOrigen,
         string destino, double latDestino, double lonDestino, string rutaEsperada)
     {
-        // Xalapa (JAL), Ciudad Obregón (CEN) y Ciudad Victoria (CVM) no estaban
-        // en el catalogo y el link salia con el municipio o sin busqueda.
         var (http, cache) = Infra();
         var request = new CostosRutaRequest
         {
@@ -948,9 +892,6 @@ public class CostosRutaServiceTests
         vuelo.Comprar.Url.Should().StartWith($"https://www.kayak.com.mx/flights/{rutaEsperada}/2026-10-23");
     }
 
-    // Catalogo publico de Primera Plus: resuelve "Ciudad de Mexico" a su grupo
-    // de ciudad y "Morelia" a su terminal; "La Aldea" no existe y el inverso de
-    // Nominatim la ubica en Morelia. Todo lo demas falla para forzar el seed.
     private sealed class PrimeraPlusPlacesHandler : HttpMessageHandler
     {
         private const string Cdmx = """
@@ -1020,9 +961,6 @@ public class CostosRutaServiceTests
         }
     }
 
-    // Catalogo minimo de ClickBus: Toluca existe, Jiquipilco no. Sirve para
-    // verificar que una localidad cae en la terminal mas cercana del mismo
-    // estado en vez de quedarse sin link.
     private sealed class ClickBusCercanoHandler : HttpMessageHandler
     {
         public string? TripsUrl { get; private set; }

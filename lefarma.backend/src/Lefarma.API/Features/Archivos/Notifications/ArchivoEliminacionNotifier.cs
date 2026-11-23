@@ -14,17 +14,10 @@ using Microsoft.Extensions.Options;
 
 namespace Lefarma.API.Features.Archivos.Notifications;
 
-/// <summary>
-/// Aviso por correo cuando se elimina un archivo de una orden de compra.
-/// Destinatarios: el creador de la OC (el «Solicitante» de la bandeja de
-/// autorizaciones) más los correos adicionales configurados. Si el que elimina
-/// es el propio creador, no se envía nada.
-/// </summary>
 public class ArchivoEliminacionNotifier : IArchivoEliminacionNotifier
 {
     internal const string EntidadOrdenCompra = "OrdenCompra";
 
-    /// <summary>Variable del módulo Configuración con los correos adicionales (array de correos).</summary>
     internal const string ClaveCorreosAdicionales = "cxp.eliminacion-archivos.correos";
 
     private const string CarpetaAdjuntosOrden = "ordenes-compra";
@@ -61,7 +54,6 @@ public class ArchivoEliminacionNotifier : IArchivoEliminacionNotifier
         _logger = logger;
     }
 
-    /// <inheritdoc/>
     public async Task NotificarAsync(ArchivoEliminadoEvento evento, CancellationToken ct = default)
     {
         try
@@ -168,26 +160,17 @@ public class ArchivoEliminacionNotifier : IArchivoEliminacionNotifier
         }
     }
 
-    /// <summary>
-    /// Solo se avisa de archivos de orden de compra y nunca cuando el que elimina
-    /// es el creador de la OC. Si el creador no se conoce (0), se avisa igual.
-    /// </summary>
     internal static bool DebeNotificar(string? entidadTipo, int idUsuarioCreador, int? idUsuarioElimina)
         => string.Equals(entidadTipo, EntidadOrdenCompra, StringComparison.Ordinal)
             && (idUsuarioCreador <= 0
                 || !idUsuarioElimina.HasValue
                 || idUsuarioElimina.Value != idUsuarioCreador);
 
-    /// <summary>Asunto del correo.</summary>
     internal static string ConstruirAsunto(string? folio)
         => string.IsNullOrWhiteSpace(folio)
             ? "Archivo eliminado"
             : $"Archivo eliminado — {folio.Trim()}";
 
-    /// <summary>
-    /// Cuerpo del correo: la frase del requisito (quién, archivo, fecha/hora y OC)
-    /// más una tabla con el detalle del archivo.
-    /// </summary>
     internal static string ConstruirContenidoHtml(
         ArchivoEliminadoEvento evento,
         string? folio,
@@ -225,14 +208,9 @@ public class ArchivoEliminacionNotifier : IArchivoEliminacionNotifier
         return sb.ToString();
     }
 
-    /// <summary>
-    /// La fecha de subida se guarda en UTC en la base; se convierte a la hora
-    /// local del servidor para mostrarla en el correo.
-    /// </summary>
     private static DateTime ComoHoraLocal(DateTime fechaUtc)
         => DateTime.SpecifyKind(fechaUtc, DateTimeKind.Utc).ToLocalTime();
 
-    /// <summary>Describe el archivo según su carpeta y su metadata.</summary>
     internal static string DescribirTipoArchivo(string? carpeta, string? metadata)
     {
         if (string.Equals(carpeta, CarpetaComprobantes, StringComparison.OrdinalIgnoreCase))
@@ -250,7 +228,6 @@ public class ArchivoEliminacionNotifier : IArchivoEliminacionNotifier
             : "Archivo de la orden";
     }
 
-    /// <summary>Lee la propiedad "tipo" de la metadata JSON del archivo; null si no aplica.</summary>
     internal static string? LeerTipoMetadata(string? metadata)
     {
         if (string.IsNullOrWhiteSpace(metadata))
@@ -274,7 +251,6 @@ public class ArchivoEliminacionNotifier : IArchivoEliminacionNotifier
         }
     }
 
-    /// <summary>Nombre visible del usuario; cae al nombre de cuenta o a un genérico.</summary>
     internal static string ConstruirNombreVisible(string? nombreCompleto, string? samAccountName)
     {
         if (!string.IsNullOrWhiteSpace(nombreCompleto))
@@ -287,7 +263,6 @@ public class ArchivoEliminacionNotifier : IArchivoEliminacionNotifier
             : samAccountName.Trim();
     }
 
-    /// <summary>Correos adicionales normalizados (válidos, sin duplicados y con tope).</summary>
     internal static IReadOnlyList<string> NormalizarCorreosAdicionales(
         IEnumerable<string>? correos,
         int maximo = MaximoCorreosAdicionales)
@@ -306,10 +281,6 @@ public class ArchivoEliminacionNotifier : IArchivoEliminacionNotifier
             .ToList();
     }
 
-    /// <summary>
-    /// La variable del módulo Configuración manda; si no existe o no es válida se
-    /// usa la lista de appsettings como respaldo.
-    /// </summary>
     internal static IReadOnlyList<string> ResolverCorreosAdicionales(
         IReadOnlyList<string>? deVariable,
         IReadOnlyList<string>? deConfiguracion)
@@ -337,7 +308,6 @@ public class ArchivoEliminacionNotifier : IArchivoEliminacionNotifier
         return respaldo;
     }
 
-    /// <summary>Validación mínima de un correo; el canal vuelve a validar al enviar.</summary>
     internal static bool EsCorreoValido(string? correo)
     {
         if (string.IsNullOrWhiteSpace(correo))
@@ -356,7 +326,6 @@ public class ArchivoEliminacionNotifier : IArchivoEliminacionNotifier
         }
     }
 
-    /// <summary>Ruta absoluta al detalle de la orden en la bandeja de autorizaciones.</summary>
     internal static string ConstruirUrlOrden(string? frontendBaseUrl, int idOrden)
     {
         var ruta = $"/cxp/ordenes/autorizaciones?idOrden={idOrden}";
@@ -364,7 +333,6 @@ public class ArchivoEliminacionNotifier : IArchivoEliminacionNotifier
         return baseUrl.Length == 0 ? ruta : $"{baseUrl}{ruta}";
     }
 
-    /// <summary>Inserta el contenido en el layout de correo del proceso, o usa el de respaldo.</summary>
     internal static string AplicarLayout(
         string? layoutHtml,
         string asunto,
@@ -389,7 +357,6 @@ public class ArchivoEliminacionNotifier : IArchivoEliminacionNotifier
             .Replace("{{Contenido}}", contenido, StringComparison.OrdinalIgnoreCase);
     }
 
-    /// <summary>Tamaño legible del archivo.</summary>
     internal static string FormatearTamano(long bytes)
     {
         if (bytes <= 0)

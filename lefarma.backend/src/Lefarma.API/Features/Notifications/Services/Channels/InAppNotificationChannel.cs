@@ -5,17 +5,12 @@ using Lefarma.API.Features.Notifications.DTOs;
 using System.Text.Json;
 
 namespace Lefarma.API.Features.Notifications.Services.Channels;
-/// <summary>
-/// In-App notification channel implementation using Server-Sent Events (SSE).
-/// Creates UserNotification records and sends real-time notifications to connected users.
-/// </summary>
 public class InAppNotificationChannel : INotificationChannel
 {
     private readonly ISseService _sseService;
     private readonly INotificationRepository _notificationRepository;
     private readonly ILogger<InAppNotificationChannel> _logger;
 
-    /// <inheritdoc/>
     public string ChannelType => "in-app";
 
     public InAppNotificationChannel(
@@ -28,7 +23,6 @@ public class InAppNotificationChannel : INotificationChannel
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
-    /// <inheritdoc/>
     public async Task<ChannelResult> SendAsync(NotificationMessage message, CancellationToken ct = default)
     {
         _logger.LogInformation("Sending in-app notification to recipients: {Recipients}", message.Recipients);
@@ -42,7 +36,6 @@ public class InAppNotificationChannel : INotificationChannel
 
         try
         {
-            // Parse userIds from recipients string (semicolon-separated)
             var userIds = ParseUserIds(message.Recipients);
             if (userIds.Count == 0)
             {
@@ -51,7 +44,6 @@ public class InAppNotificationChannel : INotificationChannel
                 return result;
             }
 
-            // Extract notification ID from message data
             if (!TryGetNotificationId(message, out var notificationId))
             {
                 _logger.LogError("Notification ID not found in message data");
@@ -59,20 +51,17 @@ public class InAppNotificationChannel : INotificationChannel
                 return result;
             }
 
-            // Create UserNotification records for each user
             var receivedViaJson = JsonSerializer.Serialize(new[] { "in-app" });
 
             foreach (var userId in userIds)
             {
                 try
                 {
-                    // Check if user notification already exists
                     var existingUserNotification = await _notificationRepository.GetUserNotificationAsync(
                         notificationId!.Value, userId, ct);
 
                     if (existingUserNotification != null)
                     {
-                        // Update existing user notification - append "in-app" to ReceivedVia
                         var existingReceivedVia = JsonSerializer.Deserialize<List<string>>(existingUserNotification.ReceivedVia) ?? new List<string>();
                         if (!existingReceivedVia.Contains("in-app"))
                         {
@@ -83,7 +72,6 @@ public class InAppNotificationChannel : INotificationChannel
                     }
                     else
                     {
-                        // Create new user notification
                         var userNotification = new UserNotification
                         {
                             NotificationId = notificationId.Value,
@@ -96,7 +84,6 @@ public class InAppNotificationChannel : INotificationChannel
                         await _notificationRepository.CreateUserNotificationAsync(userNotification, ct);
                     }
 
-                    // Send SSE notification to connected user
                     if (_sseService.IsUserConnected(userId))
                     {
                         var notificationData = new
@@ -115,7 +102,6 @@ public class InAppNotificationChannel : INotificationChannel
                     }
                     else
                     {
-                        // User is not connected, but notification is stored
                         result.SentRecipients.Add(userId.ToString());
                         _logger.LogDebug("User {UserId} is not connected, notification stored only", userId);
                     }
@@ -143,7 +129,6 @@ public class InAppNotificationChannel : INotificationChannel
         }
     }
 
-    /// <inheritdoc/>
     public Task<bool> ValidateRecipientsAsync(string recipients, CancellationToken ct = default)
     {
         try
@@ -155,7 +140,6 @@ public class InAppNotificationChannel : INotificationChannel
                 return Task.FromResult(false);
             }
 
-            // Validate that all user IDs are positive integers
             var allValid = userIds.All(id => id > 0);
 
             return Task.FromResult(allValid);
@@ -166,9 +150,6 @@ public class InAppNotificationChannel : INotificationChannel
         }
     }
 
-    /// <summary>
-    /// Parses semicolon-separated user IDs string into a list of integers.
-    /// </summary>
     private static List<int> ParseUserIds(string recipients)
     {
         if (string.IsNullOrWhiteSpace(recipients))
@@ -190,9 +171,6 @@ public class InAppNotificationChannel : INotificationChannel
             .ToList();
     }
 
-    /// <summary>
-    /// Extracts notification ID from message data.
-    /// </summary>
     private bool TryGetNotificationId(NotificationMessage message, out int? notificationId)
     {
         notificationId = null;

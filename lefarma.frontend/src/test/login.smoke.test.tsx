@@ -5,9 +5,6 @@ import { MemoryRouter } from 'react-router-dom';
 import Login from '@/pages/auth/Login';
 import { useAuthStore } from '@/shared/auth/authStore';
 
-// The api module lives at @/shared/api/apiClient (relocated in PR 1a);
-// authService/apiClient import it directly, so the mock must target that
-// path — it is the only module on the login call path.
 vi.mock('@/shared/api/apiClient', () => ({
   API: {
     get: vi.fn().mockResolvedValue({ data: { success: true, data: null } }),
@@ -53,7 +50,6 @@ describe('Login (smoke)', () => {
       </MemoryRouter>
     );
 
-    // Step 1 primary surface: username input + continue button.
     expect(screen.getByPlaceholderText('usuario')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /continuar/i })).toBeInTheDocument();
   });
@@ -71,8 +67,6 @@ describe('Login (smoke)', () => {
     await user.type(usernameInput, 'testuser');
     await user.click(screen.getByRole('button', { name: /continuar/i }));
 
-    // authService.loginStepOne resolves against the mocked API and the store
-    // advances to step 2, whose password field is the deterministic signal.
     expect(await screen.findByPlaceholderText('Ingresa tu contraseña')).toBeInTheDocument();
   });
 });

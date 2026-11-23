@@ -73,7 +73,6 @@ public class ArchivoRepository : IArchivoRepository
                 _context.ArchivosEliminados.Add(eliminacion);
             }
 
-            // Un solo SaveChanges: la baja lógica y su bitácora quedan en la misma transacción.
             await _context.SaveChangesAsync(cancellationToken);
         }
     }

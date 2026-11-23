@@ -12,7 +12,6 @@ import { toApiError } from '@/utils/errors';
 import { WorkflowHistorialModal } from '@/components/workflows/WorkflowHistorialModal';
 import type { TipoDocumentoEm } from './documentoEntidad';
 
-// Los pasos de los workflows son configuración estable: se cachean por sesión.
 let cacheFlujo: Map<number, WorkflowFlowResponse> | null = null;
 
 interface DocumentoHistorialModalProps {
@@ -26,11 +25,6 @@ interface DocumentoHistorialModalProps {
   idPasoActual?: number | null;
 }
 
-/**
- * Historial de un documento de Educación Médica. Carga la bitácora y el flujo,
- * y delega la vista en el modal compartido (`WorkflowHistorialModal`) que usan
- * todos los módulos.
- */
 export function DocumentoHistorialModal({
   open,
   onClose,

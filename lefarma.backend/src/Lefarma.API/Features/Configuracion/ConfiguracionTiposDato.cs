@@ -1,9 +1,5 @@
 namespace Lefarma.API.Features.Configuracion;
 
-/// <summary>
-/// Tipos de dato soportados por las variables de configuración.
-/// El valor siempre se persiste como JSON canónico.
-/// </summary>
 public static class ConfiguracionTiposDato
 {
     public const string String = "string";
@@ -29,7 +25,6 @@ public static class ConfiguracionTiposDato
         DateRange, DateTimeRange, IntegerRange, DecimalRange
     ];
 
-    /// <summary>Tipos con forma de rango: objeto <c>{ desde, hasta }</c>.</summary>
     public static readonly string[] Rangos =
     [
         DateRange, DateTimeRange, IntegerRange, DecimalRange
@@ -45,12 +40,10 @@ public static class ConfiguracionTiposDato
     public static bool EsValido(string? tipoDato)
         => !string.IsNullOrWhiteSpace(tipoDato) && Soportados.Contains(tipoDato.Trim());
 
-    /// <summary>Normaliza a minúsculas sin espacios; null si viene vacío.</summary>
     public static string? Normalizar(string? tipoDato)
         => string.IsNullOrWhiteSpace(tipoDato) ? null : tipoDato.Trim().ToLowerInvariant();
 }
 
-/// <summary>Acciones registradas en la bitácora de variables de configuración.</summary>
 public static class ConfiguracionAcciones
 {
     public const string Crear = "crear";

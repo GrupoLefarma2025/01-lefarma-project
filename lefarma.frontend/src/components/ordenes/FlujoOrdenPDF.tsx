@@ -7,8 +7,6 @@ import {
   type ParticipantePaso,
 } from '@/utils/responsablesPaso';
 
-// ─── Tipos (reflejados desde AutorizacionesOC) ─────────────────────────────────
-
 export interface HistorialPDFItem {
   idEvento: number;
   idPaso: number;
@@ -28,7 +26,6 @@ export interface PasoPDFConfig {
   descripcionAyuda?: string | null;
   esInicio: boolean;
   esFinal: boolean;
-  /** Participantes configurados del paso (responsables), disponibles para todos los pasos del flujo. */
   participantes?: ParticipantePaso[];
 }
 
@@ -50,8 +47,6 @@ interface Props {
   eventosPorPaso: Map<number, HistorialPDFItem[]>;
   pasosMap: Map<number, PasoPDFConfig>;
 }
-
-// ─── Funciones auxiliares ─────────────────────────────────────────────────────────
 
 const ESTADO_INFO: Record<number, { label: string; bg: string; color: string }> = {
   1:  { label: 'Creada', bg: '#dbeafe', color: '#1e3a8a' },
@@ -137,8 +132,6 @@ function getMovimiento(
   }
 }
 
-// ─── Componente ────────────────────────────────────────────────────────────────
-
 export function FlujoOrdenPDF({ orden, progresoPasos, eventosPorPaso, pasosMap }: Props) {
   const now = new Date().toLocaleString('es-MX', {
     day: '2-digit',
@@ -158,7 +151,7 @@ export function FlujoOrdenPDF({ orden, progresoPasos, eventosPorPaso, pasosMap }
 
   return (
     <div id="flujo-pdf-print">
-      {/* ── Header ──────────────────────────────────────────────────────── */}
+      {}
       <div className="pdf-header">
         <div className="pdf-header-left">
           <img
@@ -174,7 +167,7 @@ export function FlujoOrdenPDF({ orden, progresoPasos, eventosPorPaso, pasosMap }
         </div>
       </div>
 
-      {/* ── Datos de la Orden ──────────────────────────────────────────── */}
+      {}
       <div className="pdf-section">
         <div className="pdf-section-title">Datos de la Orden</div>
         <div className="pdf-orden-grid">
@@ -258,7 +251,7 @@ export function FlujoOrdenPDF({ orden, progresoPasos, eventosPorPaso, pasosMap }
         )}
       </div>
 
-      {/* ── Partidas ──────────────────────────────────────────────────── */}
+      {}
       {orden.partidas && orden.partidas.length > 0 && (
         <div className="pdf-section">
           <div className="pdf-section-title">Partidas</div>
@@ -289,7 +282,7 @@ export function FlujoOrdenPDF({ orden, progresoPasos, eventosPorPaso, pasosMap }
         </div>
       )}
 
-      {/* ── Flujo de Autorización ─────────────────────────────────────── */}
+      {}
       <div className="pdf-section">
         <div className="pdf-section-title">Flujo de Autorización</div>
         <div className="pdf-timeline">
@@ -313,7 +306,7 @@ export function FlujoOrdenPDF({ orden, progresoPasos, eventosPorPaso, pasosMap }
 
             return (
               <div key={paso.idPaso} className="pdf-paso">
-                {/* Círculo del paso + línea */}
+                {}
                 <div className="pdf-paso-timeline">
                   <div className="pdf-paso-dot" style={{ background: color, border: `2px solid ${color}` }}>
                     {symbol}
@@ -323,7 +316,7 @@ export function FlujoOrdenPDF({ orden, progresoPasos, eventosPorPaso, pasosMap }
                   )}
                 </div>
 
-                {/* Contenido del paso */}
+                {}
                 <div className="pdf-paso-content">
                   <div className="pdf-paso-header">
                     <span className="pdf-paso-nombre">
@@ -388,7 +381,7 @@ export function FlujoOrdenPDF({ orden, progresoPasos, eventosPorPaso, pasosMap }
         </div>
       </div>
 
-      {/* ── Footer ────────────────────────────────────────────────────── */}
+      {}
       <div className="pdf-footer">
         <span>Sistema Lefarma · Documento generado automáticamente · Confidencial</span>
         <span>{orden.folio}</span>

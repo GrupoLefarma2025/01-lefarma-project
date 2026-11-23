@@ -6,12 +6,6 @@ import type { CatalogoItem } from '@/apps/educacion-medica/components/CatalogoSe
 import type { CostosRutaOferta, CostosRutaResponse } from '../../types/costosRuta.types';
 import { ViaticosPage } from './ViaticosPage';
 
-/**
- * Selección de opción por tramo en el paso de resultados: el especialista
- * elige UNA opción por tramo y puede deseleccionarla. La elección se indexa
- * por persona + tramo, así que sobrevive a un recálculo.
- */
-
 const mocks = vi.hoisted(() => ({ get: vi.fn(), calculate: vi.fn() }));
 vi.mock('@/utils/waitForPrintImages', () => ({ waitForPrintImages: vi.fn().mockResolvedValue(undefined) }));
 vi.mock('@/shared/api/apiClient', () => ({ API: { get: mocks.get } }));
@@ -59,7 +53,6 @@ const oferta = (id: string, linea: string): CostosRutaOferta => ({
   comprar: { url: `https://ejemplo.test/${id}`, sitio: 'ejemplo.test', accion: 'comprar', objetivo: 'vuelo', fecha: '2026-11-10' },
 });
 
-/** Un tramo con dos opciones y un tramo con una: permite comprobar el "una por tramo". */
 const respuesta = (): CostosRutaResponse => ({
   propuestas: [],
   resultados: [
@@ -100,7 +93,6 @@ function capturarMinimo() {
   fireEvent.change(within(destino(1)).getByLabelText('Día de presencia'), { target: { value: '2026-10-15' } });
 }
 
-/** Captura mínima, calcula y deja visible el paso de resultados. */
 async function llegarAResultados() {
   render(<ViaticosPage />);
   await waitFor(() => expect(screen.queryByText('Cargando sucursales…')).not.toBeInTheDocument());
@@ -128,7 +120,6 @@ describe('elección de opción por tramo', () => {
   it('deja activa y resaltada la fila elegida y deshabilita Elegir sin selección', async () => {
     await llegarAResultados();
 
-    // Con la página conectada, ningún botón "Elegir" llega deshabilitado.
     const botones = within(paso(4)).getAllByRole('button', { name: /^Elegir / });
     expect(botones).toHaveLength(3);
     for (const boton of botones) expect(boton).toBeEnabled();

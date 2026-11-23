@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import { areaDocumento, datosSolicitanteDocumento } from './datosSolicitanteDocumento';
 import type { OrdenCompraResponse } from '@/types/ordenCompra.types';
 
-/** Orden mínima: solo importan los campos del solicitante y el área del catálogo. */
 function orden(overrides: Partial<OrdenCompraResponse> = {}): OrdenCompraResponse {
   return {
     idOrden: 1,

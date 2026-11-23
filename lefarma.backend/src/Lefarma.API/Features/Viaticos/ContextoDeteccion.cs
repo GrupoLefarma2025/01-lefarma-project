@@ -7,12 +7,6 @@ namespace Lefarma.API.Features.Viaticos;
 
 public sealed record ContextoDeteccionOpcion(DateOnly Fecha, DateTime? Deadline, int MinutosTaxi);
 
-/// <summary>
-/// Fecha/hora límite y minutos de taxi de una opción, leídos del snapshot del
-/// wizard. Es el mismo contexto para la detección bajo demanda y la cola de
-/// Fase 2. Si falta el dato, la detección elige el más barato sin filtro de
-/// hora (no inventa una fecha).
-/// </summary>
 public static class ContextoDeteccion
 {
     public static ContextoDeteccionOpcion Leer(Solicitud solicitud, SolicitudOpcion opcion)
@@ -55,7 +49,6 @@ public static class ContextoDeteccion
             }
             catch (JsonException)
             {
-                // Sin datos de la opción se usa la fecha de la URL.
             }
         }
 
@@ -87,7 +80,6 @@ public static class ContextoDeteccion
             }
             catch (JsonException)
             {
-                // El contexto es opcional.
             }
         }
 

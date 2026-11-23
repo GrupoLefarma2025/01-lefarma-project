@@ -17,7 +17,6 @@ public interface IRutasService
         int idUsuario,
         CancellationToken ct = default);
 
-    /// <summary>Edición de horas de la visita: normal en Creada; ajuste auditado en Cerrada (ADR-00010).</summary>
     Task<DTOs.RutaVisitaDto> EditarHorasVisitaAsync(
         int idRuta,
         int idRutaVisita,
@@ -25,7 +24,6 @@ public interface IRutasService
         int idUsuario,
         CancellationToken ct = default);
 
-    /// <summary>Asigna manualmente el ejecutivo de una visita; en ruta Cerrada es ajuste auditado.</summary>
     Task<DTOs.RutaVisitaDto> AsignarEjecutivoVisitaAsync(
         int idRuta,
         int idRutaVisita,
@@ -39,7 +37,6 @@ public interface IRutasService
         int idUsuario,
         CancellationToken ct = default);
 
-    /// <summary>Alta de visita extraordinaria (hospital del catálogo fuera de la selección; ADR-00011).</summary>
     Task<DTOs.RutaVisitaDto> AgregarVisitaExtraordinariaAsync(
         int idSeleccionMensual,
         DTOs.VisitaExtraordinariaRequest request,
@@ -60,6 +57,5 @@ public interface IRutasService
         DateOnly? hasta = null,
         CancellationToken ct = default);
 
-    /// <summary>Hospitales de la selección del equipo con ruta Cerrada (captura asistida; ADR-00011).</summary>
     Task<List<DTOs.HospitalElegibleDto>> GetHospitalesElegiblesAsync(int idEquipo, CancellationToken ct = default);
 }

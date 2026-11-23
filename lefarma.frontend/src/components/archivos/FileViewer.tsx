@@ -18,8 +18,6 @@ import type { Archivo } from '@/types/archivo.types';
 import { ExcelTable } from './ExcelTable';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 
-// ─── tipos y helpers ───────────────────────────────────────────────────────────
-
 type PreviewKind = 'image' | 'pdf' | 'excel' | 'text' | 'unsupported';
 
 function resolveKind(ext: string, mime?: string | null): PreviewKind {
@@ -70,27 +68,12 @@ function formatDate(d: string): string {
   return new Date(d).toLocaleString('es-ES', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
-// ─── FileViewer ────────────────────────────────────────────────────────────────
-
-/**
- * Visor de archivos con preview real para PDF, imágenes, Excel y texto.
- * Acepta un archivo remoto (`archivoId`) o un archivo local (`localFile`).
- * El preview remoto se carga autenticado vía API (JWT en headers).
- *
- * @lat: [[frontend#Archivos#Visualización de archivos]]
- */
 interface FileViewerProps {
-  /** ID del archivo ya guardado en backend */
   archivoId?: number | null;
-  /** Archivo local (antes de subir) para preview inmediato */
   localFile?: File | null;
-  /** URL ya autenticada (por ejemplo un object URL de una captura de viáticos). */
   src?: string | null;
-  /** Nombre visible cuando se usa `src`. */
   nombre?: string;
-  /** Tamaño en bytes cuando se usa `src`. */
   tamanoBytes?: number;
-  /** Permite descargar el `src`; por defecto true. */
   descargar?: boolean;
   titulo?: string;
   textoDescargar?: string;
@@ -114,7 +97,6 @@ export function FileViewer({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Preview data
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
   const [excelData, setExcelData] = useState<{ sheets: { name: string; data: Record<string, unknown>[] }[] } | null>(null);
   const [activeSheet, setActiveSheet] = useState(0);
@@ -123,7 +105,6 @@ export function FileViewer({
 
   const prevBlobRef = useRef<string | null>(null);
 
-  // Cleanup blob URLs on close / unmount
   useEffect(() => {
     return () => {
       if (prevBlobRef.current) URL.revokeObjectURL(prevBlobRef.current);
@@ -142,7 +123,6 @@ export function FileViewer({
     setError(null);
   };
 
-  // ── Cargar metadatos del archivo remoto ────────────────────────────────
   const loadRemoteMetadata = useCallback(async (id: number) => {
     try {
       setLoading(true);
@@ -156,7 +136,6 @@ export function FileViewer({
     }
   }, []);
 
-  // ── Cargar preview del archivo remoto ─────────────────────────────────
   const loadRemotePreview = useCallback(async (arch: Archivo) => {
     const kind = resolveKind(arch.extension, arch.tipoMime);
     setPreviewLoading(true);
@@ -180,13 +159,11 @@ export function FileViewer({
         setTextContent(res.data as string);
       }
     } catch {
-      // preview no disponible — no bloqueamos, el usuario puede descargar
     } finally {
       setPreviewLoading(false);
     }
   }, []);
 
-  // ── Cargar preview de archivo local (File) ─────────────────────────────
   const loadLocalPreview = useCallback(async (file: File) => {
     const ext = '.' + (file.name.split('.').pop() ?? '').toLowerCase();
     const kind = resolveKind(ext, file.type);
@@ -214,20 +191,16 @@ export function FileViewer({
         setTextContent(text);
       }
     } catch {
-      // silencioso
     } finally {
       setPreviewLoading(false);
     }
   }, []);
 
-  // ── Efectos principales ───────────────────────────────────────────────
   useEffect(() => {
     if (!open) return;
     resetPreview();
 
     if (src) {
-      // Captura ya autenticada: el object URL lo administra quien abre el
-      // visor (useCapturaAutenticada), por eso NO se guarda en prevBlobRef.
       const pseudoArchivo: Archivo = {
         id: 0,
         entidadTipo: '',
@@ -248,7 +221,6 @@ export function FileViewer({
       setBlobUrl(src);
       setPreviewLoading(false);
     } else if (localFile) {
-      // preview local
       const ext = '.' + (localFile.name.split('.').pop() ?? '').toLowerCase();
       const kind = resolveKind(ext, localFile.type);
       const pseudoArchivo: Archivo = {
@@ -282,9 +254,7 @@ export function FileViewer({
     }
   }, [archivo, loading, archivoId, loadRemotePreview]);
 
-  // ── Escape handled by Radix Dialog ───────────────────────────────────
-
-  const handleDownload= () => {
+const handleDownload= () => {
     if (src && descargar) {
       const a = document.createElement('a');
       a.href = src;
@@ -310,7 +280,6 @@ export function FileViewer({
   const esCaptura = !!src;
   const puedeDescargar = (esCaptura && descargar) || (!isLocal && archivo && archivo.id > 0);
 
-  // ── Área de preview ────────────────────────────────────────────────────
   const renderPreview = () => {
     if (previewLoading) {
       return (
@@ -382,7 +351,6 @@ export function FileViewer({
       );
     }
 
-    // unsupported o sin datos aún
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-3 py-8 text-muted-foreground">
         <div className={`p-4 rounded-xl border ${extColor(ext)}`}>
@@ -396,7 +364,6 @@ export function FileViewer({
     );
   };
 
-  // ── Layout ─────────────────────────────────────────────────────────────
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
       <DialogContent
@@ -415,7 +382,7 @@ export function FileViewer({
           Vista previa del archivo o captura seleccionada.
         </DialogDescription>
 
-        {/* ── Header ── */}
+        {}
         <div className="flex items-center gap-3 px-4 py-3 border-b border-border shrink-0">
           {archivo && (
             <span className={`px-2 py-0.5 rounded text-xs font-semibold uppercase tracking-wide border ${extColor(ext)}`}>
@@ -427,9 +394,9 @@ export function FileViewer({
           </h2>
         </div>
 
-        {/* ── Body ── */}
+        {}
         <div className="flex flex-1 overflow-hidden min-h-0">
-          {/* Preview area */}
+          {}
           <div className="flex flex-1 flex-col p-4 overflow-auto gap-3">
             {loading && (
               <div className="flex flex-1 items-center justify-center h-48">
@@ -445,7 +412,7 @@ export function FileViewer({
             {!loading && !error && archivo && renderPreview()}
           </div>
 
-          {/* Sidebar de metadata — solo cuando hay espacio útil */}
+          {}
           {archivo && kind !== 'unsupported' && (
             <div className="hidden lg:flex flex-col gap-3 w-52 shrink-0 border-l border-border p-4 bg-muted/20 text-xs text-muted-foreground">
               <p className="font-semibold text-foreground text-sm truncate" title={archivo.nombreOriginal}>

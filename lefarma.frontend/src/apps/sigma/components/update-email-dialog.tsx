@@ -38,7 +38,6 @@ export function UpdateEmailDialog({
     setError("");
     setSuccess(false);
 
-    // Validar formato de email
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
       setError("Por favor ingresa un correo electrónico válido");
@@ -72,13 +71,11 @@ export function UpdateEmailDialog({
       const data = await response.json();
 
       if (response.ok && data.success) {
-        // Actualizar el email en el store de autenticación (zustand)
         updateUser({ correo: email });
 
         setSuccess(true);
         setError("");
 
-        // Cerrar el diálogo después de 1.5 segundos
         setTimeout(() => {
           onOpenChange(false);
           setEmail("");

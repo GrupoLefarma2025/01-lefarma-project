@@ -7,10 +7,6 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Lefarma.API.Features.EducacionMedica;
 
-/// <summary>
-/// Bitácora de ajustes post-cierre (ADR-00010): consulta por entidad con el permiso de
-/// ver del módulo correspondiente (rutas.puede_ver / talleres.puede_ver).
-/// </summary>
 public class AjustePostCierreService : IAjustePostCierreService
 {
     private readonly ApplicationDbContext _context;

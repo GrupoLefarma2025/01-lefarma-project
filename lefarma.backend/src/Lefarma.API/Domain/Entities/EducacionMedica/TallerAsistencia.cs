@@ -1,10 +1,5 @@
 namespace Lefarma.API.Domain.Entities.EducacionMedica;
 
-/// <summary>
-/// Asistente del taller (FOR-008, 1:N máx. 20): la lista se llena a mano en sitio y el
-/// equipo la transcribe al sistema; la hoja firmada se adjunta como evidencia del taller
-/// (taller_evidencias), sin firma digital por asistente. ADR-00008.
-/// </summary>
 public class TallerAsistencia
 {
     public const int MaximoAsistentes = 20;

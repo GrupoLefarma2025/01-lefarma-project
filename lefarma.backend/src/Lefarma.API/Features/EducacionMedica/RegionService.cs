@@ -154,7 +154,6 @@ public class RegionService : IRegionService
         var extension = await _extensionRepository.GetByHospitalIdAsync(codigoContacto, ct);
         var idTipoGerencia = extension?.IdTipoGerencia;
 
-        // Sin gerencia no hay regiones candidatas: la región exige gerencia.
         if (idTipoGerencia is null)
         {
             return new SugerenciaRegionResponseDto();
@@ -252,7 +251,6 @@ public class RegionService : IRegionService
     public async Task<AplicarMapeoResultadoDto> AplicarMapeoAsync(int idUsuario, int? idTipoGerencia = null, CancellationToken ct = default)
     {
         var porEstado = await _regionRepository.AplicarMapeoAsync(idUsuario, ct, idTipoGerencia);
-        // Después del pase por estado: el GPS solo rellena los que siguen sin región.
         var porGps = await _regionRepository.AplicarMapeoGpsAsync(idUsuario, ct, idTipoGerencia);
 
         return new AplicarMapeoResultadoDto { PorEstado = porEstado, PorGps = porGps };
@@ -310,9 +308,7 @@ public class RegionService : IRegionService
         return extension.ToResponse();
     }
 
-    // ---- Métodos del mapeo estado -> región ----
-
-    public async Task<List<RegionEstadoDto>> GetMapeoEstadosAsync(int? idTipoGerencia = null, CancellationToken ct = default)
+public async Task<List<RegionEstadoDto>> GetMapeoEstadosAsync(int? idTipoGerencia = null, CancellationToken ct = default)
     {
         var mapeos = await _regionRepository.GetMapeosAsync(ct, idTipoGerencia);
         var nombresEstados = await NombresEstadosAsync(ct);
@@ -376,9 +372,7 @@ public class RegionService : IRegionService
         };
     }
 
-    // ---- Auxiliares ----
-
-    private async Task<Dictionary<int, string?>> NombresEstadosAsync(CancellationToken ct)
+private async Task<Dictionary<int, string?>> NombresEstadosAsync(CancellationToken ct)
     {
         return await _asokamContext.GenEstados
             .AsNoTracking()

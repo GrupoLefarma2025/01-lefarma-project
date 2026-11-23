@@ -1,9 +1,5 @@
 namespace Lefarma.API.Domain.Entities.EducacionMedica;
 
-/// <summary>
-/// Región(es) asignada(s) a un ejecutivo de ventas (ADR-00015). La gerencia
-/// del ejecutivo se deriva de <see cref="RegionCatalogo.IdTipoGerencia"/>.
-/// </summary>
 public class EjecutivoRegion
 {
     public int IdEjecutivoRegion { get; set; }

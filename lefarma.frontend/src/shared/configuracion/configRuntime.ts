@@ -16,22 +16,14 @@ interface EnsureWaiter {
   reject: (error: unknown) => void;
 }
 
-/**
- * Claves solicitadas por alguna ruta/pantalla. No se eliminan nunca: aunque la
- * pantalla se desmonte, la clave sigue entrando en el sync global y en el
- * polling para mantener el cache fresco.
- */
 const registeredKeys = new Set<string>();
 
-/** Single-flight por clave: dos consumidores de la misma clave comparten request. */
 const inFlightByKey = new Map<string, Promise<EnsureConfigResult>>();
 
-/** Waiters del ciclo de microtask actual (batch de hooks del mismo render). */
 let queuedWaiters: EnsureWaiter[] = [];
 
 let flushScheduled = false;
 
-/** Single-flight global para syncNow. */
 let syncPromise: Promise<SyncNowResult> | null = null;
 
 function hasOwn(target: Record<string, unknown>, key: string): boolean {
@@ -57,7 +49,6 @@ function normalizeKeys(keys: readonly string[] | null | undefined): string[] {
   return result;
 }
 
-/** Solo se consulta con sesión: nunca endpoints protegidos sin token. */
 function getSessionToken(): string | null {
   return useAuthStore.getState().token || null;
 }
@@ -120,8 +111,6 @@ function scheduleEnsureFlush(): void {
   }
   flushScheduled = true;
 
-  // Un solo lote por ciclo de microtask: todos los hooks que montan en el
-  // mismo render/commit se agrupan en una única petición.
   queueMicrotask(() => {
     flushScheduled = false;
     void flushEnsureQueue();
@@ -217,7 +206,6 @@ async function flushEnsureQueue(): Promise<void> {
         return { ok: false, error, fetched: newKeys, skipped: false };
       }
     })().finally(() => {
-      // Limpieza garantizada: las promesas nunca se quedan colgadas.
       for (const key of newKeys) {
         inFlightByKey.delete(key);
       }
@@ -253,7 +241,6 @@ async function flushEnsureQueue(): Promise<void> {
   );
 }
 
-/** Registra claves para que sigan sincronizándose aunque la ruta se desmonte. */
 export function registerConfigKeys(keys: readonly string[]): void {
   for (const key of normalizeKeys(keys)) {
     registeredKeys.add(key);
@@ -264,18 +251,11 @@ export function getRegisteredConfigKeys(): string[] {
   return [...registeredKeys];
 }
 
-/** Claves registradas que todavía no están en el cache. */
 export function getMissingConfigKeys(): string[] {
   const { variables } = useConfiguracionStore.getState();
   return [...registeredKeys].filter((key) => !hasOwn(variables, key));
 }
 
-/**
- * Asegura que las claves indicadas estén en el store.
- * - Solo pide las que faltan (o todas si `force`).
- * - Un lote por microtask + single-flight por clave.
- * - Nunca lanza salvo `throwOnError`.
- */
 export function ensureConfig(
   keys: readonly string[],
   options: EnsureConfigOptions = {}
@@ -296,8 +276,6 @@ export function ensureConfig(
     return Promise.resolve(skippedResult());
   }
 
-  // Sin token no se consulta el endpoint protegido. Las claves quedan
-  // registradas y el provider las recupera al autenticarse.
   if (!getSessionToken()) {
     return Promise.resolve(skippedResult());
   }
@@ -310,20 +288,12 @@ export function ensureConfig(
   return withEnsureThrowPolicy(promise, options.throwOnError);
 }
 
-/**
- * Pide únicamente claves registradas que aún no tienen valor (p. ej. hooks que
- * montaron antes del login). No descarga el catálogo completo.
- */
 export function ensureMissingConfigKeys(
   options: EnsureConfigOptions = {}
 ): Promise<EnsureConfigResult> {
   return ensureConfig(getMissingConfigKeys(), options);
 }
 
-/**
- * Sincroniza desde la revisión local TODAS las claves cacheadas + registradas.
- * Si no hay claves no llama al backend. Single-flight global.
- */
 export function syncNow(options: SyncNowOptions = {}): Promise<SyncNowResult> {
   if (syncPromise) {
     return withSyncThrowPolicy(syncPromise, options.throwOnError);
@@ -363,7 +333,6 @@ export function syncNow(options: SyncNowOptions = {}): Promise<SyncNowResult> {
   return withSyncThrowPolicy(promise, options.throwOnError);
 }
 
-/** Solo para tests. */
 export function resetConfigRuntimeForTests(): void {
   registeredKeys.clear();
   inFlightByKey.clear();

@@ -37,10 +37,8 @@ export function useTheme() {
   const [theme, setThemeState] = useState<Theme>(getStoredTheme);
 
   useEffect(() => {
-    // Apply theme on mount
     applyTheme(theme);
 
-    // Listen to system theme changes when in auto mode
     if (theme === "auto") {
       const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
       const handleChange = () => applyTheme("auto");

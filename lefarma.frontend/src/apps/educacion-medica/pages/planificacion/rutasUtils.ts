@@ -27,7 +27,6 @@ const MESES_LARGOS = [
   'diciembre',
 ];
 
-/** Fecha larga en español: "Viernes, 16 de octubre". */
 export function fechaLarga(fecha: string): string {
   const dia = new Date(`${fecha}T00:00:00`);
   return `${DIAS_LARGOS[dia.getDay()]}, ${dia.getDate()} de ${MESES_LARGOS[dia.getMonth()]}`;
@@ -56,8 +55,8 @@ export function agruparPorDia(visitas: RutaVisita[]): { fecha: string; visitas: 
 export function semanaIso(fecha: string): number {
   const dt = new Date(`${fecha}T00:00:00`);
   const target = new Date(dt.valueOf());
-  const dayNr = (dt.getDay() + 6) % 7; // lunes = 0
-  target.setDate(target.getDate() - dayNr + 3); // jueves de la semana ISO
+  const dayNr = (dt.getDay() + 6) % 7; 
+  target.setDate(target.getDate() - dayNr + 3); 
   const firstThursday = new Date(target.getFullYear(), 0, 4);
   const firstDayNr = (firstThursday.getDay() + 6) % 7;
   firstThursday.setDate(firstThursday.getDate() - firstDayNr + 3);
@@ -89,16 +88,12 @@ export function contarViajesForaneos(visitas: RutaVisita[]): number {
 
 export type NivelCarga = 'normal' | 'lleno' | 'excedido';
 
-// 3/3 es válido (lleno); 4/3 es problema (excedido). Nunca "excedido" por lleno.
 export function nivelCarga(actual: number, maximo: number): NivelCarga {
   if (actual > maximo) return 'excedido';
   if (actual === maximo) return 'lleno';
   return 'normal';
 }
 
-// Para el día calendario, la semántica de negocio es distinta: 3/3 = lleno es el
-// objetivo del día (verde); un día con visitas pero incompleto se marca rojo para
-// que se note la capacidad desaprovechada; vacío = neutro.
 export type EstadoDia = 'vacio' | 'incompleto' | 'lleno' | 'excedido';
 
 export function estadoDelDia(actual: number, maximo: number): EstadoDia {

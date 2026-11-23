@@ -8,7 +8,6 @@ import type {
 } from '@/types/archivo.types';
 import type { ApiResponse } from '@/types/api.types';
 
-// Full prefix only for raw URL strings (href/download links); axios calls use relative paths because API.baseURL already includes VITE_API_URL
 const BASE_URL = `${import.meta.env.VITE_API_URL || '/api'}/archivos`;
 
 export const archivoService = {

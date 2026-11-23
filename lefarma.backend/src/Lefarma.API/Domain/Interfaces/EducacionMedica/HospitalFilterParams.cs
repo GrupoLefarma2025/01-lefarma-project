@@ -11,32 +11,16 @@ public class HospitalFilterParams
     public decimal? AnestesiasTotalesMin { get; set; }
     public bool? Activo { get; set; }
 
-    /// <summary>
-    /// Clasificación del contacto por sede: "sedes" = solo es_sede_taller = 1 (excluye
-    /// logísticos 0, conserva NULL); "logisticos" = solo 0; "sin-clasificar" = solo NULL
-    /// (con extensión). null = sin filtro. Los pickers operativos (Selección/ranking) usan "sedes".
-    /// </summary>
     public string? FiltroSede { get; set; }
 
-    /// <summary>
-    /// true = solo hospitales con coordenadas validas (latitud/longitud no nulas
-    /// y no ambas en 0); false = solo los que no tienen. null = sin filtro.
-    /// </summary>
     public bool? TieneCoordenadas { get; set; }
 
-    /// <summary>
-    /// true = solo visibles en Educación Médica; false = solo ocultos; null = sin filtro.
-    /// Los consumidores operativos deben enviar true.
-    /// </summary>
     public bool? MostrarEducacionMedica { get; set; }
 
-    /// <summary>true = solo pendientes de revisión; false = solo revisados; null = sin filtro.</summary>
     public bool? RequiereRevision { get; set; }
 
-    /// <summary>IDs de hospital ya filtrados por extensión (evita escanear todo Asokam).</summary>
     public List<int>? Ids { get; set; }
 
-    /// <summary>Valores de Tipo a excluir (regla de elegibilidad explícita por consumidor).</summary>
     public List<string>? ExcluirTipos { get; set; }
 
     public string? OrderBy { get; set; }

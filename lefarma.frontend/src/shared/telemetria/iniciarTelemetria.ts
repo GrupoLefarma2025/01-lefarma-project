@@ -13,11 +13,6 @@ import { iniciarMapaCalor } from './mapaCalor';
 import { crearLote, enviarLote, obtenerToken } from './transporte';
 import type { EventoTelemetria } from './tipos';
 
-/**
- * Arranque del SDK: conecta capturadores y un único bucle de envío. Se llama
- * antes de montar React para que el arranque quede cubierto.
- */
-
 const ESPERA_PRIMER_ENVIO_MS = 3_000;
 const ESPERA_TRAS_EVENTO_MS = 2_000;
 const MAXIMO_ANONIMO = 5;
@@ -45,8 +40,6 @@ function construirSeleccion(
       if (seleccion.length >= MAXIMO_ANONIMO) {
         break;
       }
-      // El endpoint anónimo solo acepta errores de arranque: es lo único que
-      // puede fallar antes de que exista sesión.
       if (
         pendiente.evento.tipo !== 'error' ||
         pendiente.evento.tipoError !== 'arranque'
@@ -98,7 +91,6 @@ async function vaciar(): Promise<void> {
       programarEnvio(ESPERA_TRAS_EVENTO_MS);
     }
   } catch {
-    // Nunca bloquear la aplicación por telemetría.
   } finally {
     vaciando = false;
   }
@@ -129,8 +121,6 @@ export function iniciarTelemetria(): void {
 
   window.setInterval(() => programarEnvio(), INTERVALO_ENVIO_MS);
 
-  // El envío al ocultarse la pestaña es el reemplazo de fetchLater(): con
-  // keepalive el navegador deja terminar la petición aunque se cierre.
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden') {
       void vaciar();

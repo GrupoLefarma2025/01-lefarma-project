@@ -10,10 +10,6 @@ using Swashbuckle.AspNetCore.Annotations;
 
 namespace Lefarma.API.Features.Configuracion;
 
-/// <summary>
-/// Catálogo de módulos de configuración: agrupan variables y definen el
-/// prefijo de su clave (modulo.namespace.clave).
-/// </summary>
 [ApiController]
 [Route("api/configuracion/modulos")]
 [EndpointGroupName("Configuracion")]
@@ -27,7 +23,6 @@ public class ConfiguracionModulosController : ControllerBase
         _service = service;
     }
 
-    /// <summary>Lista los módulos de configuración.</summary>
     [HttpGet]
     [HasPermission(Permissions.Configuracion.View)]
     [SwaggerOperation(
@@ -47,7 +42,6 @@ public class ConfiguracionModulosController : ControllerBase
         }));
     }
 
-    /// <summary>Crea un módulo de configuración.</summary>
     [HttpPost]
     [HasPermission(Permissions.Configuracion.Create)]
     [SwaggerOperation(
@@ -70,7 +64,6 @@ public class ConfiguracionModulosController : ControllerBase
         }));
     }
 
-    /// <summary>Actualiza nombre, descripción y orden de un módulo.</summary>
     [HttpPut("{id:long}")]
     [HasPermission(Permissions.Configuracion.Update)]
     [SwaggerOperation(
@@ -93,7 +86,6 @@ public class ConfiguracionModulosController : ControllerBase
         }));
     }
 
-    /// <summary>Desactiva un módulo (nunca se elimina físicamente).</summary>
     [HttpPost("{id:long}/desactivar")]
     [HasPermission(Permissions.Configuracion.Update)]
     [SwaggerOperation(
@@ -114,7 +106,6 @@ public class ConfiguracionModulosController : ControllerBase
         }));
     }
 
-    /// <summary>Reactiva un módulo desactivado.</summary>
     [HttpPost("{id:long}/reactivar")]
     [HasPermission(Permissions.Configuracion.Update)]
     [SwaggerOperation(

@@ -5,11 +5,6 @@ import {
   type SolicitudVuelo,
 } from './ConcentradoVuelosPrint';
 
-/**
- * Formato «Solicitud de avión» (concentrado de vuelos). Las filas llegan ya
- * resueltas por la bandeja; aquí solo se comprueba el documento: un bloque por
- * persona, itinerario ida/vuelta, «—» en lo que no se conoce y las firmas.
- */
 function solicitud(cambios: Partial<SolicitudVuelo> = {}): SolicitudVuelo {
   return {
     id_solicitud: 21,
@@ -57,13 +52,11 @@ describe('ConcentradoVuelosPrint «Solicitud de avión»', () => {
 
     const celdas = celdasItinerario(primerBloque);
     expect(celdas).toHaveLength(10);
-    // Ida: fecha, hora, origen, destino y motivo del viaje.
     expect(celdas[0]).toHaveTextContent('30/10/2026');
     expect(celdas[1]).toHaveTextContent('08:00');
     expect(celdas[2]).toHaveTextContent('Atizapán de Zaragoza');
     expect(celdas[3]).toHaveTextContent('La Aldea');
     expect(celdas[4]).toHaveTextContent('Impartición de talleres médicos');
-    // Vuelta: el motivo es uno solo; la vuelta no inventa uno propio.
     expect(celdas[5]).toHaveTextContent('30/10/2026');
     expect(celdas[6]).toHaveTextContent('18:30');
     expect(celdas[7]).toHaveTextContent('La Aldea');

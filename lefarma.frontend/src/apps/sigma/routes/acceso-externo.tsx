@@ -34,7 +34,6 @@ export default function AccesoExterno() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    // Si ya está autenticado, redirigir al home
     if (isAuthenticated) {
       navigate("/SIGMA/home");
     }
@@ -62,9 +61,6 @@ export default function AccesoExterno() {
           correo: payload.correo ?? correo,
           visitorToken: payload.visitorToken,
         });
-        // El visitante no tiene sesión de Lefarma: home está protegido. Su
-        // destino útil es la validación pública del documento que trae el
-        // enlace del correo (`?idDocumento=`).
         navigate("/SIGMA/documentos/validar-firma");
       } else {
         setError(

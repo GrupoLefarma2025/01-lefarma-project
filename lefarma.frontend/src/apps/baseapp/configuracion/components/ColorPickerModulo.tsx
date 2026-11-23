@@ -18,16 +18,11 @@ import {
 
 interface ColorPickerModuloProps {
   id?: string;
-  /** Color actual en hex `#rrggbb`. */
   value: string;
   onChange: (color: string) => void;
   disabled?: boolean;
 }
 
-/**
- * Selector de color del módulo con la estética de shadcn: disparador con
- * muestra, paleta, color exacto del navegador y edición del hex.
- */
 export function ColorPickerModulo({
   id,
   value,

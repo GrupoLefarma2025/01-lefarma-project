@@ -144,16 +144,12 @@ public class RegionRepository : IRegionRepository
             .Where(m => m.IdRegion == idRegion)
             .ToListAsync(cancellationToken);
 
-        // Estados que salieron de la región: se elimina el mapeo.
         var aQuitar = existentes.Where(m => !deseados.Contains(m.CodigoEstado)).ToList();
         if (aQuitar.Count > 0)
         {
             _context.RegionesEstados.RemoveRange(aQuitar);
         }
 
-        // 1 estado = 1 región DENTRO DE LA MISMA GERENCIA: si el estado estaba en
-        // otra región de esta gerencia, se mueve. Las regiones de otras gerencias
-        // conservan su propio mapeo del estado.
         var ocupadosEnOtra = await _context.RegionesEstados
             .Where(m => m.IdRegion != idRegion
                         && m.IdTipoGerencia == idTipoGerencia
@@ -164,7 +160,6 @@ public class RegionRepository : IRegionRepository
             _context.RegionesEstados.RemoveRange(ocupadosEnOtra);
         }
 
-        // Defensivo: mapeos de esta región deben declarar su misma gerencia.
         foreach (var mapeo in existentes.Where(m => m.IdTipoGerencia != idTipoGerencia))
         {
             mapeo.IdTipoGerencia = idTipoGerencia;
@@ -191,9 +186,6 @@ public class RegionRepository : IRegionRepository
         CancellationToken cancellationToken = default,
         int? idTipoGerencia = null)
     {
-        // CROSS-DB: el join hospital_extension (Lefarma) con genContactosCat
-        // (Asokam) solo es posible en SQL; EF no cruza DbContexts.
-        // El mapeo ahora es por gerencia: ze.id_tipo_gerencia = he.id_tipo_gerencia.
         const string sql = """
             SELECT ze.codigo_estado AS CodigoEstado, ze.id_region AS IdRegion, COUNT(*) AS Hospitales
             FROM educacion_medica.hospital_extension he
@@ -239,10 +231,6 @@ public class RegionRepository : IRegionRepository
             cancellationToken);
     }
 
-    // Candidatos del pase GPS: sin región, sin mapeo de estado EN SU GERENCIA y con
-    // coordenadas válidas (se descarta NULL y 0 como en el resto del módulo).
-    // La gerencia se compara contra el mismo placeholder {N} del FormattableString
-    // (null = ambas gerencias). Solo compiten regiones de la MISMA gerencia.
     private static string CteCandidatosGps(int indiceGerencia)
     {
         var ph = "{" + indiceGerencia + "}";
@@ -321,7 +309,6 @@ public class RegionRepository : IRegionRepository
 
     public async Task<int> ContarSinRegionSinCoordenadasAsync(CancellationToken cancellationToken = default, int? idTipoGerencia = null)
     {
-        // SqlQuery<int> (tipo primitivo) mapea por la columna "Value".
         const string sql = """
             SELECT COUNT(*) AS Value
             FROM educacion_medica.hospital_extension he

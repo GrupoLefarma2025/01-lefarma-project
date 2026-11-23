@@ -1,30 +1,8 @@
-/**
- * Fixture de regresion — Concentrado de Viaticos Educacion Medica, octubre 2026.
- *
- * Fuente unica: `pruebas de gastos/markdown/VIATICOS EDUCACION MEDICA OCTUBRE 2026.md`
- * (concentrado de 20 viajes del formato ASK-ADM-FOR-008, captura DANIEL PADILLA,
- * gerencia EDUCACION MEDICA, fecha 2026-09-01).
- *
- * Uso: congelados de los importes historicos ya cotizados y autorizados. Si una pantalla
- * o un calculo nuevo mueve alguno de estos 20 viajes, este archivo debe cambiar
- * junto con la evidencia, nunca por accidente.
- *
- * Convenciones heredadas del renglon del formato:
- * - `null` = celda vacia en el concentrado (NO cero). Los renglones 1, 14 y 15 son
- *   salidas de un dia sin hospedaje; los renglones 6, 9, 12 y 17 son solo avion.
- * - `destino` conserva el texto de la hoja con los espacios internos colapsados.
- * - `total` es la columna Total del concentrado; `sumaCategoria()` lo recalcula.
- * - Solo se incluyen los valores de texto: no se tocan los `.xlsx` binarios.
- */
-
 export interface ViajeOctubre2026 {
-  /** Columna "No." del concentrado (1-20). */
   no: number;
   solicitante: string;
-  /** Literal de la hoja: "2026-10-05" o "05/10/2026 AL 09/10/2026". */
   fecha: string;
   origen: string;
-  /** Localidades del concentrado con los espacios internos colapsados. */
   destino: string;
   autobus: number | null;
   avion: number | null;
@@ -57,7 +35,6 @@ export const VIAJES_OCTUBRE_2026: ViajeOctubre2026[] = [
   { no: 20, solicitante: 'CESAR MARTIN GARCIA ALONSO', fecha: '29/10/2026 AL  30/10/2026', origen: 'CDMX', destino: 'VERACRUZ XALAPA', autobus: 1512, avion: 6137, hospedaje: 1392, comida: 900, taxi: 1800, total: 11741 },
 ];
 
-/** Fila de totales del concentrado (valores del renglon Total del formato). */
 export const TOTALES_OCTUBRE_2026 = {
   autobus: 16481,
   avion: 137630,
@@ -67,7 +44,6 @@ export const TOTALES_OCTUBRE_2026 = {
   total: 276357,
 } as const;
 
-/** Suma una categoria de los viajes. Las celdas vacias no suman (aportan 0). */
 export function sumaCategoria(
   viajes: ViajeOctubre2026[],
   categoria: 'autobus' | 'avion' | 'hospedaje' | 'comida' | 'taxi',
@@ -75,7 +51,6 @@ export function sumaCategoria(
   return viajes.reduce((suma, viaje) => suma + (viaje[categoria] ?? 0), 0);
 }
 
-/** Suma de las categorias de un viaje; debe igualar `viaje.total`. */
 export function sumaCategorias(viaje: ViajeOctubre2026): number {
   return (
     (viaje.autobus ?? 0) +

@@ -501,7 +501,6 @@ describe('construirOpcionesPropuesta', () => {
 
     expect(opciones).toHaveLength(3);
     expect(opciones.filter((opcion) => opcion.fue_elegida)).toHaveLength(1);
-    // Se conserva el orden en que el motor ofreció las alternativas.
     expect(opciones.map((opcion) => opcion.linea)).toEqual(['Futura', 'ETN', 'Local']);
     const elegida = opciones.find((opcion) => opcion.fue_elegida);
     expect(elegida).toMatchObject({ linea: 'ETN', precio: 980, url_compra: 'https://comprar.test/b' });

@@ -1,7 +1,6 @@
 import { jsPDF } from 'jspdf';
 import { API } from '@/shared/api/apiClient';
 
-/** Tamaño carta en mm (jsPDF con unit:'mm'). */
 export const CARTA = { w: 215.9, h: 279.4 } as const;
 
 export const COLOR = {
@@ -17,18 +16,17 @@ export interface ConfigPagina {
   orientation?: 'portrait' | 'landscape';
 }
 
-/** Crea el documento con la página CONFIGURADA del formato. */
 export function crearDoc(config: ConfigPagina = {}): jsPDF {
   return new jsPDF({
     orientation: config.orientation ?? 'portrait',
     unit: 'mm',
     format: config.format ?? 'letter',
-    compress: false, // sin comprimir: la capa de texto queda buscable (#firmad, folios)
+    compress: false, 
   });
 }
 
 export interface OpcionesTexto {
-  size?: number; // pt
+  size?: number; 
   bold?: boolean;
   color?: string;
   align?: 'left' | 'center' | 'right' | 'justify';
@@ -74,7 +72,6 @@ export function linea(doc: jsPDF, x1: number, y1: number, x2: number, y2: number
   doc.line(x1, y1, x2, y2);
 }
 
-/** Casilla de verificación (cuadro + X). `lado` en mm. */
 export function casilla(doc: jsPDF, x: number, y: number, lado: number, marcada: boolean) {
   doc.setDrawColor(COLOR.bordeCheckbox);
   doc.setLineWidth(0.2);
@@ -89,10 +86,6 @@ export function casilla(doc: jsPDF, x: number, y: number, lado: number, marcada:
   }
 }
 
-/**
- * Recorta un texto al ancho disponible agregando '…'.
- * IMPORTANTE: llamar con la fuente/tamaño ya fijados en el doc (usa getTextWidth).
- */
 export function truncar(doc: jsPDF, value: string, maxW: number): string {
   if (doc.getTextWidth(value) <= maxW) return value;
   let s = value;
@@ -100,19 +93,17 @@ export function truncar(doc: jsPDF, value: string, maxW: number): string {
   return `${s}…`;
 }
 
-/** Formato jsPDF según el data URL (las firmas capturadas son PNG; hay legacy JPEG). */
 export function formatoImagen(dataUrl: string): 'PNG' | 'JPEG' {
   return dataUrl.startsWith('data:image/jpeg') || dataUrl.startsWith('data:image/jpg')
     ? 'JPEG'
     : 'PNG';
 }
 
-/** Mide una imagen desde su data URL (para no deformar firmas). Nunca rechaza. */
 export function medirImagen(dataUrl: string): Promise<{ w: number; h: number }> {
   return new Promise((resolve) => {
     const img = new Image();
     const fin = (w: number, h: number) => resolve({ w: w || 3, h: h || 1 });
-    const timer = setTimeout(() => fin(3, 1), 500); // jsdom no carga imágenes: fallback
+    const timer = setTimeout(() => fin(3, 1), 500); 
     img.onload = () => {
       clearTimeout(timer);
       fin(img.naturalWidth, img.naturalHeight);
@@ -125,7 +116,6 @@ export function medirImagen(dataUrl: string): Promise<{ w: number; h: number }> 
   });
 }
 
-/** Descarga autenticada de una firma como data URL (null en 403/404/vacío). */
 export async function fetchFirmaBase64(endpoint: string): Promise<string | null> {
   try {
     const res = await API.get(endpoint, { responseType: 'blob' });
@@ -142,7 +132,6 @@ export async function fetchFirmaBase64(endpoint: string): Promise<string | null>
   }
 }
 
-/** Convierte una URL (p. ej. el logo importado) a data URL. null si falla. */
 export async function cargarImagenBase64(url: string): Promise<string | null> {
   try {
     const res = await fetch(url);
@@ -158,7 +147,6 @@ export async function cargarImagenBase64(url: string): Promise<string | null> {
   }
 }
 
-/** Marcador visible de la firma del director, como el concentrado de OC. */
 export function firmad(doc: jsPDF, cx: number, baselineY: number) {
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(14);
@@ -170,22 +158,16 @@ export interface FirmaDibujo {
   nombre: string;
   imagen?: string | null;
   esSolicitante: boolean;
-  /** Etiqueta de la caja (SOLICITA/AUTORIZA/ELABORA); si falta se deduce de esSolicitante. */
   rol?: string;
   pendienteFirma?: boolean;
 }
 
 export interface OpcionesFirmas {
-  altoFirma?: number; // mm de la zona de firma (default 11.5)
-  altoEtiqueta?: number; // mm de la zona rol+nombre (default 7.5)
-  maxPorFila?: number; // default 4
+  altoFirma?: number; 
+  altoEtiqueta?: number; 
+  maxPorFila?: number; 
 }
 
-/**
- * Dibuja la fila de cajas de firma (una por firmante) y devuelve el Y inferior.
- * `w` es el ancho total disponible; las cajas se reparten en partes iguales.
- * Las firmas pendientes llevan '#firmad' visible; las demás, su imagen.
- */
 export async function dibujarFirmas(
   doc: jsPDF,
   x: number,
@@ -211,10 +193,8 @@ export async function dibujarFirmas(
       const f = fila[i];
       const bx = x + i * bw;
 
-      // Separador vertical entre cajas
       if (i > 0) linea(doc, bx, cursor, bx, cursor + altoFirma + altoEtiqueta);
 
-      // Firma o marcador
       if (f.pendienteFirma) {
         firmad(doc, bx + bw / 2, cursor + altoFirma - 2);
       } else if (f.imagen) {
@@ -234,11 +214,9 @@ export async function dibujarFirmas(
             dh
           );
         } catch {
-          // Imagen ilegible: la caja queda solo con la etiqueta
         }
       }
 
-      // Etiqueta (línea superior + rol + nombre)
       linea(doc, bx, cursor + altoFirma, bx + bw, cursor + altoFirma);
       texto(doc, f.rol ?? (f.esSolicitante ? 'SOLICITA' : 'AUTORIZA'), bx + bw / 2, cursor + altoFirma + 3, {
         size: 5,

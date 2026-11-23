@@ -24,7 +24,6 @@ public interface IRegionService
         int idUsuario,
         CancellationToken ct = default);
 
-    // Métodos del mapeo estado -> región.
     Task<List<RegionEstadoDto>> GetMapeoEstadosAsync(int? idTipoGerencia = null, CancellationToken ct = default);
 
     Task<RegionEstadoDto> UpsertMapeoEstadoAsync(

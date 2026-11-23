@@ -11,10 +11,6 @@ using Swashbuckle.AspNetCore.Annotations;
 
 namespace Lefarma.API.Features.Telemetria;
 
-/// <summary>
-/// Superficie HTTP del módulo de telemetría: estado, ingesta de lotes del navegador
-/// y, en la fase 6, las consultas del panel.
-/// </summary>
 [ApiController]
 [Route("api/telemetria")]
 [EndpointGroupName("Telemetria")]
@@ -40,13 +36,6 @@ public sealed class TelemetriaController : ControllerBase
         _ingesta = ingesta;
     }
 
-    /// <summary>
-    /// Estado del módulo: destino, filas por tabla, cola y escritor.
-    /// </summary>
-    /// <remarks>
-    /// Queda con [Authorize] simple a propósito: el permiso <c>telemetria.ver</c> ya
-    /// protege el panel y sus consultas; este diagnóstico no expone contenido.
-    /// </remarks>
     [HttpGet("estado")]
     [Authorize]
     [SwaggerOperation(
@@ -70,13 +59,6 @@ public sealed class TelemetriaController : ControllerBase
         });
     }
 
-    /// <summary>
-    /// Ingesta de un lote de eventos del navegador autenticado.
-    /// </summary>
-    /// <remarks>
-    /// Responde 202 en cuanto el lote queda en la cola: no espera a la base de datos,
-    /// así que un guardado lento nunca frena la pantalla del usuario.
-    /// </remarks>
     [HttpPost("eventos")]
     [Authorize]
     [EnableRateLimiting(TelemetriaRateLimit.Politica)]
@@ -91,13 +73,6 @@ public sealed class TelemetriaController : ControllerBase
         return Aceptado(resultado);
     }
 
-    /// <summary>
-    /// Ingesta anónima: solo errores de arranque, login o pantalla en blanco.
-    /// </summary>
-    /// <remarks>
-    /// Sirve para que el error que ocurre antes de tener sesión no se pierda (o cuando
-    /// el login falla). Rechaza cualquier otro tipo de evento con 400.
-    /// </remarks>
     [HttpPost("eventos-anonimos")]
     [AllowAnonymous]
     [EnableRateLimiting(TelemetriaRateLimit.PoliticaAnonima)]

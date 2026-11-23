@@ -111,7 +111,6 @@ export function FirmasUsuariosPage() {
       const response = await API.get<ApiResponse<FirmaUsuario[]>>('/firmas/usuarios');
       const data = response.data.data ?? [];
       setItems(data);
-      // Thumbnails: las firmas ya no son públicas; se descargan como blobs autenticados.
       const entries = await Promise.all(
         data
           .filter((u) => u.firmaPath)
@@ -134,7 +133,6 @@ export function FirmasUsuariosPage() {
     load();
   }, []);
 
-  // Liberar el object URL de la INE al cerrar la comprobación.
   useEffect(() => {
     return () => {
       if (ineBlobUrl) URL.revokeObjectURL(ineBlobUrl);
@@ -157,7 +155,6 @@ export function FirmasUsuariosPage() {
       setIneBlobUrl(ineUrl);
       setPendienteBlobUrl(pendienteUrl);
     } catch {
-      // La INE puede no estar disponible; la firma pendiente igual se muestra.
     } finally {
       setLoadingIne(false);
     }

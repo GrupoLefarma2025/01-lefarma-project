@@ -2,18 +2,11 @@ import { useEffect, useMemo, useState } from 'react';
 import { calcularTiempoAtencion, formatDuracion } from '@/utils/tiempoAtencion';
 
 interface TiempoAtencionProps {
-  /** Fecha en que la orden llegó al paso. */
   desde: string | null | undefined;
-  /** Fecha en que se autorizó el paso. Se ignora cuando enCurso = true. */
   hasta?: string | null;
-  /** Si el paso es el actual, el contador avanza hasta que se autorice. */
   enCurso?: boolean;
 }
 
-/**
- * Muestra el tiempo real (natural) y el tiempo laboral transcurridos en un
- * paso. En el paso actual funciona como contador en vivo.
- */
 export function TiempoAtencion({ desde, hasta, enCurso = false }: TiempoAtencionProps) {
   const [ahora, setAhora] = useState(() => Date.now());
 

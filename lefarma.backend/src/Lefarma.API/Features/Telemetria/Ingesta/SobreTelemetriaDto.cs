@@ -1,9 +1,5 @@
 namespace Lefarma.API.Features.Telemetria.Ingesta;
 
-/// <summary>
-/// Sobre que envía el navegador. Todos los campos son opcionales en el tipo para que
-/// los validadores expliquen el error en lugar del enlazador de modelos.
-/// </summary>
 public sealed class SobreTelemetriaDto
 {
     public string? LoteId { get; set; }
@@ -25,7 +21,6 @@ public sealed class EventoTelemetriaDto
 
     public string? Ruta { get; set; }
 
-    // Error
     public string? TipoError { get; set; }
 
     public string? Mensaje { get; set; }
@@ -44,7 +39,6 @@ public sealed class EventoTelemetriaDto
 
     public string? Contexto { get; set; }
 
-    // Clic
     public string? Elemento { get; set; }
 
     public string? Etiqueta { get; set; }
@@ -59,7 +53,6 @@ public sealed class EventoTelemetriaDto
 
     public int? ViewportAlto { get; set; }
 
-    // Mapa de calor
     public List<int>? Celdas { get; set; }
 
     public int? Columnas { get; set; }
@@ -72,7 +65,6 @@ public sealed class EventoTelemetriaDto
 
     public int? SegundosVisibles { get; set; }
 
-    // Visita
     public DateTime? Inicio { get; set; }
 
     public DateTime? Fin { get; set; }

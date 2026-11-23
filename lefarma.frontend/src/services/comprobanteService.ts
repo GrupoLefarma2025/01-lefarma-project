@@ -22,7 +22,6 @@ export interface SubirComprobanteParams {
   archivo?: File | null;
   nombrePaso?: string | null;
   nombreAccion?: string | null;
-  // pago
   referenciaPago?: string | null;
   fechaPago?: string | null;
   montoPago?: number | null;
@@ -36,9 +35,6 @@ export interface SubirComprobanteParams {
 }
 
 export const comprobanteService = {
-  /**
-   * Parsea un XML CFDI y devuelve preview sin guardar nada.
-   */
   async parsearXml(xmlFile: File): Promise<CfdiPreviewResponse> {
     const form = new FormData();
     form.append('xmlFile', xmlFile);
@@ -50,11 +46,6 @@ export const comprobanteService = {
     return res.data.data!;
   },
 
-  /**
-   * Sube un comprobante con sus archivos.
-   * xmlFile: solo para CFDI
-   * archivo: PDF (CFDI) o imagen/ticket (sin CFDI)
-   */
   async subir(params: SubirComprobanteParams): Promise<ComprobanteResponse> {
     const form = new FormData();
     form.append('idEmpresa', String(params.idEmpresa));

@@ -44,23 +44,16 @@ interface MatrizTalleresTableProps {
   talleres: Taller[];
   ajustesPostCierre?: MatrizAjustePostCierre[];
   loading?: boolean;
-  /** El usuario es el AEM en el paso de registro de costos. */
   puedeEditarCostos: boolean;
   onEditarCostos: (taller: Taller) => void;
-  /** Ver detalle del taller/hospital (logística, recursos y ubicación). */
   onVerDetalle: (taller: Taller) => void;
-  /** AEM: registrar/editar la entrega de material. */
   onMaterial: (taller: Taller) => void;
-  /** Lectura de la lista de asistencia. */
   onAsistencias: (taller: Taller) => void;
-  /** Lectura de las evidencias del taller. */
   onEvidencias: (taller: Taller) => void;
-  /** CEM: resolver la solicitud de cambio pendiente (ADR-00010). */
   onResolverSolicitud: (taller: Taller) => void;
   onRefresh?: () => void;
 }
 
-/** Tabla concentrada de la matriz general: filas con recursos y Costo Total. */
 export function MatrizTalleresTable({
   talleres,
   ajustesPostCierre = [],
@@ -74,7 +67,6 @@ export function MatrizTalleresTable({
   onResolverSolicitud,
   onRefresh,
 }: MatrizTalleresTableProps) {
-  // Las solicitudes de cambio pendientes se ordenan arriba (ADR-00010 decisión 14).
   const datosOrdenados = useMemo(
     () =>
       [...talleres].sort(

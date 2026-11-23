@@ -4,7 +4,6 @@ using Lefarma.API.Features.Telemetria.Escritor;
 
 namespace Lefarma.API.Features.Telemetria;
 
-/// <summary>Foto completa del módulo para el panel de estado.</summary>
 public sealed record EstadoTelemetria(
     EstadoAlmacen Almacen,
     EstadoCola Cola,

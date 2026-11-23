@@ -33,8 +33,6 @@ function formatDate(date: string | null | undefined): string {
   return d.toLocaleDateString('es-MX');
 }
 
-// Defaults espejo de RankingScoreEngine (tramos de recencia y scores de cobertura);
-// se usan cuando el parametros_json del factor falta o está malformado.
 const RECENCIA_DEFAULTS = { nunca: 100, reciente: 10, t12: 90, t6: 70, t3: 40 };
 const COBERTURA_DEFAULTS = { nunca: 100, pendiente: 90, realizado: 10 };
 
@@ -123,14 +121,11 @@ export default function ConfigRankingFactoresModal({
   const [config, setConfig] = useState<ConfigRanking | null>(null);
   const [cargando, setCargando] = useState(false);
 
-  // Edición de la información general de la configuración (la vigencia es
-  // automatica: inicia al crear la versión y cierra al crear la siguiente)
   const [editandoInfo, setEditandoInfo] = useState(false);
   const [guardandoInfo, setGuardandoInfo] = useState(false);
   const [nombre, setNombre] = useState('');
   const [activo, setActivo] = useState(true);
 
-  // Detalle / edición de un factor
   const [factorDetalle, setFactorDetalle] = useState<ConfigRankingFactor | null>(null);
   const [factorEditando, setFactorEditando] = useState(false);
   const [guardandoFactor, setGuardandoFactor] = useState(false);

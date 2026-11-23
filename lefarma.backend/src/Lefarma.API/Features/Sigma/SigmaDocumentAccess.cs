@@ -2,11 +2,6 @@ using System.Data;
 
 namespace Lefarma.API.Features.Sigma;
 
-/// <summary>
-/// Reglas de acceso a documentos del flujo. Los usuarios de AD quedan acotados por los
-/// propios SP (reciben su usuario); el visitante externo sólo puede operar sobre los
-/// documentos/pasos en los que es creador o aprobador.
-/// </summary>
 public sealed class SigmaDocumentAccess
 {
     private const string SqlPertenencia = """
@@ -34,10 +29,8 @@ public sealed class SigmaDocumentAccess
         _db = db;
     }
 
-    /// <summary>true si el actor puede consultar/descargar el documento del flujo.</summary>
     public async Task<bool> PuedeAccederAsync(Guid idDocumento, SigmaActor actor, CancellationToken ct = default)
     {
-        // Los usuarios autenticados de AD se rigen por los filtros de los SP.
         if (!actor.EsAnonimo)
         {
             return true;

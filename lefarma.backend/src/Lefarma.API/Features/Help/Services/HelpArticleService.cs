@@ -6,9 +6,6 @@ using Lefarma.API.Shared.Errors;
 using Microsoft.Extensions.Logging;
 
 namespace Lefarma.API.Features.Help.Services;
-/// <summary>
-/// Servicio de artículos de ayuda
-/// </summary>
 public class HelpArticleService : IHelpArticleService
 {
     private readonly IHelpArticleRepository _helpArticleRepository;
@@ -248,9 +245,6 @@ public class HelpArticleService : IHelpArticleService
         }
     }
 
-    /// <summary>
-    /// Mapea una entidad HelpArticle a HelpArticleDto
-    /// </summary>
     private static HelpArticleDto MapToDto(HelpArticle article)
     {
         return new HelpArticleDto

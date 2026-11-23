@@ -6,19 +6,13 @@ using SkiaSharp;
 
 namespace Lefarma.UnitTests.Features.Sigma.PdfSignature;
 
-/// <summary>
-/// Genera PDFs mínimos para las pruebas del motor de firma, sin depender de archivos
-/// del repositorio: el texto se dibuja con PDFsharp y la firma es un PNG de SkiaSharp.
-/// </summary>
 internal static class PdfDePrueba
 {
     static PdfDePrueba()
     {
-        // En Windows se resuelven las fuentes instaladas (Arial) para las pruebas.
         GlobalFontSettings.UseWindowsFontsUnderWindows = true;
     }
 
-    /// <summary>Crea un PDF de una página con el texto indicado en la posición dada.</summary>
     public static byte[] Crear(string? texto = null, double x = 50, double y = 100)
     {
         var documento = new PdfDocument();
@@ -37,7 +31,6 @@ internal static class PdfDePrueba
         return memoria.ToArray();
     }
 
-    /// <summary>Crea un PDF de una página con el mismo texto en dos posiciones.</summary>
     public static byte[] CrearConDosApariciones(string texto)
     {
         var documento = new PdfDocument();
@@ -56,7 +49,6 @@ internal static class PdfDePrueba
         return memoria.ToArray();
     }
 
-    /// <summary>Crea un PDF de dos páginas; el texto va sólo en la segunda.</summary>
     public static byte[] CrearConTextoEnSegundaPagina(string texto)
     {
         var documento = new PdfDocument();
@@ -78,11 +70,6 @@ internal static class PdfDePrueba
         return memoria.ToArray();
     }
 
-    /// <summary>
-    /// Crea un PDF de una página con una fuente estándar sin incrustar (Helvetica),
-    /// como los que produce jsPDF: es el caso en que MuPDF mide con sus métricas y no
-    /// con el rectángulo del glifo.
-    /// </summary>
     public static byte[] CrearBase14(string texto, double x = 50, double yArriba = 100, double tamano = 10)
     {
         var contenido = string.Create(
@@ -125,7 +112,6 @@ internal static class PdfDePrueba
         return memoria.ToArray();
     }
 
-    /// <summary>Escribe un PNG pequeño que hace de imagen de la firma.</summary>
     public static void EscribirFirma(string ruta)
     {
         using var mapa = new SKBitmap(40, 20);
@@ -139,7 +125,6 @@ internal static class PdfDePrueba
         File.WriteAllBytes(ruta, datos.ToArray());
     }
 
-    /// <summary>Cuenta las apariciones de una cadena ASCII dentro de los bytes del PDF.</summary>
     public static int ContarCadena(byte[] pdf, string cadena) =>
         System.Text.Encoding.ASCII.GetString(pdf)
             .Split(cadena, StringSplitOptions.None)

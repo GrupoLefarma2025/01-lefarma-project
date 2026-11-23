@@ -56,14 +56,6 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-/**
- * Pestaña Viáticos del concentrado de CxP.
- *
- * La tabla `dbo.infoMacroViaticos` la llena un proceso externo y no tiene
- * estado de workflow ni `idOrden`: aquí se selecciona, se previsualiza, se
- * imprime, se descarga y se envía a autorización el PDF FOR-008.
- */
-
 const AGRUPACIONES: Array<{ value: AgrupacionViatico; label: string }> = [
   { value: 'nombre', label: AGRUPACION_VIATICO_LABELS.nombre },
   { value: 'gerencia', label: AGRUPACION_VIATICO_LABELS.gerencia },
@@ -146,7 +138,6 @@ export default function EnvioConcentradoViaticos({
 
         const data = res.data.data ?? [];
         setFilas(data);
-        // Si un folio desapareció entre refrescos, se descarta de la selección.
         setSelected((prev) => {
           const vigentes = new Set(data.map((fila) => fila.folio));
           return new Set([...prev].filter((folio) => vigentes.has(folio)));
@@ -372,7 +363,7 @@ export default function EnvioConcentradoViaticos({
         </div>
       )}
 
-      {/* Toolbar */}
+      {}
       <div className="flex items-center gap-3 bg-muted/40 border rounded-lg px-3 py-2">
         <div className="flex items-center gap-1.5 text-sm font-medium">
           <LayoutGrid className="h-4 w-4 text-muted-foreground" />
@@ -404,7 +395,7 @@ export default function EnvioConcentradoViaticos({
       </div>
 
       <div className="flex gap-4 flex-1 min-h-0">
-        {/* Panel izquierdo: tabla */}
+        {}
         <div className="flex flex-col gap-3 w-[55%] min-w-0">
           <div className="border rounded-lg overflow-auto flex-1">
             {loading ? (
@@ -543,7 +534,7 @@ export default function EnvioConcentradoViaticos({
           )}
         </div>
 
-        {/* Panel derecho: vista previa */}
+        {}
         <div className="flex flex-col gap-3 flex-1 min-w-0">
           <div className="flex items-center justify-between bg-muted/40 border rounded-lg px-3 py-2">
             <span className="text-sm font-medium text-muted-foreground">

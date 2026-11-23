@@ -54,10 +54,6 @@ function metadataTieneRevision(metadata: unknown, clavePaso: string): boolean {
   }
 }
 
-/**
- * Campos a capturar según los handlers Field/Document de la acción, más las
- * Alertas pre-evaluadas por el backend (mismo criterio que SolicitudFirmaModal de RH).
- */
 function parseMetadataTipo(metadata: unknown): string | null {
   if (!metadata) return null;
   try {
@@ -113,7 +109,6 @@ function getCamposParaAccion(accion: AccionWorkflow | null): CampoFormItem[] {
         }
       }
     } catch {
-      /* handler mal configurado: no bloquea el modal */
     }
   }
   return result;
@@ -123,19 +118,13 @@ interface WorkflowAccionModalProps {
   open: boolean;
   onClose: () => void;
   accion: AccionWorkflow | null;
-  /** Referencia del documento para el usuario, p. ej. "Selección mensual 09/2026" o "Rutas v2". */
   tituloEntidad?: string | null;
   hasFirma?: boolean;
   guardando?: boolean;
-  /**
-   * Contexto de adjuntos. Necesarios solo si la acción permite/requiere adjuntos
-   * o tiene campos tipo Archivo; sin ellos esas secciones no se muestran.
-   */
   entidadTipo?: string;
   entidadId?: number;
   carpetaAdjuntos?: string;
   idPasoActual?: number | null;
-  /** Valores actuales de la entidad para prellenar campos dinámicos (opcional). */
   entidadValores?: Record<string, unknown> | null;
   onConfirmar: (
     comentario: string | undefined,
@@ -143,14 +132,6 @@ interface WorkflowAccionModalProps {
   ) => void | Promise<void>;
 }
 
-/**
- * Modal compartido para ejecutar una acción del workflow (firmar, devolver, cancelar).
- * Formulario dinámico: si la acción configura handlers (campos), requiere_comentario
- * o permite/requiere_adjunto en el paso, el modal los renderiza; sin configuración
- * se comporta como "comentario + confirmar".
- * Los adjuntos quedan ligados al documento (entidadTipo/entidadId); al cancelar se
- * eliminan los subidos en esta sesión para no dejar huérfanos.
- */
 export function WorkflowAccionModal({
   open,
   onClose,
@@ -218,8 +199,6 @@ export function WorkflowAccionModal({
   const adjuntosDisponibles =
     accion?.permiteAdjunto === true && entidadTipo !== undefined && entidadId !== undefined;
 
-  // Reinicio del formulario en cada apertura: ajuste de estado durante el render
-  // (patrón React recomendado) en lugar de un efecto que resetea.
   const aperturaKey = `${open}-${accion?.idAccion ?? 'none'}`;
   const [aperturaAnterior, setAperturaAnterior] = useState('');
   if (aperturaKey !== aperturaAnterior) {
@@ -249,7 +228,6 @@ export function WorkflowAccionModal({
     );
   }
 
-  // Precarga de catálogos de campos Selector (solo los que falten en caché).
   useEffect(() => {
     if (!open) return;
     const selectorCampos = camposParaAccion.filter(
@@ -281,7 +259,6 @@ export function WorkflowAccionModal({
           .filter((i) => i.value && i.label);
         setCatalogos((prev) => ({ ...prev, [campo.sourceCatalog!]: normalized }));
       } catch {
-        /* catálogo no disponible: el selector queda vacío */
       }
     });
     void Promise.all(fetches).finally(() => setLoadingCatalogos(false));

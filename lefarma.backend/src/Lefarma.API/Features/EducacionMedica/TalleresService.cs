@@ -56,7 +56,6 @@ public class TalleresService : ITalleresService
 
         if (equipo is not null)
         {
-            // Fallback legacy: usuario que aún pertenece a un equipo de pareo activo.
             matriz = await _context.MatricesIndividuales.AsNoTracking()
                 .FirstOrDefaultAsync(m => m.IdEquipo == equipo.IdEquipo && m.Periodo == periodoDate, ct);
             talleres = matriz is null
@@ -72,7 +71,6 @@ public class TalleresService : ITalleresService
         }
         else
         {
-            // Nuevo modelo: matriz individual del ejecutivo.
             matriz = await _context.MatricesIndividuales.AsNoTracking()
                 .FirstOrDefaultAsync(m => m.IdEjecutivo == idUsuario && m.Periodo == periodoDate, ct);
 
@@ -92,7 +90,6 @@ public class TalleresService : ITalleresService
             }
             else
             {
-                // Especialista sin matriz propia: ve las visitas/talleres donde fue asignado.
                 var inicio = periodoDate;
                 var fin = periodoDate.AddMonths(1);
                 talleres = await _context.Talleres.AsNoTracking()
@@ -148,7 +145,6 @@ public class TalleresService : ITalleresService
             })
             .ToList();
 
-        // Estado real del flujo: la matriz general (GV → AEM → CA → DC) es la entidad del workflow.
         var idMatrizGeneral = talleres
             .Select(t => t.IdMatrizGeneral)
             .FirstOrDefault(id => id.HasValue);
@@ -282,7 +278,6 @@ public class TalleresService : ITalleresService
                 .FirstOrDefaultAsync(h => h.IdSeleccionHospital == request.IdSeleccionHospital, ct)
                 ?? throw new InvalidOperationException($"El hospital de la selección {request.IdSeleccionHospital} no existe.");
 
-            // El alta manual conserva el candado histórico: solo hospitales con ruta cerrada.
             var tieneRutaAutorizada = await _context.RutasVisitas.AsNoTracking()
                 .AnyAsync(v => v.IdSeleccionHospital == hospitalSeleccion.IdSeleccionHospital
                     && _context.Rutas.Any(r => r.IdRuta == v.IdRuta && r.Estado == Ruta.EstadoCerrada), ct);
@@ -384,10 +379,6 @@ public class TalleresService : ITalleresService
         return await ArmarTallerDtoConNombresAsync(taller, ct);
     }
 
-    /// <summary>
-    /// Taller extraordinario (ADR-00011): hospital del catálogo fuera de la selección, equipo
-    /// explícito, motivo obligatorio; nace Programado con historial de origen Automático.
-    /// </summary>
     private async Task<TallerDto> CrearExtraordinarioAsync(CrearTallerRequest request, int idUsuario, CancellationToken ct)
     {
         await ValidarPermisoAsync(
@@ -519,7 +510,6 @@ public class TalleresService : ITalleresService
             .FirstOrDefaultAsync(t => t.IdTaller == idTaller && t.Activo, ct)
             ?? throw new InvalidOperationException($"El taller {idTaller} no existe.");
 
-        // Ajuste post-cierre (ADR-00010): Autorizado/Programado con permiso + motivo.
         if (taller.Estado is Taller.EstadoAutorizado or Taller.EstadoProgramado)
         {
             return await AplicarAjusteAsync(taller, request, idUsuario, motivo: request.Motivo, ct);
@@ -560,11 +550,6 @@ public class TalleresService : ITalleresService
         return await ArmarTallerDtoConNombresAsync(taller, ct);
     }
 
-    /// <summary>
-    /// Ajuste post-cierre del taller (ADR-00010): solo FechaTaller, HoraTaller, Lugar y
-    /// NumeroParticipantes, con motivo obligatorio, límite temporal y sincronización de la
-    /// visita de la ruta activa en la misma transacción.
-    /// </summary>
     private async Task<TallerDto> AplicarAjusteAsync(
         Taller taller,
         ActualizarTallerRequest request,
@@ -660,11 +645,6 @@ public class TalleresService : ITalleresService
         return await ArmarTallerDtoConNombresAsync(taller, ct);
     }
 
-    /// <summary>
-    /// Sincronización taller → ruta (ADR-00010 decisión 12): mueve la visita de la ruta activa
-    /// (normal por id_seleccion_hospital; extraordinaria por id_hospital) a la nueva fecha,
-    /// revalidando 3/día y 8/semana; conflicto → error y rollback.
-    /// </summary>
     private async Task SincronizarVisitaDeRutaAsync(Taller taller, DateOnly nuevaFecha, CancellationToken ct)
     {
         if (nuevaFecha.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday)
@@ -750,9 +730,7 @@ public class TalleresService : ITalleresService
         _logger.LogInformation("Taller {IdTaller} eliminado por el usuario {IdUsuario}.", idTaller, idUsuario);
     }
 
-    // ----- Solicitudes de cambio del equipo (ADR-00010, decisiones 13-15) -----
-
-    public async Task<TallerSolicitudCambioDto> CrearSolicitudCambioAsync(
+public async Task<TallerSolicitudCambioDto> CrearSolicitudCambioAsync(
         int idTaller,
         CrearSolicitudCambioRequest request,
         int idUsuario,
@@ -773,7 +751,6 @@ public class TalleresService : ITalleresService
                 v => v.IdRutaVisita == taller.IdRutaVisita.Value, ct)
             : null;
 
-        // La crea cualquier integrante del equipo; el CEM con captura asistida también.
         var esMiembro = taller.IdEjecutivo == idUsuario || taller.IdEspecialista == idUsuario;
         if (!esMiembro)
         {
@@ -1122,9 +1099,7 @@ public class TalleresService : ITalleresService
         return resultado;
     }
 
-    // ----- Helpers -----
-
-    private sealed class SolicitudCambioDatos
+private sealed class SolicitudCambioDatos
     {
         public SolicitudCambioDiff? Antes { get; set; }
         public SolicitudCambioDiff? Despues { get; set; }
@@ -1235,10 +1210,6 @@ public class TalleresService : ITalleresService
         return new ResponsablesHospital(idEjecutivo, idEspecialista, null);
     }
 
-    /// <summary>
-    /// Captura normal: ejecutivo/especialista de la visita o del hospital. Captura asistida
-    /// (ADR-00011): el CEM con permiso crea a nombre de cualquier responsable.
-    /// </summary>
     private async Task ValidarCapturaResponsablesAsync(
         ResponsablesHospital responsables,
         int idUsuario,
@@ -1370,7 +1341,6 @@ public class TalleresService : ITalleresService
             await ValidarRutaVersionDeMatrizAsync(idRutaVersion.Value, idTipoGerencia, periodo, ct);
         }
 
-        // La matriz general nace con el primer taller de la gerencia/mes, ya en el paso inicial
         var workflow = await _workflowResolver.ResolveWorkflowIdAsync(
             CodigoProceso.EDUCACION_MEDICA_MATRIZ,
             new Dictionary<string, int?> { [WorkflowScope.TIPO_GERENCIA] = idTipoGerencia })
@@ -1459,7 +1429,6 @@ public class TalleresService : ITalleresService
         }
     }
 
-    /// <summary>Candado de edición estilo OC/Solicitudes: solo en el paso inicial (estado CREADA).</summary>
     private async Task ValidarMatrizGeneralEditableAsync(MatrizGeneral matrizGeneral, string accion, CancellationToken ct)
     {
         if (!matrizGeneral.IdWorkflow.HasValue)
@@ -1501,7 +1470,6 @@ public class TalleresService : ITalleresService
         return await query.FirstOrDefaultAsync(ct);
     }
 
-    /// <summary>Edición normal (matriz en Creada): membresía del equipo + candados de captura.</summary>
     private async Task ValidarHorarioUnicoAsync(
         int? idRutaVisita,
         DateOnly? fecha,
@@ -1711,14 +1679,11 @@ public class TalleresService : ITalleresService
                 Channels =
                 [
                     new NotificationChannelRequest { ChannelType = "in-app", RoleNames = [RolCem] },
-                    // Correo deshabilitado temporalmente (decisión del usuario 2026-10-10): solo notificación in-app.
-                    // new NotificationChannelRequest { ChannelType = "email", RoleNames = [RolCem] },
                 ],
             }, ct);
         }
         catch (Exception ex)
         {
-            // La notificación no debe tumbar la solicitud (precedente IncidenciasChecado: best-effort).
             _logger.LogWarning(ex,
                 "No se pudo notificar al CEM la solicitud de cambio {IdSolicitud}.", solicitud.IdSolicitud);
         }
@@ -1748,8 +1713,6 @@ public class TalleresService : ITalleresService
                 Channels =
                 [
                     new NotificationChannelRequest { ChannelType = "in-app", UserIds = [idSolicitante] },
-                    // Correo deshabilitado temporalmente (decisión del usuario 2026-10-10): solo notificación in-app.
-                    // new NotificationChannelRequest { ChannelType = "email", UserIds = [idSolicitante] },
                 ],
             }, ct);
         }

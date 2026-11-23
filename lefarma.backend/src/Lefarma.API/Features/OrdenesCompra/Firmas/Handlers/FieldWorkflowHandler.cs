@@ -2,12 +2,6 @@ using Lefarma.API.Domain.Entities.Operaciones;
 
 namespace Lefarma.API.Features.OrdenesCompra.Firmas.Handlers
 {
-    /// <summary>
-    /// Maneja campos de entrada (Selector, Checkbox, Texto, Número) vinculados a una acción.
-    /// Si handler.Requerido = true → valida que el valor esté presente en DatosAdicionales.
-    /// Siempre guarda el valor en la propiedad correspondiente de OrdenCompra (si se proporcionó).
-    /// Reemplaza el par RequiredFields + FieldUpdater: una sola fila por campo en la BD.
-    /// </summary>
     public class FieldWorkflowHandler : IWorkflowActionHandler
     {
         public string HandlerKey => "Field";
@@ -25,11 +19,9 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas.Handlers
                              rawObj is not null &&
                              !string.IsNullOrWhiteSpace(rawObj.ToString());
 
-            // Validate if required
             if (context.Handler.Requerido && !tieneValor)
                 return Task.FromResult(HandlerResult.Fail($"El campo '{campo.EtiquetaUsuario}' es obligatorio para esta acción."));
 
-            // Save to entity if value was provided
             if (tieneValor)
             {
                 var rawValue = context.DatosAdicionales![campo.NombreTecnico]?.ToString();

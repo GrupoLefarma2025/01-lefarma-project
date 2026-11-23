@@ -28,7 +28,6 @@ public class UsuarioDetalleConfiguration : IEntityTypeConfiguration<UsuarioDetal
         builder.Property(ud => ud.IdCentroCosto)
             .HasColumnName("id_centro_costo");
 
-        // Información laboral
         builder.Property(ud => ud.Puesto)
             .HasColumnName("puesto")
             .HasMaxLength(150);
@@ -49,7 +48,6 @@ public class UsuarioDetalleConfiguration : IEntityTypeConfiguration<UsuarioDetal
             .HasColumnName("firma_control")
             .HasColumnType("NVARCHAR(MAX)");
 
-        // Contacto
         builder.Property(ud => ud.TelefonoOficina)
             .HasColumnName("telefono_oficina")
             .HasMaxLength(20);
@@ -66,7 +64,6 @@ public class UsuarioDetalleConfiguration : IEntityTypeConfiguration<UsuarioDetal
             .HasColumnName("telegram_chat")
             .HasMaxLength(200);
 
-        // Configuración de notificaciones
         builder.Property(ud => ud.NotificarEmail)
             .HasColumnName("notificar_email")
             .HasDefaultValue(true);
@@ -87,7 +84,6 @@ public class UsuarioDetalleConfiguration : IEntityTypeConfiguration<UsuarioDetal
             .HasColumnName("notificar_telegram")
             .HasDefaultValue(false);
 
-        // Filtros específicos de notificación
         builder.Property(ud => ud.NotificarSoloUrgentes)
             .HasColumnName("notificar_solo_urgentes")
             .HasDefaultValue(false);
@@ -104,7 +100,6 @@ public class UsuarioDetalleConfiguration : IEntityTypeConfiguration<UsuarioDetal
             .HasColumnName("notificar_vencimientos")
             .HasDefaultValue(true);
 
-        // Continuidad operativa
         builder.Property(ud => ud.IdUsuarioDelegado)
             .HasColumnName("id_usuario_delegado");
 
@@ -112,7 +107,6 @@ public class UsuarioDetalleConfiguration : IEntityTypeConfiguration<UsuarioDetal
             .HasColumnName("delegacion_hasta")
             .HasColumnType("DATE");
 
-        // Configuración de interfaz
         builder.Property(ud => ud.AvatarUrl)
             .HasColumnName("avatar_url")
             .HasMaxLength(255);
@@ -134,7 +128,6 @@ public class UsuarioDetalleConfiguration : IEntityTypeConfiguration<UsuarioDetal
             .HasColumnName("activo")
             .HasDefaultValue(true);
 
-        // Auditoría
         builder.Property(ud => ud.FechaCreacion)
             .HasColumnName("fecha_creacion")
             .HasDefaultValueSql("GETDATE()");
@@ -143,7 +136,6 @@ public class UsuarioDetalleConfiguration : IEntityTypeConfiguration<UsuarioDetal
             .HasColumnName("fecha_modificacion")
             .HasDefaultValueSql("GETDATE()");
 
-        // Relaciones
         builder.HasOne(ud => ud.Empresa)
             .WithMany()
             .HasForeignKey(ud => ud.IdEmpresa)

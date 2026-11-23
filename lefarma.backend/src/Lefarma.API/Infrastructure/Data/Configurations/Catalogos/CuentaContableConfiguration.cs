@@ -39,11 +39,7 @@ public class CuentaContableConfiguration : IEntityTypeConfiguration<CuentaContab
                 .HasMaxLength(10)
                 .IsRequired();
 
-            //builder.Property(e => e.EmpresaPrefijo)
-            //    .HasColumnName("empresa_prefijo")
-            //    .HasMaxLength(20);
-
-            builder.Property(e => e.IdEmpresa)
+builder.Property(e => e.IdEmpresa)
                 .HasColumnName("id_empresa");
 
             builder.Property(e => e.CentroCostoId)

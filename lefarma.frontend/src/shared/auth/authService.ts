@@ -12,7 +12,6 @@ import type {
 import type { Area } from '@/types/catalogo.types';
 import type { ApiResponse } from '@/types/api.types';
 
-
 const ACCESS_TOKEN_KEY = 'accessToken';
 const REFRESH_TOKEN_KEY = 'refreshToken';
 const USER_KEY = 'user';
@@ -80,16 +79,12 @@ export const authService = {
         await API.post<ApiResponse<void>>('/auth/logout', { refreshToken });
       }
     } finally {
-      // Limpiar SOLO datos de autenticación
       localStorage.removeItem(ACCESS_TOKEN_KEY);
       localStorage.removeItem(REFRESH_TOKEN_KEY);
       localStorage.removeItem(USER_KEY);
-      localStorage.removeItem('token'); // Legacy token key
+      localStorage.removeItem('token'); 
 
-      // NO borrar configuración de usuario (empresa, sucursal, notificaciones, etc.)
-
-      // Limpiar sessionStorage temporal
-      sessionStorage.removeItem('loginFlow');
+sessionStorage.removeItem('loginFlow');
     }
   },
 
@@ -165,7 +160,6 @@ export const authService = {
 
   setArea: (area: Area | null) => {
     if (area === null) {
-      // REQ-002: a resolved null must remove the key so a stale área never survives
       localStorage.removeItem(AREA_KEY);
       return;
     }

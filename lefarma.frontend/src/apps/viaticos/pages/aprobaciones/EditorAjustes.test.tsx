@@ -110,7 +110,6 @@ describe('EditorAjustes', () => {
     expect(alternativa.getByText('Viva')).toBeDefined();
   });
 
-  // Requisito 4: el cambio manda los dos valores, y no pueden ser el mismo.
   it('cambiar de vuelo envía valor_anterior y valor_nuevo distintos', async () => {
     await abrirYEsperar(solicitud());
 
@@ -189,13 +188,11 @@ describe('EditorAjustes', () => {
       id_opcion: 0,
       motivo: 'Cena con el equipo',
     });
-    // No habia partida previa: el valor anterior va vacio explicito.
     expect(cuerpo.valor_anterior).toBe('');
     expect(cuerpo.valor_nuevo).toContain('Cena de trabajo');
     expect(cuerpo.valor_nuevo).toContain('850.00');
   });
 
-  // Requisito 3: sin motivo no hay nada que confirmar.
   it('no confirma con el motivo vacío ni con espacios', async () => {
     await abrirYEsperar(solicitud());
 
@@ -209,7 +206,6 @@ describe('EditorAjustes', () => {
     fireEvent.change(motivo(), { target: { value: '   ' } });
     expect(guardar().hasAttribute('disabled')).toBe(true);
 
-    // Ni siquiera un click forzado debe sacar el request.
     fireEvent.click(guardar());
     expect(mocks.post).not.toHaveBeenCalled();
 
@@ -225,13 +221,11 @@ describe('EditorAjustes', () => {
 
     expect(guardar().hasAttribute('disabled')).toBe(true);
 
-    // Concepto sin monto.
     fireEvent.change(within(dialogo()).getByLabelText('Concepto'), {
       target: { value: 'Cena' },
     });
     expect(guardar().hasAttribute('disabled')).toBe(true);
 
-    // Monto no numérico.
     fireEvent.change(within(dialogo()).getByLabelText('Monto'), {
       target: { value: 'mucho' },
     });
@@ -240,14 +234,12 @@ describe('EditorAjustes', () => {
     fireEvent.change(within(dialogo()).getByLabelText('Monto'), { target: { value: '850' } });
     expect(guardar().hasAttribute('disabled')).toBe(false);
 
-    // Concepto vacío vuelve a bloquear.
     fireEvent.change(within(dialogo()).getByLabelText('Concepto'), { target: { value: '  ' } });
     expect(guardar().hasAttribute('disabled')).toBe(true);
     fireEvent.click(guardar());
     expect(mocks.post).not.toHaveBeenCalled();
   });
 
-  // Requisito 5: la bitácora muestra quién, cuándo, qué cambió y el motivo.
   it('la línea de tiempo muestra los ajustes del historial', async () => {
     await abrirYEsperar(
       solicitud({

@@ -81,11 +81,9 @@ using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Configure Serilog first
 Log.Logger = new LoggerConfiguration()
     .MinimumLevel.Information()
 
-    // Se remueven logs de Microsoft (solo errores)
     .MinimumLevel.Override("Microsoft", LogEventLevel.Warning)
     .MinimumLevel.Override("Microsoft.AspNetCore", LogEventLevel.Warning)
     .MinimumLevel.Override("Microsoft.EntityFrameworkCore", LogEventLevel.Fatal)
@@ -94,7 +92,6 @@ Log.Logger = new LoggerConfiguration()
     .MinimumLevel.Override("Microsoft.AspNetCore.Mvc", LogEventLevel.Warning)
     .MinimumLevel.Override("Microsoft.AspNetCore.Cors", LogEventLevel.Warning)
 
-    // solo WideEvents
     .MinimumLevel.Override("Lefarma.API", LogEventLevel.Information)
 
     .Enrich.FromLogContext()
@@ -106,26 +103,21 @@ Log.Logger = new LoggerConfiguration()
             ? LogEventLevel.Information
             : LogEventLevel.Warning)
 
-    // Archivo logs JSON
     .WriteTo.File(
         new JsonFormatter(),
         path: "logs/wide-events-.json",
         rollingInterval: RollingInterval.Day,
         retainedFileCountLimit: 30,
         restrictedToMinimumLevel: LogEventLevel.Information,
-        // SOLO WideEvents
         levelSwitch: new Serilog.Core.LoggingLevelSwitch(LogEventLevel.Information))
 
     .CreateLogger();
 
 builder.Host.UseSerilog();
 
-// HttpClientFactory for external API calls
 builder.Services.AddHttpClient();
 builder.Services.AddHttpClient("capturas-agente", c =>
 {
-    // Modo agente (CapturasSettings:Modo=agente): el servicio externo corre
-    // OpenCode + Playwright MCP y puede tardar minutos (busqueda con formularios).
     c.Timeout = TimeSpan.FromSeconds(900);
 });
 builder.Services.AddHttpClient("sat", c =>
@@ -134,27 +126,20 @@ builder.Services.AddHttpClient("sat", c =>
 });
 builder.Services.AddHttpClient("nominatim", c =>
 {
-    // Política de Nominatim (OSM): requiere un User-Agent identificable de la app
-    // (https://operations.osmfoundation.org/policies/nominatim/).
     c.DefaultRequestHeaders.UserAgent.ParseAdd("GrupoLefarmaViaticos/1.0 (soporte@lefarma.com)");
     c.Timeout = TimeSpan.FromSeconds(12);
 });
 builder.Services.AddHttpClient("photon", c =>
 {
-    // Photon (komoot): refuerzo tolerante de Nominatim para búsquedas con
-    // palabras incompletas; misma fuente OSM y User-Agent identificable.
     c.DefaultRequestHeaders.UserAgent.ParseAdd("GrupoLefarmaViaticos/1.0 (soporte@lefarma.com)");
     c.Timeout = TimeSpan.FromSeconds(12);
 });
 builder.Services.AddHttpClient("enlaces", c =>
 {
-    // Resolución de ligas cortas de mapas: las redirecciones se siguen a mano
-    // validando cada salto, por eso AllowAutoRedirect = false.
     c.DefaultRequestHeaders.UserAgent.ParseAdd("GrupoLefarmaViaticos/1.0 (soporte@lefarma.com)");
     c.Timeout = TimeSpan.FromSeconds(8);
 }).ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { AllowAutoRedirect = false });
 
-// DbContext
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
@@ -164,7 +149,6 @@ builder.Services.AddDbContext<AsokamDbContext>(options =>
 builder.Services.AddDbContext<AsistenciasDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("AsistenciasConnection")));
 
-// Repositorios
 builder.Services.AddScoped<IEmpresaRepository, EmpresaRepository>();
 builder.Services.AddScoped<ISucursalRepository, SucursalRepository>();
 builder.Services.AddScoped<ITipoGastoRepository, TipoGastoRepository>();
@@ -177,7 +161,6 @@ builder.Services.AddScoped<IFormaPagoRepository, FormaPagoRepository>();
 builder.Services.AddScoped<IBancoRepository, BancoRepository>();
 builder.Services.AddScoped<INotificationRepository, NotificationRepository>();
 
-// Catálogos Faltantes
 builder.Services.AddScoped<ICentroCostoRepository, CentroCostoRepository>();
 builder.Services.AddScoped<IEstatusOrdenRepository, EstatusOrdenRepository>();
 builder.Services.AddScoped<IRegimenFiscalRepository, RegimenFiscalRepository>();
@@ -186,14 +169,12 @@ builder.Services.AddScoped<ICuentaContableRepository, CuentaContableRepository>(
 builder.Services.AddScoped<ITipoImpuestoRepository, TipoImpuestoRepository>();
 builder.Services.AddScoped<IUsuarioConfiguracionRepository, UsuarioConfiguracionRepository>();
 
-// Help System
 builder.Services.AddScoped<IHelpArticleRepository, HelpArticleRepository>();
 builder.Services.AddScoped<IHelpArticleService, HelpArticleService>();
 builder.Services.AddScoped<IHelpImageRepository, HelpImageRepository>();
 builder.Services.AddScoped<IHelpImageService, HelpImageService>();
 builder.Services.AddScoped<IHelpModuleRepository, HelpModuleRepository>();
 builder.Services.AddScoped<IHelpModuleService, HelpModuleService>();
-// Archivos
 builder.Services.Configure<ArchivosSettings>(
     builder.Configuration.GetSection("ArchivosSettings"));
 builder.Services.AddSingleton<Lefarma.API.Infrastructure.Files.IFileCipher, Lefarma.API.Infrastructure.Files.AesFileCipher>();
@@ -203,7 +184,6 @@ builder.Services.Configure<ArchivosEliminacionSettings>(
     builder.Configuration.GetSection("ArchivosEliminacion"));
 builder.Services.AddScoped<IArchivoEliminacionNotifier, ArchivoEliminacionNotifier>();
 
-// Repositorios - Config y Operaciones
 builder.Services.AddScoped<IWorkflowRepository, WorkflowRepository>();
 builder.Services.AddScoped<IOrdenCompraRepository, OrdenCompraRepository>();
 builder.Services.AddScoped<IPagoRepository, PagoRepository>();
@@ -217,20 +197,17 @@ builder.Services.AddScoped<IEmpleadoRepository, EmpleadoRepository>();
 builder.Services.AddScoped<IIncidenciasChecadoPlantillaRepository, IncidenciasChecadoPlantillaRepository>();
 builder.Services.AddScoped<IIncidenciasChecadoRepository, IncidenciasChecadoRepository>();
 
-// Comprobantes / Facturas CFDI
 builder.Services.Configure<Lefarma.API.Features.Facturas.SatValidation.SatValidationSettings>(
     builder.Configuration.GetSection("SatValidation"));
 builder.Services.AddSingleton<Lefarma.API.Features.Facturas.SatValidation.ISatValidationService,
                                Lefarma.API.Features.Facturas.SatValidation.SatValidationService>();
 builder.Services.AddScoped<IComprobanteService, ComprobanteService>();
 
-// Motor de Workflows
 builder.Services.AddScoped<IWorkflowEngine, WorkflowEngine>();
 builder.Services.AddScoped<Lefarma.API.Features.Config.Workflows.Handlers.HandlerConditionEvaluator>();
 builder.Services.AddScoped<IWorkflowResolver, WorkflowResolver>();
 builder.Services.AddScoped<IJefeInmediatoResolver, JefeInmediatoResolver>();
 
-// Config y Operaciones
 builder.Services.AddScoped<IWorkflowService, WorkflowService>();
 builder.Services.AddScoped<IWorkflowQueryService, WorkflowQueryService>();
 builder.Services.AddScoped<Lefarma.API.Features.Config.EmpleadoJefes.IEmpleadoJefesConfigService,
@@ -253,7 +230,6 @@ builder.Services.AddScoped<Lefarma.API.Features.Rh.IncidenciasChecado.IIncidenci
 builder.Services.AddScoped<Lefarma.API.Domain.Interfaces.Rh.IIncidenciaChecadoConfigService, Lefarma.API.Features.Rh.IncidenciasChecado.IncidenciaChecadoConfigService>();
 builder.Services.AddScoped<Lefarma.API.Features.Rh.IncidenciasChecado.IIncidenciaChecadoConfigAdminService, Lefarma.API.Features.Rh.IncidenciasChecado.IncidenciaChecadoConfigAdminService>();
 
-// Educación Médica
 builder.Services.AddScoped<Lefarma.API.Domain.Interfaces.EducacionMedica.IHospitalRepository, Lefarma.API.Infrastructure.Data.Repositories.EducacionMedica.HospitalRepository>();
 builder.Services.AddScoped<Lefarma.API.Domain.Interfaces.EducacionMedica.IHospitalExtensionRepository, Lefarma.API.Infrastructure.Data.Repositories.EducacionMedica.HospitalExtensionRepository>();
 builder.Services.AddScoped<Lefarma.API.Domain.Interfaces.EducacionMedica.IProductoRepository, Lefarma.API.Infrastructure.Data.Repositories.EducacionMedica.ProductoRepository>();
@@ -292,14 +268,12 @@ builder.Services.AddScoped<Lefarma.API.Features.EducacionMedica.Services.IConfig
 builder.Services.AddScoped<IWorkflowNotificationDispatcher, WorkflowNotificationDispatcher>();
 builder.Services.AddScoped<WorkflowReminderService>();
 
-// Dynamic Action Handlers (keyed por handler_key en config.workflow_accion_handlers)
 builder.Services.AddKeyedScoped<IWorkflowActionHandler, FieldWorkflowHandler>("Field");
 builder.Services.AddKeyedScoped<IWorkflowActionHandler, DocumentWorkflowHandler>("Document");
 builder.Services.AddKeyedScoped<IWorkflowActionHandler, ArchivoWorkflowHandler>("Archivo");
 builder.Services.AddKeyedScoped<IWorkflowActionHandler, ProviderAuthorizationWorkflowHandler>("ProviderAuthorization");
 builder.Services.AddKeyedScoped<IWorkflowActionHandler, AlertaWorkflowHandler>("Alerta");
 
-// Servicios
 builder.Services.AddScoped<IEmpresaService, EmpresaService>();
 builder.Services.AddScoped<ISucursalService, SucursalService>();
 builder.Services.AddScoped<ITipoGastoService, TipoGastoService>();
@@ -313,10 +287,8 @@ builder.Services.AddScoped<IBancoService, BancoService>();
 builder.Services.AddScoped<Lefarma.API.Features.Auth.Usuarios.IUsuarioCatalogService, Lefarma.API.Features.Auth.Usuarios.UsuarioCatalogService>();
 builder.Services.AddScoped<Lefarma.API.Features.Auth.Roles.IRolCatalogService, Lefarma.API.Features.Auth.Roles.RolCatalogService>();
 
-// Dashboard
 builder.Services.AddScoped<Lefarma.API.Features.Dashboard.IDashboardService, Lefarma.API.Features.Dashboard.DashboardService>();
 
-// Catálogos Faltantes
 builder.Services.AddScoped<ICentroCostoService, CentroCostoService>();
 builder.Services.AddScoped<IEstatusOrdenService, EstatusOrdenService>();
 builder.Services.AddScoped<IRegimenFiscalService, RegimenFiscalService>();
@@ -324,7 +296,6 @@ builder.Services.AddScoped<IProveedorService, ProveedorService>();
 builder.Services.AddScoped<ICuentaContableService, CuentaContableService>();
 builder.Services.AddScoped<ITipoImpuestoService, TipoImpuestoService>();
 
-// Logging Services
 builder.Services.AddScoped<IErrorLogService, ErrorLogService>();
 builder.Services.AddScoped<IBusinessAuditLogService, BusinessAuditLogService>();
 
@@ -338,7 +309,6 @@ builder.Services.AddScoped<IAdminService, AdminService>();
 builder.Services.AddSingleton<ISseTicketService, SseTicketService>();
 builder.Services.AddMemoryCache();
 
-// Configuración (variables globales): CRUD + bitácora, caché de runtime e integraciones.
 builder.Services.AddScoped<Lefarma.API.Features.Configuracion.IConfiguracionService,
                            Lefarma.API.Features.Configuracion.ConfiguracionService>();
 builder.Services.AddScoped<Lefarma.API.Features.Configuracion.IConfiguracionModulosService,
@@ -350,14 +320,10 @@ builder.Services.AddScoped<Lefarma.API.Features.Configuracion.IConfiguracionInte
 builder.Services.AddScoped<Lefarma.API.Features.Configuracion.IIntegracionApiKeyService,
                            Lefarma.API.Features.Configuracion.IntegracionApiKeyService>();
 
-// Capturas de viaticos (T8): servicio + runner del script de Playwright.
-// Configuracion bajo appsettings: CapturasSettings (whitelist, ruta script, timeout).
 builder.Services.Configure<CapturasSettings>(builder.Configuration.GetSection("CapturasSettings"));
 builder.Services.AddSingleton<ICapturasScriptRunner, NodeCapturasScriptRunner>();
 builder.Services.AddSingleton<CapturasService>();
 
-// Telemetría: almacén analítico DuckDB embebido. Un solo escritor por proceso (el API);
-// no escalar a varias instancias por ambiente mientras no se adopte Quack o una base compartida.
 builder.Services.Configure<Lefarma.API.Features.Telemetria.TelemetriaOpciones>(
     builder.Configuration.GetSection(Lefarma.API.Features.Telemetria.TelemetriaOpciones.Seccion));
 builder.Services.AddSingleton<Lefarma.API.Features.Telemetria.Cola.TelemetriaCola>();
@@ -371,9 +337,6 @@ builder.Services.Configure<Lefarma.API.Features.Telemetria.Avisos.TelemetriaAvis
     builder.Configuration.GetSection(Lefarma.API.Features.Telemetria.Avisos.TelemetriaAvisosOpciones.Seccion));
 builder.Services.AddSingleton<Lefarma.API.Features.Telemetria.Avisos.TelemetriaAvisos>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<Lefarma.API.Features.Telemetria.Avisos.TelemetriaAvisos>());
-// Deteccion automatica de precio (vuelo, autobus u hotel): Playwright local +
-// Firecrawl de respaldo. La configuracion vive en DeteccionPrecioSettings; se
-// conserva DeteccionVuelosSettings como respaldo para despliegues viejos.
 var seccionDeteccion = builder.Configuration.GetSection("DeteccionPrecioSettings");
 if (!seccionDeteccion.GetChildren().Any())
 {
@@ -391,26 +354,20 @@ builder.Services.AddSingleton<DeteccionPrecioPreviewGate>();
 builder.Services.AddSingleton<IDeteccionAutomaticaQueue, DeteccionAutomaticaQueue>();
 builder.Services.AddHostedService<DeteccionAutomaticaHostedService>();
 
-// Notification Services
 builder.Services.AddScoped<Lefarma.API.Domain.Interfaces.ITemplateService, TemplateService>();
 builder.Services.AddScoped<Lefarma.API.Domain.Interfaces.INotificationService, Lefarma.API.Features.Notifications.Services.NotificationService>();
 
-// Email Settings configuration
 builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("EmailSettings"));
 builder.Services.AddOptions<EmailSettings>()
     .Validate(x => !string.IsNullOrWhiteSpace(x.SmtpServer), "SmtpServer is required")
     .Validate(x => !string.IsNullOrWhiteSpace(x.FromEmail), "FromEmail is required")
     .Validate(x => x.SmtpPort > 0 && x.SmtpPort <= 65535, "SmtpPort must be between 1 and 65535")
-    //.ValidateOnStart()
     ;
 
-// Register channels as KEYED SERVICES for multi-channel support
 builder.Services.AddKeyedScoped<Lefarma.API.Domain.Interfaces.INotificationChannel, Lefarma.API.Features.Notifications.Services.Channels.EmailNotificationChannel>("email");
 builder.Services.AddKeyedScoped<Lefarma.API.Domain.Interfaces.INotificationChannel, Lefarma.API.Features.Notifications.Services.Channels.TelegramNotificationChannel>("telegram");
 builder.Services.AddKeyedScoped<Lefarma.API.Domain.Interfaces.INotificationChannel, Lefarma.API.Features.Notifications.Services.Channels.InAppNotificationChannel>("in-app");
 
-// Documentos SIGMA: puerto del módulo de documentos sobre la base legacy Asokam.
-// Acceso Dapper, almacenamiento de PDFs, identidad de visitantes y notificaciones.
 builder.Services.Configure<SigmaOptions>(builder.Configuration.GetSection(SigmaOptions.SectionName));
 builder.Services.Configure<DocumentosNotificacionesOptions>(
     builder.Configuration.GetSection(DocumentosNotificacionesOptions.SectionName));
@@ -429,14 +386,12 @@ builder.Services.AddScoped<CSharpPdfSignatureEngine>();
 builder.Services.AddScoped<PythonPdfSignatureEngine>();
 builder.Services.AddScoped<SigmaPdfSignatureRunner>();
 
-// Telegram Settings configuration
 builder.Services.Configure<TelegramSettings>(builder.Configuration.GetSection("TelegramSettings"));
 builder.Services.AddOptions<TelegramSettings>()
     .Validate(x => !string.IsNullOrWhiteSpace(x.BotToken), "BotToken is required")
     .Validate(x => !string.IsNullOrWhiteSpace(x.ApiUrl), "ApiUrl is required")
     .ValidateOnStart();
 
-// JWT Bearer Authentication
 var jwtSettings = builder.Configuration.GetSection("JwtSettings").Get<JwtSettings>();
 if (jwtSettings is not null && !string.IsNullOrWhiteSpace(jwtSettings.SecretKey))
 {
@@ -476,43 +431,16 @@ else
     Log.Warning("JWT settings not configured properly. Authentication will not work.");
 }
 
-// TODO: Uncomment when Notifications feature is implemented
-// // Telegram Settings validation
-// builder.Services.Configure<Features.Notifications.Services.Channels.TelegramSettings>(
-//     builder.Configuration.GetSection("TelegramSettings"));
-// builder.Services.AddOptions<Features.Notifications.Services.Channels.TelegramSettings>()
-//     .Validate(x => !string.IsNullOrWhiteSpace(x.BotToken), "BotToken is required")
-//     .ValidateOnStart();
-//
-// // Notification Settings validation
-// builder.Services.Configure<Features.Notifications.DTOs.NotificationSettings>(
-//     builder.Configuration.GetSection("NotificationSettings"));
-// builder.Services.AddOptions<Features.Notifications.DTOs.NotificationSettings>()
-//     .Validate(x => x.MaxRetryCount > 0 && x.MaxRetryCount <= 10, "MaxRetryCount must be 1-10")
-//     .ValidateOnStart();
-
-// Authorization Policies
 builder.Services.AddAuthorization(options =>
 {
-    // No static permission policies. HasPermission_* policies are resolved
-    // on the fly by DynamicPermissionPolicyProvider reading from app.Permisos.
-    // Adding a permission to the DB is enough; no restart, no code change.
 });
 
-// Custom policy provider: resolves HasPermission_* policies dynamically.
-// Must be registered AFTER AddAuthorization so it overrides the default.
 builder.Services.AddSingleton<IAuthorizationPolicyProvider, DynamicPermissionPolicyProvider>();
 
-// Register permission handler
-// Scoped: matches AsokamDbContext lifetime. The cache itself lives in IMemoryCache (Singleton),
-// so the shared permission cache survives across requests even though this service is per-scope.
 builder.Services.AddScoped<UserPermissionService>();
-// Scoped: PermissionHandler consumes UserPermissionService (Scoped) which consumes AsokamDbContext (Scoped).
-// Singleton here would be a captive dependency — ASP.NET Core rejects it at startup validation.
 builder.Services.AddScoped<IAuthorizationHandler, PermissionHandler>();
 builder.Services.AddScoped<IAuthorizationHandler, AnyPermissionHandler>();
 
-// Controllers
 builder.Services.AddControllers(options =>
 {
     options.Filters.Add<ValidationFilter>();
@@ -520,11 +448,9 @@ builder.Services.AddControllers(options =>
 })
 .AddJsonOptions(options =>
 {
-    // Make JSON binding case-insensitive (frontend sends camelCase, C# uses PascalCase)
     options.JsonSerializerOptions.PropertyNameCaseInsensitive = true;
 });
 
-// Validators
 builder.Services.AddValidatorsFromAssemblyContaining<Program>();
 
 builder.Services.AddEndpointsApiExplorer();
@@ -545,7 +471,6 @@ builder.Services.AddSwaggerGen(options =>
     options.TagActionsBy(api => new List<string>() { api.GroupName ?? "Sin Categoría" });
 });
 
-// Configure CORS to allow all origins
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("CorsPolicy", policy =>
@@ -556,8 +481,6 @@ builder.Services.AddCors(options =>
     });
 });
 
-// Límite de frecuencia de la telemetría (primer limitador del API). Ventana fija de
-// un minuto; el usuario autenticado se cuenta por su identificador y el anónimo por IP.
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
@@ -583,7 +506,6 @@ builder.Services.AddRateLimiter(options =>
             }));
 });
 
-// Wide Event logging accessor
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<IWideEventAccessor>(sp =>
 {
@@ -594,16 +516,14 @@ builder.Services.AddScoped<IWideEventAccessor>(sp =>
         : new NullWideEventAccessor();
 });
 
-// Configurar límites de formularios multipart para upload de imágenes (TinyMCE)
 builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(options =>
 {
-    options.MultipartBodyLengthLimit = 10_000_000; // 10 MB
+    options.MultipartBodyLengthLimit = 10_000_000; 
 });
 
-// Configurar límites de Kestrel para uploads
 builder.WebHost.ConfigureKestrel(options =>
 {
-    options.Limits.MaxRequestBodySize = 10_000_000; // 10 MB
+    options.Limits.MaxRequestBodySize = 10_000_000; 
 });
 
 var app = builder.Build();
@@ -614,28 +534,15 @@ if (!string.IsNullOrEmpty(pathBase))
     app.UsePathBase(pathBase);
 }
 
-// Use CORS
 app.UseCors("CorsPolicy");
-// Configure the HTTP request pipeline.
-// if (app.Environment.IsDevelopment())
-// {
 app.UseSwagger();
 app.UseSwaggerUI(c =>
 {
-    // Ruta relativa: resuelve contra la URL que ve el navegador (ej. /CxP/swagger/index.html
-    // -> /CxP/swagger/v1/swagger.json). Funciona detrás de directorio virtual IIS o proxy.
     c.SwaggerEndpoint("./v1/swagger.json", "Lefarma API v1");
-    // c.RoutePrefix = ""; // Hacer que Swagger est disponible en la raz
 });
-// }
 
 app.UseHttpsRedirection();
 
-// Guardia de las capturas de viaticos. Esos PNG se sirven SOLO por el endpoint
-// [Authorize] api/viaticos/capturas/{archivo} (CapturasController): UseStaticFiles
-// NO ejecuta autenticacion en ninguna posicion del pipeline, asi que aqui se
-// cortan sus alias estaticos anonimos ANTES de que el middleware estatico los
-// alcance (el catch-all de /api/media y el wwwroot base servido en /media/...).
 app.Use(async (context, next) =>
 {
     var ruta = context.Request.Path;
@@ -649,28 +556,20 @@ app.Use(async (context, next) =>
     await next();
 });
 
-// ---> AGREGADO PARA LA SPA <---
-// Permite servir index.html por defecto y habilita los archivos estáticos base de wwwroot
 app.UseDefaultFiles();
 app.UseStaticFiles();
 
 app.UseSerilogRequestLogging(options =>
 {
-    // Se deshabilita el log automático de Serilog porque ya tenemos WideEvent
     options.MessageTemplate = "HTTP {RequestMethod} {RequestPath} responded {StatusCode}";
-    options.GetLevel = (httpContext, elapsed, ex) => LogEventLevel.Fatal; // Nunca se ejecuta
+    options.GetLevel = (httpContext, elapsed, ex) => LogEventLevel.Fatal; 
 });
 
-// Wide Event logging - logs one rich event per request
 app.UseWideEventLogging();
 
-
-// Resolve the configured base path for user-uploaded files (caratulas, etc.)
 var archivosBasePath = builder.Configuration["ArchivosSettings:BasePath"]
     ?? Path.Combine(app.Environment.WebRootPath, "media", "archivos");
 
-// Static files for archivos (caratulas, etc.) under /api/media/archivos
-// Si la ruta no es absoluta, resolverla respecto al ContentRootPath
 if (!Path.IsPathRooted(archivosBasePath))
 {
     archivosBasePath = Path.GetFullPath(Path.Combine(app.Environment.ContentRootPath, archivosBasePath));
@@ -688,7 +587,6 @@ app.UseStaticFiles(new StaticFileOptions
     }
 });
 
-// Static files for archivos (caratulas, etc.) under /media/archivos (legacy URL used by the frontend)
 app.UseStaticFiles(new StaticFileOptions
 {
     FileProvider = new PhysicalFileProvider(archivosBasePath),
@@ -701,9 +599,6 @@ app.UseStaticFiles(new StaticFileOptions
     }
 });
 
-// Static files for help images under /api/media/help. La raiz es media/help (no
-// media/) a proposito: un provider sobre media/ completo exponia de forma anonima
-// cualquier subcarpeta, incluidas las capturas de viaticos.
 app.UseStaticFiles(new StaticFileOptions
 {
     FileProvider = new PhysicalFileProvider(
@@ -715,25 +610,11 @@ app.UseStaticFiles(new StaticFileOptions
     }
 });
 
-// Capturas de viaticos (T8): el script escribe en
-// lefarma.frontend/public/capturas/viaticos/ y CapturasService copia cada PNG
-// exitoso a wwwroot/media/capturas-viaticos/ antes de responder.
-//
-// El PNG NO se sirve por UseStaticFiles (toda registration estatica es anonima):
-// se sirve SOLO por el endpoint [Authorize] api/viaticos/capturas/{archivo} de
-// CapturasController. El directorio se asegura en el arranque porque
-// CapturasService lo crea de forma perezosa y ese endpoint lee/escribe ahi.
 var capturasDir = Path.Combine(app.Environment.WebRootPath, "media", "capturas-viaticos");
 Directory.CreateDirectory(capturasDir);
 
-// Telemetría: el almacén es SQL Server; las tablas las crea el script manual de
-// lefarma.database/telemetria. Si aún no existen, /api/telemetria/estado lo
-// reporta con disponible=false y la ingesta responde 202 sin escribir en disco.
-
-// Authentication & Authorization - Order matters: Authentication must come before Authorization
 app.UseAuthentication();
 
-// Dev Token middleware for testing (Development only)
 if (app.Environment.IsDevelopment())
 {
     app.UseDevToken();
@@ -741,13 +622,8 @@ if (app.Environment.IsDevelopment())
 
 app.UseAuthorization();
 
-// Debe ir después de autorización y antes de mapear endpoints.
 app.UseRateLimiter();
 
-// Sonda de vida pública: los monitores la consultan con frecuencia para saber si
-// el API responde y desde cuándo está arriba. A propósito NO toca base de datos ni
-// servicios externos: mide la disponibilidad del proceso, no la de sus dependencias,
-// así que un fallo de BD no la tumba y consultarla seguido no cuesta nada.
 var startedAtUtc = DateTime.UtcNow;
 app.Lifetime.ApplicationStarted.Register(() => startedAtUtc = DateTime.UtcNow);
 
@@ -760,7 +636,6 @@ app.MapGet("/api/health", (HttpContext http) =>
 {
     var ahora = DateTime.UtcNow;
 
-    // Un monitor nunca debe leer una respuesta vieja cacheada por un proxy.
     http.Response.Headers.CacheControl = "no-store";
 
     return Results.Ok(new
@@ -779,15 +654,8 @@ app.MapGet("/api/version", () => Results.Ok(new { version = appVersion }))
 
 app.MapControllers();
 
-// ---> AGREGADO PARA LA SPA <---
-// Redirige cualquier petición no manejada al index.html para que el router de tu frontend se encargue
 app.MapFallbackToFile("/index.html");
 
-// Calentamiento de base de datos en segundo plano. La primera petición que toca
-// SQL paga el arranque en frío de EF y del pool: se midieron ~10 s justo después
-// de cada reinicio del API, y durante esa ventana el navegador encolaba las
-// peticiones y la SPA llegaba a creerse desconectada. Se lanza después de
-// arrancar para no retrasar la escucha y nunca tumba el proceso.
 app.Lifetime.ApplicationStarted.Register(() =>
 {
     _ = Task.Run(async () =>
@@ -796,11 +664,6 @@ app.Lifetime.ApplicationStarted.Register(() =>
         {
             using var scope = app.Services.CreateScope();
 
-            // 1) Contextos de datos: construir el modelo de EF es el coste grande
-            //    del primer acceso (se midieron ~6.6 s en la primera consulta a
-            //    Asokam desde el middleware de desarrollo). Se fuerza aquí y se
-            //    deja una conexión lista en el pool. Cada contexto va por separado
-            //    para que un fallo de uno no impida calentar el otro.
             foreach (var tipoContexto in new[]
             {
                 typeof(Lefarma.API.Infrastructure.Data.ApplicationDbContext),
@@ -820,8 +683,6 @@ app.Lifetime.ApplicationStarted.Register(() =>
                 }
             }
 
-            // 2) Contexto de telemetría: compila la consulta de la sal y la deja
-            //    cacheada para los eventos reales.
             var atribucion = scope.ServiceProvider
                 .GetRequiredService<Lefarma.API.Features.Telemetria.Ingesta.IAtribucionUsuario>();
             await atribucion.ObtenerHashAsync("calentamiento", CancellationToken.None);
@@ -837,6 +698,4 @@ app.Lifetime.ApplicationStarted.Register(() =>
 
 app.Run();
 
-// Hace Program accesible a Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactory<Program>
-// sin necesidad de una clase Program publica generada por top-level statements.
 public partial class Program { }

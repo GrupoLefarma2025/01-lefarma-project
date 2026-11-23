@@ -30,8 +30,6 @@ interface Props {
   proveedoresMap?: Map<number, ProveedorInfo>;
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
 function fmtDate(dateStr: string) {
   try {
     return new Date(dateStr).toLocaleDateString('es-MX', {
@@ -43,8 +41,6 @@ function fmtDate(dateStr: string) {
     return dateStr;
   }
 }
-
-// ─── Styles ───────────────────────────────────────────────────────────────────
 
 const DARK_BLUE = '#1a3a5c';
 const HEADER_BG = '#1a3a5c';
@@ -234,7 +230,6 @@ const s: Record<string, React.CSSProperties> = {
     fontWeight: 700,
     fontSize: 9.5,
   },
-  // ── Firmas (concentrado) ──
   firmaSection: {
     marginTop: 14,
     pageBreakInside: 'avoid' as const,
@@ -290,8 +285,6 @@ const s: Record<string, React.CSSProperties> = {
   },
 };
 
-// ─── Logo ──────────────────────────────────────────────────────────────────────
-
 const Logo: React.FC<{ src: string }> = ({ src }) => (
   <div style={s.logoBox}>
     <img
@@ -301,8 +294,6 @@ const Logo: React.FC<{ src: string }> = ({ src }) => (
     />
   </div>
 );
-
-// ─── Main Component ────────────────────────────────────────────────────────────
 
 const EMPTY_LINES = 7;
 
@@ -318,7 +309,7 @@ export function OrdenCompraConcentradoPDF({ orden, firmaSolicitante, firmaReviso
 
   return (
     <div id={id} style={s.page}>
-      {/* ── HEADER ── */}
+      {}
       <div style={s.headerRow}>
         <Logo src={resolverLogoEmpresa(Number(orden.idEmpresa), orden.empresaNombre)} />
         <div style={s.docTitle}>ORDEN DE COMPRA</div>
@@ -336,7 +327,7 @@ export function OrdenCompraConcentradoPDF({ orden, firmaSolicitante, firmaReviso
         </div>
       </div>
 
-      {/* ── DATOS DEL SOLICITANTE ── */}
+      {}
       <div style={s.sectionHeader}>Datos del solicitante</div>
       <table style={s.table}>
         <tbody>
@@ -365,7 +356,7 @@ export function OrdenCompraConcentradoPDF({ orden, firmaSolicitante, firmaReviso
         </tbody>
       </table>
 
-      {/* ── DATOS DEL PROVEEDOR ── */}
+      {}
       <div style={{ ...s.sectionHeader, marginTop: 6 }}>Datos del Proveedor</div>
       <table style={s.table}>
         <tbody>
@@ -436,7 +427,7 @@ export function OrdenCompraConcentradoPDF({ orden, firmaSolicitante, firmaReviso
         </tbody>
       </table>
 
-      {/* ── DATOS DE ENTREGA ── */}
+      {}
       <div style={{ ...s.sectionHeader, marginTop: 6 }}>Datos de entrega</div>
       <table style={s.table}>
         <thead>
@@ -474,7 +465,7 @@ export function OrdenCompraConcentradoPDF({ orden, firmaSolicitante, firmaReviso
         </tbody>
       </table>
 
-      {/* ── OBSERVACIONES + TOTALES ── */}
+      {}
       <div style={s.bottomSection}>
         <div style={s.obsBox}>
           <div style={s.obsHeader}>Observaciones</div>
@@ -498,39 +489,25 @@ export function OrdenCompraConcentradoPDF({ orden, firmaSolicitante, firmaReviso
         </div>
       </div>
 
-      {/* ── LUGAR DE ENTREGA (debajo de Observaciones) ── */}
+      {}
       <div style={{ border: `1px solid ${BORDER}`, borderTop: 'none' }}>
         <div style={s.obsHeader}>Lugar de entrega</div>
         <div style={{ padding: '4px 6px', fontSize: 8.5, lineHeight: 1.4 }}>{orden.domicilioEntrega ?? '-'}</div>
       </div>
 
-      {/* ── DATOS DE FACTURACIÓN (debajo de Lugar de entrega) ── */}
+      {}
       <div style={{ border: `1px solid ${BORDER}`, borderTop: 'none' }}>
         <div style={s.obsHeader}>Datos de facturación</div>
         <div style={{ padding: '4px 6px', fontSize: 8.5, lineHeight: 1.4 }}>{orden.facturarA ?? '-'}</div>
       </div>
 
-      {/* ── FIRMAS (Concentrado) ── */}
+      {}
       <div style={s.firmaSection}>
         <div style={s.firmaHeader}>Autorizaciones</div>
         <div style={s.firmaGrid}>
-          {/* Solicitante */}
-          {/* <div style={s.firmaBox}>
-            <div style={s.firmaLabel}>{nombreSolicitante ? `Solicitante — ${nombreSolicitante}` : 'Solicitante'}</div>
-            <div style={s.firmaContent}>
-              {firmaSolicitante ? (
-                <img
-                  src={firmaSolicitante}
-                  alt="Firma"
-                  style={{ maxWidth: 120, maxHeight: 40, objectFit: 'contain' }}
-                  crossOrigin="anonymous"
-                />
-              ) : (
-                <span style={s.firmaPlaceholder}> sin firma </span>
-              )}
-            </div>
-          </div> */}
-          {/* Revisó */}
+          {}
+          {}
+          {}
           <div style={s.firmaBox}>
             <div style={s.firmaLabel}>{nombreReviso ? `Revisó — ${nombreReviso}` : 'Revisó'}</div>
             <div style={s.firmaContent}>
@@ -546,7 +523,7 @@ export function OrdenCompraConcentradoPDF({ orden, firmaSolicitante, firmaReviso
               )}
             </div>
           </div>
-          {/* Autorizó */}
+          {}
           <div style={s.firmaBox}>
             <div style={s.firmaLabel}>{nombreAutorizo ? `Autorizó — ${nombreAutorizo}` : 'Autorizó'}</div>
             <div style={s.firmaContent}>
@@ -562,7 +539,7 @@ export function OrdenCompraConcentradoPDF({ orden, firmaSolicitante, firmaReviso
               )}
             </div>
           </div>
-          {/* Visto Bueno — Dirección Corporativa */}
+          {}
           <div style={s.firmaBox}>
             <div style={s.firmaLabel}>Visto Bueno — Dirección Corporativa</div>
             <div style={s.firmaContent}>

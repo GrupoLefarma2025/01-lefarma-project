@@ -67,7 +67,7 @@ export function StepEditForm({ paso, open, onClose, onSave, workflowEstados }: S
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-6 pt-4">
-          {/* Información básica */}
+          {}
           <div className="space-y-4 p-4 rounded-lg border border-border bg-muted/30">
             <h3 className="font-semibold text-sm flex items-center gap-2">
               <GitBranch className="h-4 w-4" />
@@ -144,7 +144,7 @@ export function StepEditForm({ paso, open, onClose, onSave, workflowEstados }: S
             </div>
           </div>
 
-          {/* Requisitos */}
+          {}
           <div className="space-y-4 p-4 rounded-lg border border-border bg-muted/30">
             <h3 className="font-semibold text-sm flex items-center gap-2">
               <CheckCircle2 className="h-4 w-4" />
@@ -217,7 +217,7 @@ export function StepEditForm({ paso, open, onClose, onSave, workflowEstados }: S
             </div>
           </div>
 
-          {/* Control de flujo */}
+          {}
           <div className="space-y-4 p-4 rounded-lg border border-border bg-muted/30">
             <h3 className="font-semibold text-sm flex items-center gap-2">
               <Play className="h-4 w-4" />
@@ -308,7 +308,7 @@ export function StepEditForm({ paso, open, onClose, onSave, workflowEstados }: S
             )}
           </div>
 
-          {/* Acciones del pie */}
+          {}
           <div className="flex items-center justify-between pt-4 border-t border-border">
             <Button 
               type="button" 

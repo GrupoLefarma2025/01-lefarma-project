@@ -14,8 +14,6 @@ import BandejaAprobacionesConDetalle from './pages/aprobaciones/BandejaAprobacio
 import Perfil from '@/pages/Perfil';
 
 export function ViaticosRoutes({ variant, loginPath }: SubtreeRoutesProps) {
-  // El candado real vive en el backend; esto solo evita que la pantalla de
-  // autorización se abra por URL a quien no puede autorizar.
   const bloqueado = variant === 'root' ? undefined : '/viaticos/bloqueado';
   return createAppRoutes({
     appKey: 'viaticos',
@@ -30,7 +28,7 @@ export function ViaticosRoutes({ variant, loginPath }: SubtreeRoutesProps) {
     ),
     routes: (
       <>
-        {/* Alias temporal: dashboard muestra el mismo asistente que solicitud durante la revisión visual. */}
+        {}
         <Route path="dashboard" element={<SolicitudPage />} />
         <Route path="solicitud" element={<SolicitudPage />} />
         <Route path="solicitud/:id" element={<SolicitudPage />} />

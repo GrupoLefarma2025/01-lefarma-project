@@ -10,12 +10,6 @@ import {
   totalViatico,
 } from '@/utils/concentradoViaticos.helpers';
 
-/**
- * Vista previa HTML del concentrado de viáticos FOR-008. Es el espejo del
- * PDF que genera `generarConcentradoViaticosPDF`; no lee datos por su cuenta
- * ni depende del módulo de viáticos.
- */
-
 const NAVY = '#1f3864';
 const HEADER_FILL = '#dbe5f1';
 

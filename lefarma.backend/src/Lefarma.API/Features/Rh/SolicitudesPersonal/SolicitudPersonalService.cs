@@ -80,11 +80,6 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
             _limiteDescuentosJustificadosMes = Math.Max(1, solicitudesSettings.Value.LimiteDescuentosJustificadosMes);
         }
 
-        /// <summary>
-        /// Empresa, área (departamento), puesto y ubicación del empleado según Asistencias.
-        /// Si Asistencias no responde (o la vista no expone las columnas), se devuelve un
-        /// diccionario vacío y los formatos conservan los valores de los catálogos.
-        /// </summary>
         private async Task<Dictionary<int, RhMappings.EmpleadoAsistenciasInfo>> ObtenerEmpleadosAsistenciasAsync(
             IEnumerable<int> idsUsuarios)
         {
@@ -206,8 +201,6 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                     q = q.Where(x => x.Folio != null && x.Folio.Contains(term));
                 }
 
-                // Filtros de periodo / fechas de creación (estilo incidencias de checado).
-                // La fecha efectiva es la última edición si existe; si no, la creación.
                 DateTime? periodoDesde = null;
                 DateTime? periodoHasta = null;
                 if (!string.IsNullOrWhiteSpace(request.Periodo) &&
@@ -223,8 +216,6 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                     periodoHasta = request.FechaFin?.Date;
                 }
 
-                // La pestaña "En trámite" arma su propia ventana más abajo: no terminales,
-                // las propias de este mes y el anterior, y todo lo que el usuario debe firmar.
                 var esListaPendientes = request.SoloPendientes && !(puedeVerTodas && request.VerTodas);
 
                 if (!esListaPendientes)
@@ -241,7 +232,6 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                     }
                 }
 
-                // Filtros de empleado (nómina, nombre, empresa, departamento, puesto)
                 HashSet<int>? idsUsuarioEmpleado = null;
                 HashSet<int>? idsUsuarioNomina = null;
 
@@ -285,12 +275,10 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                     }
                 }
 
-                // Si no tiene el permiso de ver todas y la solicitud no pide ver todas
                 if (!puedeVerTodas || (puedeVerTodas && !request.VerTodas))
                 {
                     var rolesLista = rolesUsuario.ToList();
 
-                    // Obtener los pasos en los que el usuario es participante o tiene un rol participante
                     var pasosParticipante = await _context.WorkflowParticipantes
                         .Where(p => p.Activo && (
                             p.IdUsuario == idUsuario ||
@@ -300,8 +288,6 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                         .Distinct()
                         .ToListAsync();
 
-                    // Obtener los pasos que requieren jefe inmediato y verificar si el usuario es jefe inmediato
-                    // de los solicitantes de las solicitudes en esos pasos
                     var pasosConJefeInmediato = await _context.WorkflowParticipantes
                         .Where(p => p.Activo && p.RequiereJefeInmediato)
                         .GroupBy(p => p.IdPaso)
@@ -315,7 +301,6 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
 
                     if (nivelPorPaso.Count > 0)
                     {
-                        // Obtener solicitante/creador de solicitudes en pasos que requieren jefe inmediato
                         var solicitantesEnPasosJefe = await _context.SolicitudesPersonal
                             .Where(s => pasosConJefeInmediatoIds.Contains(s.IdPasoActual ?? 0))
                             .Select(s => new
@@ -327,7 +312,6 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                             .Distinct()
                             .ToListAsync();
 
-                        // Caché por (workflow, creador/solicitante, nivel) para no repetir queries
                         var jefeCache = new Dictionary<(int, int, int), JefeEfectivoResult>();
 
                         foreach (var s in solicitantesEnPasosJefe)
@@ -354,22 +338,18 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                         x.IdUsuarioCreador == idUsuario ||
                         (x.IdUsuarioSolicitante ?? x.IdUsuarioCreador) == idUsuario ||
                         (
-                            // La solicitud está en un paso que requiere jefe inmediato
-                            // y usuario es jefe inmediato del solicitante
                             x.IdPasoActual != null &&
                             pasosConJefeInmediatoIds.Contains(x.IdPasoActual.Value) &&
                             usuariosDelJefe.Contains(x.IdUsuarioSolicitante ?? x.IdUsuarioCreador)
                         ) ||
                         (
-                            // usuario es participante del paso actual y que no en esté en estado "creada"
                             pasosParticipante.Contains(x.IdPasoActual ?? 0) &&
-                            x.IdEstado != 1 // creada
+                            x.IdEstado != 1 
                         )
                     );
 
                     if (esListaPendientes)
                     {
-                        // Bandeja de trabajo: nunca esconder pendientes.
                         var inicioMesAnterior = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1).AddMonths(-1);
                         var desdeRango = periodoDesde ?? new DateTime(1900, 1, 1);
                         var hastaRango = periodoHasta ?? new DateTime(9999, 12, 31);
@@ -379,17 +359,13 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                             x.Estado != null && x.Estado.Codigo != null &&
                             !estadosTerminales.Contains(x.Estado.Codigo!.ToUpper()) &&
                             (
-                                // Lo que ya pedía el periodo elegido (si el usuario lo cambia
-                                // a propósito, puede ver pendientes más viejos).
                                 ((x.FechaModificacion ?? x.FechaCreacion).Date >= desdeRango &&
                                  (x.FechaModificacion ?? x.FechaCreacion).Date <= hastaRango) ||
-                                // Mis pendientes de este mes y el anterior.
                                 (
                                     (x.IdUsuarioCreador == idUsuario ||
                                      (x.IdUsuarioSolicitante ?? x.IdUsuarioCreador) == idUsuario) &&
                                     (x.FechaModificacion ?? x.FechaCreacion).Date >= inicioMesAnterior
                                 ) ||
-                                // Todo lo que yo tengo que firmar, sin límite de fecha.
                                 (
                                     x.IdPasoActual != null &&
                                     pasosConJefeInmediatoIds.Contains(x.IdPasoActual.Value) &&
@@ -671,7 +647,6 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                 if (idUsuarioSolicitante != idUsuario && !puedeCrearParaOtro)
                     return Error.Forbidden("solicitud_personal.crear_para_otro", "No tiene permiso para crear solicitudes para otro usuario.");
 
-                //Obtener empresa, sucursal y area del usuario solicitante
                 var solicitante = await _adminRepository.GetUsuarioDetalleAsync(idUsuarioSolicitante);
                 if (solicitante is null)
                     return CommonErrors.NotFound("Empleado", idUsuarioSolicitante.ToString());
@@ -700,7 +675,6 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                 if (validacionLimite.IsError)
                     return validacionLimite.FirstError;
 
-                //las claves de este diccionario deben coincidir con WorkflowScopeType.Codigo
                 var workflow = await _workflowResolver.ResolveWorkflowIdAsync(
                     CodigoProceso.SOLICITUD_PERSONAL,
                     new Dictionary<string, int?>
@@ -809,9 +783,6 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
 
                 if (accionInicial is not null)
                 {
-                    // Fase 2 (T7): capturar las firmas al momento de la creación.
-                    // firmaArchivo = creador (cuadro ELABORA); firmaSolicitanteArchivo = solicitante
-                    // (cuadro SOLICITA; p. ej. incapacidades creadas por otra persona).
                     var firmasAlCrear = await _context.UsuariosDetalle
                         .AsNoTracking()
                         .Where(ud => ud.IdUsuario == idUsuario || ud.IdUsuario == (solicitud.IdUsuarioSolicitante ?? 0))
@@ -896,21 +867,7 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                     if (firmaResult.IsError)
                         return firmaResult.Errors;
 
-                }/*else if (accionCerrar is not null && tipo.Clave.Contains("INCAPACIDAD", StringComparison.OrdinalIgnoreCase))
-                {
-                    // Las incapacidades se cierran automaticante despues de generarse
-                    var firmaResult = await _firmasService.FirmarAsync(
-                       solicitud.IdSolicitud,
-                       new FirmarRequest
-                       {
-                           IdAccion = accionCerrar.IdAccion,
-                           Comentario = "Solicitud cerrada automáticamente al crear"
-                       },
-                       idUsuario);
-
-                    if (firmaResult.IsError)
-                        return firmaResult.Errors;
-                }*/
+                }
 
                 var userIds = new List<int> { solicitud.IdUsuarioCreador, solicitud.IdUsuarioSolicitante ?? solicitud.IdUsuarioCreador };
                 var usuariosInfo = await _asokamContext.Usuarios.AsNoTracking()
@@ -964,17 +921,11 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                 if (soli.Estado?.Codigo != "CREADA")
                     return CommonErrors.Conflict("SolicitudPersonal", "Solo se pueden editar solicitudes en estado Creada.");
 
-                //var ahora = DateTime.Now;
-                //if (soli.FechaCreacion.Year != ahora.Year || soli.FechaCreacion.Month != ahora.Month)
-                //    return CommonErrors.Conflict("SolicitudPersonal", "Solo se pueden editar solicitudes creadas en el mes actual.");
-
-                //No se podra cambiar el tipo de solicitud si ya tiene detalle, para evitar inconsistencias en el workflow y en la validación de fechas y saldos
-                if (soli.IdTipoSolicitud != request.IdTipoSolicitud)
+if (soli.IdTipoSolicitud != request.IdTipoSolicitud)
                     return CommonErrors.Conflict("SolicitudPersonal", "No se puede cambiar el tipo de solicitud, necesita crear una nueva.");
 
                 var idUsuarioSolicitante = soli.IdUsuarioSolicitante ?? soli.IdUsuarioCreador;
 
-                //Obtener empresa, sucursal y area del usuario solicitante
                 var solicitante = await _adminRepository.GetUsuarioDetalleAsync(idUsuarioSolicitante);
                 if (solicitante is null)
                     return CommonErrors.NotFound("Empleado", idUsuarioSolicitante.ToString());
@@ -1309,8 +1260,6 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                     .Where(f => f.Year == mes.Year && f.Month == mes.Month)
                     .ToHashSet();
 
-                // El tope cuenta días con descuento, no incidencias: un día sin checadas
-                // (omisión de entrada y salida) es un solo justificante.
                 var descuentosDeEstaSolicitud = estado.Incidencias
                     .Where(i => !i.Justificada
                         && !estado.FechasOtras.Contains(i.Fecha.Date)
@@ -1394,8 +1343,6 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                     .Where(i => i.Fecha.Date >= mes && i.Fecha.Date <= finMes)
                     .ToList();
 
-                // El tope solo lo consumen solicitudes de categoría Incidencia,
-                // abiertas o cerradas. Vacaciones, permisos y demás no cuentan.
                 var yaCubiertos = incidenciasMes
                     .Where(i => fechasOtras.Contains(i.Fecha.Date))
                     .Count(i => i.IncidenciasCalculadas.Any(c => c.GeneraDescuentoTeorico));
@@ -1451,7 +1398,6 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
         {
             var totalDias = (fechaFin - fechaInicio).Days + 1;
 
-            // Fechas en el rango
             var fechas = Enumerable.Range(0, totalDias)
                 .Select(d => fechaInicio.AddDays(d).Date)
                 .ToList();
@@ -1462,7 +1408,6 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
         private static async Task<List<DateTime>> FiltrarFechasQueConsumenSaldoAsync(
             ApplicationDbContext context, int idEmpresa, List<DateTime> fechas)
         {
-            // Días hábiles con ConsumeSaldo = false para esta empresa
             var diasNoConsumen = await context.DiasHabiles
                 .AsNoTracking()
                 .Where(d => d.Activo && !d.ConsumeSaldo && d.IdEmpresa == idEmpresa && fechas.Contains(d.Fecha))
@@ -1577,12 +1522,7 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                 var (periodoInicio, periodoFin, periodoEtiqueta) = PeriodoHelper.ObtenerPeriodoActual(
                     ahora, PeriodoHelper.Quincena);
 
-                // Cabecera: usar el periodo del primer tipo con límite (cada tipo ya reporta su propio periodo)
-                //var (periodoInicio, periodoFin, periodoEtiqueta) = periodosPorTipo.Count > 0
-                    //? periodosPorTipo[0].Periodo
-                    //: PeriodoHelper.ObtenerPeriodoActual(ahora, PeriodoHelper.Quincena);
-
-                var anioActual = ahora.Year;
+var anioActual = ahora.Year;
                 var saldos = await _context.SaldosVacacionesAnuales
                     .AsNoTracking()
                     .Where(s => s.IdUsuario == idUsuarioObjetivo && s.Anio == anioActual && s.Activo)
@@ -1712,11 +1652,6 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
             }
         }
 
-        /// <summary>
-        /// Incidencias (solicitudes de cualquier categoría) del equipo del usuario cuyo día
-        /// cae en el mes indicado. Se cuentan por el día de la incidencia (no por el de la
-        /// firma) y se excluyen las canceladas y rechazadas.
-        /// </summary>
         public async Task<ErrorOr<AutorizacionesIncidenciasResponse>> ObtenerAutorizacionesIncidenciasAsync(
             int idUsuario, int anio, int mes)
         {
@@ -1768,7 +1703,6 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                 if (solicitudes.Count == 0)
                     return respuesta;
 
-                // Día en que yo firmé cada solicitud (si la firmé), para mostrarlo en el detalle.
                 var idsSolicitudes = solicitudes.Select(s => s.IdSolicitud).ToList();
                 var misFirmas = await (
                     from b in _context.WorkflowBitacoras.AsNoTracking()

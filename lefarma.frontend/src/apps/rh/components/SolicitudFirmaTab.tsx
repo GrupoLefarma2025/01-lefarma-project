@@ -20,7 +20,6 @@ interface SolicitudFirmaTabProps {
   onAccionClick: (accion: AccionDisponibleResponse) => void;
   isSubmittingFirma?: boolean;
   hasFirma?: boolean;
-  /** La firma del usuario está en comprobación por RH: CERRAR queda bloqueado. */
   firmaEnComprobacion?: boolean;
 }
 

@@ -5,16 +5,6 @@ import { PERMISO_AJUSTAR } from '../../types/aprobaciones.types';
 import type { SolicitudBandeja } from '../../types/aprobaciones.types';
 import type { Solicitud, SolicitudOpcion } from '../../types/solicitud.types';
 
-/**
- * Cableado de la ruta `/viaticos/aprobaciones`: lo que se monta es el host con
- * el visor real, no la bandeja con el Dialog placeholder. Estos tests fijan las
- * dos consecuencias de ese cableado:
- *
- * 1. "Ver opciones" abre el visor que agrupa las no elegidas, no el placeholder.
- * 2. El editor de ajustes se monta dentro del detalle y solo con
- *    `viaticos.ajustar`.
- */
-
 const mocks = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn() }));
 const permisos = vi.hoisted(() => ({ codigos: [] as string[] }));
 
@@ -51,7 +41,6 @@ const opcion = (over: Partial<SolicitudOpcion>): SolicitudOpcion => ({
   ...over,
 });
 
-/** 2 elegidas (1200 + 2600) y 2 descartadas (1450, 1800). */
 const OPCIONES: SolicitudOpcion[] = [
   opcion({ id_opcion: 1, linea: 'Viva Aerobus CDMX-GDL', precio: 1200, fue_elegida: true }),
   opcion({ id_opcion: 2, tipo: 'hotel', linea: 'Hotelrys Guadalajara', precio: 2600, fue_elegida: true }),
@@ -75,11 +64,9 @@ const detalle = (estado = 'enviada'): Solicitud => ({
 
 const ok = (data: unknown) => ({ data: { success: true, message: 'ok', data } });
 
-/** El GET depende de la URL: bandeja (listado) vs detalle (por id). */
 const getPorUrl = (solicitud: Solicitud) =>
   mocks.get.mockImplementation((url: string) =>
     Promise.resolve(
-      // La bandeja es la collection; el detalle va por id.
       /\/viaticos\/solicitudes\/?(\?|$)/.test(url) ? ok([BANDEJA]) : ok(solicitud),
     ),
   );
@@ -106,7 +93,6 @@ describe('BandejaAprobacionesConDetalle', () => {
 
     await verOpciones();
 
-    // El modal real: titulo del visor y sus dos secciones.
     const dialogo = await screen.findByRole('dialog');
     expect(within(dialogo).getByText('Opciones de la solicitud 101')).toBeDefined();
     expect(within(dialogo).getByTestId('total-elegidas').textContent).toBe('$3,800.00');
@@ -117,7 +103,6 @@ describe('BandejaAprobacionesConDetalle', () => {
       'opcion-3',
       'opcion-4',
     ]);
-    // Las elegidas quedan en su propia sección, fuera de la de descartadas.
     expect(within(seccion).queryByTestId('opcion-1')).toBeNull();
     expect(
       within(
@@ -135,11 +120,9 @@ describe('BandejaAprobacionesConDetalle', () => {
     await verOpciones();
 
     const dialogo = await screen.findByRole('dialog');
-    // El editor es el que ofrece las cuatro acciones de ajuste.
     await waitFor(() =>
       expect(within(dialogo).getByRole('button', { name: 'Agregar una partida' })).toBeDefined(),
     );
-    // Un boton por partida elegida (vuelo y hospedaje).
     expect(within(dialogo).getAllByRole('button', { name: /Editar el precio de/ })).toHaveLength(2);
     expect(within(dialogo).getByRole('button', { name: /Cambiar el vuelo a Volaris/ })).toBeDefined();
   });
@@ -152,7 +135,6 @@ describe('BandejaAprobacionesConDetalle', () => {
 
     await verOpciones();
 
-    // El visor normal sigue completo; lo que no aparece es el editor.
     const dialogo = await screen.findByRole('dialog');
     await waitFor(() => expect(within(dialogo).getByTestId('total-elegidas')).toBeDefined());
     expect(screen.queryByRole('button', { name: 'Agregar una partida' })).toBeNull();
@@ -161,12 +143,6 @@ describe('BandejaAprobacionesConDetalle', () => {
   });
 });
 
-/**
- * Cableado del concentrado FOR-008, que hasta ahora era un componente huerfano:
- * se abre desde la bandeja y solo imprime las solicitudes autorizadas. El
- * concentrado consulta su propia bandeja (autorizadas del periodo), asi que el
- * mock de la collection devuelve este universo mixto.
- */
 const BANDEJA_CONCENTRADO: SolicitudBandeja[] = [
   {
     ...BANDEJA,
@@ -188,7 +164,6 @@ const BANDEJA_CONCENTRADO: SolicitudBandeja[] = [
   { ...BANDEJA, id_solicitud: 203, nombre_solicitante: 'Caro Enviada', estado: 'enviada', total: 999 },
 ];
 
-/** La collection alimenta tanto la lista como el concentrado; el detalle va por id. */
 const getConBandeja = (bandeja: SolicitudBandeja[]) =>
   mocks.get.mockImplementation((url: string) =>
     Promise.resolve(
@@ -201,7 +176,6 @@ const abrirConcentrado = async () => {
   return screen.findByRole('dialog', { name: 'Concentrado de viáticos' });
 };
 
-/** La tabla de datos del concentrado, no la de la bandeja ni el encabezado. */
 const tablaConcentrado = (): HTMLElement | null =>
   document.querySelector('[aria-label="Concentrado de viáticos autorizados"]');
 
@@ -218,7 +192,6 @@ describe('BandejaAprobacionesConDetalle — concentrado FOR-008', () => {
     expect(within(cuerpo).getAllByRole('row')).toHaveLength(2);
     expect(within(cuerpo).getByText('Ana Autorizada')).toBeDefined();
     expect(within(cuerpo).getByText('Beto Ajustes')).toBeDefined();
-    // La enviada vive en la lista, pero no entra al concentrado.
     expect(tabla).not.toHaveTextContent('Caro Enviada');
   });
 
@@ -232,28 +205,24 @@ describe('BandejaAprobacionesConDetalle — concentrado FOR-008', () => {
     const tabla = tablaConcentrado()!;
     const filas = within(tabla.querySelector('tbody')!).getAllByRole('row');
 
-    // Columnas: No., Solicitante, Fecha, Origen, Destino | 8 conceptos (13 hojas).
     const primera = within(filas[0]).getAllByRole('cell');
     expect(primera).toHaveLength(13);
-    // El encabezado del FOR-008 que manda el servidor se imprime, no "—".
     expect(primera[2]).toHaveTextContent('05/10/2026 AL 09/10/2026');
     expect(primera[3]).toHaveTextContent('CDMX');
-    // El desglose real por concepto, tal cual llega del servidor.
-    expect(primera[5]).toHaveTextContent('$600.00'); // Autobus
-    expect(primera[6]).toHaveTextContent('—'); // Avion null: celda vacia
-    expect(primera[7]).toHaveTextContent('—'); // Gasolina null
-    expect(primera[8]).toHaveTextContent('—'); // Casetas null
-    expect(primera[9]).toHaveTextContent('—'); // Hospedaje null
-    expect(primera[10]).toHaveTextContent('$450.00'); // Comida
-    expect(primera[11]).toHaveTextContent('$184.50'); // Taxi
-    expect(primera[12]).toHaveTextContent('$1,234.50'); // Total del viaje
+    expect(primera[5]).toHaveTextContent('$600.00'); 
+    expect(primera[6]).toHaveTextContent('—'); 
+    expect(primera[7]).toHaveTextContent('—'); 
+    expect(primera[8]).toHaveTextContent('—'); 
+    expect(primera[9]).toHaveTextContent('—'); 
+    expect(primera[10]).toHaveTextContent('$450.00'); 
+    expect(primera[11]).toHaveTextContent('$184.50'); 
+    expect(primera[12]).toHaveTextContent('$1,234.50'); 
 
-    // Un concepto null es celda vacia: cero dinero inventado.
     expect(tabla).not.toHaveTextContent('$0.00');
     expect(tabla).toHaveTextContent('—');
 
     const totales = within(tabla.querySelector('tfoot tr')!).getAllByRole('cell');
-    expect(totales[8]).toHaveTextContent('$1,734.50'); // 1,234.50 + 500.00
+    expect(totales[8]).toHaveTextContent('$1,734.50'); 
   });
 
   it('sin autorizadas en el periodo lo dice y no imprime una tabla vacía', async () => {

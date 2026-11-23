@@ -26,25 +26,14 @@ interface ResumenRutaModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   puntos: PuntoRutaResumen[];
-  /** Trazado completo de la ruta, tramo por tramo (taxi / vuelo / carretera). */
   segmentos: SegmentoRuta[];
-  /** Paradas de la ruta en orden, con su detalle (llegada, transporte, hora). */
   nodos: NodoRutaTimeline[];
   onEnviar: () => void;
   enviando: boolean;
-  /** Etiqueta del botón de confirmación (enviar o autorizar). */
   textoAccion?: string;
   textoEnviando?: string;
 }
 
-/**
- * Resumen reconstruido de la ruta: muestra en el mapa la cadena completa
- * (origen → terminal → vuelo o autobús → terminal → hotel o punto → regreso)
- * y permite enviar la solicitud al concentrado.
- *
- * El mapa es de SOLO LECTURA: se puede mover y hacer zoom para revisar el
- * trayecto, pero los puntos no se arrastran ni se editan.
- */
 export function ResumenRutaModal({
   open,
   onOpenChange,

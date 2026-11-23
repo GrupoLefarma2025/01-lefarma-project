@@ -807,7 +807,6 @@ public class SeleccionMensualServiceTests
         repo.Regiones.Add(new SeleccionRegion { IdSeleccionMensual = seleccion.IdSeleccionMensual, IdRegion = 1, IdEquipo = EquipoId });
         var service = CreateService(repo, workflow: workflow);
 
-        // El resolver (mock) rutea por scope TIPO_GERENCIA: 2 => workflow Descentralizado
         await service.EnviarRevisionAsync(seleccion.IdSeleccionMensual, idUsuario: 99);
         seleccion.IdWorkflow.Should().Be(workflow.WfSeleccionDesc.IdWorkflow);
         seleccion.IdPasoActual.Should().Be(workflow.PasosSeleccionDesc["Gg"]);
@@ -1449,15 +1448,12 @@ public class SeleccionMensualServiceTests
     [Fact]
     public void CapacidadPeriodo_Debe_Calcular_Sobre_DiasLaborales()
     {
-        // 2026-08-03 es lunes; 3 y 4 de agosto = 2 dias laborales -> min(8, 2x3) = 6
         CapacidadPeriodo.Calcular(new DateOnly(2026, 8, 3), new DateOnly(2026, 8, 4), 3, 8)
             .Should().Be(6);
 
-        // Semana completa (lunes a domingo) -> min(8, 5x3) = 8
         CapacidadPeriodo.Calcular(new DateOnly(2026, 8, 3), new DateOnly(2026, 8, 9), 3, 8)
             .Should().Be(8);
 
-        // Rango invalido
         CapacidadPeriodo.Calcular(new DateOnly(2026, 8, 9), new DateOnly(2026, 8, 3), 3, 8)
             .Should().Be(0);
     }
@@ -1532,7 +1528,6 @@ public class SeleccionMensualServiceTests
         AgregarSeleccion(repo, 1, 1, VigenciaInicio, VigenciaFin);
         AgregarSeleccion(repo, 2, 2, VigenciaInicio, VigenciaFin);
         var propio = AgregarHospital(repo, 10, 1, 100, 25.67m, -100.31m);
-        // ~2 km al noreste del hospital propio
         AgregarHospital(repo, 20, 2, 200, 25.68m, -100.30m, entidadFederativa: "25", ciudadMunicipio: "Otra");
 
         var service = CrearServicioCercanos(repo);
@@ -1558,7 +1553,6 @@ public class SeleccionMensualServiceTests
         AgregarSeleccion(repo, 1, 1, VigenciaInicio, VigenciaFin);
         AgregarSeleccion(repo, 2, 2, VigenciaInicio, VigenciaFin);
         AgregarHospital(repo, 10, 1, 100, 25.67m, -100.31m, entidadFederativa: "19", ciudadMunicipio: "Monterrey");
-        // ~700 km al sureste (CDMX): fuera del radio, mismo estado
         AgregarHospital(repo, 20, 2, 200, 19.43m, -99.13m, entidadFederativa: "19", ciudadMunicipio: "CDMX");
 
         var service = CrearServicioCercanos(repo);
@@ -1576,9 +1570,7 @@ public class SeleccionMensualServiceTests
     {
         var repo = new FakeSeleccionRepository();
         AgregarSeleccion(repo, 1, 1, VigenciaInicio, VigenciaFin);
-        // Solapada pero CERRADA
         AgregarSeleccion(repo, 2, 2, VigenciaInicio, VigenciaFin, estado: SeleccionMensual.EstadoCerrada);
-        // Activa y solapada pero MISMA gerencia
         AgregarSeleccion(repo, 3, 1, VigenciaInicio, VigenciaFin);
         AgregarHospital(repo, 10, 1, 100, 25.67m, -100.31m);
         AgregarHospital(repo, 20, 2, 200, 25.68m, -100.30m);
@@ -1596,7 +1588,6 @@ public class SeleccionMensualServiceTests
     {
         var repo = new FakeSeleccionRepository();
         AgregarSeleccion(repo, 1, 1, VigenciaInicio, VigenciaFin);
-        // Otra gerencia pero sin solape (vigencia posterior)
         AgregarSeleccion(repo, 2, 2, new DateOnly(2026, 11, 1), new DateOnly(2026, 12, 15));
         AgregarHospital(repo, 10, 1, 100, 25.67m, -100.31m);
         AgregarHospital(repo, 20, 2, 200, 25.68m, -100.30m);
@@ -1617,7 +1608,6 @@ public class SeleccionMensualServiceTests
         AgregarSeleccion(repo, 3, 3, VigenciaInicio, VigenciaFin);
         var propioCercano = AgregarHospital(repo, 10, 1, 100, 25.67m, -100.31m);
         AgregarHospital(repo, 11, 1, 101, 20.67m, -103.35m);
-        // Mismo hospital fisico (200) en dos selecciones ajenas: ~2 km y ~380 km
         AgregarHospital(repo, 20, 2, 200, 25.68m, -100.30m);
         AgregarHospital(repo, 30, 3, 200, 20.68m, -103.34m);
 
@@ -1640,7 +1630,6 @@ public class SeleccionMensualServiceTests
         AgregarSeleccion(repo, 1, 1, VigenciaInicio, VigenciaFin);
         AgregarSeleccion(repo, 2, 2, VigenciaInicio, VigenciaFin);
         AgregarHospital(repo, 10, 1, 100, 25.67m, -100.31m);
-        // El hospital 100 tambien aparece en la seleccion ajena: no debe listarse
         AgregarHospital(repo, 20, 2, 100, 25.68m, -100.30m);
         AgregarHospital(repo, 21, 2, 201, 25.69m, -100.29m);
 

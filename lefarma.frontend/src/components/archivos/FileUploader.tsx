@@ -6,7 +6,6 @@ import { toast } from 'sonner';
 import { FileViewer } from './FileViewer';
 import { usePermission } from '@/hooks/usePermission';
 
-
 interface FileUploaderProps {
   entidadTipo: string;
   entidadId: number;
@@ -22,7 +21,6 @@ interface FileUploaderProps {
   textoErrorTamano?: string;
   textoErrorCantidad?: string;
   open: boolean;
-  /** Renderiza en línea (sin overlay, sin barra de título) — para embeber dentro de un modal existente */
   inline?: boolean;
   onUploadComplete: (archivos: Archivo[]) => void;
   onError?: (error: string) => void;
@@ -62,7 +60,6 @@ export function FileUploader({
   const inputRef = useRef<HTMLInputElement>(null);
   const puedeSubir = usePermission({ require: 'documentos.subir' });
 
-  // Generar/revocar objectURLs para thumbnails de imágenes
   useEffect(() => {
     const IMAGE_EXTS = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.svg'];
     const urls: Record<number, string> = {};
@@ -167,7 +164,6 @@ export function FileUploader({
       toast.success(`${uploadedArchivos.length} archivo(s) subido(s)`);
       onUploadComplete(uploadedArchivos);
       setFiles([]);
-      // Limpiar el input nativo para permitir re-seleccionar archivos
       if (inputRef.current) inputRef.current.value = '';
     }
   };
@@ -184,10 +180,9 @@ export function FileUploader({
 
   if (!open || !puedeSubir) return null;
 
-  /** Contenido reutilizable en ambos modos */
   const content = (
     <>
-      {/* Drop zone */}
+      {}
       <div
         className={`
           border-2 border-dashed rounded-lg p-6 text-center cursor-pointer
@@ -215,7 +210,7 @@ export function FileUploader({
         />
       </div>
 
-      {/* Errors */}
+      {}
       {errors.length > 0 && (
         <div className="mt-3 p-3 bg-red-50 dark:bg-red-950/20 rounded-lg">
           {errors.map((error, i) => (
@@ -227,7 +222,7 @@ export function FileUploader({
         </div>
       )}
 
-      {/* File list */}
+      {}
       {files.length > 0 && (
         <div className="mt-3 space-y-2">
           {files.map((file, i) => {
@@ -238,7 +233,7 @@ export function FileUploader({
             const isText = ['.txt', '.csv', '.xml', '.json', '.log'].includes(ext);
             return (
               <div key={i} className="flex items-center gap-3 p-2 bg-muted/50 border border-border rounded-lg">
-                {/* Thumbnail / badge */}
+                {}
                 {isImage ? (
                   <img
                     src={imagePreviews[i]}
@@ -257,12 +252,12 @@ export function FileUploader({
                      <ImageIcon className="w-5 h-5" />}
                   </div>
                 )}
-                {/* Información */}
+                {}
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium truncate">{file.name}</p>
                   <p className="text-xs text-muted-foreground">{formatSize(file.size)}</p>
                 </div>
-                {/* Actions */}
+                {}
                 <button
                   type="button"
                   onClick={(e) => { e.stopPropagation(); setViewerFile(file); }}
@@ -285,14 +280,14 @@ export function FileUploader({
         </div>
       )}
 
-      {/* FileViewer para preview local */}
+      {}
       <FileViewer
         localFile={viewerFile}
         open={viewerFile !== null}
         onClose={() => setViewerFile(null)}
       />
 
-      {/* Acciones del pie */}
+      {}
       <div className={`flex justify-end gap-2 ${inline ? 'mt-3' : 'mt-4 pt-4 border-t'}`}>
         {!inline && (
           <button
@@ -316,16 +311,14 @@ export function FileUploader({
     </>
   );
 
-  // Modo inline: renderiza el contenido directamente (dentro de un modal existente)
   if (inline) {
     return <div className="space-y-1">{content}</div>;
   }
 
-  // Modo diálogo: renderiza con su propio overlay
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50">
       <div className="bg-white dark:bg-zinc-900 rounded-lg shadow-xl w-full max-w-lg mx-4">
-        {/* Encabezado */}
+        {}
         <div className="flex items-center justify-between p-4 border-b dark:border-zinc-700">
           <h2 className="text-lg font-semibold">{titulo}</h2>
           <button

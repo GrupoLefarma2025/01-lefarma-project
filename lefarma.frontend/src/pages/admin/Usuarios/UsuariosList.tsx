@@ -15,8 +15,6 @@ import {
   Key,
   X,
   Plus,
-  /* Users, */ // @typescript-eslint/no-unused-vars
-  /* UserCog, */ // @typescript-eslint/no-unused-vars
   ChevronDown,
   ChevronUp,
 } from 'lucide-react';
@@ -221,7 +219,6 @@ export default function UsuariosList() {
   const [isSaving, setIsSaving] = useState(false);
   const [search, setSearch] = useState('');
   
-  // Catálogos
   const [roles, setRoles] = useState<Rol[]>([]);
   const [permisos, setPermisos] = useState<Permiso[]>([]);
   const [empresas, setEmpresas] = useState<Empresa[]>([]);
@@ -316,7 +313,6 @@ export default function UsuariosList() {
       if (rSucursales.data.success) setSucursales(rSucursales.data.data);
       if (rAreas.data.success) setAreas(rAreas.data.data);
     } catch {
-      // Silencioso: los catálogos se cargan bajo demanda
     }
   };
 
@@ -472,8 +468,6 @@ export default function UsuariosList() {
       header: 'Organización',
       cell: ({ row }) => {
         const empresa = empresas.find(e => e.idEmpresa === row.original.detalle?.idEmpresa);
-        // El área (departamento) oficial viene de Asistencias.dbo.vwEmpleados; el
-        // catálogo de áreas de CxP solo se usa como respaldo.
         const areaCatalogo = areas.find(a => a.idArea === row.original.detalle?.idArea);
         const area = row.original.areaEmpleado?.trim() || areaCatalogo?.nombre;
         return (
@@ -495,8 +489,6 @@ export default function UsuariosList() {
       },
     },
     {
-      // El puesto oficial del empleado (Asistencias.dbo.vwEmpleados) sustituye al
-      // rol en el listado: los roles se siguen asignando desde el modal de edición.
       id: 'puesto',
       header: 'Puesto',
       cell: ({ row }) => (
@@ -986,7 +978,7 @@ export default function UsuariosList() {
         </Form>
       </Modal>
 
-      {/* Modal para agregar roles */}
+      {}
       <Modal
         id="modal-roles"
         open={isRolesModalOpen}

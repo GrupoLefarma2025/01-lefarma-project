@@ -96,7 +96,6 @@ describe('ensureConfig', () => {
 
     const first = ensureConfig(['x']);
 
-    // Deja correr el microtask que lanza el lote.
     await Promise.resolve();
 
     const second = ensureConfig(['x']);

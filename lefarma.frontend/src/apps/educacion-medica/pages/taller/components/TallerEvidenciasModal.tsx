@@ -33,12 +33,10 @@ interface TallerEvidenciasModalProps {
   open: boolean;
   onClose: () => void;
   taller: Taller | null;
-  /** EV/EP del equipo (evidencias.puede_gestionar); solo con el taller En curso. */
   puedeGestionar: boolean;
   onChanged: () => void;
 }
 
-/** Evidencias del taller (fotos/video/documentos): se capturan desde En curso (ADR-00008). */
 export function TallerEvidenciasModal({
   open,
   onClose,

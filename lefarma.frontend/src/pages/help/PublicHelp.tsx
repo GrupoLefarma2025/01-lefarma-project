@@ -31,7 +31,7 @@ export default function PublicHelp() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Encabezado */}
+      {}
       <header className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-md border-b border-border/50">
         <div className="container mx-auto px-4 py-4 flex justify-between items-center">
           <div className="flex items-center gap-3">
@@ -44,11 +44,11 @@ export default function PublicHelp() {
         </div>
       </header>
 
-      {/* Content */}
+      {}
       <main className="pt-24 pb-16">
         <div className="container mx-auto px-4">
           <div className="max-w-3xl mx-auto">
-            {/* Title */}
+            {}
             <div className="text-center mb-10">
               <h1 className="text-3xl font-bold text-foreground mb-3">
                 Centro de Ayuda
@@ -58,7 +58,7 @@ export default function PublicHelp() {
               </p>
             </div>
 
-            {/* FAQ Cards */}
+            {}
             <div className="space-y-4 mb-10">
               {faqItems.map((item, index) => {
                 const Icon = item.icon;
@@ -84,7 +84,7 @@ export default function PublicHelp() {
               })}
             </div>
 
-            {/* Login CTA */}
+            {}
             <Card className="bg-primary/5 border-primary/20">
               <CardContent className="p-6 text-center">
                 <h2 className="text-lg font-semibold text-foreground mb-2">
@@ -100,7 +100,7 @@ export default function PublicHelp() {
               </CardContent>
             </Card>
 
-            {/* Contact */}
+            {}
             <div className="mt-8 text-center">
               <p className="text-sm text-muted-foreground">
                 ¿Necesitás ayuda adicional?{' '}
@@ -116,7 +116,7 @@ export default function PublicHelp() {
         </div>
       </main>
 
-      {/* Pie */}
+      {}
       <footer className="border-t border-border py-6">
         <div className="container mx-auto px-4 text-center">
           <p className="text-sm text-muted-foreground">

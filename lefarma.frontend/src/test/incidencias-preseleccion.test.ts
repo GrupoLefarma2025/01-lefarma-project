@@ -42,7 +42,6 @@ function tipo(
   };
 }
 
-// Mismo catálogo de rh.tipo_solicitud en Dev y Productivo.
 const CATALOGO: TipoSolicitudResponse[] = [
   tipo(2, 'OMISION_CHECADO_SALIDA', 'Omisión de checado salida', '1'),
   tipo(3, 'RETARDO_MENOR_20', 'Retardo menor a 20 minutos', '1'),

@@ -89,7 +89,6 @@ public class IncidenciaChecadoConfigServiceTests
 
         await service.EnriquecerDescuentosAsync(items);
 
-        // 4 justificados: los 3 restantes (5, 6 y 7) generan 1 descuento, en el 3.º (día 7)
         items.Where(i => i.Descuento).Select(i => i.Fecha.Day).Should().Equal(7);
 
         var dia3 = items.Single(i => i.Fecha.Day == 3);
@@ -173,8 +172,6 @@ public class IncidenciaChecadoConfigServiceTests
 
         await service.EnriquecerDescuentosAsync(new List<IncidenciaChecadoResponse> { dia23 });
 
-        // 18:10:57 contra horario 18:30:00 son 20 minutos de reloj (DATEDIFF MINUTE).
-        // Antes el calendario truncaba la diferencia a 19 y no la mostraba.
         dia23.IncidenciasCalculadas.Should().ContainSingle()
             .Which.TipoIncidencia.Should().Be("SALIDA_ANTICIPADA");
         dia23.Descuento.Should().BeTrue();
@@ -201,9 +198,9 @@ public class IncidenciaChecadoConfigServiceTests
 
         var dias = new[]
         {
-            (Fecha: new DateTime(2026, 10, 23), Salio: new TimeSpan(18, 10, 57)), // 20 min de reloj
-            (Fecha: new DateTime(2026, 10, 24), Salio: new TimeSpan(18, 11, 0)),  // 19 min
-            (Fecha: new DateTime(2026, 10, 27), Salio: new TimeSpan(18, 0, 0)),   // 30 min
+            (Fecha: new DateTime(2026, 10, 23), Salio: new TimeSpan(18, 10, 57)), 
+            (Fecha: new DateTime(2026, 10, 24), Salio: new TimeSpan(18, 11, 0)),  
+            (Fecha: new DateTime(2026, 10, 27), Salio: new TimeSpan(18, 0, 0)),   
         };
 
         var calendario = dias.Select(d => SalidaAnticipada(d.Fecha, d.Salio)).ToList();

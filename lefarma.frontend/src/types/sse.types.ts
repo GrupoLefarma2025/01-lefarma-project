@@ -1,7 +1,6 @@
 ﻿export type SseEventType = 'connected' | 'user.updated' | 'configuracion.changed';
 export type UpdateType = 'profile' | 'permissions';
 
-
 export interface SseConnectedEvent {
   timestamp: string;
 }
@@ -21,10 +20,6 @@ export interface SseUserUpdatedEvent {
   user: SseUserInfo;
 }
 
-/**
- * El backend notifica que la configuración de frontend cambió. El evento NO
- * trae valores: solo la nueva revisión global; el cliente hace `sync`.
- */
 export interface SseConfiguracionChangedEvent {
   revision: number;
 }

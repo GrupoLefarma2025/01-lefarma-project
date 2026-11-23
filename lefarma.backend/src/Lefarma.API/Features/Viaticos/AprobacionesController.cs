@@ -17,19 +17,6 @@ using Swashbuckle.AspNetCore.Annotations;
 
 namespace Lefarma.API.Features.Viaticos;
 
-/// <summary>
-/// Endpoints de la bandeja de aprobacion de solicitudes de viaticos
-/// (autorizar / rechazar / ajustar). El resto del ciclo de vida del
-/// wizard vive en <c>SolicitudesController</c>; este controller solo
-/// expone las acciones del admin sobre solicitudes que ya estan en
-/// estado <c>enviada</c> o <c>autorizada</c>.
-///
-/// Acceso a datos: todo va por LINQ de EF Core (igual que
-/// <c>SolicitudesController</c>), no por SQL crudo. Cada endpoint
-/// muta y persiste con un unico <c>SaveChangesAsync</c>, que el
-/// proveedor relacional envuelve en una transaccion implicita: la
-/// escritura y su evento quedan atomicos sin BEGIN/COMMIT explicito.
-/// </summary>
 [ApiController]
 [Route("api/viaticos")]
 [EndpointGroupName("Viaticos")]
@@ -66,9 +53,6 @@ public class AprobacionesController : ControllerBase
         [FromQuery] string? gerencia,
         CancellationToken ct)
     {
-        // La bandeja es la pantalla donde se autoriza: sin el permiso no se
-        // expone. Antes se recortaba a las solicitudes propias, pero eso
-        // dejaba la pantalla abierta a cualquiera por URL.
         if (!User.TienePermiso(Permissions.Viaticos.Autorizar))
         {
             return StatusCode(403, new ApiResponse<object>
@@ -115,15 +99,6 @@ public class AprobacionesController : ControllerBase
             })
             .ToListAsync(ct);
 
-        // Total de respaldo para la columna "Costo del viaje": las solicitudes
-        // creadas por el wizard guardan el precio en solicitud_opciones (la
-        // opcion elegida), no en datos_json.$.total. Sin este respaldo el
-        // concentrado imprime "—" aunque el viaje ya tenga precio. Un query
-        // extra por pagina, igual que el directorio: nunca uno por fila.
-        //
-        // El mismo query trae el tipo de cada opcion elegida: es lo que
-        // resuelve "Transporte" (vuelo/autobus/auto) para las solicitudes del
-        // wizard, que tampoco escriben $.avion ni $.autobus en el snapshot.
         var idsSolicitudes = filas.Select(f => f.IdSolicitud).ToList();
         var opcionesElegidas = await _context.SolicitudOpciones
             .AsNoTracking()
@@ -153,15 +128,6 @@ public class AprobacionesController : ControllerBase
                 g => TotalesCotizacion.Calcular(
                     g.Select(o => (o.Precio, o.DatosJson, o.Fuente))));
 
-        // Un solo query extra al directorio para resolver los nombres de
-        // todos los solicitantes de la pagina (evita N+1). Se filtra por
-        // EsActivo: un usuario dado de baja no debe exponer su nombre en la
-        // bandeja del admin; en ese caso cae al fallback "Usuario #{id}".
-        //
-        // El directorio NO vive en la BD de Lefarma: `app.Usuarios` esta en la
-        // BD Asokam (igual que en SolicitudesController). Consultarlo con
-        // ApplicationDbContext revienta con "Invalid object name 'app.Usuarios'"
-        // y la bandeja entera responde 500.
         var idsSolicitantes = filas
             .Select(f => f.IdUsuarioSolicitante)
             .Distinct()
@@ -173,15 +139,6 @@ public class AprobacionesController : ControllerBase
             .Select(u => new { u.IdUsuario, u.NombreCompleto })
             .ToDictionaryAsync(u => u.IdUsuario, u => u.NombreCompleto, ct);
 
-        // Puesto y fecha de nacimiento para el formato "Solicitud de avión":
-        // son datos de personal (Asistencias.vwEmpleados), no del snapshot. Se
-        // resuelven en lote para toda la pagina; si el empleado no aparece
-        // (o la persona que viaja no es el solicitante) el documento imprime
-        // "—". Una sola llamada, nunca una por fila.
-        //
-        // Asistencias vive en otro servidor: un dato que solo sirve para
-        // imprimir no puede tumbar la bandeja, asi que un fallo degrada a
-        // "—" y se registra en el log.
         var empleados = new Dictionary<int, VwEmpleado>();
         try
         {
@@ -196,16 +153,10 @@ public class AprobacionesController : ControllerBase
                 "No se pudieron resolver los empleados del directorio de asistencias para la bandeja de viaticos.");
         }
 
-        // El snapshot se parsea UNA vez por fila; cada clave se lee con el
-        // mismo lector tolerante (null si falta, no es numerica o el JSON
-        // no parsea).
         var datosPorSolicitud = filas.ToDictionary(
             f => f.IdSolicitud,
             f => ParsearDatosJson(f.DatosJson));
 
-        // La gerencia que se agrupa en el concentrado: la de la solicitud y,
-        // si nace en "Sin asignar", la ultima que registro la persona que
-        // viaja. Se resuelve en un solo query para no hacer N+1.
         var idViajeroPorSolicitud = filas.ToDictionary(
             f => f.IdSolicitud,
             f => LeerIdViajero(datosPorSolicitud[f.IdSolicitud], f.IdUsuarioSolicitante));
@@ -230,8 +181,6 @@ public class AprobacionesController : ControllerBase
             var totales = TotalesCotizacion.LeerDeDatos(datos);
             var (fechaSalida, fechaRegreso) = LeerRangoViajeDesdeJson(datos);
             var persona = LeerObjeto(datos, "persona");
-            // El puesto y la fecha de nacimiento son del empleado SOLICITANTE:
-            // solo se imprimen cuando la persona que viaja es el/ella misma.
             var empleado = EsPersonaMia(datos)
                            && empleados.TryGetValue(f.IdUsuarioSolicitante, out var empleadoSolicitante)
                 ? empleadoSolicitante
@@ -264,10 +213,6 @@ public class AprobacionesController : ControllerBase
                 Hospedaje = LeerConcepto(datos, "hospedaje"),
                 Comida = LeerConcepto(datos, "comida"),
                 Taxi = LeerConcepto(datos, "taxi"),
-                // El total del snapshot manda (ruta autorizada o cotizacion
-                // importada); si no existe, se usa el de las opciones elegidas.
-                // El desglose permite que la UI no presente una referencia
-                // estimada como si fuera precio cotizado.
                 Total = LeerTotalDesdeJson(datos)
                     ?? totales.Total
                     ?? totalPorOpciones.GetValueOrDefault(f.IdSolicitud),
@@ -351,8 +296,6 @@ public class AprobacionesController : ControllerBase
         var idUsuario = User.GetUserId();
         var ahora = DateTime.UtcNow;
 
-        // La ruta nueva (si la hay) se valida antes de mover el estado: una
-        // cotizacion invalida no debe dejar la solicitud autorizada a medias.
         List<SolicitudOpcion>? nuevasOpciones = null;
         if (body?.Opciones is { } opcionesElement
             && opcionesElement.ValueKind is not (JsonValueKind.Undefined or JsonValueKind.Null))
@@ -370,9 +313,6 @@ public class AprobacionesController : ControllerBase
             nuevasOpciones = opciones;
         }
 
-        // Filtro por estado en el propio Update: si otra peticion movio la
-        // solicitud entre la lectura y aqui, el SaveChanges no afecta filas
-        // y se devuelve 409 en vez de pisar la transicion ajena.
         var solicitud = await _context.Solicitudes
             .Include(s => s.Opciones)
             .FirstOrDefaultAsync(s => s.IdSolicitud == id && s.Estado == "enviada", ct);
@@ -386,9 +326,6 @@ public class AprobacionesController : ControllerBase
             });
         }
 
-        // Un vuelo estimado no se autoriza: el estimado del motor es una
-        // referencia, no el precio de la pagina. El envio a concentrado sigue
-        // permitido (la agencia cotiza); la autorizacion exige el precio real.
         var opcionesParaAutorizar = nuevasOpciones ?? solicitud.Opciones;
         var vuelosPendientes = TotalesCotizacion.VuelosSinPrecioReal(opcionesParaAutorizar);
         if (vuelosPendientes.Count > 0)
@@ -406,10 +343,6 @@ public class AprobacionesController : ControllerBase
 
         if (nuevasOpciones is not null)
         {
-            // La cotizacion que estaba vigente se conserva ANTES de
-            // reemplazarla: el concentrado compara la version original (la del
-            // viajero) contra la recalculada. Solo la primera vez: si ya hay
-            // una referencia original no se pisa con una version intermedia.
             if (solicitud.Opciones.Count > 0
                 && LeerPropiedadSnapshot(solicitud.DatosJson, "opciones_originales") is null)
             {
@@ -426,13 +359,8 @@ public class AprobacionesController : ControllerBase
             _context.SolicitudOpciones.AddRange(nuevasOpciones);
         }
 
-        // La ruta autorizada se conserva aparte: la calculada por el viajero
-        // no se pierde y la pestana "Ruta autorizada" del detalle la muestra.
         var calculoAutorizado = AplicarCalculoAutorizado(solicitud, body?.Calculo);
 
-        // Los totales de la version autorizada se recalculan sobre las opciones
-        // efectivas: el aprobador pudo reemplazar la cotizacion en este mismo
-        // request. El desglose real/referencia debe seguir a esa version.
         var opcionesAutorizadas = nuevasOpciones ?? solicitud.Opciones;
         var totalesAutorizados = TotalesCotizacion.Calcular(opcionesAutorizadas);
         solicitud.DatosJson = TotalesCotizacion.EscribirSplitEnDatos(
@@ -440,8 +368,6 @@ public class AprobacionesController : ControllerBase
             totalesAutorizados.Cotizado,
             totalesAutorizados.Estimado);
 
-        // El desglose del FOR-008 se sella con la ultima version autorizada:
-        // opciones elegidas de ESTA autorizacion + ruta autorizada.
         GuardarResumenAutorizado(solicitud, opcionesAutorizadas, calculoAutorizado);
 
         solicitud.Estado = "autorizada";
@@ -583,8 +509,6 @@ public class AprobacionesController : ControllerBase
             });
         }
 
-        // Un ajuste sin `campo` no dice QUE se cambio: se guardaria una fila
-        // vacia que el historial no puede mostrar. Mismo criterio que el motivo.
         var campo = (body?.Campo ?? string.Empty).Trim();
         if (string.IsNullOrWhiteSpace(campo))
         {
@@ -630,9 +554,6 @@ public class AprobacionesController : ControllerBase
             id_opcion = idOpcion == 0 ? (int?)null : idOpcion
         });
 
-        // valor_anterior se conserva: el INSERT agrega una fila nueva, no
-        // toca ninguna anterior. Si id_opcion = 0 se persiste NULL (ajuste
-        // a un campo del wizard, no a una opcion concreta).
         _context.SolicitudAjustes.Add(new SolicitudAjuste
         {
             IdSolicitud = id,
@@ -645,8 +566,6 @@ public class AprobacionesController : ControllerBase
             FechaCreacion = ahora,
         });
 
-        // Solo cambia el estado si seguimos en 'autorizada'; si ya esta
-        // en 'autorizada_con_ajustes' se queda.
         if (estadoActual == "autorizada")
         {
             var solicitud = await _context.Solicitudes
@@ -670,9 +589,7 @@ public class AprobacionesController : ControllerBase
         });
     }
 
-    // -------- helpers --------
-
-    private async Task<string?> GetEstadoSolicitudAsync(int idSolicitud, CancellationToken ct)
+private async Task<string?> GetEstadoSolicitudAsync(int idSolicitud, CancellationToken ct)
     {
         return await _context.Solicitudes
             .AsNoTracking()
@@ -695,15 +612,7 @@ public class AprobacionesController : ControllerBase
             FechaCreacion = ahora,
         };
 
-    // -------- lectura tolerante del snapshot datos_json --------
-
-    /// <summary>
-    /// Gerencia que se muestra y agrupa: la de la solicitud si ya esta
-    /// clasificada; si no, la ultima gerencia conocida de quien viaja; si
-    /// tampoco hay, el valor por defecto. `Sin asignar` NUNCA se toma como
-    /// una clasificacion valida.
-    /// </summary>
-    private static string ResolverGerenciaEfectiva(
+private static string ResolverGerenciaEfectiva(
         string? gerencia,
         int idViajero,
         IReadOnlyDictionary<int, string> gerenciaPorUsuario)
@@ -723,12 +632,6 @@ public class AprobacionesController : ControllerBase
             : SolicitudesController.GerenciaPorDefecto;
     }
 
-    /// <summary>
-    /// Id de la persona que viaja segun el snapshot: `persona.empleadoId`
-    /// cuando el viaje es para alguien mas; en cualquier otro caso, el
-    /// solicitante. El login es la unica fuente confiable si el snapshot no
-    /// trae la persona.
-    /// </summary>
     private static int LeerIdViajero(JsonElement? snapshot, int idSolicitante)
     {
         if (snapshot is not { } raiz
@@ -747,13 +650,6 @@ public class AprobacionesController : ControllerBase
             : idSolicitante;
     }
 
-    /// <summary>
-    /// Guarda la ruta autorizada dentro del snapshot sin tocar la ruta
-    /// calculada: con un calculo nuevo ese es el autorizado; sin calculo se
-    /// copia el vigente (se autorizo la ruta que eligio la persona viajera).
-    /// Devuelve el calculo que quedo como autorizado (<c>null</c> si no habia
-    /// ninguno) para que el resumen se calcule sobre el mismo.
-    /// </summary>
     private static JsonElement? AplicarCalculoAutorizado(Solicitud solicitud, JsonElement? calculo)
     {
         var autorizado = calculo is { ValueKind: JsonValueKind.Object }
@@ -769,12 +665,6 @@ public class AprobacionesController : ControllerBase
         return null;
     }
 
-    /// <summary>
-    /// Snapshot JSON de las opciones vigentes, en el orden en que se guardaron.
-    /// Es la referencia "original" que el concentrado conserva al autorizar una
-    /// ruta nueva: mismas claves que <c>SolicitudOpcionDto</c> mas
-    /// <c>datos</c> (los metadatos de <c>datos_json</c>, ya parseados).
-    /// </summary>
     private static JsonElement SerializarOpciones(IEnumerable<SolicitudOpcion> opciones)
     {
         var lista = opciones
@@ -797,16 +687,6 @@ public class AprobacionesController : ControllerBase
         return JsonSerializer.SerializeToElement(lista);
     }
 
-    /// <summary>
-    /// Sella en <c>datos.resumen_autorizado</c> el desglose que imprime el
-    /// FOR-008 con las opciones FUE_ELEGIDA de esta autorizacion. Cada precio
-    /// elegido se cuenta una sola vez: un auto nuevo con componentes consistentes
-    /// separa combustible y casetas; autos legados, rentas y metadatos invalidos
-    /// conservan su precio combinado en <c>gasolina</c>. Las casetas SCT de
-    /// <c>calculo.tramos</c> son solo referencia y no se suman al autorizado.
-    /// <c>comida</c> conserva el valor numerico del snapshot y <c>total</c> suma
-    /// los conceptos conocidos. Un concepto sin dato queda <c>null</c>, nunca en 0.
-    /// </summary>
     private static void GuardarResumenAutorizado(
         Solicitud solicitud,
         IEnumerable<SolicitudOpcion> opciones,
@@ -899,13 +779,6 @@ public class AprobacionesController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// Suma los precios de las opciones cuyo <c>tipo</c> esta en
-    /// <paramref name="tipos"/> (sin distinguir mayusculas; el catalogo guarda
-    /// <c>vuelo</c>, <c>autobus</c>, <c>auto</c>, <c>renta</c>, <c>taxi</c>,
-    /// <c>hotel</c> y <c>publico</c>). Si ninguna trae precio numerico devuelve
-    /// <c>null</c>, no 0.
-    /// </summary>
     private static decimal? SumarOpciones(IEnumerable<SolicitudOpcion> opciones, params string[] tipos)
     {
         decimal? total = null;
@@ -928,21 +801,11 @@ public class AprobacionesController : ControllerBase
         return total;
     }
 
-    /// <summary>
-    /// ¿La ruta autorizada se hizo en automovil propio? Es la unica condicion
-    /// bajo la cual las casetas son un costo del viaje (en transporte
-    /// solicitado ya vienen dentro del boleto).
-    /// </summary>
     private static bool EsModoPropio(JsonElement? calculo)
         => calculo is { ValueKind: JsonValueKind.Object } raiz
            && LeerTextoDesdeJson(raiz, "modo_transporte") is { } modo
            && string.Equals(modo, "propio", StringComparison.OrdinalIgnoreCase);
 
-    /// <summary>
-    /// Lee una propiedad del snapshot <c>datos_json</c>. Devuelve <c>null</c>
-    /// cuando el JSON es invalido, la raiz no es objeto o la clave no existe.
-    /// Nunca lanza.
-    /// </summary>
     private static JsonElement? LeerPropiedadSnapshot(string? datosJson, string clave)
     {
         if (string.IsNullOrWhiteSpace(datosJson))
@@ -964,11 +827,6 @@ public class AprobacionesController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// Escribe (o reemplaza) una propiedad del snapshot conservando el resto
-    /// de las claves. Ante un JSON invalido degrada a un objeto con esa sola
-    /// clave: el detalle nunca se queda sin la ruta autorizada.
-    /// </summary>
     private static void EscribirPropiedadSnapshot(Solicitud solicitud, string clave, JsonElement valor)
     {
         try
@@ -999,17 +857,6 @@ public class AprobacionesController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// Parsea <c>solicitudes.datos_json</c> una sola vez por fila. Se lee en
-    /// memoria a proposito: la version anterior usaba
-    /// <c>ISNULL(TRY_CAST(JSON_VALUE(...) AS DECIMAL(18,2)), 0)</c> sobre
-    /// SQL crudo, pero EF Core no traduce <c>JSON_VALUE</c> a una expresion
-    /// LINQ consultable. El filtro y el orden de la bandeja siguen siendo
-    /// 100% traducibles a SQL; solo la proyeccion del snapshot se resuelve en
-    /// el cliente. NO "optimizar" esto de vuelta a SQL crudo.
-    /// Devuelve <c>null</c> —nunca lanza— si el JSON es vacio, invalido o la
-    /// raiz no es un objeto: un snapshot incompleto no rompe la bandeja.
-    /// </summary>
     private static JsonElement? ParsearDatosJson(string? datosJson)
     {
         if (string.IsNullOrWhiteSpace(datosJson))
@@ -1030,12 +877,6 @@ public class AprobacionesController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// Lee una clave numerica del snapshot (<c>$.clave</c>). Devuelve
-    /// <c>null</c> si la clave no existe, no es un numero o el JSON no parseo:
-    /// el concentrado FOR-008 imprime "—" para <c>null</c> y NUNCA un $0.00
-    /// inventado. Lo usan tanto el desglose por concepto como el total.
-    /// </summary>
     private static decimal? LeerDecimal(JsonElement? snapshot, string clave)
     {
         if (snapshot is not { } raiz
@@ -1048,14 +889,6 @@ public class AprobacionesController : ControllerBase
         return elemento.TryGetDecimal(out var valor) ? valor : null;
     }
 
-    /// <summary>
-    /// Concepto del concentrado. Si existe la ultima version autorizada
-    /// (<c>datos.resumen_autorizado</c>), sus claves mandan incluso cuando el
-    /// valor es <c>null</c>: el documento debe reflejar esa version, no un
-    /// importe viejo del snapshot raiz. Solo se cae al snapshot raiz cuando la
-    /// clave no existe en el resumen (o el resumen no existe), como en las
-    /// solicitudes autorizadas antes de esta funcionalidad.
-    /// </summary>
     private static decimal? LeerConcepto(JsonElement? snapshot, string clave)
     {
         if (snapshot is { } raiz
@@ -1072,24 +905,9 @@ public class AprobacionesController : ControllerBase
         return LeerDecimal(snapshot, clave);
     }
 
-    /// <summary>
-    /// Total de la bandeja: <c>$.resumen_autorizado.total</c> si existe; si no,
-    /// <c>$.total</c>. <c>null</c> significa "no se conoce" (la clave no
-    /// existe, no es numerica o el JSON no parsea): el concentrado lo imprime
-    /// como "—" y NUNCA lo coacciona a un $0.00 inventado. Nunca lanza.
-    /// </summary>
     private static decimal? LeerTotalDesdeJson(JsonElement? snapshot)
         => LeerConcepto(snapshot, "total");
 
-    /// <summary>
-    /// Total de respaldo cuando el snapshot no trae <c>$.total</c>: suma los
-    /// precios de las opciones <c>fue_elegida</c> de la solicitud. Es la misma
-    /// regla que aplica el detalle del admin (las opciones descartadas nunca
-    /// suman al total). Devuelve <c>null</c> —nunca 0— cuando ninguna elegida
-    /// trae precio o cuando mezclan monedas: una sola cifra en dos monedas
-    /// seria una mentira. Un precio sin moneda se asume MXN, igual que el
-    /// frontend (<c>totalDeOpcionesElegidas</c>).
-    /// </summary>
     private static decimal? TotalDeOpcionesElegidas(IEnumerable<(decimal? Precio, string? Moneda)> opciones)
     {
         var conPrecio = opciones.Where(o => o.Precio.HasValue).ToList();
@@ -1110,14 +928,6 @@ public class AprobacionesController : ControllerBase
         return conPrecio.Sum(o => o.Precio!.Value);
     }
 
-    /// <summary>
-    /// Extrae una clave de texto del snapshot <c>solicitudes.datos_json</c>
-    /// (<c>$.destino</c>, <c>$.origen</c>, <c>$.fecha_salida</c>, ...). Es el
-    /// unico lector de strings del snapshot: lo comparten el destino, el origen
-    /// y las fechas del viaje. Devuelve <c>null</c> —nunca lanza— si el JSON es
-    /// vacio, invalido, no es un objeto o la clave no es un string no vacio: la
-    /// bandeja no se rompe por un snapshot incompleto.
-    /// </summary>
     private static string? LeerTextoDesdeJson(JsonElement? snapshot, string clave)
     {
         if (snapshot is not { } raiz
@@ -1131,15 +941,6 @@ public class AprobacionesController : ControllerBase
         return string.IsNullOrWhiteSpace(valor) ? null : valor;
     }
 
-    /// <summary>
-    /// <summary>
-    /// Origen de la ruta. El snapshot actual (<c>solicitud-v2</c>) lo guarda
-    /// como objeto (<c>$.origen.punto</c>); el flujo anterior lo guardaba como
-    /// texto en <c>$.origen</c>. Se lee la ciudad del punto
-    /// (<c>municipio</c>, y si falta <c>nombre</c>) porque el concentrado
-    /// FOR-008 imprime la ciudad, no la direccion completa. Devuelve
-    /// <c>null</c> —nunca lanza— cuando no hay origen legible.
-    /// </summary>
     private static string? LeerOrigenDesdeJson(JsonElement? snapshot)
     {
         if (snapshot is not { } raiz)
@@ -1158,27 +959,12 @@ public class AprobacionesController : ControllerBase
             : null;
     }
 
-    /// <summary>
-    /// Destinos de la ruta en una sola linea, como los imprime el FOR-008
-    /// (<c>"CHIHUAHUA-CD.JUAREZ"</c>). El snapshot actual los guarda en
-    /// <c>$.destinos[]</c> (cada uno con su <c>$.punto</c>); el flujo anterior
-    /// usaba un unico texto en <c>$.destino</c>. Los puntos se unen con
-    /// <c>" - "</c> en el orden del itinerario y sin repetir el mismo lugar.
-    /// Devuelve <c>null</c> —nunca lanza— cuando no hay ningun destino legible:
-    /// el concentrado imprime "—", nunca un texto inventado.
-    /// </summary>
     private static string? LeerDestinosDesdeJson(JsonElement? snapshot)
     {
         var puntos = LeerPuntosDestino(snapshot);
         return puntos.Count > 0 ? string.Join(" - ", puntos) : null;
     }
 
-    /// <summary>
-    /// Ciudades de destino del itinerario, en orden y sin repetir. Acepta el
-    /// snapshot actual (<c>$.destinos[].punto</c>) y el texto del flujo
-    /// anterior (<c>$.destino</c>). Devuelve lista vacia —nunca lanza— cuando
-    /// no hay ningun destino legible.
-    /// </summary>
     private static List<string> LeerPuntosDestino(JsonElement? snapshot)
     {
         var puntos = new List<string>();
@@ -1211,12 +997,6 @@ public class AprobacionesController : ControllerBase
         return puntos;
     }
 
-    /// <summary>
-    /// Ciudad de un punto del itinerario. Acepta tanto el destino completo
-    /// (<c>{"punto":{...}}</c>) como el punto suelto (<c>$.origen.punto</c>).
-    /// Prioriza <c>municipio</c> y cae a <c>nombre</c>: el concentrado imprime
-    /// ciudades, no direcciones.
-    /// </summary>
     private static string? LeerPunto(JsonElement contenedor)
     {
         var punto = contenedor.TryGetProperty("punto", out var anidado) && anidado.ValueKind == JsonValueKind.Object
@@ -1226,21 +1006,11 @@ public class AprobacionesController : ControllerBase
         return LeerTextoDesdeJson(punto, "municipio") ?? LeerTextoDesdeJson(punto, "nombre");
     }
 
-    /// <summary>
-    /// ¿El snapshot trae el cálculo de la ruta (<c>datos.calculo</c>)? Es lo que
-    /// guarda el envío desde los cálculos; sin él no hay casetas, hoteles ni
-    /// tiempos que revisar.
-    /// </summary>
     private static bool TieneCalculo(JsonElement? snapshot)
         => snapshot is { } raiz
            && raiz.TryGetProperty("calculo", out var calculo)
            && calculo.ValueKind == JsonValueKind.Object;
 
-    /// <summary>
-    /// Lee un objeto del snapshot (<c>$.persona</c>, <c>$.calculo</c>, ...).
-    /// Devuelve <c>null</c> —nunca lanza— cuando la clave falta o no es un
-    /// objeto: un snapshot incompleto no rompe la bandeja.
-    /// </summary>
     private static JsonElement? LeerObjeto(JsonElement? snapshot, string clave)
     {
         if (snapshot is not { } raiz
@@ -1253,18 +1023,9 @@ public class AprobacionesController : ControllerBase
         return valor;
     }
 
-    /// <summary>
-    /// Ruta que manda para el documento: la <c>calculo_autorizado</c> (ultima
-    /// version revisada y confirmada) y, si no existe, la <c>calculo</c> del
-    /// envio. Null cuando la solicitud no tiene ninguna.
-    /// </summary>
     private static JsonElement? LeerCalculo(JsonElement? snapshot)
         => LeerObjeto(snapshot, "calculo_autorizado") ?? LeerObjeto(snapshot, "calculo");
 
-    /// <summary>
-    /// Tramos del calculo (<c>$.calculo.tramos[]</c>) como objetos JSON, en el
-    /// orden del itinerario. Lista vacia cuando no hay ninguno legible.
-    /// </summary>
     private static List<JsonElement> LeerTramos(JsonElement? calculo)
     {
         var tramos = new List<JsonElement>();
@@ -1286,22 +1047,12 @@ public class AprobacionesController : ControllerBase
         return tramos;
     }
 
-    /// <summary>
-    /// ¿La persona que viaja es el propio solicitante (<c>persona.modo</c>
-    /// ausente o <c>mia</c>)? Solo entonces tiene sentido imprimir su puesto y
-    /// fecha de nacimiento del directorio de personal.
-    /// </summary>
     private static bool EsPersonaMia(JsonElement? snapshot)
     {
         var modo = LeerTextoDesdeJson(LeerObjeto(snapshot, "persona"), "modo");
         return modo is null || string.Equals(modo, "mia", StringComparison.OrdinalIgnoreCase);
     }
 
-    /// <summary>
-    /// ¿El viaje tiene regreso? Manda <c>$.retorno.necesario</c>. Los snapshots
-    /// viejos sin esa clave se consideran de ida y vuelta cuando el calculo trae
-    /// mas de un tramo (lo resuelve <see cref="ComponerTrayectos"/>).
-    /// </summary>
     private static bool HayRetorno(JsonElement? snapshot)
     {
         var retorno = LeerObjeto(snapshot, "retorno");
@@ -1310,22 +1061,10 @@ public class AprobacionesController : ControllerBase
                && necesario.ValueKind == JsonValueKind.True;
     }
 
-    /// <summary>
-    /// Medio de transporte resuelto para la columna "Transporte" y el filtro
-    /// "Tipo de viaje": <c>aereo</c> | <c>autobus</c> | <c>propio</c> |
-    /// <c>solicitado</c> | <c>sin-clasificar</c>.
-    ///
-    /// El wizard nunca escribe <c>$.avion</c> ni <c>$.autobus</c>: el medio real
-    /// vive en la opcion FUE_ELEGIDA y el modo en <c>calculo.modo_transporte</c>
-    /// o <c>transporte.modo</c>. <c>solicitado</c> es "la empresa gestiona el
-    /// viaje y aun no se elige medio": no es un dato faltante, es un estado del
-    /// viaje.
-    /// </summary>
     private static string ResolverTipoTransporte(
         JsonElement? snapshot,
         IReadOnlyCollection<string>? tiposOpcion)
     {
-        // 1) Cotizacion importada: el desglose por concepto ya dice el medio.
         if (LeerDecimal(snapshot, "avion") is not null)
         {
             return "aereo";
@@ -1342,7 +1081,6 @@ public class AprobacionesController : ControllerBase
             return "propio";
         }
 
-        // 2) Opcion elegida del wizard.
         var tipos = (tiposOpcion ?? Array.Empty<string>())
             .Select(tipo => tipo.Trim().ToLowerInvariant())
             .ToList();
@@ -1361,7 +1099,6 @@ public class AprobacionesController : ControllerBase
             return "propio";
         }
 
-        // 3) Modo del wizard.
         var modo = LeerTextoDesdeJson(LeerCalculo(snapshot), "modo_transporte")
                    ?? LeerTextoDesdeJson(LeerObjeto(snapshot, "transporte"), "modo");
         if (string.Equals(modo, "propio", StringComparison.OrdinalIgnoreCase))
@@ -1377,15 +1114,6 @@ public class AprobacionesController : ControllerBase
         return "sin-clasificar";
     }
 
-    /// <summary>
-    /// Itinerario imprimible del formato "Solicitud de avion": ida y vuelta,
-    /// maximo dos tramos. La ida sale del primer tramo del calculo (fecha, hora
-    /// planeada, origen y destino) y la vuelta del ultimo; «Regreso al origen»
-    /// es una etiqueta del motor, asi que el destino de la vuelta es la ciudad
-    /// de origen. Sin calculo se compone con el rango y los destinos del
-    /// snapshot. Un tramo sin ningun dato no se agrega: el documento imprime
-    /// "—" en vez de inventar.
-    /// </summary>
     private static List<TrayectoBandejaDto> ComponerTrayectos(
         JsonElement? snapshot,
         string? fechaSalida,
@@ -1437,7 +1165,6 @@ public class AprobacionesController : ControllerBase
             trayectos.Add(ida);
         }
 
-        // Solo hay vuelta si el viaje la declara o si el calculo trae regreso.
         if (TieneDatosTrayecto(vuelta) && (tramos.Count > 1 || HayRetorno(snapshot)))
         {
             trayectos.Add(vuelta);
@@ -1446,22 +1173,12 @@ public class AprobacionesController : ControllerBase
         return trayectos;
     }
 
-    /** Un tramo sin fecha, hora ni ciudades no aporta nada al documento. */
     private static bool TieneDatosTrayecto(TrayectoBandejaDto trayecto)
         => trayecto.Fecha is not null
            || trayecto.Hora is not null
            || trayecto.Origen is not null
            || trayecto.Destino is not null;
 
-    /// <summary>
-    /// Rango de fechas del viaje para la columna "Fecha" del concentrado
-    /// FOR-008. Se compone con el formato que documenta el componente de
-    /// impresion (<c>ConcentradoViaticosPrint.tsx</c>):
-    /// <c>"05/10/2026 AL 09/10/2026"</c>. Devuelve <c>null</c> —nunca lanza— si
-    /// no hay ninguna fecha, no son strings o el JSON no parseo: el
-    /// concentrado imprime "—". Un valor que no parsea como fecha ISO se
-    /// conserva tal cual, sin perder el dato.
-    /// </summary>
     private static string? ComponerRangoFecha(string? salida, string? regreso)
     {
         var salidaTexto = FormatearFecha(salida);
@@ -1482,22 +1199,6 @@ public class AprobacionesController : ControllerBase
                 : valor;
     }
 
-    /// <summary>
-    /// Fechas reales del viaje en ISO (<c>aaaa-mm-dd</c>), en el orden en que
-    /// las busca:
-    /// <list type="number">
-    ///   <item><c>$.rango.inicio</c>/<c>$.rango.fin</c>: el rango explicito del
-    ///   wizard actual (<c>solicitud-v2</c>), la fuente que manda.</item>
-    ///   <item><c>$.fecha_salida</c>/<c>$.fecha_regreso</c>: snapshots del flujo
-    ///   anterior.</item>
-    ///   <item>Los dias comprometidos de cada destino
-    ///   (<c>$.destinos[].debeEstarFecha</c>, o <c>saleFecha</c>): el menor y el
-    ///   mayor son el viaje completo.</item>
-    /// </list>
-    /// Devuelve <c>(null, null)</c> —nunca lanza— cuando el snapshot no trae
-    /// ninguna fecha legible: el filtro por fecha de viaje no puede afirmar que
-    /// ese viaje caiga en un rango.
-    /// </summary>
     private static (string? Salida, string? Regreso) LeerRangoViajeDesdeJson(JsonElement? snapshot)
     {
         if (snapshot is { } raiz)

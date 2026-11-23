@@ -7,16 +7,13 @@ using Microsoft.Extensions.Options;
 
 namespace Lefarma.API.Features.Viaticos;
 
-/// <summary>Resultado de intentar detectar el precio real de un vuelo.</summary>
 public sealed class DeteccionVueloResult
 {
     public bool Ok { get; init; }
     public string? Error { get; init; }
     public bool Bloqueado { get; init; }
-    /// <summary>playwright | firecrawl</summary>
     public string? Fuente { get; init; }
     public string? RutaCaptura { get; init; }
-    /// <summary>opcion (tarjeta recortada) | resultados (página completa).</summary>
     public string? CapturaAlcance { get; init; }
     public VueloDetectado? Elegido { get; init; }
     public List<VueloDetectado> Opciones { get; init; } = new();
@@ -34,15 +31,6 @@ public interface IDeteccionPrecioVueloService
         CancellationToken ct);
 }
 
-/// <summary>
-/// Detección híbrida: primero Playwright local (parser del mini programa);
-/// si Kayak responde captcha/bloqueo o no hay tarjetas, cae a Firecrawl
-/// (/v2/scrape markdown + screenshot) y usa el mismo parser.
-///
-/// La captura es obligatoria: si la fuente no deja PNG, el intento se declara
-/// fallido para que el usuario use el respaldo manual en lugar de guardar un
-/// precio sin evidencia.
-/// </summary>
 public sealed class DeteccionPrecioVueloService : IDeteccionPrecioVueloService
 {
     private readonly DeteccionPrecioSettings _settings;
@@ -99,9 +87,6 @@ public sealed class DeteccionPrecioVueloService : IDeteccionPrecioVueloService
                     ? await ConCapturaDeOpcionAsync(eleccionPlaywright, url, nombre, ct)
                     : eleccionPlaywright;
 
-            // Playwright vio tarjetas pero ninguna llega a tiempo. Kayak puede
-            // tener más resultados que la primera carga del DOM; Firecrawl se
-            // usa como segunda opinión antes de declarar que no hay opción.
             _logger.LogInformation(
                 "Playwright sin vuelo a tiempo para {Url}; se consulta Firecrawl.",
                 url);
@@ -116,9 +101,6 @@ public sealed class DeteccionPrecioVueloService : IDeteccionPrecioVueloService
         var firecrawl = await IntentarFirecrawlAsync(url, nombre, capturar, ct);
         if (firecrawl.Ok && firecrawl.Opciones.Count > 0)
         {
-            // Se combinan ambas fuentes: Playwright puede tener tarjetas que
-            // Firecrawl no renderizó y viceversa. La captura que se guarda es
-            // la de Firecrawl, que sí incluye el resultado elegido.
             var combinadas = playwright.Opciones
                 .Concat(firecrawl.Opciones)
                 .GroupBy(o => (o.Salida, o.Llegada, o.Aerolinea, o.Precio))
@@ -139,7 +121,6 @@ public sealed class DeteccionPrecioVueloService : IDeteccionPrecioVueloService
 
         if (playwright.Ok && playwright.Opciones.Count > 0)
         {
-            // Firecrawl no respondió: se conserva el veredicto de Playwright.
             var resultadoPlaywright = Elegir(playwright, fecha, deadline, minutosTaxi);
             return capturar
                 ? await ConCapturaDeOpcionAsync(resultadoPlaywright, url, nombre, ct)
@@ -155,12 +136,6 @@ public sealed class DeteccionPrecioVueloService : IDeteccionPrecioVueloService
         };
     }
 
-    /// <summary>
-    /// Regla de selección, separada para probarla sin Playwright ni Firecrawl:
-    /// descarta anuncios si hay alternativas, calcula la llegada al punto
-    /// (fecha + posible +1 día + minutos de taxi) y devuelve el más barato que
-    /// llega antes del deadline. Sin deadline, el más barato.
-    /// </summary>
     public static VueloDetectado? ElegirMasBaratoATiempo(
         IEnumerable<VueloDetectado> opciones,
         DateOnly fecha,
@@ -228,10 +203,6 @@ public sealed class DeteccionPrecioVueloService : IDeteccionPrecioVueloService
         };
     }
 
-    /// <summary>
-    /// Reemplaza la captura de la página completa por la tarjeta del vuelo
-    /// elegido. Si el recorte falla, conserva la captura de resultados.
-    /// </summary>
     private async Task<DeteccionVueloResult> ConCapturaDeOpcionAsync(
         DeteccionVueloResult resultado,
         string url,
@@ -265,8 +236,6 @@ public sealed class DeteccionPrecioVueloService : IDeteccionPrecioVueloService
             if (captura is not { Ok: true, Archivo: not null }
                 || !string.Equals(captura.Alcance, "opcion", StringComparison.OrdinalIgnoreCase))
             {
-                // Si no se pudo recortar, se conserva la captura original
-                // (Playwright o Firecrawl); no se reemplaza por otra general.
                 return resultado;
             }
 

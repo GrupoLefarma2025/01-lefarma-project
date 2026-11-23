@@ -40,7 +40,6 @@ interface FieldSchemaBuilderProps {
   onChange: (campos: SchemaField[]) => void;
   disabled?: boolean;
   profundidad?: number;
-  /** Etiqueta del contenedor (por defecto "Propiedades"). */
   titulo?: string;
 }
 
@@ -52,7 +51,6 @@ export function FieldSchemaBuilder({
   titulo = 'Propiedades',
 }: FieldSchemaBuilderProps) {
   const agregarCampo = () => {
-    // Autofoco: el nombre vacío marca el campo recién creado.
     onChange([...campos, campoVacio()]);
   };
 
@@ -179,7 +177,6 @@ function CampoRow({
       siguiente.campos = [];
     }
 
-    // Una lista del modelo anterior se normaliza a la casilla nueva.
     siguiente.itemTipo = undefined;
     onChange(siguiente);
   };
@@ -541,7 +538,6 @@ function OpcionesEditor({
   );
 }
 
-/** Editor de una lista simple de opciones (tipo selección de nivel superior). */
 export function OpcionesSeleccionEditor(props: OpcionesEditorProps) {
   return <OpcionesEditor {...props} />;
 }

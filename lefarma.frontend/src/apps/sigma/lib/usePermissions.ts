@@ -1,13 +1,6 @@
 import { useCallback, useMemo } from 'react';
 import { useSigmaAuth } from '@/apps/sigma/store/sigmaAuth';
 
-/**
- * Adaptación de `usePermissions` de SIGMA sobre la sesión de Lefarma.
- *
- * `SigmaUser.permisos` ya son códigos (`codigoPermiso`), así que la
- * comparación es exacta e insensible a mayúsculas, igual que
- * `useSigmaPermission`.
- */
 export function usePermissions() {
   const { user } = useSigmaAuth();
   const permisos = user?.permisos;
@@ -48,7 +41,6 @@ export function usePermissions() {
   );
 }
 
-/** Hook para proteger componentes con un único permiso. */
 export function useRequirePermission(permissionCode: string) {
   const { hasPermission } = usePermissions();
   return hasPermission(permissionCode);

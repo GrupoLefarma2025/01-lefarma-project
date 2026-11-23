@@ -30,7 +30,6 @@ public class Empresa
         public virtual ICollection<Sucursal> Sucursales { get; set; } = new List<Sucursal>();
         public virtual ICollection<Area> Areas { get; set; } = new List<Area>();
 
-        // Métodos de dominio (opcional - DDD)
         public void Activar() => Activo = true;
         public void Desactivar() => Activo = false;
         public void ActualizarNombreNormalizado()

@@ -95,7 +95,6 @@ export default function HelpEditor() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Basic validation
     if (!formData.titulo.trim()) {
       alert('El título es obligatorio');
       return;
@@ -110,7 +109,6 @@ export default function HelpEditor() {
 
     try {
       if (isEditMode && id && selectedArticle) {
-        // Update existing article
         const updateData: UpdateHelpArticleRequest = {
           ...formData,
           id: selectedArticle.id,
@@ -118,7 +116,6 @@ export default function HelpEditor() {
         };
         await helpService.update(updateData);
       } else {
-        // Create new article
         await helpService.create(formData);
       }
       navigate('/cxp/help');
@@ -132,7 +129,7 @@ export default function HelpEditor() {
 
   return (
     <div className="max-w-4xl mx-auto p-6">
-      {/* Back Button */}
+      {}
       <Button
         variant="ghost"
         onClick={() => navigate('/cxp/help')}
@@ -142,14 +139,14 @@ export default function HelpEditor() {
         Volver
       </Button>
 
-      {/* Encabezado */}
+      {}
       <h1 className="text-3xl font-bold mb-6">
         {isEditMode ? 'Editar Artículo' : 'Crear Nuevo Artículo'}
       </h1>
 
-      {/* Form */}
+      {}
       <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Título */}
+        {}
         <div>
           <Label htmlFor="titulo">Título *</Label>
           <Input
@@ -160,7 +157,7 @@ export default function HelpEditor() {
           />
         </div>
 
-        {/* Resumen */}
+        {}
         <div>
           <Label htmlFor="resumen">Resumen</Label>
           <Textarea
@@ -171,7 +168,7 @@ export default function HelpEditor() {
           />
         </div>
 
-        {/* Módulo y Tipo */}
+        {}
         <div className="grid grid-cols-2 gap-4">
           <div>
             <Label htmlFor="modulo">Módulo *</Label>
@@ -212,7 +209,7 @@ export default function HelpEditor() {
           </div>
         </div>
 
-        {/* Categoría */}
+        {}
         <div>
           <Label htmlFor="categoria">Categoría (opcional)</Label>
           <Input
@@ -222,7 +219,7 @@ export default function HelpEditor() {
           />
         </div>
 
-        {/* Orden */}
+        {}
         <div>
           <Label htmlFor="orden">Orden</Label>
           <Input
@@ -233,7 +230,7 @@ export default function HelpEditor() {
           />
         </div>
 
-        {/* Contenido */}
+        {}
         <div>
           <Label htmlFor="contenido">Contenido (Lexical JSON) *</Label>
           <Textarea
@@ -249,7 +246,7 @@ export default function HelpEditor() {
           </p>
         </div>
 
-        {/* Actions */}
+        {}
         <div className="flex gap-4">
           <Button type="submit" disabled={isLoading}>
             {isLoading ? 'Guardando...' : isEditMode ? 'Actualizar Artículo' : 'Crear Artículo'}

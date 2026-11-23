@@ -5,11 +5,6 @@ import { useAuthStore } from '@/shared/auth/authStore';
 import { ViaticosRoutes } from './ViaticosRoutes';
 import type { SolicitudBandeja } from './types/aprobaciones.types';
 
-/**
- * Rutas del subárbol de Viáticos. Solo se comprueba resolución URL→componente:
- * las páginas se exercised por sus propios tests, no por duplicarlos aquí.
- */
-
 vi.mock('@/pages/Perfil', () => ({ default: () => <div>PERFIL_MARK</div> }));
 vi.mock('./pages/solicitud/SolicitudPage', () => ({ SolicitudPage: () => <div>SOLICITUD_MARK</div> }));
 vi.mock('./pages/mis-viajes/MisViajesPage', () => ({ MisViajesPage: () => <div>MIS_VIAJES_MARK</div> }));
@@ -20,8 +15,6 @@ vi.mock('./pages/concentrado/ConcentradoPage', () => ({ ConcentradoPage: () => <
 vi.mock('@/hooks/usePageTitle', () => ({ usePageTitle: vi.fn() }));
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock('@/hooks/usePermission', () => ({ usePermission: () => true }));
-// El guard lee permisos de localStorage; para el ruteo se deja pasar y el
-// candado real se prueba en PermissionGuard.test.tsx.
 vi.mock('@/components/auth/PermissionGuard', () => ({
   PermissionGuard: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
@@ -29,7 +22,6 @@ vi.mock('@/components/auth/PermissionGuard', () => ({
 const mocks = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn() }));
 vi.mock('@/shared/api/apiClient', () => ({ API: { get: mocks.get, post: mocks.post } }));
 
-// El layout arrastra sidebar/header; se reduce a <Outlet/> para aislar el ruteo.
 vi.mock('@/components/layout/MainLayout', async () => {
   const { Outlet } = await vi.importActual<typeof import('react-router-dom')>('react-router-dom');
   return { MainLayout: () => <Outlet /> };
@@ -47,7 +39,6 @@ const solicitud: SolicitudBandeja = {
   fecha_creacion: '2026-10-05T12:00:00Z',
 };
 
-// Los paths del subarbol son relativos: se monta igual que en BaseAppRoutes.
 function renderAt(path: string) {
   return render(
     <MemoryRouter initialEntries={[path]}>
@@ -81,7 +72,6 @@ describe('ViaticosRoutes — bandeja de aprobaciones', () => {
     renderAt('/viaticos/aprobaciones');
 
     expect(screen.queryByText('Bandeja de Autorizaciones')).not.toBeInTheDocument();
-    // El índice del subárbol manda al login con ?return= (contrato del router).
     expect(mocks.get).not.toHaveBeenCalled();
   });
 

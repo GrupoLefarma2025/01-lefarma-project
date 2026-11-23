@@ -3,7 +3,6 @@ import { act, render, screen } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import type { ReactNode } from 'react';
 
-// Real authStore is used; tests flip `isAuthenticated` directly via setState.
 vi.mock('@/shared/api/apiClient', () => ({
   API: {
     get: vi.fn().mockResolvedValue({ data: { success: true, data: null } }),
@@ -25,12 +24,6 @@ vi.mock('@/shared/api/apiClient', () => ({
 import { RequireAuth } from '@/shared/auth/RequireAuth';
 import { useAuthStore } from '@/shared/auth/authStore';
 
-/**
- * Foundation test: RequireAuth uses `<Navigate>` instead of
- * `window.location.href`. We assert the redirect by mounting the guard inside
- * a `MemoryRouter` with explicit destination routes — the destination route
- * renders when `<Navigate>` resolves, and the protected subtree never renders.
- */
 function renderGuard(initialPath: string, props: { children?: ReactNode; loginPath?: string }) {
   return render(
     <MemoryRouter initialEntries={[initialPath]}>
@@ -57,9 +50,6 @@ describe('RequireAuth — app-routing guard', () => {
   });
 
   it('Scenario: waits for session hydration instead of bouncing to login (F5 flash)', () => {
-    // Estado del primer render tras un F5 con sesión guardada: el store aún no
-    // ha hidratado. El guard debe esperar, NO redirigir a /login (eso pintaba
-    // la tarjeta de login un instante antes de volver a la pantalla).
     useAuthStore.setState({ isInitialized: false, isAuthenticated: false });
 
     renderGuard('/perfil', {});
@@ -67,7 +57,6 @@ describe('RequireAuth — app-routing guard', () => {
     expect(screen.queryByText('LOGIN_DESTINATION')).not.toBeInTheDocument();
     expect(screen.queryByText('secret-dashboard')).not.toBeInTheDocument();
 
-    // Al hidratar la sesión, el subárbol protegido entra sin pasar por login.
     act(() => {
       useAuthStore.setState({ isInitialized: true, isAuthenticated: true });
     });
@@ -79,9 +68,7 @@ describe('RequireAuth — app-routing guard', () => {
   it('Scenario: Unauthenticated user is redirected to login via <Navigate>', () => {
     renderGuard('/perfil', {});
 
-    // The /login destination route rendered via <Navigate to="/login" replace/>.
     expect(screen.getByText('LOGIN_DESTINATION')).toBeInTheDocument();
-    // Protected subtree must not be rendered.
     expect(screen.queryByText('secret-dashboard')).not.toBeInTheDocument();
   });
 
@@ -90,15 +77,11 @@ describe('RequireAuth — app-routing guard', () => {
 
     renderGuard('/perfil', {});
 
-    // Children render normally; no redirect to /login.
     expect(screen.getByText('secret-dashboard')).toBeInTheDocument();
     expect(screen.queryByText('LOGIN_DESTINATION')).not.toBeInTheDocument();
   });
 
   it('Scenario: Guard checks authentication, not context selection (authed without empresa/sucursal/area context still passes)', () => {
-    // Authenticated, but explicitly NO empresa/sucursal/area context. The guard
-    // MUST NOT block on context — context is deferred to per-app logic (base-app
-    // spec: "No Global Context Assumption").
     useAuthStore.setState({
       isAuthenticated: true,
       empresa: null,

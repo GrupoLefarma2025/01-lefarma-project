@@ -21,10 +21,6 @@ import MisAsignacionesPage from './pages/taller/MisAsignacionesPage';
 import IndicadoresPage from './pages/seguimiento/IndicadoresPage';
 import PanelMesPage from './pages/seguimiento/PanelMesPage';
 
-/**
- * Códigos de permiso del módulo (espejo de `Permissions.EducacionMedica` en el backend
- * y de `Asokam.app.Permisos`; ver ADR-00009).
- */
 const PERMISOS = {
   hub: 'baseapp.hub.puede_ver_educacion_medica',
   hospitalesVer: 'educacion_medica.hospitales.puede_ver',
@@ -70,18 +66,6 @@ function RedirectEquiposLegacy() {
   return <Navigate replace to="/educacion-medica/colaboradores" />;
 }
 
-/**
- * Educación Médica route table — delega TODO el scaffolding a la fábrica
- * genérica `createAppRoutes`.
- *
- * Contrato de invocación (sin cambios): debe invocarse como función —
- * `{EducacionMedicaRoutes({ variant, loginPath })}` — NO como JSX
- * `<EducacionMedicaRoutes/>`.
- *
- * Cada página va envuelta en `PermissionGuard` con `blockedPath` de subárbol
- * (`/educacion-medica/bloqueado`, creado por la fábrica). El candado real vive
- * en el backend (`[HasPermission]` por controlador); el guard es UX.
- */
 export function EducacionMedicaRoutes({ variant, loginPath }: SubtreeRoutesProps) {
   const resolvedBlockedPath = variant === 'root' ? undefined : '/educacion-medica/bloqueado';
 

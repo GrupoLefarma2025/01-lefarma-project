@@ -303,7 +303,6 @@ export function MatrizPanel({
         });
       }
     } catch {
-      // Sin datos del catálogo: el modal cae a los datos del taller.
     }
   }, []);
 

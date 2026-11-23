@@ -32,9 +32,6 @@ public static class ResultExtensions
             return onSuccess(result.Value);
         }
 
-        /// <summary>
-        /// Enriquece el WideEvent con información del error.
-        /// </summary>
         private static void EnrichWideEventWithError<T>(ErrorOr<T> result, IWideEventAccessor? wideEventAccessor)
         {
             var wideEvent = wideEventAccessor?.Current;
@@ -42,13 +39,11 @@ public static class ResultExtensions
 
             var firstError = result.FirstError;
 
-            // información básica del error
             wideEvent.ErrorType = firstError.Type.ToString();
             wideEvent.ErrorCode = firstError.Code;
             wideEvent.ErrorMessage = firstError.Description;
             wideEvent.IsRetriable = IsRetriableError(firstError.Type);
 
-            // Detalles de todos los errores
             var errorDetails = result.Errors.Select(e => new
             {
                 Code = e.Code,
@@ -66,7 +61,6 @@ public static class ResultExtensions
                 ["errors"] = errorDetails
             };
 
-            // Información adicional para errores de validación
             if (firstError.Type == ErrorType.Validation)
             {
                 var fields = errorDetails
@@ -81,7 +75,6 @@ public static class ResultExtensions
                     errorContext["fieldCount"] = fields.Count;
                 }
 
-                // Errores por campo
                 var errorsByField = errorDetails
                     .Where(e => !string.IsNullOrEmpty(e.Field))
                     .GroupBy(e => e.Field)
@@ -99,9 +92,6 @@ public static class ResultExtensions
             wideEvent.AddContext("error", errorContext);
         }
 
-        /// <summary>
-        /// Determina si un error es reintentable.
-        /// </summary>
         private static bool IsRetriableError(ErrorType errorType)
         {
             return errorType switch

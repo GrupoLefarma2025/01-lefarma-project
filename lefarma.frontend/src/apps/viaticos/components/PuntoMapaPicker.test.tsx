@@ -6,8 +6,6 @@ import { PuntoMapaPicker } from './PuntoMapaPicker';
 const mapaHandlers = vi.hoisted(() => ({ actual: {} as Record<string, (e: unknown) => void> }));
 const mapaSetView = vi.hoisted(() => vi.fn());
 
-// jsdom no renderiza Leaflet; se sustituyen las primitivas por nodos planos.
-// useMapEvents captura los manejadores para poder disparar clic derecho.
 vi.mock('react-leaflet', () => ({
   MapContainer: ({ children }: { children?: ReactNode }) => <div data-testid="mapa">{children}</div>,
   TileLayer: () => null,
@@ -67,7 +65,6 @@ describe('selector de punto en mapa', () => {
     fireEvent.change(input, { target: { value: 'reforma' } });
     await act(async () => { await vi.advanceTimersByTimeAsync(400); });
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    // Segunda búsqueda a los 400 ms: espera a cumplir 1 s desde la anterior.
     fireEvent.change(input, { target: { value: 'reforma 123' } });
     await act(async () => { await vi.advanceTimersByTimeAsync(400); });
     expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -87,7 +84,6 @@ describe('selector de punto en mapa', () => {
     fireEvent.change(input, { target: { value: 'reforma 123' } });
     fireEvent.click(await screen.findByRole('option', { name: /Av\. Reforma 123/ }));
     expect(onChange).toHaveBeenCalledWith({ nombre: 'Av. Reforma 123, CDMX', latitud: 19.4326, longitud: -99.1332 });
-    // Estilo Google: el recuadro queda con el nombre del lugar elegido y el panel se cierra.
     expect(input).toHaveValue('Av. Reforma 123, CDMX');
     expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
   });
@@ -116,7 +112,6 @@ describe('selector de punto en mapa', () => {
     render(<PuntoMapaPicker value={null} onChange={vi.fn()} />);
     const input = screen.getByLabelText('Buscar dirección (OpenStreetMap)');
 
-    // Sin texto no hay botón de borrado.
     expect(screen.queryByRole('button', { name: 'Borrar búsqueda' })).not.toBeInTheDocument();
     fireEvent.change(input, { target: { value: 'reforma 123' } });
     fireEvent.click(await screen.findByRole('button', { name: 'Borrar búsqueda' }));
@@ -145,7 +140,6 @@ describe('selector de punto en mapa', () => {
     expect(screen.getAllByRole('option')[0]).toHaveAttribute('aria-selected', 'true');
     fireEvent.keyDown(input, { key: 'ArrowDown' });
     expect(screen.getAllByRole('option')[1]).toHaveAttribute('aria-selected', 'true');
-    // Rueda: bajar del último vuelve al primero.
     fireEvent.keyDown(input, { key: 'ArrowDown' });
     expect(screen.getAllByRole('option')[0]).toHaveAttribute('aria-selected', 'true');
 
@@ -191,11 +185,9 @@ describe('selector de punto en mapa', () => {
       target: { value: '20 de Noviembre 13' },
     });
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1), { timeout: 3000 });
-    // Caja de ~50 km alrededor de la ubicación (minLon,minLat,maxLon,maxLat).
     const params = new URL(String(fetchMock.mock.calls[0][0]), 'http://localhost').searchParams;
     expect(params.get('viewbox')).toBe('-99.5832,18.9826,-98.6832,19.8826');
 
-    // Apagarlo vuelve a buscar sin sesgo.
     fireEvent.click(boton);
     expect(boton).toHaveAttribute('aria-pressed', 'false');
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2), { timeout: 3000 });
@@ -290,7 +282,6 @@ describe('selector de punto en mapa', () => {
       mapaHandlers.actual.contextmenu({ latlng: { lat: 19.5, lng: -99.5 } });
     });
     expect(onChange).not.toHaveBeenCalled();
-    // Sin pin no se ofrece quitarlo.
     expect(screen.queryByRole('button', { name: 'Quitar pin' })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Poner pin aquí' }));
     expect(onChange).toHaveBeenCalledWith({
@@ -328,7 +319,6 @@ describe('selector de punto en mapa', () => {
   it('un clic del menú (popup o botón ya desmontado) no mueve el pin; un clic normal del mapa sí', async () => {
     const onChange = vi.fn();
     render(<PuntoMapaPicker value={null} onChange={onChange} />);
-    // Clic del menú: Leaflet puede reemitir el clic del mapa desde el popup.
     const popup = document.createElement('div');
     popup.className = 'leaflet-popup';
     const boton = document.createElement('button');
@@ -342,13 +332,11 @@ describe('selector de punto en mapa', () => {
     } finally {
       popup.remove();
     }
-    // Botón ya desmontado (React quitó el menú antes de procesar el clic).
     const suelto = document.createElement('button');
     await act(async () => {
       mapaHandlers.actual.click({ latlng: { lat: 19.8, lng: -99.8 }, originalEvent: { target: suelto } });
     });
     expect(onChange).not.toHaveBeenCalled();
-    // Clic directo sobre el mapa (sin popup): sí fija el pin.
     await act(async () => {
       mapaHandlers.actual.click({ latlng: { lat: 19.5, lng: -99.5 } });
     });
@@ -365,7 +353,7 @@ describe('selector de punto en mapa', () => {
     vi.stubGlobal('fetch', fetchMock);
     render(<PuntoMapaPicker value={null} onChange={onChange} />);
     await act(async () => {
-      mapaHandlers.actual.click({ latlng: { lat: 29.76, lng: -95.37 } }); // Houston
+      mapaHandlers.actual.click({ latlng: { lat: 29.76, lng: -95.37 } }); 
     });
     expect(onChange).not.toHaveBeenCalled();
     expect(fetchMock).not.toHaveBeenCalled();
@@ -431,7 +419,6 @@ describe('selector de punto en mapa', () => {
     fireEvent.change(input, { target: { value: '19.4395, -99.1332' } });
 
     fireEvent.click(await screen.findByRole('option', { name: /Calle República de Bolivia 2/ }));
-    // El punto usa EXACTAMENTE las coordenadas pegadas (no las del más cercano).
     expect(onChange).toHaveBeenCalledWith({
       nombre: 'Calle República de Bolivia 2, Centro, Ciudad de México',
       latitud: 19.4395,
@@ -439,7 +426,6 @@ describe('selector de punto en mapa', () => {
       estado: 'Ciudad de México',
       municipio: 'Cuauhtémoc',
     });
-    // El recuadro queda con las coordenadas normalizadas, sin nueva red.
     expect(input).toHaveValue('19.43950, -99.13320');
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(String(fetchMock.mock.calls[0][0])).toContain('tipo=reversa');
@@ -477,7 +463,6 @@ describe('selector de punto en mapa', () => {
       latitud: 19.3905,
       longitud: -99.1213,
     });
-    // Solo se llamó a la geocodificación inversa, no a la búsqueda textual.
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(String(fetchMock.mock.calls[0][0])).toContain('tipo=reversa');
   });

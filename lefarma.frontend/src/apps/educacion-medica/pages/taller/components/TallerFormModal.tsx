@@ -80,12 +80,9 @@ const fmtFecha = (fecha: string | null | undefined) => {
 interface TallerFormModalProps {
   open: boolean;
   onClose: () => void;
-  /** Taller en edición; null para alta. */
   taller: Taller | null;
   asignaciones: Asignacion[];
-  /** Hospital preseleccionado (deep-link "Registrar taller"). */
   idSeleccionHospitalInicial?: number | null;
-  /** Equipo de pareo (datos de solo lectura del encabezado FOR-008). */
   nombreEjecutivo?: string | null;
   nombreEspecialista?: string | null;
   guardando?: boolean;
@@ -95,11 +92,6 @@ interface TallerFormModalProps {
   ) => void | Promise<void>;
 }
 
-/**
- * Alta/edición de un taller con los campos FOR-005 1–12 (sin costos: los registra el AEM).
- * Incluye captura asistida del CEM (equipo explícito; ADR-00011), taller extraordinario
- * (hospital del catálogo + motivo) y modo ajuste post-cierre (ADR-00010).
- */
 export function TallerFormModal({
   open,
   onClose,
@@ -139,7 +131,6 @@ export function TallerFormModal({
   const [recursos, setRecursos] = useState<RecursoForm[]>([]);
   const [productos, setProductos] = useState<Producto[]>([]);
 
-  // Captura asistida / extraordinario
   const [equipos, setEquipos] = useState<EquipoPareo[]>([]);
   const [idEquipo, setIdEquipo] = useState<number | null>(null);
   const [hospitalesElegibles, setHospitalesElegibles] = useState<HospitalElegible[]>([]);
@@ -148,7 +139,6 @@ export function TallerFormModal({
   const [motivoExtraordinario, setMotivoExtraordinario] = useState('');
   const [hospitalesCatalogo, setHospitalesCatalogo] = useState<Hospital[]>([]);
 
-  // Motivo del ajuste post-cierre
   const [motivoAjuste, setMotivoAjuste] = useState('');
 
   const hospitalesAsignados = useMemo(() => {
@@ -194,7 +184,6 @@ export function TallerFormModal({
     [equipos]
   );
 
-  // Datos del encabezado FOR-008 (solo lectura): de la asignación del hospital o del taller en edición.
   const asignacionSeleccionada = useMemo(() => {
     const id = taller
       ? taller.idSeleccionHospital
@@ -226,7 +215,6 @@ export function TallerFormModal({
     return null;
   }, [asignacionSeleccionada, taller]);
 
-  // Al elegir hospital de la selección se prellenan la unidad médica y la fecha de la visita planeada.
   const seleccionarHospitalSeleccion = (valor: number | null) => {
     setIdSeleccionHospital(valor != null ? String(valor) : '');
     const asignacion = hospitalesAsignados.find((a) => a.idSeleccionHospital === valor);
@@ -242,7 +230,6 @@ export function TallerFormModal({
     taller.idUsuarioCreacion !== taller.idEjecutivo &&
     taller.idUsuarioCreacion !== taller.idEspecialista;
 
-  // Al abrir: precarga el taller a editar o reinicia el formulario de alta.
   const [aperturaAnterior, setAperturaAnterior] = useState(false);
   if (open !== aperturaAnterior) {
     setAperturaAnterior(open);
@@ -296,7 +283,6 @@ export function TallerFormModal({
     }
   }
 
-  // Catálogo de productos para el recurso "Muestras de producto" (se carga al primer uso).
   const productosSolicitados = useRef(false);
   useEffect(() => {
     if (!open || productosSolicitados.current) return;
@@ -309,7 +295,6 @@ export function TallerFormModal({
       .catch(() => setProductos([]));
   }, [open]);
 
-  // Catálogo de tipos de taller (se carga al primer uso).
   const tiposSolicitados = useRef(false);
   useEffect(() => {
     if (!open || tiposSolicitados.current) return;
@@ -322,7 +307,6 @@ export function TallerFormModal({
       .catch(() => setTiposVisita([]));
   }, [open]);
 
-  // Equipos (captura asistida/extraordinario) y hospitales elegibles del equipo elegido.
   useEffect(() => {
     if (!open || (!puedeAsistida && !puedeExtraordinarios)) return;
     educacionMedicaApi.equiposPareo
@@ -347,7 +331,6 @@ export function TallerFormModal({
       .catch(() => setHospitalesElegibles([]));
   }, [open, extraordinario, idEquipo]);
 
-  // Catálogo completo de hospitales para el modo extraordinario (búsqueda local en el select).
   useEffect(() => {
     if (!open || !extraordinario || hospitalesCatalogo.length > 0) return;
     educacionMedicaApi.hospitales

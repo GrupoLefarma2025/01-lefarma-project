@@ -8,7 +8,6 @@ import { usePageTitle } from '@/hooks/usePageTitle';
 import { cn } from '@/lib/utils';
 import { PermissionElement } from '@/components/permissions/PermissionElement';
 
-
 interface TabItem {
   value: string;
   label: string;
@@ -49,7 +48,7 @@ export default function ConfiguracionGeneral({ firmaCard }: { firmaCard?: ReactN
 
   return (
     <div className="grid gap-6 md:grid-cols-[220px_1fr]">
-      {/* Sidebar */}
+      {}
       <Card className="h-fit">
         <CardContent className="p-2">
           <nav className="flex flex-col gap-1">
@@ -80,7 +79,7 @@ export default function ConfiguracionGeneral({ firmaCard }: { firmaCard?: ReactN
         </CardContent>
       </Card>
 
-      {/* Content */}
+      {}
       <Card>
         <CardContent className="p-6">
           <div>

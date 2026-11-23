@@ -10,25 +10,17 @@ import { WorkflowFlujoTimeline } from './WorkflowFlujoTimeline';
 interface WorkflowHistorialModalProps {
   open: boolean;
   onClose: () => void;
-  /** Título del modal; cada módulo puede ajustarlo (p. ej. "Historial de solicitud"). */
   titulo?: string;
-  /** Encabezado opcional del documento (card u otro resumen) mostrado antes del timeline. */
   encabezado?: ReactNode;
   cargando?: boolean;
   idPasoActual: number | null;
   estadoNombre?: string | null;
   pasos: WorkflowPasoFlowResponse[];
   historial: HistorialWorkflowItemResponse[];
-  /** Nombres de los jefes esperados por paso, para mostrarlos sin firma. */
   responsablesPorPaso?: ReadonlyMap<number, string[]>;
-  /** Subtítulo del timeline; por defecto "Paso a paso del documento". */
   descripcion?: string;
 }
 
-/**
- * Modal de historial (línea de tiempo del flujo) compartido por todos los módulos:
- * mismas tablas y timeline; solo cambia el título y el encabezado según de dónde se abra.
- */
 export function WorkflowHistorialModal({
   open,
   onClose,

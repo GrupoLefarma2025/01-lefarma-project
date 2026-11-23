@@ -94,8 +94,6 @@ public class SeleccionMensualService : ISeleccionMensualService
 
         var tiposDict = await ObtenerTiposGerenciaAsync(ct);
 
-        // Pasos activos de todos los workflows: resuelve la "Etapa" sin importar si el
-        // paso es inicial/final (mismo criterio que la Bandeja de Autorizaciones).
         var pasos = await _workflowRepo.GetQueryable()
             .SelectMany(w => w.Pasos)
             .Where(p => p.Activo)
@@ -103,7 +101,6 @@ public class SeleccionMensualService : ISeleccionMensualService
             .ToListAsync(ct);
         var pasosDict = pasos.ToDictionary(p => p.IdPaso);
 
-        // Nombres de creadores en una sola consulta a Asokam.
         var idsCreadores = selecciones
             .Where(s => s.IdUsuarioCreacion.HasValue)
             .Select(s => s.IdUsuarioCreacion!.Value)
@@ -116,8 +113,6 @@ public class SeleccionMensualService : ISeleccionMensualService
                 .Where(u => idsCreadores.Contains(u.IdUsuario))
                 .ToDictionaryAsync(u => u.IdUsuario, u => u.NombreCompleto ?? string.Empty, ct);
 
-        // Secuencial a proposito: el repositorio comparte la instancia de ApplicationDbContext
-        // y EF no permite operaciones concurrentes sobre el mismo contexto.
         var conteosDict = new Dictionary<int, (int TotalHospitales, int TotalRegiones)>();
         var accionesDict = new Dictionary<int, List<AccionDisponibleResponse>>();
         var tieneRutasDict = new Dictionary<int, bool>();
@@ -235,7 +230,6 @@ public class SeleccionMensualService : ISeleccionMensualService
 
         var regionesDict = regiones.ToDictionary(z => z.IdRegion, z => z.Nombre ?? $"Región {z.IdRegion}");
         var regionesPorId = regiones.ToDictionary(z => z.IdRegion);
-        // Equipos (nombre para las regiones y EV/EP por hospital) + nombres de sus miembros.
         var equipos = await _equipoRepository.GetAllAsync(null, ct);
         var idsEquiposDetalle = regiones
             .Where(z => z.IdEquipo.HasValue)
@@ -376,8 +370,6 @@ public class SeleccionMensualService : ISeleccionMensualService
             return [];
         }
 
-        // Defensa: un hospital fisico no deberia estar en dos gerencias, pero si
-        // aparece en la seleccion actual se omite del cruce.
         var idsActuales = hospitalesActuales
             .Where(h => h.IdHospital.HasValue)
             .Select(h => h.IdHospital!.Value)
@@ -484,8 +476,6 @@ public class SeleccionMensualService : ISeleccionMensualService
             ["mismoEstado"] = 1,
             ["mismaCiudad"] = 2,
         };
-        // Un mismo hospital fisico puede aparecer en dos selecciones ajenas
-        // solapadas; se reporta una sola vez, con la menor distancia.
         return resultado
             .GroupBy(r => r.IdHospital ?? -r.IdSeleccionHospitalAjeno)
             .Select(g => g.OrderBy(x => x.DistanciaKm ?? decimal.MaxValue).First())
@@ -552,8 +542,6 @@ public class SeleccionMensualService : ISeleccionMensualService
                 "Ya existe una selección activa que se traslapa con este periodo para la misma gerencia.");
         }
 
-        // La selección nace dentro de su workflow: el paso inicial habilita la acción ENVIAR
-        // desde el modal de firma, sin un botón separado de "Enviar a autorización".
         var workflow = await ResolverWorkflowAsync(request.IdTipoGerencia, ct);
         var pasoInicio = workflow.Pasos.FirstOrDefault(p => p.EsInicio)
             ?? throw new InvalidOperationException(
@@ -619,8 +607,6 @@ public class SeleccionMensualService : ISeleccionMensualService
             IdUsuarioModificacion = idUsuario,
         }, ct);
 
-        // Alta inmediata en la región de catálogo del hospital; si no tiene región,
-        // queda en "Sin región" para que el usuario decida dónde moverlo.
         await SincronizarRegionesAsync(seleccion, idUsuario, ct);
 
         return new SeleccionHospitalDto
@@ -669,8 +655,6 @@ public class SeleccionMensualService : ISeleccionMensualService
         var hospitales = await _repository.GetHospitalesAsync(idSeleccionMensual, ct);
         var avisos = new List<string>();
 
-        // Regiones de catálogo: la agrupación ya no clusteriza por GPS,
-        // ubica cada hospital en la región asignada en hospital_extension.
         var regionesCatalogo = (await _regionRepository.GetAllAsync(ct))
             .Where(z => z.Activo)
             .ToList();
@@ -679,7 +663,6 @@ public class SeleccionMensualService : ISeleccionMensualService
             .Where(z => z.CentroLatitud.HasValue && z.CentroLongitud.HasValue)
             .ToList();
 
-        // Región fija (vigente) de cada hospital según su extensión.
         var idsHospitales = hospitales
             .Where(h => h.IdHospital.HasValue)
             .Select(h => h.IdHospital!.Value)
@@ -705,7 +688,6 @@ public class SeleccionMensualService : ISeleccionMensualService
             await _repository.RemoveRegionAsync(regionPrev, ct);
         }
 
-        // Equipo vigente de cada región (1 equipo = 1 región): asignación automática.
         var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
         var equiposVigentes = await _equipoRepository.GetAllAsync(
             new EquipoPareoFiltro { SoloVigentes = true }, ct);
@@ -1048,7 +1030,6 @@ public class SeleccionMensualService : ISeleccionMensualService
 
         await ValidarSeleccionParaEnvioAsync(seleccion, idUsuario, ct);
 
-        // El envío es una acción del motor: Borrador -> Firma Gerencia General (ADR-00006)
         var workflow = await ResolverWorkflowAsync(seleccion.IdTipoGerencia, ct);
         var pasoInicio = workflow.Pasos.FirstOrDefault(p => p.EsInicio)
             ?? throw new InvalidOperationException("El workflow de selección no tiene paso inicial configurado.");
@@ -1116,7 +1097,6 @@ public class SeleccionMensualService : ISeleccionMensualService
 
         var codigoAccion = accion.TipoAccion?.Codigo ?? string.Empty;
 
-        // Cancelar no exige firma digital: la ejecuta el creador (con comentario obligatorio).
         if (codigoAccion != "CANCELAR")
         {
             await ValidarFirmaUsuarioAsync(idUsuario);
@@ -1130,14 +1110,11 @@ public class SeleccionMensualService : ISeleccionMensualService
             throw new InvalidOperationException(validacion.FirstError.Description);
         }
 
-        // Enviar desde el paso inicial repite las validaciones de regiones/cobertura que
-        // antes vivían en EnviarRevisionAsync.
         if (codigoAccion == "ENVIAR")
         {
             await ValidarSeleccionParaEnvioAsync(seleccion, idUsuario, ct);
         }
 
-        // Cerrar (autorización completa) exige cobertura de todas las regiones.
         if (codigoAccion == "CERRAR")
         {
             await ValidarEquiposRegionesAsync(seleccion, idUsuario, ct);
@@ -1208,10 +1185,6 @@ public class SeleccionMensualService : ISeleccionMensualService
             seleccion.IdSeleccionMensual, CodigoProceso.EDUCACION_MEDICA_SELECCION, ct);
     }
 
-    /// <summary>
-    /// Deja la selección dentro de su workflow sin cambiar su estado de dominio. Se usa para
-    /// selecciones Creada creadas antes de que el alta asignara workflow/paso inicial.
-    /// </summary>
     private async Task<bool> AsegurarWorkflowInicialAsync(
         SeleccionMensual seleccion,
         int idUsuario,
@@ -1289,12 +1262,6 @@ public class SeleccionMensualService : ISeleccionMensualService
         }
     }
 
-    /// <summary>
-    /// Sincroniza el estado de negocio y las fechas de firma a partir del paso alcanzado:
-    /// paso inicial = Creada (limpia firmas); pasos de firma intermedios = EnRevision;
-    /// paso final = según la acción: CERRAR = Cerrada (autorizada por completo),
-    /// RECHAZAR = Rechazada, CANCELAR = Cancelada.
-    /// </summary>
     private static void AplicarResultadoWorkflow(SeleccionMensual seleccion, Workflow workflow, WorkflowEjecucionResult resultado, string codigoAccion, int idUsuario)
     {
         seleccion.IdPasoActual = resultado.NuevoIdPaso ?? seleccion.IdPasoActual;
@@ -1316,7 +1283,7 @@ public class SeleccionMensualService : ISeleccionMensualService
             {
                 "RECHAZAR" => SeleccionMensual.EstadoRechazada,
                 "CANCELAR" => SeleccionMensual.EstadoCancelada,
-                _ => SeleccionMensual.EstadoCerrada, // CERRAR
+                _ => SeleccionMensual.EstadoCerrada, 
             };
 
             if (codigoAccion == "CERRAR")
@@ -1335,10 +1302,6 @@ public class SeleccionMensualService : ISeleccionMensualService
         }
     }
 
-    /// <summary>
-    /// Reglas para enviar la selección a autorización: debe tener regiones, el creador es quien
-    /// envía y cada región debe quedar con ejecutivo, equipo o suplente vigente.
-    /// </summary>
     private async Task ValidarSeleccionParaEnvioAsync(
         SeleccionMensual seleccion,
         int idUsuario,
@@ -1368,10 +1331,6 @@ public class SeleccionMensualService : ISeleccionMensualService
         }
     }
 
-    /// <summary>
-    /// Regla de cierre/avance: todas las regiones deben tener ejecutivo primario,
-    /// equipo legacy o un suplente activo que cubra la región/gerencia.
-    /// </summary>
     private async Task ValidarEquiposRegionesAsync(
         SeleccionMensual seleccion,
         int idUsuario,

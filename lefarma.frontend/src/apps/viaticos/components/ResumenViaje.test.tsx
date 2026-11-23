@@ -9,7 +9,6 @@ vi.mock('react-leaflet', () => ({
   MapContainer: ({ children }: { children?: ReactNode }) => <div data-testid="mapa-punto">{children}</div>,
   TileLayer: () => null,
   CircleMarker: () => null,
-  // El mapa del globo engancha Ctrl + rueda con useMap.
   useMap: () => ({ getContainer: () => document.createElement('div'), getZoom: () => 12, setZoom: () => undefined }),
 }));
 
@@ -45,7 +44,6 @@ const base: ResumenViajeDatos = {
 describe('ResumenViaje', () => {
   it('muestra estado/municipio y coordenadas del origen, sin el nombre genérico', () => {
     render(<ResumenViaje {...base} />);
-    // La fila del título lleva el chip de fase (Ida); la parada completa es el li.
     const origen = screen.getByText('Origen').closest('li')!;
     expect(origen).toHaveTextContent('Tlalpan, Ciudad de México · 19.48239, -99.10327');
     expect(screen.queryByText(/Punto seleccionado en mapa/)).not.toBeInTheDocument();

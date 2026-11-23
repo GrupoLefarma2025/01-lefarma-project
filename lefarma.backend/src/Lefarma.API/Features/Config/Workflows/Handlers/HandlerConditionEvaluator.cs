@@ -9,14 +9,6 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Lefarma.API.Features.Config.Workflows.Handlers
 {
-    /// <summary>
-    /// Evalúa la condición "aplica" del JSON de un handler: el handler solo se ejecuta/muestra
-    /// cuando la entidad cumple los scopes indicados. Soporta:
-    ///  - SOLICITUD_PERSONAL: tipoSolicitud, categoria, empresa, sucursal, area
-    ///  - ORDEN_COMPRA: empresa, sucursal, area, tipoGasto, proveedor
-    ///  - EDUCACION_MEDICA_SELECCION / RUTAS: tipoGerencia
-    /// Sin condición, con JSON inválido o en procesos no soportados → aplica.
-    /// </summary>
     public class HandlerConditionEvaluator
     {
         private readonly ApplicationDbContext _context;
@@ -107,10 +99,6 @@ namespace Lefarma.API.Features.Config.Workflows.Handlers
             return true;
         }
 
-        /// <summary>
-        /// true si la clave no viene, viene vacía, o el valor de la entidad está en la lista.
-        /// Si la clave viene y el valor de la entidad es nulo → no coincide.
-        /// </summary>
         private static bool Coincide(Dictionary<string, List<int>> aplica, string clave, int? valor)
         {
             if (!aplica.TryGetValue(clave, out var ids) || ids.Count == 0)

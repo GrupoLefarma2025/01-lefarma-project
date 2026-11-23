@@ -35,10 +35,6 @@ function esArtricenter(idEmpresa: number, nombre?: string | null): boolean {
   return idEmpresa === EMPRESA_ARTRICENTER || clave === 'ARTRICENTER' || clave === 'ARTICENTER';
 }
 
-/**
- * Los documentos de Artricenter se emiten con la marca Reumedika.
- * Para el resto, el logo se resuelve por nombre para no depender de IDs nuevos.
- */
 export function resolverLogoEmpresa(idEmpresa: number, nombre?: string | null): string {
   if (esArtricenter(Number(idEmpresa), nombre)) {
     return logoReumedika;

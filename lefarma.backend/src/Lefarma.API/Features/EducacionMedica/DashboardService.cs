@@ -13,11 +13,6 @@ public interface IDashboardService
         CancellationToken ct = default);
 }
 
-/// <summary>
-/// Agrega las fuentes del dashboard (ADR-00012, Fase 2) en una sola llamada.
-/// Los permisos se resuelven en el controller (claims) y aqui solo se consultan
-/// las fuentes permitidas; los servicios subyacentes ya filtran por usuario.
-/// </summary>
 public class DashboardService : IDashboardService
 {
     private readonly ITalleresService _talleres;

@@ -116,7 +116,6 @@ public class HospitalServiceTests
         creadas.Should().OnlyContain(c => c.IdUsuarioCreacion == 99 && c.IdUsuarioModificacion == 99);
         creadas.Should().OnlyContain(c => c.IdTipoGerencia == IdGerenciaDescentralizado);
 
-        // El hospital con extensión existente no se inserta ni actualiza
         extensiones.Verify(e => e.CreateAsync(It.IsAny<HospitalExtension>(), It.IsAny<CancellationToken>()), Times.Never);
         extensiones.Verify(e => e.UpdateAsync(It.IsAny<HospitalExtension>(), It.IsAny<CancellationToken>()), Times.Never);
     }
@@ -127,13 +126,13 @@ public class HospitalServiceTests
         var (servicio, hospitales, extensiones) = Crear();
         ConfigurarHospitales(
             hospitales,
-            Hospital(364, tipo: "Gobierno"),                          // institucion IMSS -> IMSS
-            Hospital(10, tipo: "Gobierno", codigoContactoPrincipal: 364), // hijo de IMSS -> IMSS
-            Hospital(20, tipo: "Gobierno", codigoContactoPrincipal: 385), // Bienestar -> IMSS Bienestar
-            Hospital(30, tipo: "Gobierno", codigoContactoPrincipal: 370), // ISSSTE -> Descentralizado
-            Hospital(40, tipo: "Gobierno"),                            // Gobierno sin padre -> Descentralizado
-            Hospital(50, tipo: null),                                 // tipo NULL -> Descentralizado
-            Hospital(60, tipo: "Privado"));                            // Privado -> Privado
+            Hospital(364, tipo: "Gobierno"),                          
+            Hospital(10, tipo: "Gobierno", codigoContactoPrincipal: 364), 
+            Hospital(20, tipo: "Gobierno", codigoContactoPrincipal: 385), 
+            Hospital(30, tipo: "Gobierno", codigoContactoPrincipal: 370), 
+            Hospital(40, tipo: "Gobierno"),                            
+            Hospital(50, tipo: null),                                 
+            Hospital(60, tipo: "Privado"));                            
         ConfigurarExistentes(extensiones);
 
         List<HospitalExtension> creadas = [];
@@ -160,10 +159,10 @@ public class HospitalServiceTests
         var (servicio, hospitales, extensiones) = Crear();
         ConfigurarHospitales(
             hospitales,
-            Hospital(1, codigoEstado: "493", ciudad: "Coyoacán"),          // CDMX -> local
-            Hospital(2, codigoEstado: "501", ciudad: "Naucalpan de Juárez"), // conurbado -> local
-            Hospital(3, codigoEstado: "501", ciudad: "Toluca"),             // Edomex no conurbado -> foráneo
-            Hospital(4, codigoEstado: null));                               // sin estado -> foráneo
+            Hospital(1, codigoEstado: "493", ciudad: "Coyoacán"),          
+            Hospital(2, codigoEstado: "501", ciudad: "Naucalpan de Juárez"), 
+            Hospital(3, codigoEstado: "501", ciudad: "Toluca"),             
+            Hospital(4, codigoEstado: null));                               
         ConfigurarExistentes(extensiones);
 
         List<HospitalExtension> creadas = [];
@@ -233,25 +232,20 @@ public class HospitalServiceTests
 
         var porHospital = creadas.ToDictionary(c => c.IdHospital);
 
-        // Almacén delegacional y BIRMEX: logísticos, no sede
         porHospital[100].EsAlmacen.Should().BeTrue();
         porHospital[100].EsSedeTaller.Should().BeFalse();
         porHospital[105].EsAlmacen.Should().BeTrue();
         porHospital[105].EsSedeTaller.Should().BeFalse();
 
-        // Sub-almacén: almacén pero sede preferente de su UMAE
         porHospital[101].EsAlmacen.Should().BeTrue();
         porHospital[101].EsSedeTaller.Should().BeTrue();
 
-        // Farmacia con sub-almacén del mismo UMAE: no sede
         porHospital[102].EsFarmacia.Should().BeTrue();
         porHospital[102].EsSedeTaller.Should().BeFalse();
 
-        // Farmacia sin sub-almacén: sede (si no, la UMAE desaparecería)
         porHospital[103].EsFarmacia.Should().BeTrue();
         porHospital[103].EsSedeTaller.Should().BeTrue();
 
-        // Contacto normal: sede
         porHospital[104].EsSedeTaller.Should().BeTrue();
         porHospital[104].EsAlmacen.Should().BeFalse();
         porHospital[104].EsFarmacia.Should().BeFalse();
@@ -268,7 +262,6 @@ public class HospitalServiceTests
                 new HospitalExtension { IdHospital = 1, EsSedeTaller = true },
                 new HospitalExtension { IdHospital = 2, EsSedeTaller = false, EsAlmacen = true },
                 new HospitalExtension { IdHospital = 3, EsSedeTaller = null },
-                // Hospital 4 sin extensión
             ]);
 
         var sedes = await servicio.GetHospitalesAsync(new HospitalFilterParams { FiltroSede = "sedes" });

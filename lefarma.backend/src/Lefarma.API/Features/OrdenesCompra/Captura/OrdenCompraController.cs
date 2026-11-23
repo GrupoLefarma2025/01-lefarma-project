@@ -14,7 +14,6 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
 [Route("api/ordenes")]
     [ApiController]
     [EndpointGroupName("OrdenesCompra")]
-//    [HasPermission(Permissions.OrdenesCompra.View)]
     public class OrdenCompraController : ControllerBase
     {
         private readonly IOrdenCompraService _service;
@@ -70,7 +69,6 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
         }
 
             [HttpPost]
-        //    [HasPermission(Permissions.OrdenesCompra.Create)]
             [SwaggerOperation(Summary = "Crear nueva orden de compra")]
             public async Task<IActionResult> Create( CreateOrdenCompraRequest request)
             {
@@ -93,10 +91,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                     new ApiResponse<OrdenCompraResponse> { Success = true, Message = "Orden creada exitosamente.", Data = data }));
             }
 
-
-
-        [HttpDelete("{id}")]
-    //    [HasPermission(Permissions.OrdenesCompra.Delete)]
+[HttpDelete("{id}")]
         [SwaggerOperation(Summary = "Eliminar orden de compra (solo estado Creada)")]
         public async Task<IActionResult> Delete(int id)
         {
@@ -127,6 +122,5 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
             { Success = true, Message = "Orden actualizada exitosamente.", Data = data }));
         }
 
-
-    }
+}
 }

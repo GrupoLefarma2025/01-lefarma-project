@@ -16,7 +16,6 @@ import type {
 import { hidratarSolicitud } from './solicitudDraft';
 import { casetasDeRuta } from './casetasRuta';
 
-/** Margen que se suma al tiempo de recorrido para no llegar justo al límite. */
 export const MARGEN_CARRO = 0.1;
 
 export interface SalidaAproximada {
@@ -29,7 +28,6 @@ export function duracionTexto(minutos: number): string {
   return `${Math.floor(minutos / 60)}h ${String(minutos % 60).padStart(2, '0')}m`;
 }
 
-/** Fecha con el nombre completo del día ("Miércoles, 21/10/2026"). */
 export function fechaCorta(fecha: string): string | null {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) return null;
   const [anio, mes, dia] = fecha.split('-').map(Number);
@@ -42,7 +40,6 @@ export function fechaCorta(fecha: string): string | null {
   return texto.charAt(0).toUpperCase() + texto.slice(1);
 }
 
-/** Hora en 12 h con AM/PM ("11:07 AM"). */
 export function horaAmPm(hora: string): string | null {
   if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(hora)) return null;
   const [hh, mm] = hora.split(':').map(Number);
@@ -50,7 +47,6 @@ export function horaAmPm(hora: string): string | null {
   return `${hh % 12 || 12}:${String(mm).padStart(2, '0')} ${sufijo}`;
 }
 
-/** Minutos del recorrido con el margen aplicado. */
 export function minutosConMargen(duracion: string): number | null {
   const partes = duracion.match(/(\d+)h\s*(\d+)m/);
   if (!partes) return null;
@@ -69,7 +65,6 @@ export function sumarMinutos(fecha: string, hora: string, minutos: number): { fe
   };
 }
 
-/** Hora límite de salida para llegar a `fecha`/`hora` con el recorrido dado. */
 export function salidaAproximada(fecha: string, hora: string, duracion: string): SalidaAproximada | null {
   const minutos = minutosConMargen(duracion);
   if (minutos === null || !/^\d{4}-\d{2}-\d{2}$/.test(fecha) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(hora)) return null;
@@ -90,19 +85,10 @@ function separarIso(iso: string | null | undefined): { fecha: string | null; hor
   return { fecha: fecha ?? null, hora: hora ? hora.slice(0, 5) : null };
 }
 
-/**
- * Lee el cálculo de la ruta guardado en `datos.calculo` (se escribe al
- * enviar). Devuelve `null` si la solicitud todavía no tiene cálculo.
- */
 export function leerCalculoDesdeDatos(datos: unknown): CalculoViaje | null {
   return leerCalculo(datos, 'calculo');
 }
 
-/**
- * Lee la ruta que el concentrado autorizó. Puede ser la misma que eligió la
- * persona viajera o una nueva generada por el revisor; vive aparte en
- * `datos.calculo_autorizado` para no perder la ruta calculada original.
- */
 export function leerCalculoAutorizadoDesdeDatos(datos: unknown): CalculoViaje | null {
   return leerCalculo(datos, 'calculo_autorizado');
 }
@@ -208,7 +194,6 @@ function leerCalculo(datos: unknown, clave: 'calculo' | 'calculo_autorizado'): C
 
 const dosDecimales = (valor: number): number => Math.round(valor * 100) / 100;
 
-/** Único punto que decide qué oferta representa un tramo en el cálculo. */
 export function ofertaCalculada(
   respuesta: CostosRutaResponse | undefined,
   idSeleccionado?: string | null,
@@ -220,8 +205,6 @@ export function ofertaCalculada(
     const elegida = opciones.find((opcion) => opcion.id === idSeleccionado);
     if (elegida) return elegida;
   }
-  // En carro se toma la misma oferta que usa la ruta armada (la de cuota si
-  // su costo coincide), para que km y tiempo cuadren con lo que se ve.
   const totalRuta = persona?.rutaArmada.totales.subtotalMagna ?? null;
   const ofertaAuto =
     opciones.find((o) => o.modo === 'auto' && totalRuta !== null && Math.abs(o.costoGrupo - totalRuta) < 1) ??
@@ -229,15 +212,12 @@ export function ofertaCalculada(
   return ofertaAuto ?? opciones[0];
 }
 
-/** Clave estable de un hotel, la misma que usa la UI para marcarlo. */
 export function claveHotel(hotel: { lugar: string; nombre?: string; checkIn: string; distanciaKm?: number }): string {
   return `${hotel.nombre ?? hotel.lugar}|${hotel.checkIn}|${hotel.distanciaKm ?? ''}`;
 }
 
 function precioOferta(oferta: CostosRutaOferta): number | null {
   if (typeof oferta.costoGrupo !== 'number' || !Number.isFinite(oferta.costoGrupo)) return null;
-  // Un estimado sin costo no se convierte en $0: el backend solo admite
-  // precio null cuando la fuente es estimada.
   if (oferta.estimado && oferta.costoGrupo <= 0) return null;
   return dosDecimales(oferta.costoGrupo);
 }
@@ -252,11 +232,6 @@ function fuenteConEstimado(fuente: string, estimado: boolean): string {
   return /estimad/i.test(fuente) ? fuente : `${fuente} (estimado)`;
 }
 
-/**
- * Modo del motor -> tipo que se guarda en `solicitud_opciones.tipo`. El CHECK
- * de la tabla solo acepta estos valores; guardar el modo crudo ('avion',
- * 'bus', 'uber') hacía fallar el envío con un error 500.
- */
 const TIPO_OPCION: Record<string, string> = {
   avion: 'vuelo',
   bus: 'autobus',
@@ -275,22 +250,18 @@ interface DatosOpcionPropuesta {
   [clave: string]: unknown;
 }
 
-/** La noche se coloca antes del primer destino o después del destino anterior. */
 export type PosicionHotel = 'antes' | 'despues';
 
-/** Posición que corresponde a cada tramo de la ruta. */
 export function posicionHotel(indice: number): PosicionHotel {
   return indice === 0 ? 'antes' : 'despues';
 }
 
-/** Hotel ya elegido en el catálogo del motor. */
 export interface HotelElegidoInput {
   nombre?: string;
   latitud?: number;
   longitud?: number;
 }
 
-/** Respuesta del motor con el hotel elegido como lugar de la ruta. */
 export interface HotelRutaCalculo {
   posicion: PosicionHotel;
   respuesta: CostosRutaResponse;
@@ -310,7 +281,6 @@ export function hotelTieneCoordenadas(
   );
 }
 
-/** Distancia en línea recta entre dos coordenadas (km). */
 export function distanciaKm(
   a: { latitud: number; longitud: number },
   b: { latitud: number; longitud: number },
@@ -324,7 +294,6 @@ export function distanciaKm(
   return 2 * 6371 * Math.asin(Math.sqrt(h));
 }
 
-/** Tramo largo de la cadena con hotel: origen→hotel o hotel→destino. */
 export function ofertaLargaHotel(
   respuesta: CostosRutaResponse | null | undefined,
   posicion: PosicionHotel,
@@ -340,7 +309,6 @@ export function ofertaLargaHotel(
   );
 }
 
-/** Tramo local de la cadena con hotel: hotel→destino o origen→hotel. */
 export function ofertaLocalHotel(
   respuesta: CostosRutaResponse | null | undefined,
   posicion: PosicionHotel,
@@ -350,8 +318,6 @@ export function ofertaLocalHotel(
   if (!tramo) return null;
   const elegida = tramo.opciones.find((oferta) => oferta.id === seleccion);
   if (elegida) return elegida;
-  // El diagrama pide taxi: no se auto-selecciona el camión urbano aunque sea
-  // más barato. Se prefieren taxi/Uber y, entre ellos, el de menor costo.
   const taxis = tramo.opciones.filter(
     (oferta) => (oferta.modo === 'uber' || oferta.modo === 'taxi') && oferta.aTiempo && !oferta.noTomable,
   );
@@ -446,11 +412,6 @@ function opcionDesdeHotel(
   };
 }
 
-/**
- * Taxi punto ↔ terminal que la oferta de bus/avión ya incluye. Se guarda
- * como una opción propia para que el total cotizado, la aprobación y el
- * concentrado lo sumen (antes solo vivía en la propuesta del backend).
- */
 function opcionDesdeTaxi(
   oferta: CostosRutaOferta,
   datos: DatosOpcionPropuesta,
@@ -481,11 +442,6 @@ function opcionDesdeTaxi(
   };
 }
 
-/**
- * Una de las dos mitades del taxi punto↔terminal de una oferta larga. Se
- * guarda por separado para que el concentrado vea el traslado real:
- * punto→terminal y terminal→hotel (o hotel→terminal y terminal→destino).
- */
 function opcionDesdeTaxiMitad(
   oferta: CostosRutaOferta,
   datos: DatosOpcionPropuesta,
@@ -526,10 +482,6 @@ function opcionDesdeTaxiMitad(
   };
 }
 
-/**
- * Taxi local hotel↔hospital. El motor lo devuelve como oferta `uber`; se
- * persiste como `taxi` para que el total y la aprobación lo sumen igual.
- */
 function opcionDesdeTaxiLocal(
   oferta: CostosRutaOferta,
   datos: DatosOpcionPropuesta,
@@ -553,14 +505,8 @@ function opcionDesdeTaxiLocal(
   };
 }
 
-/** Tope de opciones que se guardan por tramo para no inflar el payload. */
 export const MAX_OPCIONES_POR_TRAMO = 20;
 
-/**
- * Todas las opciones que el motor ofreció, no solo las elegidas. La marca
- * `fue_elegida` sigue la selección del wizard y los hoteles propuestos solo
- * entran cuando la persona marcó dormir en ese tramo.
- */
 export function construirOpcionesPropuesta(
   tramos: TramoViaje[],
   resultados: Record<number, CostosRutaResponse>,
@@ -608,9 +554,6 @@ export function construirOpcionesPropuesta(
     }
 
     if (usaHotel) {
-      // El tramo largo de la cadena con hotel es el que lleva al hotel (noche
-      // antes) o sale del hotel (noche después). Su taxi se guarda en dos
-      // filas para que el traslado real quede visible y sume igual al total.
       const larga = idElegido
         ? tramoLargo?.opciones.find((oferta) => oferta.id === idElegido) ?? null
         : null;
@@ -623,8 +566,6 @@ export function construirOpcionesPropuesta(
           candidatas.push(opcionDesdeTaxi(larga!, datosLargo));
         }
 
-        // El traslado local es taxi/Uber por regla del diagrama. Se guarda como
-        // una opción elegida propia para que el total y la aprobación lo sumen.
         const local = ofertaLocalHotel(
           hotelRuta!.respuesta,
           posicion,
@@ -640,12 +581,7 @@ export function construirOpcionesPropuesta(
           }, posicion));
         }
       }
-      // Si el tramo largo es auto/renta, el vehículo cubre el traslado local:
-      // no se inventa un taxi que el viajero no va a pagar.
     } else {
-      // El taxi punto↔terminal de la opción elegida viaja como una opción
-      // propia: antes solo existía en la propuesta del backend y el total
-      // persistido lo perdía.
       const elegida = ofertas.find((oferta) => oferta.id === idElegido);
       if (
         elegida &&
@@ -671,8 +607,6 @@ export function construirOpcionesPropuesta(
       }
     }
 
-    // El tope no debe perder la decisión, los taxis ni el hospedaje: se
-    // reservan primero esos lugares y el recorte conserva el orden del motor.
     if (candidatas.length > MAX_OPCIONES_POR_TRAMO) {
       const mantener = new Set<number>();
       candidatas.forEach((opcion, posicionOpcion) => {
@@ -726,10 +660,6 @@ export function comidaDesdeSnapshot(datos: unknown): number | null {
   return typeof comida === 'number' && Number.isFinite(comida) ? comida : null;
 }
 
-/**
- * Resumen de costos de la versión calculada. Un concepto sin opciones elegidas
- * se queda en `null` (no aplica / no se conoce), nunca en cero inventado.
- */
 export function resumenCostosRuta(
   calculo: CalculoViaje,
   opciones: OpcionCotizacion[],
@@ -779,14 +709,6 @@ export function resumenCostosRuta(
   return { autobus, avion, gasolina, casetas, hospedaje, comida: comidaConocida, taxi, total };
 }
 
-/**
- * Resumen de la ruta calculada por tramo: kilómetros, tiempos (con y sin
- * margen), hora de salida/llegada y las casetas de referencia. Es la ruta que
- * manda después del envío (se guarda en `datos.calculo`).
- *
- * `seleccion` fija la oferta de cada tramo por índice; sin ella se conserva la
- * recomendación del motor (la misma oferta que dibuja la ruta armada).
- */
 export function construirCalculo(
   tramos: TramoViaje[],
   resultados: Record<number, CostosRutaResponse>,
@@ -811,8 +733,6 @@ export function construirCalculo(
       ? salidaAproximada(tramo.hasta.fecha, tramo.hasta.hora, duracion)
       : null;
 
-    // Solo se tratan las horas como recorrido en carro cuando la oferta
-    // elegida es efectivamente auto; elegir un camión debe respetar sus horas.
     const esCarro = modoTransporte === 'propio' && oferta?.modo === 'auto';
     const salida = esCarro
       ? (salidaDesde ?? (limiteSalida ? { fecha: limiteSalida.fecha, hora: limiteSalida.hora } : null))
@@ -872,11 +792,6 @@ export function construirCalculo(
   };
 }
 
-/**
- * Ajusta el cálculo de los tramos que llevan hotel: usa el tramo largo de la
- * cadena (el que llega al hotel o sale de él) para horas/costo y suma los
- * kilómetros de los dos subtramos. El detalle de la cadena vive en `ruta`.
- */
 export function aplicarHotelesAlCalculo(
   calculo: CalculoViaje,
   hotelRutas: Record<number, HotelRutaCalculo>,
@@ -976,11 +891,6 @@ export interface TramoViaje {
   esRegreso: boolean;
 }
 
-/**
- * Divide el viaje en tramos: origen → destino 1 → … → regreso. Las salidas de
- * los destinos son opcionales: si faltan, se estima la salida 2 h después de la
- * llegada. El regreso usa como límite la salida del último destino + 2 h.
- */
 export function construirTramos(solicitud: Solicitud): { tramos: TramoViaje[]; error: string | null } {
   const datos = hidratarSolicitud(solicitud.datos);
   if (!datos) return { tramos: [], error: 'La solicitud no tiene un snapshot reconocible.' };
@@ -1074,7 +984,6 @@ function requestConLugares(solicitud: Solicitud, lugares: CostosRutaLugarInput[]
   };
 }
 
-/** Request del motor para un tramo normal o el regreso. */
 export function construirRequestTramo(solicitud: Solicitud, tramo: TramoViaje): CostosRutaRequest {
   const salida: CostosRutaLugarInput = {
     orden: 1,
@@ -1123,12 +1032,6 @@ export function construirRequestTramo(solicitud: Solicitud, tramo: TramoViaje): 
   ], false);
 }
 
-/**
- * Punto del lugar `hotel` en el request. Si el viajero ya eligió un hotel con
- * coordenadas se usan las suyas; si es la referencia del tabulador (0,0) o
- * todavía no hay elección, se usa el punto de búsqueda para no mandar (0,0)
- * al motor.
- */
 function puntoHotel(
   punto: PuntoSeleccion,
   hotel: HotelElegidoInput | null | undefined,
@@ -1146,11 +1049,6 @@ function puntoHotel(
   };
 }
 
-/**
- * Request para la opción "noche antes": origen → hotel (noche previa) →
- * primer destino. El motor propone hoteles cerca del destino. Si se pasa el
- * hotel elegido, la ruta se recalcula con sus coordenadas reales.
- */
 export function construirRequestHotel(
   solicitud: Solicitud,
   tramo: TramoViaje,
@@ -1195,19 +1093,12 @@ export function construirRequestHotel(
   ], true);
 }
 
-/**
- * Request para la opción "noche después": el viajero duerme cerca del punto
- * de salida (el hospital anterior o el último punto) y continúa al día
- * siguiente. Cubre tanto el hotel intermedio de Educación Médica como el
- * regreso. Si se pasa el hotel elegido, se usan sus coordenadas reales.
- */
 export function construirRequestHotelDespues(
   solicitud: Solicitud,
   tramo: TramoViaje,
   hotel?: HotelElegidoInput,
 ): CostosRutaRequest | null {
   if (!esFecha(tramo.desde.fecha) || !esHora(tramo.desde.hora)) return null;
-  // La noche después solo tiene sentido si el siguiente punto es otro día.
   if (!tramo.esRegreso && (!esFecha(tramo.hasta.fecha) || tramo.hasta.fecha <= tramo.desde.fecha)) {
     return null;
   }
@@ -1217,8 +1108,6 @@ export function construirRequestHotelDespues(
     ? tramo.hasta.fecha
     : diaSiguiente;
   const checkInBase = sumarHoras(diaHotel, tramo.desde.hora, 1);
-  // Si la salida del hospital cruza medianoche, el check-in se queda en el
-  // mismo día para que la estancia cuente al menos una noche.
   const checkInHora = checkInBase?.fecha === diaHotel ? checkInBase.hora : '23:59';
   const hospedaje = puntoHotel(tramo.desde.punto, hotel, `Hotel cerca de ${tramo.desde.nombre}`);
   const destino: CostosRutaLugarInput = tramo.esRegreso

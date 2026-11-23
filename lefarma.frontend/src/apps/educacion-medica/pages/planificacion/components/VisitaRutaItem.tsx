@@ -9,7 +9,6 @@ interface VisitaRutaItemProps {
   visita: RutaVisita;
   ubicacion: string | null;
   editable: boolean;
-  /** Modo ajuste post-cierre (ADR-00010): drag y acciones con motivo. */
   modoAjuste?: boolean;
   onRetornar: (visita: RutaVisita) => void;
   onEditarHoras?: (visita: RutaVisita) => void;
@@ -23,8 +22,6 @@ export function VisitaRutaItem({
   onRetornar,
   onEditarHoras,
 }: VisitaRutaItemProps) {
-  // dnd-kit (pointer events): funciona igual con mouse y tactil; evita la clase
-  // completa de bugs del drag nativo (tooltips del SO, seleccion de texto, etc.).
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: `visita-${visita.idRutaVisita}`,
     data: { tipo: 'visita', visita },

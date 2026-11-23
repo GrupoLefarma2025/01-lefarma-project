@@ -251,8 +251,6 @@ export default function HospitalesPage() {
     },
   });
 
-  // Las regiones son por gerencia: el select de región del formulario solo
-  // muestra las de la gerencia elegida (o todas si aún no se elige).
   const gerenciaFormulario = useWatch({ control: form.control, name: 'idTipoGerencia' });
   const mostrarFormulario = useWatch({
     control: form.control,
@@ -377,14 +375,12 @@ export default function HospitalesPage() {
     [buildParams]
   );
 
-  // Cargar catálogos al montar.
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- carga inicial; los setState ocurren tras el await
     fetchTiposGerencia();
     fetchRegiones();
   }, []);
 
-  // Sincroniza extensiones: solo crea las faltantes, nunca modifica las existentes.
   const sincronizarExtensiones = async () => {
     const confirmado = window.confirm(
       'Se crearán las extensiones faltantes de los hospitales del catálogo (activos, sin Privado/Distribuidor).\n\nLas extensiones existentes NO se insertan ni actualizan. ¿Continuar?'
@@ -410,7 +406,6 @@ export default function HospitalesPage() {
     }
   };
 
-  // Debounce solo para el campo de búsqueda.
   useEffect(() => {
     const timer = setTimeout(() => {
       if (filters.search !== busquedaServer) {
@@ -420,13 +415,11 @@ export default function HospitalesPage() {
     return () => clearTimeout(timer);
   }, [filters.search, busquedaServer]);
 
-  // Disparar búsqueda cuando cambie la página o los filtros ya estén debounced.
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- los setState ocurren tras el await
     buscar(pagination.pageIndex, pagination.pageSize);
   }, [pagination, buscar]);
 
-  // Cuando cambian los filtros (excepto paginación), regresar a la primera página.
   const filtersKey = useMemo(() => {
     const { search, ...rest } = filters;
     void search;
@@ -695,7 +688,6 @@ export default function HospitalesPage() {
       idRegion,
       conSia: values.conSia ?? false,
       numeroQuirofanos,
-      // Se preserva la clasificación vigente hasta agregar el control en el formulario
       esZonaMetropolitana: selectedHospital.extension?.esZonaMetropolitana ?? null,
       esAlmacen: values.esAlmacen ?? false,
       esFarmacia: values.esFarmacia ?? false,

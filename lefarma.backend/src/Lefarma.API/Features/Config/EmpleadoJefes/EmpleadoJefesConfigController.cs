@@ -8,7 +8,6 @@ using Microsoft.AspNetCore.Mvc;
 namespace Lefarma.API.Features.Config.EmpleadoJefes
 {
     [ApiController]
-    //    [HasPermission(Permissions.Usuarios.Manage)]
     public class EmpleadoJefesConfigController : ControllerBase
     {
         private readonly IEmpleadoJefesConfigService _service;

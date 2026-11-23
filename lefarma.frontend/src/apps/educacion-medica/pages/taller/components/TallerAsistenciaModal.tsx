@@ -21,7 +21,6 @@ import { AsistenciaPrintDocument } from './AsistenciaPrintDocument';
 
 const MAX_ASISTENTES = 20;
 
-/** Descripción fija de la evidencia que guarda la hoja firmada (foto/escaneo). */
 const DESCRIPCION_HOJA = 'Hoja de lista de asistencia firmada';
 
 const aTexto = (valor: string | null | undefined) => valor ?? '';
@@ -64,12 +63,10 @@ interface TallerAsistenciaModalProps {
   open: boolean;
   onClose: () => void;
   taller: Taller | null;
-  /** EV/EP del equipo (talleres.puede_capturar) y ventana Programado/EnCurso. */
   puedeCapturar: boolean;
   onChanged: () => void;
 }
 
-/** Lista de asistencia (FOR-008): transcripción 1–20 y la hoja firmada como evidencia (ADR-00008). */
 export function TallerAsistenciaModal({
   open,
   onClose,
@@ -91,7 +88,6 @@ export function TallerAsistenciaModal({
   const evidenciaHoja =
     evidencias.find((evidencia) => evidencia.descripcion === DESCRIPCION_HOJA) ?? null;
   const enCurso = taller?.estado === 'EnCurso';
-  // La hoja firmada es una evidencia del taller: se gestiona En curso (regla del servicio).
   const puedeGestionarHoja = puedeCapturar && enCurso;
 
   const cargar = useCallback(async () => {

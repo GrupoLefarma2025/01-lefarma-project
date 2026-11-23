@@ -101,12 +101,10 @@ interface AccionDisponibleResponse {
   tipoAccionCambiaEstado?: boolean;
   enviaConcentrado?: boolean;
 
-  // Requisitos del paso
   requiereComentario: boolean;
   requiereAdjunto: boolean;
   permiteAdjunto: boolean;
 
-  // Handlers y campos para modal dinámico
   handlers: AccionHandlerResponse[];
   camposWorkflow: WorkflowCampoResponse[];
   camposRequeridos: string[];
@@ -177,7 +175,7 @@ interface WorkflowCampoConfig {
   idWorkflowCampo: number;
   nombreTecnico: string;
   etiquetaUsuario: string;
-  tipoControl: string; // 'Texto' | 'Numero' | 'Booleano' | 'Checkbox' | 'Selector' | 'Fecha' | 'Archivo'
+  tipoControl: string; 
   sourceCatalog?: string | null;
   propiedadEntidad?: string | null;
   validarFiscal?: boolean;
@@ -300,7 +298,6 @@ function getCamposParaAccion(accion: AccionDisponibleResponse | null): CampoForm
 
   for (const handler of handlers) {
     try {
-      // Field: input/selector/checkbox — requerido viene del handler (valida y guarda)
       if (handler.handlerKey === 'Field' && handler.campo) {
         const inputKey = handler.campo.nombreTecnico;
         if (!seen.has(inputKey)) {
@@ -321,7 +318,6 @@ function getCamposParaAccion(accion: AccionDisponibleResponse | null): CampoForm
         }
       }
 
-      // Document/Archivo: campo tipo Archivo (comprobante_pago, comprobante_gasto/factura o documento genérico)
       if ((handler.handlerKey === 'Document' || handler.handlerKey === 'Archivo') && handler.campo) {
         const inputKey = handler.campo.nombreTecnico;
         if (!seen.has(inputKey)) {
@@ -342,7 +338,6 @@ function getCamposParaAccion(accion: AccionDisponibleResponse | null): CampoForm
         }
       }
 
-      // Alerta: muestra mensaje de validacion (ej: proveedor no autorizado)
       if (handler.campo?.tipoControl === 'Alerta') {
         const inputKey = handler.campo.nombreTecnico;
         if (!seen.has(inputKey)) {
@@ -365,13 +360,11 @@ function getCamposParaAccion(accion: AccionDisponibleResponse | null): CampoForm
         }
       }
     } catch {
-      /* handler sin campo o JSON inválido */
     }
   }
   return result;
 }
 
-// ── helpers de formato ──────────────────────────────────────────────────────
 const fmtFecha = (dateStr: string | null | undefined) => {
   if (!dateStr) return '-';
   try {
@@ -399,11 +392,6 @@ const fmtFechaHora = (dateStr: string | null | undefined) => {
   });
 };
 
-/**
- * Las fechas de archivos las guarda el backend en UTC y el API las entrega sin
- * sufijo de zona; si se interpretan tal cual como locales la hora sale corrida
- * seis horas. Aquí se marcan como UTC antes de convertirlas a la hora local.
- */
 const parseFechaArchivo = (dateStr: string) => {
   if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return new Date(`${dateStr}T00:00:00`);
   return new Date(/([zZ]|[+-]\d{2}:\d{2})$/.test(dateStr) ? dateStr : `${dateStr}Z`);
@@ -423,10 +411,6 @@ const fmtFechaHoraArchivo = (dateStr: string | null | undefined) => {
   });
 };
 
-/**
- * Firma capturada en un evento de la bitácora. Se descarga como blob
- * autenticado y no se pinta si el evento no tiene firma (404).
- */
 function FirmaEventoRow({
   idEvento,
   nombreUsuario,
@@ -474,7 +458,6 @@ function FirmaEventoRow({
   );
 }
 
-// ── Helpers de archivos adjuntos (pestaña e historial) ───────────────────────
 interface MetaArchivoAdjunto {
   modulo?: string; origen?: string; tipo?: string; observaciones?: string;
   paso?: string; nombrePaso?: string; nombreAccion?: string;
@@ -536,17 +519,13 @@ export default function AutorizacionesOC() {
   );
   const [comentarioFirma, setComentarioFirma] = useState('');
   const [isHistorialModalOpen, setIsHistorialModalOpen] = useState(false);
-  // Valores dinámicos de campos para el modal de la acción (key = inputKey del config del handler)
   const [camposValues, setCamposValues] = useState<Record<string, unknown>>({});
   const [catalogos, setCatalogos] = useState<Record<string, { value: string; label: string }[]>>(
     {}
   );
   const [loadingCatalogos, setLoadingCatalogos] = useState(false);
-  // Subida de archivos para handlers DocumentRequired
   const [archivoSubidos, setArchivoSubidos] = useState<Record<string, Archivo[]>>({});
-  // Adjuntos libres para pasos con permite_adjunto=true
   const [adjuntosLibres, setAdjuntosLibres] = useState<Archivo[]>([]);
-  // Archivos adjuntos de la orden seleccionada
   const [archivosOrden, setArchivosOrden] = useState<ArchivoListItem[]>([]);
   const [loadingArchivos, setLoadingArchivos] = useState(false);
   const [isHistorialArchivosOpen, setIsHistorialArchivosOpen] = useState(false);
@@ -554,7 +533,6 @@ export default function AutorizacionesOC() {
   const [loadingHistorialArchivos, setLoadingHistorialArchivos] = useState(false);
   const [viewerArchivoId, setViewerArchivoId] = useState<number | null>(null);
 
-  // Estado del tab de facturación
   const [partidasPendientes, setPartidasPendientes] = useState<PartidaPendienteResponse[]>([]);
   const [partidasPendientesPago, setPartidasPendientesPago] = useState<PartidaPendienteResponse[]>([]);
   const [loadingFacturacion, setLoadingFacturacion] = useState(false);
@@ -583,7 +561,6 @@ export default function AutorizacionesOC() {
   const [loadingFacturacionPartida, setLoadingFacturacionPartida] = useState(false);
   const [eliminandoAsignacionId, setEliminandoAsignacionId] = useState<number | null>(null);
 
-  //Permisos
   const puedeVerTodas = usePermission({ require: 'orden_compra.puede_ver_todas_las_ordenes' });
   const puedeVerPorEmpresa = usePermission({ require: 'orden_compra.puede_ver_por_empresa' });
   const puedeVerPorFlujo = usePermission({ require: 'orden_compra.puede_ver_por_flujo' });
@@ -697,7 +674,7 @@ export default function AutorizacionesOC() {
                 if (stgRes.data.success && stgRes.data.data) {
                   nuevosStaging.set(id, stgRes.data.data);
                 }
-              } catch { /* staging fetch is best-effort */ }
+              } catch { }
             }
           }
         })
@@ -712,9 +689,6 @@ export default function AutorizacionesOC() {
 
   const fetchFirmasUsuarios = async (historialData: HistorialWorkflowItemResponse[]) => {
     try {
-      // Último evento por usuario (omitiendo firmaDocumento === false): las firmas
-      // ya no son URLs públicas; el servidor sirve la firma del evento o, en
-      // documentos anteriores a la captura, la firma vigente actual (fallback).
       const ultimoEventoPorUsuario = new Map<number, number>();
       const firmaDocumentoByUser = new Map<number, boolean>();
       for (const h of historialData) {
@@ -770,7 +744,6 @@ export default function AutorizacionesOC() {
       setHistorial(historialRes.data?.data || []);
 
       const historialData = historialRes.data?.data || [];
-      console.log(`Bitacora de oriden ${idOrden} :`, historialData);
 
       await Promise.all([
         orden ? cargarProveedoresOrden(orden) : Promise.resolve(),
@@ -843,16 +816,12 @@ export default function AutorizacionesOC() {
     try {
       await comprobanteService.eliminarPorOrden(selectedOrden!.idOrden, categoria);
       toast.success(`Comprobantes de ${label} borrados correctamente`);
-      // Limpiar el estado de comprobantes subidos (causa del pendiente=0)
       setComprobantesWorkflow((prev) => {
         const next = { ...prev };
-        // Keys del modal de pago (isSubirComprobantePagoOpen = 'pago'/'gasto')
         delete next[categoria];
-        // Keys del modal de firma (comprobante_gasto / comprobante_pago)
         delete next[categoria === 'gasto' ? 'comprobante_gasto' : 'comprobante_pago'];
         return next;
       });
-      // Refrescar datos
       fetchDetalle(selectedOrden!.idOrden);
     } catch {
       toast.error(`Error al borrar los comprobantes de ${label}`);
@@ -909,16 +878,13 @@ export default function AutorizacionesOC() {
     try {
       setWorkflowEstados(await fetchWorkflowEstados());
     } catch {
-      // fallo silencioso
     }
   };
 
-  // Helper para obtener el ID de formaPago sin importar mayúsculas/minúsculas (backend usa IdFormaPago/PascalCase)
   const getFormaPagoId = (fp: Record<string, unknown>): number => {
     return (fp.idFormaPago ?? fp.IdFormaPago) as number;
   };
 
-  // Helper para obtener el nombre de formaPago sin importar mayúsculas/minúsculas
   const getFormaPagoNombre = (fp: Record<string, unknown>): string => {
     return (fp.nombre ?? fp.Nombre ?? 'Sin nombre') as string;
   };
@@ -930,7 +896,6 @@ export default function AutorizacionesOC() {
         const map = new Map<number, FormaPago>();
         for (const fp of res.data.data) {
           const fpRecord = fp as unknown as Record<string, unknown>;
-          // Transformar de PascalCase (backend) a camelCase (tipo del frontend)
           const transformed: FormaPago = {
             idFormaPago: getFormaPagoId(fpRecord),
             nombre: getFormaPagoNombre(fpRecord),
@@ -940,7 +905,6 @@ export default function AutorizacionesOC() {
         setFormasPagoMap(map);
       }
     } catch {
-      // fallo silencioso
     }
   };
 
@@ -955,7 +919,6 @@ export default function AutorizacionesOC() {
         setAllProveedoresMap(map);
       }
     } catch {
-      // fallo silencioso
     }
   };
 
@@ -963,7 +926,6 @@ export default function AutorizacionesOC() {
     fetchProfileSignature();
     const cargarDatos = async () => {
     try {
-      // Promise.all dispara todas las peticiones al mismo tiempo
       await Promise.all([
         fetchEstados(),
         fetchAllWorkflowsFlow(),
@@ -972,7 +934,6 @@ export default function AutorizacionesOC() {
       ]);
 
       await fetchOrdenes()
-      console.log("¡Todo cargado!");
     } catch (error) {
       console.error("Error al cargar los datos:", error);
       setLoadingOrdenes(false);
@@ -1006,8 +967,6 @@ export default function AutorizacionesOC() {
     }
   }, [selectedOrden, workflowsMap]);
 
-  // Resuelve una idCuenta bancaria del proveedor a los 5 campos de cuenta
-  // usando la misma fuente que el detalle (proveedoresMap / allProveedoresMap).
   const resolverCuentaProveedor = (idCuenta: number) => {
     for (const map of [proveedoresMap, allProveedoresMap]) {
       for (const [, proveedor] of map) {
@@ -1027,8 +986,6 @@ export default function AutorizacionesOC() {
     return null;
   };
 
-  // Pre-llenado de cuenta para el modal de comprobante de pago:
-  // prioriza la cuenta ya capturada por el tesorero; si no, la del solicitante.
   const cuentaPagoInicial = (() => {
     if (!selectedOrden) return null;
     if (selectedOrden.cuentaPagoTesorero) {
@@ -1062,12 +1019,10 @@ export default function AutorizacionesOC() {
     setAccionSeleccionada(accion);
     setComentarioFirma('');
 
-    // Precargar campos con valores existentes de la orden
     const campos = getCamposParaAccion(accion);
     const initialValues: Record<string, unknown> = {};
     if (selectedOrden) {
       const ordenAny = selectedOrden as unknown as Record<string, unknown>;
-      // Convertir snake_case nombreTecnico a camelCase para lookup en el objeto TS de respuesta
       const snakeToCamel = (s: string) => s.replace(/_([a-z])/g, (_, c: string) => c.toUpperCase());
       for (const { campo, inputKey } of campos) {
         const existing =
@@ -1083,7 +1038,6 @@ export default function AutorizacionesOC() {
     setArchivoSubidos({});
     setAdjuntosLibres([]);
 
-    // Obtener catálogos para campos Selector que no estén ya cargados
     const selectorCampos = campos.filter(
       (c) => c.campo.tipoControl === 'Selector' && c.campo.sourceCatalog
     );
@@ -1098,11 +1052,9 @@ export default function AutorizacionesOC() {
             const LABEL_KEYS = ['nombre', 'name', 'etiqueta', 'label', 'titulo'];
             const normalized = items
               .map((item) => {
-                // Buscar campo id numérico (ej: idCentroCosto, idArea, id, ...)
                 const idKey = Object.keys(item).find(
                   (k) => /^id/i.test(k) && typeof item[k] === 'number'
                 );
-                // Caso especial: si el item tiene campo 'cuenta', combinar con descripcion
                 const labelValue =
                   'cuenta' in item
                     ? `${item['cuenta']}${'descripcion' in item ? ` — ${item['descripcion']}` : ''}`
@@ -1120,13 +1072,11 @@ export default function AutorizacionesOC() {
               .filter((i) => i.value && i.label);
             setCatalogos((prev) => ({ ...prev, [campo.sourceCatalog!]: normalized }));
           } catch {
-            /* silencio: campo quedará como texto libre */
           }
         });
       Promise.all(fetches).finally(() => setLoadingCatalogos(false));
     }
 
-    // Cargar comprobantes ya existentes para campos Archivo (subidos desde el tab)
     const archivoCampos = campos.filter(c => c.campo.tipoControl === 'Archivo');
     if (archivoCampos.length > 0 && selectedOrden) {
       try {
@@ -1148,19 +1098,17 @@ export default function AutorizacionesOC() {
             comprobante_pago: [{ idComprobante: 0 } as ComprobanteResponse],
           }));
         }
-      } catch { /* silencioso */ }
+      } catch { }
     }
 
     setIsFirmarModalOpen(true);
   };
 
   const cerrarModalFirma = () => {
-    // Limpiar archivos de comprobante_pago que quedaron subidos pero la firma fue cancelada
     const archivosParaEliminar = Object.values(archivoSubidos).flat();
     if (archivosParaEliminar.length > 0) {
       archivosParaEliminar.forEach((a) => {
         archivoService.delete(a.id).catch(() => {
-          // silencioso — el archivo queda huérfano pero no bloquea el flujo
         });
       });
     }
@@ -1185,13 +1133,11 @@ export default function AutorizacionesOC() {
       ? 'bg-amber-50 border-amber-200 dark:bg-amber-950/20 dark:border-amber-800'
       : 'bg-emerald-50 border-emerald-200 dark:bg-emerald-950/20 dark:border-emerald-800';
 
-  // Campos dinámicos para el modal basados en los handlers de la acción seleccionada
   const camposParaAccion = useMemo(
     () => getCamposParaAccion(accionSeleccionada),
     [accionSeleccionada]
   );
 
-  // Cargar historial de comprobantes (gasto o pago) para la orden seleccionada
   const cargarHistorialComprobantes = async (idOrden: number, categoria: 'pago' | 'gasto') => {
     try {
         const res = await API.get(`/facturas/historial-comprobantes?idOrden=${idOrden}&categoria=${categoria}`);
@@ -1223,7 +1169,6 @@ export default function AutorizacionesOC() {
       ));
       setComprobantesWorkflow((prev) => {
         const next = { ...prev };
-        // Keys del modal de pago (pago/gasto) y del modal de firma (comprobante_pago/comprobante_gasto)
         const claves = [categoria, `comprobante_${categoria}`];
         for (const clave of claves) {
           const lista = next[clave];
@@ -1301,7 +1246,6 @@ export default function AutorizacionesOC() {
     }
   };
 
-  // Bitácora de pagos: entradas del historial JSON, más reciente primero.
   const historialOrdenOrdenado = useMemo(
     () =>
       [...(selectedOrden?.historial ?? [])]
@@ -1309,8 +1253,6 @@ export default function AutorizacionesOC() {
     [selectedOrden?.historial]
   );
 
-  // Cuenta pagada a mostrar en el panel: la alterada por el tesorero o, en su defecto, el último
-  // depósito de la bitácora. null si no se alteró nada → entonces el bloque no se renderiza.
   const cuentaPagadaDisplay = useMemo(() => {
     const t = selectedOrden?.cuentaPagoTesorero;
     if (t && (t.numeroCuenta || t.clabe || t.banco)) {
@@ -1336,7 +1278,6 @@ export default function AutorizacionesOC() {
     try {
       const datosAdicionales: Record<string, unknown> = {};
 
-      // Validar campos requeridos y construir datosAdicionales dinámicamente
       for (const { campo, requerido, inputKey, handlerKey } of camposParaAccion) {
         if (campo.tipoControl === 'Archivo') {
           if (requerido) {
@@ -1378,7 +1319,6 @@ export default function AutorizacionesOC() {
         if (!isEmpty) datosAdicionales[inputKey] = val;
       }
 
-      // Agregar content type del último archivo subido (para SmartAudit)
       const archivosList = Object.values(archivoSubidos).flat();
       if (archivosList.length > 0) {
         datosAdicionales['archivoContentType'] = archivosList[0].tipoMime;
@@ -1393,7 +1333,6 @@ export default function AutorizacionesOC() {
         return;
       }
 
-      // Validar requiereAdjunto del config de la acción
       if (
         accionSeleccionada?.requiereAdjunto &&
         adjuntosLibres.length === 0 &&
@@ -1437,7 +1376,6 @@ export default function AutorizacionesOC() {
     return pasosMap.get(selectedOrden.idPasoActual)?.orden ?? null;
   }, [selectedOrden?.idPasoActual, pasosMap]);
 
-  // Config del paso actual — tiene permiteAdjunto / requiereAdjunto
   const currentPaso = useMemo(
     () => (selectedOrden?.idPasoActual != null ? (pasosMap.get(selectedOrden.idPasoActual) ?? null) : null),
     [selectedOrden?.idPasoActual, pasosMap]
@@ -1470,7 +1408,6 @@ export default function AutorizacionesOC() {
       arr.push(item);
       eventosPorPasoLocal.set(item.idPaso, arr);
 
-      // Extraer idPasoAnterior del snapshot para saber qué pasos fueron completados
       if (item.datosSnapshot) {
         try {
           const snapshot = JSON.parse(item.datosSnapshot);
@@ -1478,7 +1415,6 @@ export default function AutorizacionesOC() {
             pasosCompletados.add(snapshot.idPasoAnterior);
           }
         } catch {
-          // ignorar JSON inválido
         }
       }
     }
@@ -1490,9 +1426,6 @@ export default function AutorizacionesOC() {
       const isActual = selectedOrden?.idPasoActual === paso.idPaso;
       const isRechazado = !isActual && tipoUltimoEvento === 'rechazo';
       const isDevuelto = !isActual && tipoUltimoEvento === 'retorno';
-      // Un paso está completado si:
-      // 1. Tiene evento de autorización en su historial, O
-      // 2. Aparece como idPasoAnterior en algún snapshot (fue completado al moverse al siguiente paso)
       const isCompletado = !isActual && (
         tipoUltimoEvento === 'autorizacion' || pasosCompletados.has(paso.idPaso)
       );
@@ -1538,11 +1471,6 @@ export default function AutorizacionesOC() {
   const eventosPorPaso = useMemo(() => {
     const map = new Map<number, HistorialWorkflowItemResponse[]>();
     for (const item of historialOrdenado) {
-      // La bitácora registra el evento en el paso DESTINO, pero la acción de
-      // avance la ejecutó el usuario en el paso ANTERIOR. Se agrupa por ese
-      // paso para que cada tarjeta muestre a quien realmente actuó en ella.
-      // Rechazos y devoluciones se quedan en el paso destino porque describen
-      // el estado al que llegó la orden.
       let idPasoEvento = item.idPaso;
       if (getTipoEvento(item) === 'autorizacion' && item.datosSnapshot) {
         try {
@@ -1551,7 +1479,6 @@ export default function AutorizacionesOC() {
           };
           if (snapshot.idPasoAnterior) idPasoEvento = snapshot.idPasoAnterior;
         } catch {
-          // ignorar JSON inválido
         }
       }
       const arr = map.get(idPasoEvento) ?? [];
@@ -1861,8 +1788,6 @@ export default function AutorizacionesOC() {
             showRefreshButton
             onRefresh={fetchOrdenes}
             filterConfig={{
-              // v2: agrega la columna Empresa; el id nuevo evita que una
-              // configuración guardada (sin esa columna) la oculte.
               tableId: 'autorizaciones-oc-v2',
               searchableColumns: ['folio'],
               defaultSearchColumns: ['folio'],
@@ -1966,7 +1891,7 @@ export default function AutorizacionesOC() {
                       </div>
                     </div>
 
-                    {/* ── Acciones disponibles — siempre visibles arriba de todo ── */}
+                    {}
                     {selectedOrden && acciones.filter(a => !a.enviaConcentrado).length > 0 && (
                       <div className="mt-3 rounded-lg border border-blue-200 bg-blue-50/80 p-3 shadow-sm backdrop-blur-sm dark:border-blue-800 dark:bg-blue-950/20">
                         <div className="flex items-center justify-between gap-3">
@@ -2225,7 +2150,7 @@ export default function AutorizacionesOC() {
                         </div>
                       </div>
 
-                      {/* Formas de pago, cuentas bancarias y mensualidades */}
+                      {}
                       {(selectedOrden.idsFormaPago?.length || selectedOrden.idsCuentasBancarias?.length || selectedOrden.numeroMensualidades) && (
                         <div className="rounded-md border bg-background px-3 py-2 text-xs">
                           <p className="mb-2 font-medium text-muted-foreground">Formas de pago</p>
@@ -2533,10 +2458,8 @@ export default function AutorizacionesOC() {
                               className="h-7 gap-1.5 text-xs"
                               onClick={async (e) => {
                                 e.stopPropagation();
-                                // El navegador propone document.title como nombre del PDF al imprimir/guardar.
                                 const tituloOriginal = document.title;
                                 const nombreArchivo = selectedOrden.folio || `OC-${selectedOrden.idOrden}`;
-                                // Esperar a que las firmas (blobs autenticados) estén cargadas
                                 await waitForPrintImages('#orden-compra-pdf-print');
                                 const handleBeforePrint = () => {
                                   document.title = nombreArchivo;
@@ -2560,7 +2483,7 @@ export default function AutorizacionesOC() {
                           )}
                         </div>
 
-                        {/* Cuenta pagada (cuenta • clabe • banco) + bitácora — solo si se alteró la cuenta o ya hay bitácora */}
+                        {}
                         {selectedOrden && cuentaPagadaDisplay && (
                           <div className="rounded-lg border bg-background/80 px-3 py-2">
                             <div className="flex items-center justify-between gap-2">
@@ -2592,7 +2515,7 @@ export default function AutorizacionesOC() {
                             ref={pasosContainerRef}
                             className="relative max-h-[32rem] overflow-y-auto pr-1"
                           >
-                            {/* Línea vertical fija — cubre toda la altura */}
+                            {}
                             <div className="absolute left-[1.1rem] top-4 bottom-4 w-0.5 rounded-full bg-border/60" />
 
                             <div className="space-y-2">
@@ -2608,28 +2531,18 @@ export default function AutorizacionesOC() {
                               const isActualCancelada = isActual && selectedOrden?.idEstado === 9;
                               const eventosPaso = eventosPorPaso.get(paso.idPaso) || [];
                               const ultimoEvento = eventosPaso[eventosPaso.length - 1];
-                              // Solo pasos completados (verde) y el actual (azul)
-                              // muestran tiempo de atención; el paso 1 y los grises
-                              // conservan la fecha de creación.
                               const mostrarTiempoAtencion =
                                 !paso.esInicio && (isActual || isCompletado);
-                              // El flujo trae los participantes de todos los pasos:
-                              // el responsable se puede mostrar incluso en «En espera».
-                              // Los pasos ya cerrados muestran en su actividad quién actuó.
                               const mostrarResponsables = !paso.esInicio && !isCompletado && !isOmitido;
                               const responsablesPaso = mostrarResponsables
                                 ? nombresResponsablesPaso(paso.participantes)
                                 : [];
                               const textoResponsables = etiquetaResponsables(responsablesPaso);
-                              // El paso «Aprobación Gerente General» es genérico: se muestra
-                              // el nombre y puesto del responsable real del flujo.
                               const tituloPaso = tituloPasoResponsable(
                                 paso.nombrePaso,
                                 paso.participantes
                               );
 
-                              // Fecha en que la orden llegó a este paso (última transición
-                              // cuyo destino es el paso). Para el paso inicial se usa la creación.
                               const fechaEnPoderDesdePaso = (() => {
                                 let fecha: string | null = null;
                                 for (const ev of historial) {
@@ -2646,7 +2559,6 @@ export default function AutorizacionesOC() {
                                       fecha = ev.fechaEvento;
                                     }
                                   } catch {
-                                    // snapshot inválido: se ignora
                                   }
                                 }
                                 if (fecha) return fecha;
@@ -2655,13 +2567,6 @@ export default function AutorizacionesOC() {
                                   : null;
                               })();
 
-                              // Fechas de salida del paso (snapshot.idPasoAnterior = este paso):
-                              // - fechaSalidaPaso: cualquier acción que lo sacó (incluye
-                              //   CERRAR, MARCAR_PAGADA, devoluciones, etc.). Se usa para
-                              //   el tiempo de atención.
-                              // - fechaAutorizacionPaso: solo autorizaciones, aprobaciones
-                              //   y envíos. Es la que se muestra como "Fecha de autorización".
-                              // En el paso actual todavía no existen.
                               const { fechaAutorizacionPaso, fechaSalidaPaso } = (() => {
                                 let autorizacion: string | null = null;
                                 let salida: string | null = null;
@@ -2682,9 +2587,6 @@ export default function AutorizacionesOC() {
                                     }
 
                                     const nombre = (ev.nombreAccion || '').trim().toLowerCase();
-                                    // AUTORIZAR/APROBAR y también ENVIAR ("Envio a
-                                    // aprobación"): el envío de un paso también
-                                    // constituye la autorización de ese paso.
                                     if (
                                       !nombre.startsWith('autoriz') &&
                                       !nombre.startsWith('aprob') &&
@@ -2701,7 +2603,6 @@ export default function AutorizacionesOC() {
                                       autorizacion = ev.fechaEvento;
                                     }
                                   } catch {
-                                    // snapshot inválido: se ignora
                                   }
                                 }
                                 return {
@@ -2710,7 +2611,6 @@ export default function AutorizacionesOC() {
                                 };
                               })();
 
-                              // Visual del dot
                               const dotBg = isCompletado
                                 ? 'bg-emerald-500 border-emerald-500'
                                 : isActual
@@ -2735,7 +2635,6 @@ export default function AutorizacionesOC() {
                                       ? Clock
                                       : null;
 
-                              // Borde/fondo de la tarjeta
                               const cardClass = isActual
                                 ? isActualRechazada
                                   ? 'border-l-red-400 bg-red-50/60 dark:bg-red-950/15'
@@ -2752,7 +2651,7 @@ export default function AutorizacionesOC() {
 
                               return (
                                 <div key={paso.idPaso} className="relative pl-10">
-                                  {/* Dot */}
+                                  {}
                                   <div className={`absolute left-3 top-3 z-10 flex h-4.5 w-4.5 items-center justify-center rounded-full border-2 ${dotBg}`}
                                     style={{ width: '1.1rem', height: '1.1rem', left: '0.55rem' }}
                                   >
@@ -2766,7 +2665,7 @@ export default function AutorizacionesOC() {
                                     ) : null}
                                   </div>
 
-                                  {/* Card */}
+                                  {}
                                   <div
                                     role="button"
                                     tabIndex={0}
@@ -2833,13 +2732,13 @@ export default function AutorizacionesOC() {
                                           <p className="text-xs text-muted-foreground">{textoResponsables}</p>
                                         )}
 
-                                        {/* Historial de actividad */}
+                                        {}
                                         <div>
                                           <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                                             Historial de actividad
                                           </p>
 
-                                          {/* Fechas de la orden dentro del historial */}
+                                          {}
                                           <div className="mb-2 grid grid-cols-1 gap-2 rounded-md border bg-background/80 px-3 py-2 sm:grid-cols-3">
                                             <div>
                                               <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
@@ -2916,13 +2815,13 @@ export default function AutorizacionesOC() {
                                                         pasoNuevo.participantes
                                                       )
                                                     : null;
-                                                } catch { /* ignore */ }
+                                                } catch { }
                                               }
                                               const showTrans = (transFrom || transTo) && transFrom !== transTo;
 
                                               return (
                                                 <div key={item.idEvento} className="overflow-hidden rounded-lg border bg-background/80 text-xs">
-                                                  {/* Fila: acción + fecha */}
+                                                  {}
                                                   <div className="flex items-center justify-between gap-2 border-b border-border/50 bg-muted/30 px-3 py-2">
                                                     <span className="font-semibold truncate">
                                                       {item.nombreAccion || `Acción ${item.idAccion}`}
@@ -2931,7 +2830,7 @@ export default function AutorizacionesOC() {
                                                       {fmtFechaHora(item.fechaEvento)}
                                                     </span>
                                                   </div>
-                                                  {/* Cuerpo con etiquetas */}
+                                                  {}
                                                   <div className="space-y-1 px-3 py-2">
                                                     <div className="flex items-center gap-2">
                                                       <span className="w-20 flex-shrink-0 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Realizado por</span>
@@ -2972,7 +2871,7 @@ export default function AutorizacionesOC() {
                                           )}
                                         </div>
 
-                                        {/* Acciones disponibles */}
+                                        {}
                                         {isActual && acciones.filter(a => !a.enviaConcentrado).length > 0 && (
                                           <div className="border-t border-border/50 pt-3">
                                             <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
@@ -3021,13 +2920,13 @@ export default function AutorizacionesOC() {
                       </div>
                     </TabsContent>
 
-                    {/* Tab: Comprobantes */}
+                    {}
                     <TabsContent
                       value="facturacion"
                       className="mt-3 xl:min-h-0 xl:flex-1 xl:overflow-y-auto xl:pr-1"
                     >
                       <div className="space-y-3">
-                        {/* Header del tab */}
+                        {}
                         <div>
                           <h3 className="text-sm font-semibold">Comprobantes de gasto y pago</h3>
                           <p className="text-muted-foreground text-xs">
@@ -3041,7 +2940,7 @@ export default function AutorizacionesOC() {
                           const pagoCompleto = partidasPendientesPago.length > 0 && partidasPendientesPago.every(p => p.importePendiente <= 0);
                           return (
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                              {/* Columna Gasto */}
+                              {}
                               <div className="space-y-3">
                                 <div className="flex items-center justify-between">
                                   <h4 className="text-sm font-semibold flex items-center gap-2">
@@ -3049,7 +2948,7 @@ export default function AutorizacionesOC() {
                                     Comprobantes de Gasto
                                   </h4>
                                   <div className="flex gap-2">
-                                    {/* Botón historial — NUEVO */}
+                                    {}
                                     <Button size="sm"variant="outline" onClick={() => cargarHistorialComprobantes(selectedOrden.idOrden, 'gasto')} title="Ver historial de comprobantes de gasto">
                                       <History className="h-3.5 w-3.5" /> Historial
                                     </Button>
@@ -3125,7 +3024,7 @@ export default function AutorizacionesOC() {
                                 )}
                               </div>
 
-                              {/* Columna Pago */}
+                              {}
                               <div className="space-y-3">
                                 <div className="flex items-center justify-between">
                                   <h4 className="text-sm font-semibold flex items-center gap-2">
@@ -3133,7 +3032,7 @@ export default function AutorizacionesOC() {
                                     Comprobantes de Pago
                                   </h4>
                                   <div className="flex gap-2">
-                                    {/* Botón historial — NUEVO */}
+                                    {}
                                     <Button size="sm" variant="outline" onClick={() => cargarHistorialComprobantes(selectedOrden.idOrden, 'pago')} title="Ver historial de comprobantes de pago">
                                       <History className="h-3.5 w-3.5" /> Historial
                                     </Button>
@@ -3197,7 +3096,7 @@ export default function AutorizacionesOC() {
 
                     </TabsContent>
 
-                    {/* Tab: Archivos adjuntos */}
+                    {}
                     <TabsContent
                       value="archivos"
                       className="mt-3 xl:min-h-0 xl:flex-1 xl:overflow-y-auto xl:pr-1"
@@ -3206,10 +3105,9 @@ export default function AutorizacionesOC() {
                         const fmtSize = (b: number) =>
                           b < 1024 ? `${b} B` : b < 1048576 ? `${(b / 1024).toFixed(1)} KB` : `${(b / 1048576).toFixed(1)} MB`;
 
-                        // ── lista plana de archivos (sin agrupar por paso) ─────
                         return (
                           <div className="space-y-2">
-                            {/* Encabezado */}
+                            {}
                             <div className="flex items-center justify-between">
                               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                                 Documentos adjuntos
@@ -3242,7 +3140,7 @@ export default function AutorizacionesOC() {
                               </div>
                             </div>
 
-                            {/* Uploader desplegable */}
+                            {}
                             {puedeSubirArchivos && isSubirAdjuntoOpen && (
                               <div className="rounded-lg border bg-muted/20 p-3 space-y-3">
                                 <div className="space-y-1">
@@ -3280,7 +3178,7 @@ export default function AutorizacionesOC() {
                               </div>
                             )}
 
-                            {/* Loading */}
+                            {}
                             {loadingArchivos ? (
                               <div className="flex items-center justify-center py-8 text-muted-foreground">
                                 <Loader2 className="mr-2 h-5 w-5 animate-spin" />
@@ -3425,7 +3323,7 @@ export default function AutorizacionesOC() {
             )}
           </div>
 
-          {/* Campos dinámicos según los action handlers */}
+          {}
           {camposParaAccion.length > 0 && (
             <div className="space-y-3">
               <h4 className="flex items-center gap-2 text-sm font-semibold">
@@ -3435,7 +3333,7 @@ export default function AutorizacionesOC() {
                 )}
               </h4>
 
-              {/* Mensajes de validacion de todos los handlers que tengan uno */}
+              {}
               {camposParaAccion.some(c => c.validacionMensaje) && (
                 <div className="space-y-1.5">
                   {camposParaAccion.filter(c => c.validacionMensaje).map(({ campo, validacionExito, validacionMensaje }) => (
@@ -3459,7 +3357,7 @@ export default function AutorizacionesOC() {
                 </div>
               )}
 
-              {/* Inputs y otros controles */}
+              {}
               {camposParaAccion
                 .filter(c => c.campo.tipoControl !== 'Alerta' && c.campo.tipoControl !== 'Validacion')
                 .map(({ campo, requerido, inputKey, validacionExito, validacionMensaje }) => {
@@ -3591,7 +3489,6 @@ export default function AutorizacionesOC() {
                   );
                 }
 
-                // Archivo: comprobantes se suben desde el tab Comprobantes
                 if (campo.tipoControl === 'Archivo') {
                   const comprobantes = comprobantesWorkflow[inputKey] ?? [];
                   return (
@@ -3614,7 +3511,6 @@ export default function AutorizacionesOC() {
                   );
                 }
 
-                // Por defecto: Texto
                 return (
                   <div key={inputKey} className="space-y-1.5">
                     <Label htmlFor={fieldId}>
@@ -3667,7 +3563,7 @@ export default function AutorizacionesOC() {
             )}
           </div>
 
-          {/* Adjunto libre — visible cuando la acción permite adjuntos libres */}
+          {}
           {accionSeleccionada?.permiteAdjunto && selectedOrden && (
             <div className="space-y-2">
               <div className="flex items-center justify-between">
@@ -3687,7 +3583,7 @@ export default function AutorizacionesOC() {
                 )}
               </div>
 
-              {/* List of already-uploaded free adjuntos */}
+              {}
               {adjuntosLibres.length > 0 && (
                 <div className="space-y-1.5">
                   {adjuntosLibres.map((archivo) => (
@@ -3704,7 +3600,7 @@ export default function AutorizacionesOC() {
                 </div>
               )}
 
-              {/* Uploader — shown while under limit */}
+              {}
               {adjuntosLibres.length < 5 && (
                 <FileUploader
                   inline
@@ -3744,7 +3640,7 @@ export default function AutorizacionesOC() {
         </div>
       </Modal>
 
-      {/* ── Modal comprobaciones aplicadas a una partida ── */}
+      {}
       <Modal
         id="modal-comprobaciones-partida"
         open={partidaComprobaciones !== null}
@@ -3816,7 +3712,7 @@ export default function AutorizacionesOC() {
         </div>
       </Modal>
 
-      {/* ── Modal historial de comprobantes ── */}
+      {}
       <Modal
         id="modal-historial-comprobantes"
         open={isHistorialComprobantesOpen}
@@ -3832,7 +3728,7 @@ export default function AutorizacionesOC() {
             </div>
           ) : (
             <>
-              {/* Resumen */}
+              {}
               <div className="flex items-center justify-between rounded-lg border bg-muted/20 px-3 py-2 text-xs">
                 <span className="text-muted-foreground">
                   {historialComprobantes.length} comprobante
@@ -3861,7 +3757,7 @@ export default function AutorizacionesOC() {
                           : 'border-red-200 bg-red-50/40 dark:border-red-900/40 dark:bg-red-950/10'
                       }`}
                     >
-                      {/* Header: medio + tipo + estado + monto */}
+                      {}
                       <div
                         className={`flex items-center justify-between gap-2 border-b px-3 py-2 ${
                           comp.activo
@@ -3897,7 +3793,7 @@ export default function AutorizacionesOC() {
                         </div>
                       </div>
 
-                      {/* Detalles */}
+                      {}
                       <div className="space-y-1 px-3 py-2">
                         <div className="flex items-center justify-between">
                           <span className="text-muted-foreground">Fecha</span>
@@ -3964,7 +3860,7 @@ export default function AutorizacionesOC() {
         </div>
       </Modal>
 
-      {/* ── Modal historial de archivos eliminados ── */}
+      {}
       <Modal
         id="modal-historial-archivos"
         open={isHistorialArchivosOpen}
@@ -4083,7 +3979,7 @@ export default function AutorizacionesOC() {
         </div>
       </Modal>
 
-      {/* ── Modal CFDI gasto — fuera del modal de firma para evitar Dialog anidado ─────── */}
+      {}
       {selectedOrden && (
         <SubirComprobanteModal
           open={isSubirComprobanteOpen}
@@ -4108,7 +4004,7 @@ export default function AutorizacionesOC() {
         />
       )}
 
-      {/* ── Modal comprobante pago — fuera del modal de firma para evitar Dialog anidado ─ */}
+      {}
       {selectedOrden && isSubirComprobantePagoOpen && (
         <SubirComprobantePagoModal
           open={!!isSubirComprobantePagoOpen}
@@ -4124,7 +4020,6 @@ export default function AutorizacionesOC() {
           nombreAccion={accionSeleccionada?.tipoAccionNombre ?? null}
           totalOrden={selectedOrden.total}
           folioOrden={selectedOrden.folio}
-          //totalPagado={(comprobantesWorkflow[isSubirComprobantePagoOpen] ?? []).reduce((sum, c) => sum + c.total, 0)}
           totalPagado={Math.round(
             (comprobantesWorkflow[isSubirComprobantePagoOpen] ?? []).reduce((sum, c) => sum + c.total, 0) * 100
           ) / 100}
@@ -4142,7 +4037,7 @@ export default function AutorizacionesOC() {
         />
       )}
 
-      {/* FileViewer para previsualizar archivos adjuntos */}
+      {}
       {viewerArchivoId !== null && (
         <FileViewer
           archivoId={viewerArchivoId}
@@ -4151,7 +4046,7 @@ export default function AutorizacionesOC() {
         />
       )}
 
-      {/* ── PDF Print Document — Flujo ── */}
+      {}
       {selectedOrden && progresoPasos.length > 0 && createPortal(
         <FlujoOrdenPDF
           orden={selectedOrden}
@@ -4162,7 +4057,7 @@ export default function AutorizacionesOC() {
         document.body
       )}
 
-      {/* ── PDF Print Document — Orden de Compra ── */}
+      {}
       {selectedOrden && createPortal(
         <OrdenCompraPDF
           orden={selectedOrden}

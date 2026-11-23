@@ -8,29 +8,12 @@ export interface PasoStepper {
 
 export interface WizardStepperProps {
   pasos: PasoStepper[];
-  /** Id del paso actual. */
   actual: number;
   className?: string;
-  /**
-   * Id del paso más lejano alcanzado. Los pasos ya visitados se siguen
-   * viendo hechos aunque volvamos atrás a corregir; por defecto es `actual`.
-   */
   alcanzado?: number;
-  /**
-   * Saltar a un paso ya visitado (atrás para corregir o adelante para
-   * retomar). Solo esos son clicables; los nunca visitados, no.
-   */
   onSelect?: (id: number) => void;
 }
 
-/**
- * Animaciones del raíl de progreso.
- * - `wizard-rail-fill`: la barra se carga con `transform: scaleX` (solo
- *   compositor: transform/opacidad) en vez de animar el ancho.
- * - `wizard-rail-pulse`: el segmento actual→siguiente se va llenando en loop
- *   de 2 segundos con puntos (define "hacia dónde va"); sin movimiento se ve lleno.
- * Se respeta `prefers-reduced-motion`.
- */
 const WIZARD_CSS = `
 .wizard-rail-pulse {
   background-image: radial-gradient(circle, var(--primary) 1.5px, transparent 1.6px);
@@ -50,23 +33,10 @@ const WIZARD_CSS = `
 }
 `;
 
-/**
- * Stepper horizontal con raíl de progreso continuo detrás de los puntos: la
- * barra se carga hasta el paso más lejano alcanzado y el segmento del paso
- * actual al siguiente se va llenando en loop (marca hacia dónde se avanza). Los pasos ya visitados quedan sólidos
- * (primary + check) aunque volvamos atrás a corregir; el paso más lejano
- * conserva su número en azul punteado para saber dónde quedamos; el actual
- * se distingue hueco con anillo; los nunca visitados quedan apagados.
- * Los visitados son botones: atrás para corregir, adelante para retomar
- * (ir atrás nunca se bloquea; avanzar sigue pidiendo validación).
- * Usa el primario del tema para mantenerse consistente con el resto de la app.
- */
 export function WizardStepper({ pasos, actual, alcanzado: alcanzadoProp, className, onSelect }: WizardStepperProps) {
   const total = pasos.length;
   const alcanzado = alcanzadoProp ?? actual;
   const avance = total <= 1 ? 1 : Math.min(1, Math.max(0, (alcanzado - 1) / (total - 1)));
-  // Segmento actual → siguiente (en % del raíl): ahí corre la barra de
-  // llenado de 2s. Con un solo paso no hay segmento; no se usa.
   const segDesde = total <= 1 ? '0%' : `${Math.round(((actual - 1) / (total - 1)) * 1000) / 10}%`;
   const segAncho = total <= 1 ? '100%' : `${Math.round((1 / (total - 1)) * 1000) / 10}%`;
 
@@ -74,10 +44,7 @@ export function WizardStepper({ pasos, actual, alcanzado: alcanzadoProp, classNa
     <>
       <style>{WIZARD_CSS}</style>
       <div className={cn('relative', className)}>
-        {/* El raíl va detrás de los puntos: una sola línea, no un tramo por par.
-            Los puntos van centrados en su columna, así que el raíl se recorta
-            entre el centro de la primera y de la última columna (1/14 del
-            ancho a cada lado): sin colas sueltas en los extremos. */}
+        {}
         <div
           data-testid="wizard-rail"
           aria-hidden
@@ -109,11 +76,7 @@ export function WizardStepper({ pasos, actual, alcanzado: alcanzadoProp, classNa
         >
           {pasos.map((paso, indice) => {
             const esActual = indice === actual - 1;
-            // Pausa = el paso más lejano cuando volvimos atrás: conserva su
-            // número en azul punteado (no palomita) para saber dónde quedamos.
             const esPausa = !esActual && paso.id === alcanzado && alcanzado > actual;
-            // Hecho = ya visitado (atrás o adelante del actual, sin contar la
-            // pausa). Nunca vacío al volver atrás.
             const hecho = !esActual && !esPausa && indice < alcanzado;
             const puedeIr = (hecho || esPausa) && onSelect !== undefined;
             const etiqueta = indice < actual - 1

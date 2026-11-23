@@ -21,22 +21,14 @@ export interface SolicitudesViajeTableProps {
   cargando: boolean;
   titulo: string;
   subtitulo?: string;
-  /** Clave con la que el DataTable recuerda qué columnas se ven. */
   tableId: string;
   miId?: number;
   miNombre?: string;
   onVerDetalle: (idSolicitud: number) => void;
-  /** Vuelve a pedir los datos al servidor. */
   onRefresh: () => void;
-  /** Contenido de la celda «Acción»: cada pantalla decide sus botones. */
   acciones: (fila: FilaViaje) => ReactNode;
 }
 
-/**
- * Tabla de solicitudes de viaje compartida por Mis viajes y Autorizaciones.
- * Las mismas columnas en ambas pantallas para que el autorizador vea lo que ve
- * el solicitante; solo cambian las acciones de la última columna.
- */
 export function SolicitudesViajeTable({
   filas,
   cargando,
@@ -170,7 +162,6 @@ export function SolicitudesViajeTable({
         header: () => <div className="text-right">Acción</div>,
         enableSorting: false,
         cell: ({ row }) => (
-          // La fila abre el detalle; un clic en la acción no debe disparar los dos.
           <div className="flex items-center justify-end gap-1" onClick={(evento) => evento.stopPropagation()}>
             {acciones(row.original)}
           </div>

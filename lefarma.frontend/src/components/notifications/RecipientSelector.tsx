@@ -1,8 +1,3 @@
-﻿/**
- * RecipientSelector - Componente para seleccionar usuarios y roles
- * Permite selección múltiple de usuarios y roles para envío de notificaciones
- */
-
 import { useState, useEffect } from 'react';
 import { Check, ChevronsUpDown, Users } from 'lucide-react';
 import { useAuthStore } from '@/shared/auth/authStore';
@@ -19,7 +14,6 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 
-// Tipos
 interface Usuario {
   idUsuario: number;
   nombreCompleto: string;
@@ -55,14 +49,12 @@ export function RecipientSelector({
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Cargar usuarios y roles
   useEffect(() => {
     const loadData = async () => {
       setLoading(true);
       try {
         const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5134/api';
 
-        // Cargar usuarios
         const usuariosRes = await fetch(`${apiUrl}/auth/usuarios`, {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -73,7 +65,6 @@ export function RecipientSelector({
           setUsuarios(data.data || []);
         }
 
-        // Cargar roles
         const rolesRes = await fetch(`${apiUrl}/auth/roles`, {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -93,21 +84,18 @@ export function RecipientSelector({
     loadData();
   }, [token]);
 
-  // Filtrar usuarios por búsqueda
   const filteredUsuarios = usuarios.filter(
     (u) =>
       u.nombreCompleto?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       u.correo?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  // Filtrar roles por búsqueda
   const filteredRoles = roles.filter(
     (r) =>
       r.nombreRol?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       r.descripcion?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  // Toggle selección de usuario
   const toggleUsuario = (usuarioId: number) => {
     if (selectedUserIds.includes(usuarioId)) {
       onUserIdsChange(selectedUserIds.filter((id) => id !== usuarioId));
@@ -116,7 +104,6 @@ export function RecipientSelector({
     }
   };
 
-  // Toggle selección de rol
   const toggleRol = (rolName: string) => {
     if (selectedRoleNames.includes(rolName)) {
       onRoleNamesChange(selectedRoleNames.filter((n) => n !== rolName));
@@ -144,7 +131,7 @@ export function RecipientSelector({
 
   return (
     <div className="space-y-4">
-      {/* Selector de Usuarios */}
+      {}
       <Popover>
         <PopoverTrigger asChild>
           <Button variant="outline" disabled={disabled} className="w-full justify-between">
@@ -209,7 +196,7 @@ export function RecipientSelector({
 
       {showRoles && (
         <>
-          {/* Selector de Roles */}
+          {}
           <Popover>
             <PopoverTrigger asChild>
               <Button variant="outline" disabled={disabled} className="w-full justify-between">
@@ -276,7 +263,7 @@ export function RecipientSelector({
         </>
       )}
 
-      {/* Resumen de selección */}
+      {}
       {(selectedUsuarioCount > 0 || selectedRolCount > 0) && (
         <div className="flex flex-wrap gap-2">
           {selectedUsuarioCount > 0 && (

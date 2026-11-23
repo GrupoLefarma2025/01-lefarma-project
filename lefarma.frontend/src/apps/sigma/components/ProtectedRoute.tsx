@@ -59,7 +59,6 @@ export function ProtectedRoute({
   return <>{children}</>;
 }
 
-// Componente para proteger elementos individuales del UI
 interface ProtectedElementProps {
   children: ReactNode;
   requiredPermission?: string;

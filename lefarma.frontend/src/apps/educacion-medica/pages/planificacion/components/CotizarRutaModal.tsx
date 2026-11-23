@@ -41,7 +41,6 @@ const ESTADO_COTIZACION: Record<string, string> = {
   cancelada: 'Cancelada',
 };
 
-/** Solo estos estados bloquean una visita; rechazada/cancelada la liberan. */
 const ESTADOS_COTIZACION_ACTIVA = new Set([
   'borrador',
   'enviada',
@@ -51,11 +50,6 @@ const ESTADOS_COTIZACION_ACTIVA = new Set([
 
 const estadoCotizacion = (estado: string) => ESTADO_COTIZACION[estado] ?? estado;
 
-/**
- * Selección de destinos de una ruta para el handoff a Viáticos. Agrupa por día,
- * permite seleccionar el día completo o hospitales sueltos y excluye (con aviso)
- * los hospitales sin coordenadas y los que ya están en una cotización activa.
- */
 export function CotizarRutaModal({
   rutas,
   rutaInicialId,

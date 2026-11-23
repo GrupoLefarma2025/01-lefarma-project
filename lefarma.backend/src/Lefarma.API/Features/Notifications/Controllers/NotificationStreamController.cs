@@ -29,10 +29,6 @@ public class NotificationStreamController : ControllerBase
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
-    /// <summary>
-    /// Generates a short-lived ticket for SSE connection.
-    /// Avoids passing the full JWT (which can be 10KB+ for admin users) in the URL query string.
-    /// </summary>
     [HttpPost("ticket")]
     [Authorize]
     [ProducesResponseType(typeof(SseTicketResponse), StatusCodes.Status200OK)]
@@ -118,13 +114,11 @@ public class NotificationStreamController : ControllerBase
                 "GET /api/notifications/stream - Establishing SSE connection for user {UserId}",
                 userId);
 
-            // Set SSE headers
             Response.ContentType = "text/event-stream";
             Response.Headers.Append("Cache-Control", "no-cache");
             Response.Headers.Append("Connection", "keep-alive");
-            Response.Headers.Append("X-Accel-Buffering", "no"); // Disable Nginx buffering
+            Response.Headers.Append("X-Accel-Buffering", "no"); 
 
-            // Send initial connection event
             await SendSseEventAsync("connection.established", new
             {
                 userId,
@@ -132,8 +126,6 @@ public class NotificationStreamController : ControllerBase
                 message = "SSE connection established successfully"
             }, ct);
 
-            // Register the connection with the SSE service
-            // This will block and send events as they arrive
             await _sseService.RegisterConnectionAsync(userId, Response, ct);
 
             _logger.LogInformation(
@@ -142,7 +134,6 @@ public class NotificationStreamController : ControllerBase
         }
         catch (OperationCanceledException ex)
         {
-            // Normal cancellation when client disconnects
             _logger.LogInformation($@"SSE connection cancelled (client disconnect: {ex.Message})");
         }
         catch (Exception ex)
@@ -158,25 +149,16 @@ public class NotificationStreamController : ControllerBase
             }
             catch
             {
-                // Response might already be closed
             }
         }
     }
 
-    /// <summary>
-    /// Sends a Server-Sent Event to the client.
-    /// </summary>
-    /// <param name="eventType">Type of event (e.g., "notification.received")</param>
-    /// <param name="data">Data payload for the event</param>
-    /// <param name="ct">Cancellation token</param>
     private async Task SendSseEventAsync<T>(string eventType, T data, CancellationToken ct)
     {
         try
         {
-            // Serialize data to JSON
             var jsonData = System.Text.Json.JsonSerializer.Serialize(data);
 
-            // Format SSE event: "event: {eventType}\ndata: {jsonData}\n\n"
             await Response.WriteAsync($"event: {eventType}\n", ct);
             await Response.WriteAsync($"data: {jsonData}\n\n", ct);
             await Response.Body.FlushAsync(ct);

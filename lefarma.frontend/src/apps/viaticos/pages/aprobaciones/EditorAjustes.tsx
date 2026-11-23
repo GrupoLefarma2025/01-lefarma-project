@@ -32,26 +32,6 @@ import {
 } from '../../types/aprobaciones.types';
 import type { Solicitud, SolicitudOpcion } from '../../types/solicitud.types';
 
-/**
- * Editor de ajustes del admin sobre una solicitud ya autorizada.
- *
- * Cuatro acciones, todas con `viaticos.ajustar`: cambiar el vuelo elegido por
- * cualquiera de las otras opciones, editar el precio de una partida, agregar una
- * partida y quitar una.
- *
- * Tres reglas que este componente no rompe nunca:
- *
- * 1. Sin `motivo` no hay ajuste. El payload se construye con
- *    `construirPayloadAjuste`, que devuelve `null` si el motivo esta vacio, y
- *    el boton Guardar depende de ese `null`: no es una validacion de estilo, es
- *    la condicion de existencia del request.
- * 2. El valor del solicitante no se borra. Cada payload lleva `valor_anterior`
- *    (lo que habia) y `valor_nuevo` (lo que queda); el backend los agrega a
- *    `solicitud_ajustes` sin tocar filas previas.
- * 3. Si la solicitud no esta en un estado ajustable, no se ofrecen acciones:
- *    el backend responde 409 y un boton que solo falla es peor que no tenerlo.
- */
-
 const TIPO_VUELO = 'vuelo';
 
 const esVuelo = (opcion: SolicitudOpcion): boolean =>
@@ -67,9 +47,7 @@ function fechaTexto(iso: string): string {
 }
 
 export interface EditorAjustesProps {
-  /** Solicitud a editar; null mantiene el editor cerrado. */
   solicitud: Solicitud | null;
-  /** Se llama tras un ajuste aceptado para que el padre recargue el detalle. */
   onAjusteRegistrado?: (payload: AjusteSolicitudPayload) => void;
 }
 
@@ -162,10 +140,6 @@ export default function EditorAjustes({
     setErrorAccion(null);
   };
 
-  // Unica fuente de verdad del boton Guardar: si no hay payload, no hay ajuste.
-  // `accion` es la foto que se tomo al abrir el dialogo, asi que los campos
-  // que el admin escribe mientras esta abierto se le funden aqui: sin esto el
-  // payload se construiria siempre con los valores vacios de apertura.
   const payload = useMemo(() => {
     if (accion === null) return null;
     const accionViva: AccionAjuste =

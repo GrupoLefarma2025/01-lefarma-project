@@ -6,10 +6,6 @@ using Lefarma.API.Features.Notifications.DTOs;
 using Lefarma.API.Features.Auth;
 
 namespace Lefarma.API.Features.Notifications.Controllers;
-/// <summary>
-/// API controller for managing notifications.
-/// Provides endpoints for sending, retrieving, and managing notifications across multiple channels.
-/// </summary>
 [ApiController]
 [Route("api/notifications")]
 [Authorize]
@@ -26,15 +22,6 @@ public class NotificationsController : ControllerBase
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
-    /// <summary>
-    /// Sends a notification through one or more channels.
-    /// </summary>
-    /// <param name="request">Notification request with channels, message, and metadata</param>
-    /// <param name="ct">Cancellation token</param>
-    /// <returns>Response with notification ID and channel delivery results</returns>
-    /// <response code="200">Notification sent successfully</response>
-    /// <response code="400">Invalid request data</response>
-    /// <response code="500">Internal server error</response>
     [HttpPost("send")]
     [ProducesResponseType(typeof(SendNotificationResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -71,15 +58,6 @@ public class NotificationsController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// Sends a notification to multiple users in bulk.
-    /// </summary>
-    /// <param name="request">Bulk notification request with list of user IDs</param>
-    /// <param name="ct">Cancellation token</param>
-    /// <returns>Response with aggregated results from all users</returns>
-    /// <response code="200">Bulk notification sent successfully</response>
-    /// <response code="400">Invalid request data</response>
-    /// <response code="500">Internal server error</response>
     [HttpPost("send-bulk")]
     [ProducesResponseType(typeof(SendNotificationResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -116,16 +94,6 @@ public class NotificationsController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// Sends a notification to all users with specific roles.
-    /// </summary>
-    /// <param name="request">Role notification request with list of role names</param>
-    /// <param name="ct">Cancellation token</param>
-    /// <returns>Response with aggregated results from all role members</returns>
-    /// <response code="200">Role notification sent successfully</response>
-    /// <response code="400">Invalid request data</response>
-    /// <response code="501">Not implemented yet</response>
-    /// <response code="500">Internal server error</response>
     [HttpPost("send-by-role")]
     [ProducesResponseType(typeof(SendNotificationResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -168,16 +136,6 @@ public class NotificationsController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// Gets notifications for a specific user.
-    /// </summary>
-    /// <param name="userId">User ID to get notifications for</param>
-    /// <param name="unreadOnly">If true, only returns unread notifications</param>
-    /// <param name="ct">Cancellation token</param>
-    /// <returns>List of user notifications</returns>
-    /// <response code="200">Notifications retrieved successfully</response>
-    /// <response code="400">Invalid user ID</response>
-    /// <response code="500">Internal server error</response>
     [HttpGet("user/{userId}")]
     [ProducesResponseType(typeof(List<NotificationDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -211,16 +169,6 @@ public class NotificationsController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// Marks a specific notification as read for a user.
-    /// </summary>
-    /// <param name="notificationId">Notification ID to mark as read</param>
-    /// <param name="request">Request containing the user ID</param>
-    /// <param name="ct">Cancellation token</param>
-    /// <response code="200">Notification marked as read successfully</response>
-    /// <response code="400">Invalid request data</response>
-    /// <response code="404">Notification not found</response>
-    /// <response code="500">Internal server error</response>
     [HttpPatch("{notificationId}/read")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -264,14 +212,6 @@ public class NotificationsController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// Marks all notifications as read for a specific user.
-    /// </summary>
-    /// <param name="userId">User ID to mark all notifications as read</param>
-    /// <param name="ct">Cancellation token</param>
-    /// <response code="200">All notifications marked as read successfully</response>
-    /// <response code="400">Invalid user ID</response>
-    /// <response code="500">Internal server error</response>
     [HttpPatch("user/{userId}/read-all")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -303,15 +243,6 @@ public class NotificationsController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// Sends a test notification to verify a channel is working.
-    /// </summary>
-    /// <param name="request">Test notification request with channel and recipient</param>
-    /// <param name="ct">Cancellation token</param>
-    /// <returns>Response from the test notification</returns>
-    /// <response code="200">Test notification sent successfully</response>
-    /// <response code="400">Invalid test request</response>
-    /// <response code="500">Internal server error</response>
     [HttpPost("test")]
     [ProducesResponseType(typeof(SendNotificationResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -327,7 +258,6 @@ public class NotificationsController : ControllerBase
                 return BadRequest(ModelState);
             }
 
-            // Get current user ID if UserIds not provided
             if ((request.UserIds == null || !request.UserIds.Any()) &&
                 (request.RoleNames == null || !request.RoleNames.Any()))
             {
@@ -344,7 +274,6 @@ public class NotificationsController : ControllerBase
                 request.UserIds != null ? string.Join(",", request.UserIds) : "none",
                 request.RoleNames != null ? string.Join(",", request.RoleNames) : "none");
 
-            // Create a test notification
             var testRequest = new SendNotificationRequest
             {
                 Title = $"Test Notification - {request.ChannelType}",
@@ -379,12 +308,6 @@ public class NotificationsController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// Test SSE connection directly - sends a ping event to the current user via SSE.
-    /// Useful for verifying SSE is working without creating a notification.
-    /// </summary>
-    /// <response code="200">SSE ping sent successfully</response>
-    /// <response code="401">User not authenticated</response>
     [HttpPost("test-sse")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -400,10 +323,8 @@ public class NotificationsController : ControllerBase
 
             _logger.LogInformation("POST /api/notifications/test-sse - Testing SSE for user {UserId}", userId);
 
-            // Get SSE service from dependency injection
             var sseService = HttpContext.RequestServices.GetRequiredService<ISseService>();
 
-            // Send test SSE event
             await sseService.NotifyAsync(userId, "test", new
             {
                 message = "SSE connection test successful!",

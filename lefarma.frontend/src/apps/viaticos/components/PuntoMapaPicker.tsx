@@ -16,16 +16,11 @@ import type { PuntoSeleccion } from '../types/costosRuta.types';
 export interface PuntoMapaPickerProps {
   value: PuntoSeleccion | null;
   onChange: (punto: PuntoSeleccion | null) => void;
-  /** Acción del botón Agregar sobre el mapa (el padre decide qué hacer). */
   onAgregar?: () => void;
-  /** Deshabilita el botón Agregar del mapa (p. ej. si al destino le falta algo). */
   agregarDeshabilitado?: boolean;
   disabled?: boolean;
-  /** Oculta el mapa y su pie (el padre muestra su propio mapa compartido). */
   ocultarMapa?: boolean;
-  /** Alto (px) al que se pega la barra de búsqueda al scrollear (p. ej. bajo la barra de pasos). */
   stickyTop?: number;
-  /** Superpone la búsqueda flotando sobre el mapa del padre (estilo Google Maps). */
   flotante?: boolean;
 }
 
@@ -35,19 +30,16 @@ const ZOOM_PUNTO = 15;
 const DEBOUNCE_MS = 400;
 const THROTTLE_MS = 1000;
 const MIN_TEXTO = 3;
-/** Radio del sesgo "Cerca de mí": ~50 km, como el acotado de Google Maps. */
 const RADIO_SESGO_GRADOS = 0.45;
 
 const ERROR_SIN_RESULTADOS = 'Sin resultados. Coloca el marcador en el mapa.';
 const ERROR_RED = 'No se pudo buscar la dirección. Coloca el marcador manualmente.';
 const ERROR_LIGA = 'No pudimos leer esa liga de mapas. Pega las coordenadas (lat, lng) o escribe la dirección.';
 
-/** Nombre de respaldo de un punto fijado por coordenadas cuando no hubo dirección. */
 function nombreDeCoordenadas(latitud: number, longitud: number): string {
   return `Lat ${latitud.toFixed(5)}, Lng ${longitud.toFixed(5)}`;
 }
 
-/** Caja (minLon,minLat,maxLon,maxLat) alrededor de la ubicación, que Nominatim acepta como sesgo. */
 function cajaCercaDeMi(latitud: number, longitud: number): string {
   const minLon = (longitud - RADIO_SESGO_GRADOS).toFixed(4);
   const minLat = (latitud - RADIO_SESGO_GRADOS).toFixed(4);
@@ -56,7 +48,6 @@ function cajaCercaDeMi(latitud: number, longitud: number): string {
   return `${minLon},${minLat},${maxLon},${maxLat}`;
 }
 
-/** Parte la etiqueta en título y detalle con la primera coma (estilo Google Maps). */
 function partirEtiqueta(nombre: string): [string, string] {
   const corte = nombre.indexOf(',');
   if (corte === -1) return [nombre, ''];
@@ -73,11 +64,6 @@ function iconoMarcador() {
   });
 }
 
-/**
- * Recentra el mapa cuando cambia el punto elegido. Si monta con un punto ya
- * elegido (p. ej. al volver a un destino), arranca enfocado en él; sin punto,
- * arranca en México y solo se mueve por acción de la persona usuaria.
- */
 function ControladorMapa({ centro }: { centro: [number, number] | null }) {
   const map = useMap();
   const primerRender = useRef(true);
@@ -92,12 +78,9 @@ function ControladorMapa({ centro }: { centro: [number, number] | null }) {
   return null;
 }
 
-/** Convierte un clic en el mapa en la posición del marcador. */
 function ManejadorClick({ onPunto }: { onPunto: (lat: number, lng: number) => void }) {
   useMapEvents({
     click(event) {
-      // Un clic nacido en el menú (popup) o con su botón ya desmontado no es
-      // un clic del mapa: ignorarlo para no re-fijar/mover el pin.
       const objetivo = (event.originalEvent as { target?: Element | null } | undefined)?.target;
       if (objetivo && (!objetivo.isConnected || objetivo.closest?.('.leaflet-popup'))) return;
       onPunto(event.latlng.lat, event.latlng.lng);
@@ -106,10 +89,6 @@ function ManejadorClick({ onPunto }: { onPunto: (lat: number, lng: number) => vo
   return null;
 }
 
-/**
- * El mapa arranca fijo para poder arrastrar el marcador sin moverlo por
- * accidente: solo con Ctrl presionado se habilitan arrastre y zoom con rueda.
- */
 function ControlNavegacionCtrl() {
   const map = useMap();
   useEffect(() => {
@@ -151,14 +130,11 @@ export function PuntoMapaPicker({ value, onChange, onAgregar, agregarDeshabilita
   const [ubicacion, setUbicacion] = useState<{ latitud: number; longitud: number } | null>(null);
   const [errorUbicacion, setErrorUbicacion] = useState('');
   const [menu, setMenu] = useState<PosicionMenu | null>(null);
-  /** Resultado resaltado con el teclado dentro del panel de resultados. */
   const [activo, setActivo] = useState(-1);
-  /** El panel se cerró con Esc o clic fuera; se reabre al reenfocar o teclear. */
   const [panelCerrado, setPanelCerrado] = useState(false);
   const idLista = useId();
   const contenedorRef = useRef<HTMLDivElement | null>(null);
 
-  // Sin geolocalización disponible (p. ej. HTTP sin HTTPS) el botón no se muestra.
   const geolocalizacionDisponible = typeof navigator !== 'undefined' && 'geolocation' in navigator;
   const viewbox = useMemo(
     () => (ubicacion ? cajaCercaDeMi(ubicacion.latitud, ubicacion.longitud) : undefined),
@@ -169,10 +145,8 @@ export function PuntoMapaPicker({ value, onChange, onAgregar, agregarDeshabilita
   const cacheRef = useRef(new Map<string, PuntoSeleccion[]>());
   const ultimaPeticionRef = useRef(0);
   const seqRef = useRef(0);
-  /** Invalida geocodificaciones inversas de clics viejos en el mapa. */
   const seqPuntoRef = useRef(0);
   const timersRef = useRef<number[]>([]);
-  /** Fila de coordenadas/liga pegada en pantalla: al elegirla el recuadro se normaliza. */
   const filaCoordenadasRef = useRef<PuntoSeleccion | null>(null);
   const icono = useMemo(() => iconoMarcador(), []);
 
@@ -180,7 +154,6 @@ export function PuntoMapaPicker({ value, onChange, onAgregar, agregarDeshabilita
     () => () => {
       timersRef.current.forEach(id => window.clearTimeout(id));
       timersRef.current = [];
-      // Invalida respuestas en vuelo para no actualizar estado tras desmontar.
       seqRef.current += 1;
       seqPuntoRef.current += 1;
     },
@@ -206,7 +179,6 @@ export function PuntoMapaPicker({ value, onChange, onAgregar, agregarDeshabilita
       setErrorBusqueda(enCache.length ? '' : ERROR_SIN_RESULTADOS);
       return;
     }
-    // Throttle: como máximo una petición por segundo, sin descartar la última.
     const restante = Math.max(0, THROTTLE_MS - (Date.now() - ultimaPeticionRef.current));
     if (restante > 0) await new Promise<void>(resolve => { programar(resolve, restante); });
     const seq = (seqRef.current += 1);
@@ -223,7 +195,6 @@ export function PuntoMapaPicker({ value, onChange, onAgregar, agregarDeshabilita
           nombre: item.nombre.trim() || 'Punto sin nombre',
           latitud: item.latitud,
           longitud: item.longitud,
-          // Estado y municipio solo cuando el backend los conoce (dirección).
           ...(item.estado ? { estado: item.estado } : {}),
           ...(item.municipio ? { municipio: item.municipio } : {}),
         }))
@@ -240,12 +211,6 @@ export function PuntoMapaPicker({ value, onChange, onAgregar, agregarDeshabilita
     }
   }, []);
 
-  /**
-   * Fila de coordenadas pegadas (o de una liga ya resuelta): se nombra con la
-   * geocodificación inversa —"Calle Núm, Colonia, Ciudad"— y si esa llamada
-   * falla se usa "Lat …, Lng …". Las coordenadas que mandó el usuario son las
-   * que se conservan (más fieles que el punto del geocodificador).
-   */
   const fijarCoordenadas = useCallback(
     async (limpio: string, latitud: number, longitud: number) => {
       if (!dentroDeMexico(latitud, longitud)) {
@@ -280,7 +245,6 @@ export function PuntoMapaPicker({ value, onChange, onAgregar, agregarDeshabilita
         setResultados([fila]);
       } catch {
         if (seq !== seqRef.current) return;
-        // Sin geocodificación inversa la fila sigue siendo utilizable.
         const fila: PuntoSeleccion = { nombre: nombreDeCoordenadas(latitud, longitud), latitud, longitud };
         filaCoordenadasRef.current = fila;
         setResultados([fila]);
@@ -291,7 +255,6 @@ export function PuntoMapaPicker({ value, onChange, onAgregar, agregarDeshabilita
     [claveBusqueda]
   );
 
-  /** Interpreta lo escrito: coordenadas/liga pegada o búsqueda normal. */
   const ejecutarTexto = useCallback(
     async (limpio: string) => {
       const entrada = interpretarEntradaPegada(limpio);
@@ -304,11 +267,9 @@ export function PuntoMapaPicker({ value, onChange, onAgregar, agregarDeshabilita
         return;
       }
       if (entrada.tipo === 'busqueda') {
-        // Liga cuyo parámetro q/query trae el nombre del lugar.
         void ejecutarBusqueda(urlGeocodificarGlobal(entrada.texto, viewbox), claveBusqueda(entrada.texto));
         return;
       }
-      // Liga corta: la resuelve el backend (el navegador no puede por CORS).
       const seq = (seqRef.current += 1);
       setBuscando(true);
       setErrorBusqueda('');
@@ -351,7 +312,6 @@ export function PuntoMapaPicker({ value, onChange, onAgregar, agregarDeshabilita
     return () => window.clearTimeout(id);
   }, [texto, ejecutarTexto]);
 
-  // Nuevos resultados: el resaltado del teclado vuelve al inicio.
   useEffect(() => {
     setActivo(-1);
   }, [resultados]);
@@ -361,11 +321,6 @@ export function PuntoMapaPicker({ value, onChange, onAgregar, agregarDeshabilita
     [value]
   );
 
-  /**
-   * Fija el pin al instante y luego completa nombre/estado/municipio con
-   * geocodificación inversa. Si upstream falla, el punto se queda con el
-   * nombre de respaldo y las coordenadas exactas del clic.
-   */
   function fijarPuntoConDireccion(nombre: string, lat: number, lng: number) {
     onChange({ nombre, latitud: lat, longitud: lng });
     const seq = (seqPuntoRef.current += 1);
@@ -385,7 +340,6 @@ export function PuntoMapaPicker({ value, onChange, onAgregar, agregarDeshabilita
     fijarPuntoConDireccion(value?.nombre.trim() || 'Punto seleccionado en mapa', lat, lng);
   }
 
-  /** Clic derecho: abre el menú contextual sin mover el pin (cada opción hace lo suyo). */
   function clicDerechoMapa(lat: number, lng: number) {
     if (disabled) return;
     setMenu({ lat, lng });
@@ -402,11 +356,6 @@ export function PuntoMapaPicker({ value, onChange, onAgregar, agregarDeshabilita
     fijarPuntoConDireccion(value.nombre, lat, lng);
   }
 
-  /**
-   * Al elegir un resultado el recuadro queda con el nombre del lugar elegido
-   * (como en Google Maps); si la fila venía de coordenadas o de una liga
-   * pegada, queda con las coordenadas ya normalizadas ("19.43950, -99.13320").
-   */
   function elegirResultado(punto: PuntoSeleccion) {
     if (!dentroDeMexico(punto.latitud, punto.longitud)) {
       toast.error('Solo puedes elegir puntos dentro de México.');
@@ -414,18 +363,13 @@ export function PuntoMapaPicker({ value, onChange, onAgregar, agregarDeshabilita
     }
     if (filaCoordenadasRef.current === punto) {
       const textoCoordenadas = formatearCoordenadas(punto.latitud, punto.longitud);
-      // Precarga el cache con la clave del texto normalizado para que el
-      // recuadro no vuelva a pedir la geocodificación inversa al reejecutarse.
       cacheRef.current.set(claveBusqueda(textoCoordenadas), [punto]);
       setTexto(textoCoordenadas);
       filaCoordenadasRef.current = null;
     } else {
-      // El recuadro se llena con lo que decía la fila elegida; se cachea para
-      // que el debounce no dispare otra búsqueda sobre el mismo nombre.
       setTexto(punto.nombre);
       cacheRef.current.set(claveBusqueda(punto.nombre), [punto]);
     }
-    // Elegir un resultado pisa cualquier geocodificación inversa en vuelo.
     seqPuntoRef.current += 1;
     onChange(punto);
     setResultados([]);
@@ -443,7 +387,6 @@ export function PuntoMapaPicker({ value, onChange, onAgregar, agregarDeshabilita
     filaCoordenadasRef.current = null;
   }
 
-  /** Al reenfocar: reabre el panel y repone resultados de cache (sin red). */
   function alEnfocar() {
     const limpio = texto.trim();
     if (limpio.length < MIN_TEXTO || disabled) return;
@@ -477,7 +420,6 @@ export function PuntoMapaPicker({ value, onChange, onAgregar, agregarDeshabilita
       setActivo(actual => (actual <= 0 ? resultados.length - 1 : actual - 1));
     } else if (event.key === 'Enter') {
       const resaltado = activo >= 0 && activo < resultados.length ? resultados[activo] : null;
-      // Con un solo resultado (p. ej. coordenadas pegadas) Enter lo usa directo.
       const objetivo = resaltado ?? (resultados.length === 1 ? resultados[0] : null);
       if (panelVisible && objetivo) {
         event.preventDefault();
@@ -490,7 +432,6 @@ export function PuntoMapaPicker({ value, onChange, onAgregar, agregarDeshabilita
     }
   }
 
-  /** Enciende/apaga el sesgo de resultados hacia la ubicación actual. */
   function alternarCercaDeMi() {
     setErrorUbicacion('');
     if (ubicacion) {
@@ -580,7 +521,7 @@ export function PuntoMapaPicker({ value, onChange, onAgregar, agregarDeshabilita
         ) : null}
         {errorUbicacion ? <p role="alert" className="mt-1 text-xs text-destructive">{errorUbicacion}</p> : null}
 
-        {/* Panel flotante de resultados, anclado bajo la barra (estilo Google Maps). */}
+        {}
         {panelVisible ? (
           <div className="absolute left-2 right-2 top-full z-20 mt-1 overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-lg">
             {resultados.length > 0 ? (

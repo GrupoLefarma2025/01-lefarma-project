@@ -1,9 +1,3 @@
-﻿/**
- * AutoVerify - Componente de verificación automática del sistema
- * Se activa con ?autotest=true en la URL
- */
-
-
 import { useEffect, useState } from 'react';
 import { useAuthStore } from '@/shared/auth/authStore';
 
@@ -39,7 +33,6 @@ export function AutoVerify() {
   };
 
   useEffect(() => {
-    // Capturar errores de consola
     const originalError = console.error;
     const originalLog = console.log;
 
@@ -50,10 +43,6 @@ export function AutoVerify() {
     };
 
     console.log = (...args) => {
-      const msg = args.join(' ');
-      if (msg.includes('SSE') || msg.includes('Notifications')) {
-        console.log('[AutoVerify]', ...args);
-      }
       originalLog.apply(console, args);
     };
 
@@ -66,7 +55,6 @@ export function AutoVerify() {
   }, []);
 
   const runVerification = async () => {
-    // Step 1: Frontend
     updateStep(1, { status: 'running', message: 'Verificando...' });
     try {
       const res = await fetch('http://localhost:5174');
@@ -79,7 +67,6 @@ export function AutoVerify() {
       updateStep(1, { status: 'error', message: `Error: ${(e as Error).message}` });
     }
 
-    // Step 2: Backend
     updateStep(2, { status: 'running', message: 'Verificando...' });
     try {
       const res = await fetch('http://localhost:5134');
@@ -90,7 +77,6 @@ export function AutoVerify() {
 
     await new Promise(resolve => setTimeout(resolve, 500));
 
-    // Step 3: Login
     updateStep(3, { status: 'running', message: 'Autenticando...' });
     let token: string | null = null;
     let userId: number | null = null;
@@ -127,7 +113,6 @@ export function AutoVerify() {
 
     await new Promise(resolve => setTimeout(resolve, 500));
 
-    // Step 4: Notifications endpoint
     updateStep(4, { status: 'running', message: 'Obteniendo notificaciones...' });
     try {
       const res = await fetch(`http://localhost:5134/api/notifications/user/${userId}`, {
@@ -155,7 +140,6 @@ export function AutoVerify() {
 
     await new Promise(resolve => setTimeout(resolve, 500));
 
-    // Step 5: SSE Connection
     updateStep(5, { status: 'running', message: 'Estableciendo conexión SSE...' });
     let reconnectCount = 0;
     let connectedOnce = false;
@@ -180,14 +164,12 @@ export function AutoVerify() {
 
       eventSource.addEventListener('connection.established', (e) => {
         const data = JSON.parse(e.data);
-        console.log('[SSE] Connection established for user:', data.userId);
       });
 
       eventSource.onerror = () => {
         updateStep(5, { status: 'warning', message: 'Error en conexión SSE' });
       };
 
-      // Wait 5 seconds to observe
       await new Promise(resolve => setTimeout(resolve, 5000));
 
       eventSource.close();
@@ -210,7 +192,6 @@ export function AutoVerify() {
       updateStep(5, { status: 'error', message: `Error: ${(e as Error).message}` });
     }
 
-    // Final result
     const errorCount = steps.filter(s => s.status === 'error').length;
     if (errorCount === 0) {
       setFinalResult('✅ VERIFICACIÓN EXITOSA - Sistema funcionando correctamente');

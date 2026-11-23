@@ -140,8 +140,6 @@ public class RankingHospitalesService : IRankingHospitalesService
         _context.RankingsEjecuciones.Add(ejecucion);
         await _context.SaveChangesAsync(cancellationToken);
 
-        // EF puede limpiar la navegación después de guardar una entidad no-tracked; la restauramos
-        // para que el mapeo de salida no falle.
         ejecucion.Configuracion = configuracion;
 
         await VincularScoresASeleccionActualAsync(idSeleccionMensual, ejecucion, cancellationToken);
@@ -379,11 +377,6 @@ public class RankingHospitalesService : IRankingHospitalesService
         return config;
     }
 
-    /// <summary>
-    /// Aplica los parametros_json del factor sobre la config del engine. JSON ausente,
-    /// malformado o con claves faltantes conserva los defaults (mismos valores que el
-    /// motor usa sin configuracion).
-    /// </summary>
     internal static void AplicarParametrosFactor(RankingConfig config, string clave, string? parametrosJson)
     {
         if (string.IsNullOrWhiteSpace(parametrosJson))
@@ -399,7 +392,6 @@ public class RankingHospitalesService : IRankingHospitalesService
         }
         catch (JsonException)
         {
-            // Ignorar JSON malformado y usar defaults
             return;
         }
 
@@ -463,7 +455,6 @@ public class RankingHospitalesService : IRankingHospitalesService
         int idTipoGerencia,
         CancellationToken ct)
     {
-        // Historial de recencia: solo selecciones de la MISMA gerencia y ANTERIORES a la actual (ADR-00005 §8).
         var query = from sh in _context.SeleccionesHospitales.AsNoTracking()
                     join s in _context.SeleccionesMensuales.AsNoTracking()
                         on sh.IdSeleccionMensual equals s.IdSeleccionMensual
@@ -484,13 +475,6 @@ public class RankingHospitalesService : IRankingHospitalesService
         DateOnly fechaReferencia,
         CancellationToken ct)
     {
-        // Cobertura efectiva: talleres con estado Realizado del historial del hospital
-        // (id_hospital, sin depender de la trazabilidad a la seleccion de origen, que
-        // puede ser NULL en talleres historicos). Un taller Cancelado cuenta como
-        // cobertura pendiente, no como taller impartido. Se excluyen talleres fechados
-        // en la seleccion actual o posterior al corte (misma referencia que la
-        // recencia, ADR-00005 §8); los de la seleccion actual ya se excluyen de todos
-        // modos como "ya agregados" antes de armar los candidatos.
         var ids = await _context.Talleres.AsNoTracking()
             .Where(t => t.IdHospital.HasValue
                 && idsCandidatos.Contains(t.IdHospital.Value)
@@ -514,7 +498,6 @@ public class RankingHospitalesService : IRankingHospitalesService
         foreach (var hospital in hospitales)
         {
             var extension = extensionesDict.GetValueOrDefault(hospital.CodigoContacto);
-            // Candidato = gerencia correcta, visible en EM y seleccionable como sede.
             if (extension?.IdTipoGerencia == idTipoGerencia
                 && extension.MostrarEducacionMedica
                 && extension.EsSedeTaller == true)
@@ -963,7 +946,6 @@ public class RankingHospitalesService : IRankingHospitalesService
         _context.SeleccionesHospitales.AddRange(nuevos);
         await _context.SaveChangesAsync(cancellationToken);
 
-        // Los hospitales sugeridos entran directo a su región de catálogo (o a "Sin región").
         await _seleccionService.SincronizarRegionesAsync(
             idSeleccionMensual, idUsuario, cancellationToken);
 

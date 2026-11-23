@@ -1,11 +1,3 @@
-/**
- * Fila de dbo.infoMacroViaticos tal como la expone
- * GET /api/viaticos/macro-concentrado.
- *
- * La tabla la llena un proceso externo y no tiene estado de workflow: cada
- * folio es una solicitud de viático ya capturada. `renglon` es el número que
- * se imprime en el concentrado.
- */
 export interface MacroViatico {
   folio: string;
   nombre: string | null;

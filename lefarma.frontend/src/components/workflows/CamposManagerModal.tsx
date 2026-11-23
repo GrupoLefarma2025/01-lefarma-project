@@ -32,7 +32,6 @@ const GRUPOS_CAMPOS: Array<{
 interface CamposManagerModalProps {
   open: boolean;
   setOpen: (open: boolean) => void;
-  /** Se llama cuando se crea/edita un campo, para refrescar el workflow. */
   onChanged: () => void | Promise<void>;
 }
 

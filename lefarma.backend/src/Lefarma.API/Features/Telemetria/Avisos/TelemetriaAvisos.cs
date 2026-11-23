@@ -6,11 +6,6 @@ using Microsoft.Extensions.Options;
 
 namespace Lefarma.API.Features.Telemetria.Avisos;
 
-/// <summary>
-/// Avisos proactivos: alerta cuando una huella de error nueva se repite dentro
-/// de una ventana corta y manda un resumen diario. Es opcional (apagado por
-/// omisión) porque depende del correo configurado en el servidor.
-/// </summary>
 public sealed class TelemetriaAvisos(
     IServiceScopeFactory scopes,
     IOptions<TelemetriaAvisosOpciones> opciones,
@@ -65,13 +60,11 @@ public sealed class TelemetriaAvisos(
         }
     }
 
-    /// <summary>Una pasada completa; separada del bucle para poder probarla.</summary>
     internal async Task ProcesarAsync(DateTime ahoraLocal, CancellationToken ct)
     {
         using var scope = scopes.CreateScope();
         var consulta = scope.ServiceProvider.GetRequiredService<ITelemetriaConsulta>();
 
-        // La consulta ya devuelve colecciones vacías si las tablas no existen.
         await RevisarHuellasAsync(consulta, ahoraLocal.ToUniversalTime(), ct);
         await EnviarResumenAsync(consulta, ahoraLocal, ct);
     }

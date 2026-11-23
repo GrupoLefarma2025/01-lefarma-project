@@ -10,7 +10,6 @@ import {
   CONFIGURACION_STORAGE_KEY,
 } from './types';
 
-/** Agrupa escrituras en localStorage para no bloquear equipos lentos. */
 const PERSIST_DEBOUNCE_MS = 500;
 
 const BLOCKED_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
@@ -36,7 +35,6 @@ function getStorage(): Storage | null {
     }
     return window.localStorage;
   } catch {
-    // localStorage bloqueado (modo privado / políticas de seguridad).
     return null;
   }
 }
@@ -45,7 +43,6 @@ function removePersistedState(storage: Storage): void {
   try {
     storage.removeItem(CONFIGURACION_STORAGE_KEY);
   } catch {
-    // No se pudo limpiar (p. ej. SecurityError): continuar en memoria.
   }
 }
 
@@ -58,8 +55,6 @@ function normalizeVariable(value: unknown): ConfiguracionVariable | null {
     return null;
   }
 
-  // `JSON.stringify` omite `valor` cuando es undefined; se normaliza a null
-  // para que una escritura previa nunca invalide el cache completo.
   const valor = Object.prototype.hasOwnProperty.call(value, 'valor') ? value.valor : null;
 
   return {
@@ -69,10 +64,6 @@ function normalizeVariable(value: unknown): ConfiguracionVariable | null {
   };
 }
 
-/**
- * Lee y valida el cache. Cualquier JSON corrupto, versión desconocida o
- * estructura inválida limpia la clave y devuelve null (la app sigue viva).
- */
 function readPersistedState(): ConfiguracionPersistedState | null {
   const storage = getStorage();
   if (!storage) {
@@ -127,8 +118,6 @@ function readPersistedState(): ConfiguracionPersistedState | null {
 }
 
 function createInitialState(): ConfiguracionState {
-  // Hidratación síncrona al inicializar el módulo: los hooks de ruta pueden
-  // leer el cache en su primer render sin esperar a un efecto del provider.
   const persisted = readPersistedState();
 
   return {
@@ -155,8 +144,6 @@ function writePersistedState(): void {
   try {
     storage.setItem(CONFIGURACION_STORAGE_KEY, JSON.stringify(payload));
   } catch {
-    // QuotaExceededError u otro fallo: se conserva el estado en memoria y la UI
-    // sigue funcionando; el siguiente ciclo de persistencia lo reintenta.
   }
 }
 
@@ -171,7 +158,6 @@ export function scheduleConfiguracionPersistence(): void {
   }, PERSIST_DEBOUNCE_MS);
 }
 
-/** Fuerza la escritura pendiente (logout, pagehide, tests). */
 export function flushConfiguracionPersistence(): void {
   if (persistTimer) {
     clearTimeout(persistTimer);
@@ -216,7 +202,6 @@ export const useConfiguracionStore = create<ConfiguracionStore>()((set, get) => 
 
     const state = get();
 
-    // Respuesta fuera de orden: nunca retrocede la revisión global.
     if (snapshot.revisionActual < state.revision) {
       return false;
     }
@@ -224,8 +209,6 @@ export const useConfiguracionStore = create<ConfiguracionStore>()((set, get) => 
     const incoming = Array.isArray(snapshot.variables) ? snapshot.variables : [];
     const eliminadas = Array.isArray(snapshot.eliminadas) ? snapshot.eliminadas : [];
 
-    // Copia perezosa: si no hay cambios reales no se crea un objeto nuevo y
-    // no se despierta a ningún suscriptor de Zustand.
     let variables: Record<string, ConfiguracionVariable> = state.variables;
     let copied = false;
     let nextRevision = state.revision;
@@ -256,7 +239,6 @@ export const useConfiguracionStore = create<ConfiguracionStore>()((set, get) => 
         ? variables[item.clave]
         : undefined;
 
-      // SOLO revisiones estrictamente mayores por clave.
       if (current && item.revision <= current.revision) {
         continue;
       }
@@ -268,9 +250,6 @@ export const useConfiguracionStore = create<ConfiguracionStore>()((set, get) => 
         revision: item.revision,
       };
 
-      // Una respuesta concurrente puede contener una revisión por variable
-      // mayor que el revisionActual capturado antes de leer los cambios. El
-      // cursor nunca debe quedar detrás de un dato ya aplicado.
       nextRevision = Math.max(nextRevision, item.revision);
     }
 
@@ -280,7 +259,6 @@ export const useConfiguracionStore = create<ConfiguracionStore>()((set, get) => 
       return false;
     }
 
-    // Una sola actualización atómica: variables + revisión juntas.
     set({
       revision: nextRevision,
       variables: copied ? variables : state.variables,
@@ -291,10 +269,6 @@ export const useConfiguracionStore = create<ConfiguracionStore>()((set, get) => 
   },
 }));
 
-/**
- * Solo para tests: deja el store vacío y cancela cualquier escritura pendiente.
- * No se usa en runtime.
- */
 export function resetConfiguracionStoreForTests(): void {
   if (persistTimer) {
     clearTimeout(persistTimer);

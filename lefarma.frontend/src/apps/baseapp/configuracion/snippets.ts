@@ -61,7 +61,6 @@ function tipoFrontendBase(tipo: string): string {
   }
 }
 
-/** Tipo TypeScript legible para el snippet de frontend. */
 export function tipoFrontend(variable: VariableConfiguracion): string {
   const canonico = normalizarTipoDato(variable.tipoDato);
 
@@ -111,7 +110,6 @@ function tipoBackendBase(tipo: string): string {
   }
 }
 
-/** Tipo C# legible para el snippet de backend. */
 export function tipoBackend(variable: VariableConfiguracion): string {
   const canonico = normalizarTipoDato(variable.tipoDato);
 
@@ -198,7 +196,6 @@ FROM OPENJSON(config.fn_obtener_variable(N'${variable.clave}'));`;
   return `SELECT config.fn_obtener_variable(N'${variable.clave}') AS valor;`;
 }
 
-/** URL y encabezado compartidos por todos los ejemplos de API externa. */
 function datosApi(variable: VariableConfiguracion): { url: string; clave: string } {
   const origen =
     typeof window === 'undefined' ? 'https://tu-servidor' : window.location.origin;
@@ -331,7 +328,6 @@ function snippetApi(variable: VariableConfiguracion, lenguaje: LenguajeApi): str
   }
 }
 
-/** Lenguajes externos y T-SQL local, con disponibilidad según destinos. */
 export function opcionesLenguajeApi(variable: VariableConfiguracion): OpcionLenguajeApi[] {
   return LENGUAJES_API.map((lenguaje) => ({
     ...lenguaje,
@@ -346,16 +342,10 @@ export function etiquetaLenguajeApi(lenguaje: LenguajeApi): string {
   return LENGUAJES_API.find((opcion) => opcion.valor === lenguaje)?.etiqueta ?? lenguaje;
 }
 
-/** cURL si la variable está expuesta a integraciones; T-SQL si solo tiene destino SQL. */
 export function lenguajeApiPredeterminado(variable: VariableConfiguracion): LenguajeApi {
   return variable.disponibleIntegraciones ? 'curl' : 'tsql';
 }
 
-/**
- * Los snippets se generan a partir de la variable real y de su tipo declarado.
- * El bloque de API solo se ofrece cuando la variable está expuesta a integraciones
- * o tiene destino SQL.
- */
 export function generarSnippet(
   variable: VariableConfiguracion,
   tipo: SnippetCodigo,
@@ -417,14 +407,7 @@ export function opcionesSnippet(variable: VariableConfiguracion): OpcionSnippet[
   ];
 }
 
-/**
- * Copia texto con fallback para navegadores servidos por HTTP no seguro,
- * donde navigator.clipboard puede no existir o rechazar la operación.
- */
 export async function copiarAlPortapapeles(texto: string): Promise<boolean> {
-  // La Clipboard API asíncrona falla o queda vacía en varios navegadores
-  // cuando la aplicación se sirve por HTTP. En ese caso usamos el fallback
-  // síncrono dentro del gesto del usuario.
   if (
     typeof window !== 'undefined' &&
     window.isSecureContext &&
@@ -435,7 +418,6 @@ export async function copiarAlPortapapeles(texto: string): Promise<boolean> {
       await navigator.clipboard.writeText(texto);
       return true;
     } catch {
-      // Continúa con el fallback.
     }
   }
 
@@ -453,8 +435,6 @@ export async function copiarAlPortapapeles(texto: string): Promise<boolean> {
   document.body.appendChild(textarea);
 
   try {
-    // El foco y la selección son obligatorios para que execCommand('copy')
-    // funcione también desde un menú desplegable.
     textarea.focus({ preventScroll: true });
     textarea.select();
     textarea.setSelectionRange(0, texto.length);

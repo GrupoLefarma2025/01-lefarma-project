@@ -1,7 +1,5 @@
 namespace Lefarma.API.Features.Sigma.DTOs;
 
-// Respuestas y filas del dashboard de documentos (puerto de DocumentosModule.cs / DocumentosDashboardModels de SIGMA).
-
 public sealed record DocumentosDashboardStatisticsDto
 {
     public int DocumentsPendingAuthorization { get; init; }
@@ -46,8 +44,6 @@ public sealed record BandejaUsuarioDto
     public string Value { get; init; } = "";
     public string Label { get; init; } = "";
 }
-
-// --- Filas privadas de los SP (mismos nombres que SIGMA) ---
 
 internal sealed record DocumentosDashboardStatisticsRow
 {

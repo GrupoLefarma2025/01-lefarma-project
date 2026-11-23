@@ -49,7 +49,6 @@ export default function HelpView() {
       };
       await helpService.update(updateData);
       setIsEditing(false);
-      // Refetch to get updated data
       await fetchArticleById(parseInt(id));
     } catch (error: unknown) {
       const err = toApiError(error);
@@ -107,7 +106,7 @@ export default function HelpView() {
         )}
       </div>
 
-      {/* Loading State */}
+      {}
       {isLoading && (
         <div className="space-y-4">
           <Skeleton className="h-8 w-3/4" />
@@ -121,7 +120,7 @@ export default function HelpView() {
         </div>
       )}
 
-      {/* Not Found State */}
+      {}
       {!isLoading && !selectedArticle && (
         <div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-16 text-center">
           <h2 className="text-xl font-semibold mb-2">Artículo no encontrado</h2>
@@ -135,7 +134,7 @@ export default function HelpView() {
         </div>
       )}
 
-      {/* Article Content */}
+      {}
       {!isLoading && selectedArticle && (
         <div className="space-y-4 md:space-y-6">
           <h1 className="text-xl sm:text-2xl md:text-3xl font-bold">{selectedArticle.titulo}</h1>

@@ -3,10 +3,6 @@ using Lefarma.API.Features.Sigma.Services.PdfSignature;
 
 namespace Lefarma.UnitTests.Features.Sigma.PdfSignature;
 
-/// <summary>
-/// Comprueba la geometría contra los números que produce el script de Python:
-/// caja de 150×50 centrada en el texto, desplazada 0/-15, y texto 2 pt debajo.
-/// </summary>
 public sealed class StampGeometryTests
 {
     private static readonly PdfSignatureSettings Ajustes = new();

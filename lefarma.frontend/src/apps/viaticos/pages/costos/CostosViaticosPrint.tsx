@@ -131,9 +131,6 @@ export function CostosSolicitudPrint({ respuesta, solicitud, seleccion = {}, per
   const legs = proposal?.tramos ?? [];
   const hotels = proposal?.hotelesPropuestos ?? [];
   const taxis = legs.filter(t => ['uber', 'taxi'].includes(t.modo));
-  // Solo bus/avión implican comprar boleto; cualquier otro modo (auto, renta,
-  // metro, uber) responde "No". La pregunta siempre aplica: exactamente una
-  // casilla queda marcada, nunca las dos en blanco.
   const requiereBoleto = legs.some(t => ['bus', 'avion'].includes(t.modo));
   const split = (text: string | undefined) => text?.split(' ') ?? [];
   return <article className="costos-report costos-report-solicitud" aria-label="Solicitud individual FOR-007">

@@ -10,10 +10,6 @@ using Swashbuckle.AspNetCore.Annotations;
 
 namespace Lefarma.API.Features.Configuracion;
 
-/// <summary>
-/// Administración de variables globales de configuración: CRUD, bitácora,
-/// restauración de versiones y sincronización con el frontend.
-/// </summary>
 [ApiController]
 [Route("api/configuracion/variables")]
 [EndpointGroupName("Configuracion")]
@@ -27,7 +23,6 @@ public class ConfiguracionController : ControllerBase
         _service = service;
     }
 
-    /// <summary>Lista las variables de configuración con filtros opcionales.</summary>
     [HttpGet]
     [HasPermission(Permissions.Configuracion.View)]
     [SwaggerOperation(
@@ -62,7 +57,6 @@ public class ConfiguracionController : ControllerBase
         }));
     }
 
-    /// <summary>Obtiene una variable por su identificador.</summary>
     [HttpGet("{id:long}")]
     [HasPermission(Permissions.Configuracion.View)]
     [SwaggerOperation(
@@ -82,7 +76,6 @@ public class ConfiguracionController : ControllerBase
         }));
     }
 
-    /// <summary>Crea una variable de configuración.</summary>
     [HttpPost]
     [HasPermission(Permissions.Configuracion.Create)]
     [SwaggerOperation(
@@ -105,7 +98,6 @@ public class ConfiguracionController : ControllerBase
         }));
     }
 
-    /// <summary>Actualiza una variable de configuración existente.</summary>
     [HttpPut("{id:long}")]
     [HasPermission(Permissions.Configuracion.Update)]
     [SwaggerOperation(
@@ -130,7 +122,6 @@ public class ConfiguracionController : ControllerBase
         }));
     }
 
-    /// <summary>Desactiva una variable (nunca se elimina físicamente).</summary>
     [HttpPost("{id:long}/desactivar")]
     [HasPermission(Permissions.Configuracion.Update)]
     [SwaggerOperation(
@@ -154,7 +145,6 @@ public class ConfiguracionController : ControllerBase
         }));
     }
 
-    /// <summary>Reactiva una variable desactivada.</summary>
     [HttpPost("{id:long}/reactivar")]
     [HasPermission(Permissions.Configuracion.Update)]
     [SwaggerOperation(
@@ -178,7 +168,6 @@ public class ConfiguracionController : ControllerBase
         }));
     }
 
-    /// <summary>Historial de cambios de una variable (más reciente primero).</summary>
     [HttpGet("{id:long}/historial")]
     [HasPermission(Permissions.Configuracion.History)]
     [SwaggerOperation(
@@ -198,7 +187,6 @@ public class ConfiguracionController : ControllerBase
         }));
     }
 
-    /// <summary>Detalle de una entrada de bitácora.</summary>
     [HttpGet("{id:long}/historial/{idBitacora:long}")]
     [HasPermission(Permissions.Configuracion.History)]
     [SwaggerOperation(
@@ -218,7 +206,6 @@ public class ConfiguracionController : ControllerBase
         }));
     }
 
-    /// <summary>Restaura una versión anterior como un cambio nuevo.</summary>
     [HttpPost("{id:long}/restaurar")]
     [HasPermission(Permissions.Configuracion.Restore)]
     [SwaggerOperation(

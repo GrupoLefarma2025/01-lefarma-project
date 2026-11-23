@@ -38,8 +38,6 @@ const HANDLER_OPTIONS = [
   { value: 'ProviderAuthorization', label: 'Validacion de proveedor' },
 ];
 
-// Procesos compatibles por handler; '*' aplica a todos.
-// Debe reflejar TiposEntidadCompatibles de los IWorkflowActionHandler del backend.
 const PROCESOS_POR_HANDLER: Record<string, string[]> = {
   Field: ['*'],
   Alerta: ['*'],
@@ -384,7 +382,7 @@ export function HandlerEditModal({ workflow, accion, handler, open, setOpen, onS
           </div>
         </div>
 
-        {/* Campo vinculado */}
+        {}
         <div className="space-y-2">
           <Label>Campo vinculado</Label>
           {availableCampos.length === 0 ? (
@@ -510,7 +508,7 @@ export function HandlerEditModal({ workflow, accion, handler, open, setOpen, onS
           </div>
         )}
 
-        {/* configuracionJson */}
+        {}
         <div className="space-y-2">
           <Label>Configuracion JSON (opcional)</Label>
           <Textarea

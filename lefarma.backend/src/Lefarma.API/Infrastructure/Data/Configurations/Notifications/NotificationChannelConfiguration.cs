@@ -13,7 +13,6 @@ public class NotificationChannelConfiguration : IEntityTypeConfiguration<Notific
         builder.Property(nc => nc.Id)
             .ValueGeneratedOnAdd();
 
-        // Property mappings
         builder.Property(nc => nc.NotificationId)
             .IsRequired();
 
@@ -44,17 +43,11 @@ public class NotificationChannelConfiguration : IEntityTypeConfiguration<Notific
             .IsRequired()
             .HasDefaultValueSql("GETUTCDATE()");
 
-        // Relationships
-        /// <summary>
-        /// ClientCascade prevents SQL Server multiple cascade paths error.
-        /// EF Core handles cascading in memory before deletion.
-        /// </summary>
         builder.HasOne(nc => nc.Notification)
             .WithMany(n => n.Channels)
             .HasForeignKey(nc => nc.NotificationId)
             .OnDelete(DeleteBehavior.ClientCascade);
 
-        // Indexes
         builder.HasIndex(nc => nc.NotificationId)
             .HasDatabaseName("IX_NotificationChannels_NotificationId");
 
@@ -64,7 +57,6 @@ public class NotificationChannelConfiguration : IEntityTypeConfiguration<Notific
         builder.HasIndex(nc => nc.Status)
             .HasDatabaseName("IX_NotificationChannels_Status");
 
-        // Prevent duplicate channels for same notification/recipient
         builder.HasIndex(nc => new { nc.NotificationId, nc.ChannelType, nc.Recipient })
             .IsUnique()
             .HasDatabaseName("UX_NotificationChannels_Notification_ChannelType_Recipient");

@@ -5,7 +5,6 @@ export function selectedProposal(response: CostosRutaResponse, name: string, sel
   return proposals.find(p => p.clave === selection[name]) ?? proposals.find(p => p.cumpleTodos) ?? proposals[0];
 }
 
-// A car quote is a reference, not an extra cost of a bus/air proposal.
 export function selectedCosts(response: CostosRutaResponse, proposal: CostosRutaPropuesta) {
   const result = response.resultados.find(r => r.nombre === proposal.persona);
   const modeCost = (mode: string) => {
@@ -23,7 +22,6 @@ export function selectedCosts(response: CostosRutaResponse, proposal: CostosRuta
       const fuelCost = references.reduce((sum, r) => sum + r.gasolina[fuel].costo, 0);
       const tollCost = references.reduce((sum, r) => sum + r.casetas.costo, 0);
       const selected = carLegs.reduce((sum, t) => sum + t.costo, 0);
-      // Shared/discounted proposals without a matching breakdown must not inherit a whole-car quote.
       if (Math.abs(selected - fuelCost - tollCost) < 0.02) { gasoline = fuelCost; tolls = tollCost; }
     }
   }
@@ -32,8 +30,6 @@ export function selectedCosts(response: CostosRutaResponse, proposal: CostosRuta
     avion: modeCost('avion'),
     gasolina: gasoline,
     casetas: tolls,
-    // Hospedaje, comida y taxi ya vienen calculados por el motor dentro de la
-    // propuesta; se exponen tal cual para que el importador los persista.
     hospedaje: proposal.hospedaje,
     comida: proposal.comida,
     taxi: proposal.taxi,

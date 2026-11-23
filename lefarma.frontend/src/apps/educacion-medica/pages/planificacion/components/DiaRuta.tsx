@@ -20,7 +20,6 @@ interface DiaRutaProps {
   visitas: RutaVisita[];
   maxVisitasDia: number;
   editable: boolean;
-  /** Modo ajuste post-cierre: los avisos de capacidad no bloquean (ADR-00010). */
   modoAjuste?: boolean;
   dragActivo: DragPayload | null;
   ubicacionPorVisita: (visita: RutaVisita) => string | null;
@@ -43,9 +42,6 @@ export function DiaRuta({
   onEditarHoras,
 }: DiaRutaProps) {
   const estado = estadoDelDia(visitas.length, maxVisitasDia);
-  // Tope duro (espejo del backend): un dia lleno no acepta altas ni movimientos
-  // entrantes; solo reorden dentro del mismo dia. En modo ajuste la capacidad
-  // avisa (no bloquea) y el backend decide.
   const aceptaDrop =
     dragActivo?.tipo === 'nuevo' ||
     (dragActivo?.tipo === 'visita' && dragActivo.visita.fechaVisita !== fecha);

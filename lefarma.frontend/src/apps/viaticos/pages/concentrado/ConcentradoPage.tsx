@@ -47,12 +47,6 @@ import {
   type FiltroFecha,
 } from './periodo.helpers';
 
-/**
- * Vista de consulta del concentrado. La autorización ocurre antes, en
- * /viaticos/autorizaciones: aquí solo llegan las solicitudes ya autorizadas y
- * se arma el documento. «Activo» es la definición de estado que se muestra,
- * no una política de archivo.
- */
 const DEFINICIONES_ACTIVO: { id: string; etiqueta: string; estados: string[] }[] = [
   { id: 'autorizadas', etiqueta: 'Autorizadas (listas para concentrar)', estados: ['autorizada', 'autorizada_con_ajustes'] },
   { id: 'enviada', etiqueta: 'Enviadas (todavía sin autorizar)', estados: ['enviada'] },
@@ -77,7 +71,6 @@ const ETIQUETA_TRANSPORTE: Record<string, string> = {
   'sin-clasificar': 'Sin clasificar',
 };
 
-/** Mismo lenguaje de color por estado que /viaticos/mis-viajes. */
 const COLOR_POR_ESTADO: Record<string, string> = {
   borrador: '#64748b',
   enviada: '#2563eb',
@@ -90,19 +83,11 @@ function colorEstado(estado: string): string {
   return COLOR_POR_ESTADO[estado] ?? '#64748b';
 }
 
-/** Fecha de creación en dd/mm/aaaa. La versión larga ("29 de octubre de 2026")
- *  ensanchaba la columna del folio sin aportar nada al concentrado. */
 function fechaCreadaCorta(fecha: string): string {
   const dia = fecha.slice(0, 10);
   return /^\d{4}-\d{2}-\d{2}$/.test(dia) ? fechaCorta(dia) : fecha;
 }
 
-/**
- * Encabezado que puede partirse en dos líneas. La tabla del concentrado vive
- * en media pantalla: reservar el ancho completo de "Fecha del viaje" y "Costo
- * del viaje" en una sola línea era lo que empujaba el resto de las columnas al
- * scroll horizontal.
- */
 const ENCABEZADO_PARTIDO = 'whitespace-normal leading-tight';
 
 function tipoDeFila(f: SolicitudBandeja): string {
@@ -112,11 +97,6 @@ function tipoDeFila(f: SolicitudBandeja): string {
   return 'sin-clasificar';
 }
 
-/**
- * Medio de transporte de una fila. El servidor lo resuelve (opción elegida y
- * modo del wizard) porque el snapshot no guarda `$.avion`/`$.autobus`; el
- * heurístico local queda solo como respaldo de respuestas viejas.
- */
 function tipoTransporteDeFila(f: SolicitudBandeja): string {
   return f.tipo_transporte ?? tipoDeFila(f);
 }
@@ -136,10 +116,8 @@ export function ConcentradoPage() {
   const [detalle, setDetalle] = useState<Solicitud | null>(null);
   const [cargandoDetalle, setCargandoDetalle] = useState(false);
   const [documentoAbierto, setDocumentoAbierto] = useState(false);
-  /** El visor se abrió con «Vista previa»: manda directo al diálogo de impresión. */
   const [imprimirAlAbrir, setImprimirAlAbrir] = useState(false);
   const [seleccionadasIds, setSeleccionadasIds] = useState<Set<number>>(() => new Set());
-  /** Formato que se previsualiza e imprime: concentrado de costos o de vuelos. */
   const [formato, setFormato] = useState<FormatoConcentrado>('for-008');
 
   const cargar = useCallback(async () => {
@@ -162,19 +140,14 @@ export function ConcentradoPage() {
 
   const estadosActivos = DEFINICIONES_ACTIVO.find((d) => d.id === definicion)!.estados;
 
-  // «Hoy» se resuelve al renderizar: una pestaña abierta toda la noche sigue
-  // mostrando el día real.
   const hoy = new Date();
   const rango = rangoDeFiltroFecha(filtroFecha, hoy, desde, hasta);
 
   const [recalculo, setRecalculo] = useState<'con' | 'sin' | 'todos'>('con');
-  /** Criterio de agrupación del concentrado y del documento FOR-008. */
   const [agruparPor, setAgruparPor] = useState<GrupoConcentrado>('gerencia');
 
   const visibles = filas.filter(
     (f) =>
-      // Un borrador no se ha enviado: no tiene nada que autorizar y no debe
-      // aparecer en el concentrado, aunque ya tenga cálculo.
       f.estado !== 'borrador' &&
       (recalculo === 'todos' || (recalculo === 'con' ? f.recalculada === true : f.recalculada !== true)) &&
       (campoFecha === 'viaje'
@@ -186,12 +159,9 @@ export function ConcentradoPage() {
       (tipo === 'todos' || tipoTransporteDeFila(f) === tipo),
   );
 
-  /** Llave con la que se agrupa una fila; la gerencia vacía cae a «Sin asignar». */
   const claveGrupo = (fila: SolicitudBandeja): string =>
     agruparPor === 'gerencia' ? gerenciaVisible(fila.gerencia) : fila.nombre_solicitante;
 
-  // Agrupado = mismas filas visibles, ordenadas por el criterio elegido para
-  // que los bloques del documento y la tabla cuenten la misma historia.
   const filasOrdenadas =
     agruparPor === 'ninguna'
       ? visibles
@@ -234,11 +204,6 @@ export function ConcentradoPage() {
     setDetalle(null);
   }, []);
 
-  // La selección de la tabla significa «incluir en el concentrado». Se puede
-  // marcar todo lo que ya salió del borrador, en los dos formatos: el documento
-  // se arma y se revisa antes de autorizar (el de vuelos se manda a la agencia
-  // incluso antes), y la pantalla imprime exactamente lo marcado. Una rechazada
-  // o un borrador no entran al concentrado.
   const seleccionables = filasOrdenadas.filter((fila) => esEstadoConcentrable(fila.estado));
   const seleccionadas = filas.filter(
     (fila) => seleccionadasIds.has(fila.id_solicitud) && esEstadoConcentrable(fila.estado),
@@ -273,22 +238,12 @@ export function ConcentradoPage() {
     });
   }, [seleccionables, todasSeleccionadas]);
 
-  /**
-   * Abre el documento con el formato pedido: el panel derecho siempre muestra
-   * el concentrado de costos y la solicitud de avión se pide aparte, para que
-   * el documento no cambie solo por tocar un control de la vista previa.
-   * Con `imprimir` abre de una vez el diálogo de impresión del navegador
-   * (botón «Vista previa», igual que el envío concentrado de CxP).
-   */
   const abrirDocumento = useCallback((siguiente: FormatoConcentrado, imprimir = false) => {
     setFormato(siguiente);
     setImprimirAlAbrir(imprimir);
     setDocumentoAbierto(true);
   }, []);
 
-  // Encabezado del documento: el filtro activo y cuántas filas lo componen.
-  // La gerencia se toma de las filas seleccionadas (o, sin selección, de las
-  // visibles) solo cuando todas coinciden; si hay varias se declara "VARIAS".
   const filasDelDocumento = seleccionadas.length > 0 ? seleccionadas : visibles;
   const gerencias = Array.from(new Set(filasDelDocumento.map((v) => gerenciaVisible(v.gerencia))));
   const gerenciaDocumento = gerencias.length === 1 ? gerencias[0] : gerencias.length > 1 ? 'VARIAS' : undefined;
@@ -300,9 +255,6 @@ export function ConcentradoPage() {
     () => [
       {
         id: 'seleccion',
-        // La casilla ES la acción de la pantalla: «Configurar tabla» no puede
-        // esconderla (una configuración guardada la ocultaba y la pantalla se
-        // quedaba sin forma de armar el concentrado).
         enableHiding: false,
         header: () => {
           const etiqueta = todasSeleccionadas
@@ -435,8 +387,7 @@ export function ConcentradoPage() {
         enableSorting: false,
         cell: ({ row }) => (
           <div className="flex items-center justify-end">
-            {/* Solo el icono: el botón con texto empujaba la tabla al scroll
-                horizontal. El nombre accesible conserva la acción explícita. */}
+            {}
             <Button
               type="button"
               variant="outline"
@@ -465,7 +416,6 @@ export function ConcentradoPage() {
     ],
   );
 
-  /** Filtros que se apartan de los valores por defecto; se resumen en el encabezado plegable. */
   const filtrosAplicados = [
     filtroFecha !== 'todas',
     campoFecha !== 'modificacion',
@@ -637,9 +587,6 @@ export function ConcentradoPage() {
               `${seleccionables.length} seleccionable${seleccionables.length === 1 ? '' : 's'} · ` +
               `${visibles.length} visibles`
             }
-            // La tabla comparte el ancho con la vista previa del FOR-008:
-            // 6px de relleno lateral (en vez de 8) recupera ~44px sin perder
-            // legibilidad y evita el scroll horizontal.
             className="[&_td]:px-1.5 [&_th]:px-1.5"
             pagination
             pageSize={10}
@@ -648,19 +595,9 @@ export function ConcentradoPage() {
             showRefreshButton
             onRefresh={() => { void cargar(); }}
             filterConfig={{
-              // v3: el rediseño agregó la columna de selección y retiró
-              // Periodo y Calculo. Con el id v2, una configuración guardada
-              // escondía las casillas (la pantalla no dejaba marcar
-              // solicitudes para el concentrado) y conservaba columnas que ya
-              // no existen. El id nuevo parte de la configuración curada;
-              // Periodo sigue disponible en «Configurar tabla» y Transporte se
-              // queda visible porque es un dato que se revisa en esta pantalla.
               tableId: 'viaticos-concentrado-v3',
               searchableColumns: ['destino', 'solicitante', 'estado', 'gerencia'],
               defaultSearchColumns: ['destino'],
-              // La casilla de selección es la acción de la pantalla: una
-              // configuración guardada que la ocultara dejaba el concentrado
-              // inservible, así que no se puede ocultar nunca.
               requiredColumns: ['seleccion'],
               defaultVisibleColumns: [
                 'seleccion',
@@ -676,8 +613,6 @@ export function ConcentradoPage() {
               ],
             }}
             rowTestId={(fila) => `concentrado-${fila.id_solicitud}`}
-            // Mismo realce de fila que /cxp/ordenes/envio-concentrado: la
-            // selección se ve en la tabla, no solo en la casilla.
             isRowSelected={(fila) => seleccionadasIds.has(fila.id_solicitud)}
             onRowClick={(fila) => { void revisar(fila.id_solicitud); }}
           />
@@ -776,7 +711,6 @@ export function ConcentradoPage() {
                   solicitudes={seleccionadas.map(filaConcentrado)}
                   gerencia={gerenciaDocumento}
                   grupoPor={agruparPor}
-                  // WYSIWYG: se imprime lo marcado, aunque siga en revisión.
                   soloAutorizadas={false}
                 />
               </div>
@@ -793,7 +727,6 @@ export function ConcentradoPage() {
         titulo={tituloDocumento}
         gerencia={gerenciaDocumento}
         grupoPor={agruparPor}
-        // El visor imprime exactamente lo seleccionado en la tabla.
         soloAutorizadas={false}
         imprimirAlAbrir={imprimirAlAbrir}
         onCerrar={() => {

@@ -3,9 +3,6 @@ using Lefarma.API.Features.Help.DTOs;
 
 namespace Lefarma.API.Features.Help.Services;
 
-/// <summary>
-/// Interfaz del servicio de artículos de ayuda
-/// </summary>
 public interface IHelpArticleService
 {
     Task<ErrorOr<IEnumerable<HelpArticleDto>>> GetAllAsync(CancellationToken ct);

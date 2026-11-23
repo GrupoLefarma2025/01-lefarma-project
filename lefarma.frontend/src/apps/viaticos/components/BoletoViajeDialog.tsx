@@ -22,7 +22,6 @@ import {
 import { nombreCortoOpcion } from '../utils/nombresOpciones';
 import type { SolicitudOpcion } from '../types/solicitud.types';
 
-/** Tipo de opción como etiqueta y color; lo desconocido se muestra tal cual. */
 const TIPO_ESTILO: Record<string, { texto: string; clase: string }> = {
   vuelo: { texto: 'Vuelo', clase: 'border-violet-200 bg-violet-50 text-violet-700' },
   avion: { texto: 'Vuelo', clase: 'border-violet-200 bg-violet-50 text-violet-700' },
@@ -34,7 +33,6 @@ const TIPO_ESTILO: Record<string, { texto: string; clase: string }> = {
   hotel: { texto: 'Hospedaje', clase: 'border-emerald-200 bg-emerald-50 text-emerald-700' },
 };
 
-/** Captura de la opción: miniatura que abre la imagen completa, o su ausencia. */
 function CapturaBoleto({ ruta, etiqueta }: { ruta?: string; etiqueta: string }) {
   const estado = useCapturaAutenticada(ruta);
   const [verCaptura, setVerCaptura] = useState(false);
@@ -89,7 +87,6 @@ function CapturaBoleto({ ruta, etiqueta }: { ruta?: string; etiqueta: string }) 
   );
 }
 
-/** Kayak solo conserva la búsqueda por ruta/fecha: sus enlaces al vuelo caducan. */
 function esBusquedaKayak(url: string | null | undefined): boolean {
   if (!url) return false;
   try {
@@ -101,7 +98,6 @@ function esBusquedaKayak(url: string | null | undefined): boolean {
   }
 }
 
-/** Fase y destino del boleto a partir del snapshot de la opción. */
 interface GrupoBoleto {
   clave: string;
   etiqueta: string;
@@ -157,7 +153,6 @@ function grupoDeBoleto(opcion: SolicitudOpcion): GrupoBoleto {
   };
 }
 
-/** Una opción con su boleto: línea, precio, fuente, enlace de compra y captura. */
 function FilaBoleto({
   opcion,
   onSolicitarCaptura,
@@ -273,11 +268,6 @@ function FilaBoleto({
   );
 }
 
-/**
- * Boletos del viaje: la URL de compra y la captura de pantalla de las opciones
- * que se le pasen. Sirve para todas las elegidas (desde el encabezado) y para
- * una sola (desde el botón de cada renglón).
- */
 export function BoletoViajeDialog({
   abierto,
   onOpenChange,
@@ -292,7 +282,6 @@ export function BoletoViajeDialog({
   titulo: string;
   descripcion?: string;
   opciones: SolicitudOpcion[];
-  /** Genera o reemplaza la captura de una opción concreta. */
   onSolicitarCaptura?: (opcion: SolicitudOpcion) => void;
   capturandoId?: number | null;
 }) {
@@ -371,7 +360,6 @@ export function BoletoViajeDialog({
   );
 }
 
-/** Botón estándar para abrir los boletos del viaje. */
 export function BotonVerBoleto({ onClick }: { onClick: () => void }) {
   return (
     <Button type="button" variant="outline" size="sm" className="gap-1.5" onClick={onClick}>

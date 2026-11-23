@@ -54,19 +54,15 @@ public class WorkflowQueryService : BaseService, IWorkflowQueryService
             if (idWorkflow == 0)
                 return CommonErrors.Conflict("Workflow", "La entidad no tiene workflow asignado.");
 
-            //Acciones que el motor permite (filtra por participante, estado, etc.)
             var acciones = await _engine.GetAccionesDisponiblesAsync(
                 idWorkflow, idEntidad, idUsuario, tipoEntidad);
 
-            //Cargar paso actual para metadata (RequiereComentario, etc.)
             var pasoActual = await _context.WorkflowPasos
                 .AsNoTracking()
                 .FirstOrDefaultAsync(p => p.IdPaso == idPasoActual, ct);
 
-            // Cargar todos los campos del workflow una sola vez
             var camposWorkflow = (await _workflowRepo.GetCamposAsync()).ToList();
 
-            // Por cada acción, cargar sus handlers y construir DTO
             var result = new List<AccionDisponibleResponse>();
             foreach (var a in acciones)
             {
@@ -76,7 +72,6 @@ public class WorkflowQueryService : BaseService, IWorkflowQueryService
 
                 var handlers = (await _workflowRepo.GetAccionHandlersAsync(a.IdAccion)).ToList();
 
-                // Condiciones por handler: no exponer los que no aplican a la entidad actual
                 var handlersAplicables = new List<WorkflowAccionHandler>();
                 foreach (var handler in handlers)
                 {
@@ -126,13 +121,11 @@ public class WorkflowQueryService : BaseService, IWorkflowQueryService
                     }).ToList(),
                     CamposRequeridos = camposRequeridos,
                     RequiereComentario = pasoActual?.RequiereComentario ?? false,
-                    //Acciones de rechazo, devolución o cancelación no requieren adjunto, aunque el paso actual lo requiera
-                    RequiereAdjunto = (esRechazo || esDevolucion || esCancelacion) ? false : (pasoActual?.RequiereAdjunto ?? false), //pasoActual?.RequiereAdjunto ?? false,
+                    RequiereAdjunto = (esRechazo || esDevolucion || esCancelacion) ? false : (pasoActual?.RequiereAdjunto ?? false), 
                     PermiteAdjunto = pasoActual?.PermiteAdjunto ?? false
                 });
             }
 
-            //Pre-evaluar handlers que tengan "mensaje" en su configuracionJson
             await PreEvaluarHandlersAsync(result, entidadParaHandlers, idEntidad, tipoEntidad, idUsuario, idPasoActual, ct);
 
             EnrichWideEvent("GetAccionesDisponibles", entityId: idEntidad, count: result.Count);
@@ -172,7 +165,6 @@ public class WorkflowQueryService : BaseService, IWorkflowQueryService
 
                 if (mensaje is null) continue;
 
-                // Alerta: solo informativo, siempre exito
                 if (handlerMeta.HandlerKey == "Alerta")
                 {
                     handlerMeta.ValidacionExito = true;
@@ -180,7 +172,6 @@ public class WorkflowQueryService : BaseService, IWorkflowQueryService
                     continue;
                 }
 
-                // Demás handlers: ejecutar el handler real
                 try
                 {
                     var actionHandler = _serviceProvider.GetKeyedService<IWorkflowActionHandler>(handlerMeta.HandlerKey);
@@ -234,7 +225,6 @@ public class WorkflowQueryService : BaseService, IWorkflowQueryService
             var handlers = (await _workflowRepo.GetAccionHandlersAsync(idAccion)).ToList();
             var campos = (await _workflowRepo.GetCamposAsync()).ToList();
 
-            // Condiciones por handler: no exponer los que no aplican a la entidad actual
             var entidad = await _context.SolicitudesPersonal
                 .AsNoTracking()
                 .FirstOrDefaultAsync(s => s.IdSolicitud == idEntidad, ct);
@@ -298,9 +288,6 @@ public class WorkflowQueryService : BaseService, IWorkflowQueryService
     {
         try
         {
-            // Las bitácoras de OC anteriores a la columna polimórfica guardaron
-            // tipo_entidad/id_entidad en NULL y solo tienen id_orden. Se incluyen
-            // por id_orden para no perder el historial de esas órdenes.
             var incluirLegacyOrdenCompra = tipoEntidad == CodigoProceso.ORDEN_COMPRA;
 
             var historial = await _context.WorkflowBitacoras

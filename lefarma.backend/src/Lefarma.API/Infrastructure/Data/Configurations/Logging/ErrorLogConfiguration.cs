@@ -9,25 +9,21 @@ public class ErrorLogConfiguration : IEntityTypeConfiguration<ErrorLog>
     {
         builder.ToTable("error_logs", "logs");
 
-        // Primary Key
         builder.HasKey(e => e.IdErrorLog);
         builder.Property(e => e.IdErrorLog)
             .HasColumnName("id_error_log")
             .ValueGeneratedOnAdd();
 
-        // Identificación
         builder.Property(e => e.ErrorGuid)
             .HasColumnName("error_guid")
             .IsRequired()
             .HasDefaultValueSql("NEWID()");
 
-        // Temporal
         builder.Property(e => e.FechaError)
             .HasColumnName("fecha_error")
             .IsRequired()
             .HasDefaultValueSql("GETUTCDATE()");
 
-        // Información del error
         builder.Property(e => e.TipoExcepcion)
             .HasColumnName("tipo_excepcion")
             .IsRequired()
@@ -46,7 +42,6 @@ public class ErrorLogConfiguration : IEntityTypeConfiguration<ErrorLog>
             .HasColumnName("stack_trace")
             .HasColumnType("nvarchar(max)");
 
-        // Severidad
         builder.Property(e => e.Severidad)
             .HasColumnName("severidad")
             .IsRequired()
@@ -57,7 +52,6 @@ public class ErrorLogConfiguration : IEntityTypeConfiguration<ErrorLog>
             .HasColumnName("categoria")
             .HasMaxLength(100);
 
-        // Contexto HTTP
         builder.Property(e => e.MetodoHttp)
             .HasColumnName("metodo_http")
             .HasMaxLength(10);
@@ -81,7 +75,6 @@ public class ErrorLogConfiguration : IEntityTypeConfiguration<ErrorLog>
             .HasColumnName("user_agent")
             .HasMaxLength(1024);
 
-        // Contexto de usuario
         builder.Property(e => e.UserId)
             .HasColumnName("user_id")
             .HasMaxLength(256);
@@ -90,7 +83,6 @@ public class ErrorLogConfiguration : IEntityTypeConfiguration<ErrorLog>
             .HasColumnName("nombre_usuario")
             .HasMaxLength(256);
 
-        // Contexto de negocio
         builder.Property(e => e.EntityName)
             .HasColumnName("entity_name")
             .HasMaxLength(256);
@@ -107,7 +99,6 @@ public class ErrorLogConfiguration : IEntityTypeConfiguration<ErrorLog>
             .HasColumnName("datos_adicionales")
             .HasColumnType("nvarchar(max)");
 
-        // Información técnica
         builder.Property(e => e.Entorno)
             .HasColumnName("entorno")
             .HasMaxLength(50);
@@ -119,14 +110,12 @@ public class ErrorLogConfiguration : IEntityTypeConfiguration<ErrorLog>
         builder.Property(e => e.DurationMs)
             .HasColumnName("duration_ms");
 
-        // Correlación WideEvent
         builder.Property(e => e.RequestId)
             .HasColumnName("request_id");
 
         builder.Property(e => e.TraceId)
             .HasColumnName("trace_id");
 
-        // Índices para consultas frecuentes
         builder.HasIndex(e => e.FechaError)
             .HasDatabaseName("IX_ErrorLog_FechaError");
 

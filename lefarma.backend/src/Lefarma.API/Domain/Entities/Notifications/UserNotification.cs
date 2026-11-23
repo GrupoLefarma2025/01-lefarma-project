@@ -6,9 +6,8 @@ public class UserNotification
     public int UserId { get; set; }
     public bool IsRead { get; set; } = false;
     public DateTime? ReadAt { get; set; }
-    public string ReceivedVia { get; set; } = "[]";  // JSON array
+    public string ReceivedVia { get; set; } = "[]";  
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
-    // Navigation property
     public Notification? Notification { get; set; }
 }

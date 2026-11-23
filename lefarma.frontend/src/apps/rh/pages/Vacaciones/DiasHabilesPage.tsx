@@ -72,30 +72,24 @@ export function DiasHabilesPage() {
   const [selectedEmpresa, setSelectedEmpresa] = useState<string>('__all__');
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  // Cola unificada (manual + CSV)
   const [stagedItems, setStagedItems] = useState<StagedItem[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // Carga manual
   const [fechaInput, setFechaInput] = useState('');
   const [descripcionInput, setDescripcionInput] = useState('');
 
-  // Carga CSV
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [csvError, setCsvError] = useState<string | null>(null);
   const [dragActive, setDragActive] = useState(false);
   const [confirmCloseQueue, setConfirmCloseQueue] = useState(false);
   const csvInputRef = useRef<HTMLInputElement>(null);
 
-  // Usuarios afectados
   const [afectados, setAfectados] = useState<UsuarioAfectadoResponse[] | null>(null);
   const [loadingAfectados, setLoadingAfectados] = useState(false);
   const [diaADesactivar, setDiaADesactivar] = useState<number | null>(null);
 
-
-
-  const empresaNombre = useMemo(() => {
+const empresaNombre = useMemo(() => {
     if (selectedEmpresa === '__all__') return 'Todas las empresas';
     return empresas.find((e) => String(e.idEmpresa) === selectedEmpresa)?.nombre ?? '';
   }, [selectedEmpresa, empresas]);
@@ -243,12 +237,6 @@ export function DiasHabilesPage() {
       accessorKey: 'empresaNombre',
       header: 'Empresa',
     },
-    /* {
-      accessorKey: 'source',
-      header: 'Origen',
-      cell: ({ row }) =>
-        row.original.source === 'manual' ? <Badge variant="secondary">Manual</Badge> : <Badge variant="outline">CSV</Badge>,
-    }, */
     {
       id: 'acciones',
       header: 'Acciones',
@@ -277,11 +265,6 @@ export function DiasHabilesPage() {
     header: 'Nombre',
     cell: ({ row }) => row.original.nombreCompleto ?? '—',
   },
-  /* {
-    accessorKey: 'puesto',
-    header: 'Puesto',
-    cell: ({ row }) => row.original.puesto ?? '—',
-  }, */
   {
     accessorKey: 'sucursalNombre',
     header: 'Sucursal',
@@ -289,7 +272,6 @@ export function DiasHabilesPage() {
   },
 ];
 
-  // --- Helpers ---
   const fechaKey = (f: DiaHabilFechaRequest) =>
     `${f.anio}-${String(f.mes).padStart(2, '0')}-${String(f.dia).padStart(2, '0')}`;
 
@@ -315,7 +297,6 @@ export function DiasHabilesPage() {
     setStagedItems((prev) => prev.filter((s) => stagedKey(s) !== key));
   };
 
-  // --- Carga manual ---
   const agregarFechaManual = () => {
     if (!fechaInput) return;
     const [y, m, d] = fechaInput.split('-').map(Number);
@@ -343,7 +324,6 @@ export function DiasHabilesPage() {
     toast.success('Día agregado a la cola');
   };
 
-  // --- Carga CSV ---
   const resetCsv = () => {
     setCsvFile(null);
     setCsvError(null);
@@ -443,7 +423,6 @@ export function DiasHabilesPage() {
     if (file) handleCsvFile(file);
   };
 
-  // --- Guardar todo ---
   const handleGuardar = async () => {
     if (stagedItems.length === 0) return;
     try {
@@ -540,7 +519,7 @@ export function DiasHabilesPage() {
 
   return (
     <div className="w-full space-y-6">
-      {/* Botón principal */}
+      {}
       <div className="flex justify-end">
         <Button onClick={() => setIsModalOpen(true)}>
           <Plus className="mr-2 h-4 w-4" />
@@ -548,7 +527,7 @@ export function DiasHabilesPage() {
         </Button>
       </div>
 
-      {/* Filtros principales */}
+      {}
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-base">Filtros</CardTitle>
@@ -557,7 +536,7 @@ export function DiasHabilesPage() {
         <CardContent>{renderFiltros()}</CardContent>
       </Card>
 
-      {/* Tabla principal: días hábiles en BD */}
+      {}
       <div className="min-h-[300px]">
         {items.length === 0 && !loading ? (
           <div className="rounded-2xl border border-dashed bg-card p-2">
@@ -587,7 +566,7 @@ export function DiasHabilesPage() {
         )}
       </div>
 
-      {/* Modal de carga */}
+      {}
       <Modal
         id="modal-carga-dias-habiles"
         open={isModalOpen}
@@ -793,8 +772,7 @@ export function DiasHabilesPage() {
         </div>
       </Modal>
 
-      
-      <Modal
+<Modal
         id="modal-usuarios-afectados"
         open={afectados !== null}
         setOpen={() => setAfectados(null)}
@@ -815,7 +793,7 @@ export function DiasHabilesPage() {
         )}  
       </Modal>
 
-      {/* Confirmación desactivar */}
+      {}
       <AlertDialog open={diaADesactivar !== null} onOpenChange={(open) => !open && setDiaADesactivar(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>

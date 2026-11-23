@@ -36,7 +36,6 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { useSigmaAuth } from "@/apps/sigma/store/sigmaAuth";
 import { ThemeToggle } from "@/apps/sigma/components/theme-toggle";
 
-/** Prefijo con el que el shell de Lefarma monta las rutas de SIGMA. */
 const BASE_PATH = "/SIGMA";
 
 const routeConfig: Record<
@@ -62,7 +61,6 @@ export function Navbar() {
   const currentPath = location.pathname;
   const { user, logout } = useSigmaAuth();
 
-  // Generar breadcrumbs basados en la ruta actual (sin el prefijo /SIGMA)
   const routePath = currentPath.replace(new RegExp(`^${BASE_PATH}`), "") || "/";
   const pathSegments = routePath.split("/").filter(Boolean);
   const breadcrumbs = pathSegments.map((segment, index) => {
@@ -77,8 +75,6 @@ export function Navbar() {
 
   const handleLogout = () => {
     logout();
-    // Regresa a la entrada de SIGMA (login propio del módulo o acceso externo),
-    // no al login global de Lefarma.
     navigate("/SIGMA");
   };
 
@@ -92,7 +88,7 @@ export function Navbar() {
       <div className="flex h-14 items-center gap-2 px-3 sm:px-4">
         <SidebarTrigger className="shrink-0" />
         
-        {/* Breadcrumb con overflow horizontal sin mostrar scrollbars */}
+        {}
         <div className="flex-1 min-w-0 overflow-x-auto overflow-y-hidden pr-1 sm:pr-2 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
           <Breadcrumb>
             <BreadcrumbList className="flex items-center gap-1">
@@ -103,7 +99,7 @@ export function Navbar() {
                 </BreadcrumbItem>
               ) : (
                 <>
-                  {/* Mostrar breadcrumbs anteriores solo si hay más de una sección */}
+                  {}
                   {breadcrumbs.length > 1 &&
                     breadcrumbs
                       .slice(0, -1)
@@ -127,7 +123,7 @@ export function Navbar() {
                         );
                       })}
                   
-                  {/* Último breadcrumb (página actual) */}
+                  {}
                   {lastBreadcrumb && (() => {
                     const LastIcon = lastBreadcrumb.icon;
                     return (

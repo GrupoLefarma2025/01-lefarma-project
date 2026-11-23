@@ -1,9 +1,3 @@
-﻿/**
- * Página de Notificaciones
- * Muestra todas las notificaciones del usuario con filtros
- * Incluye formulario de prueba para enviar notificaciones
- */
-
 import { useState } from 'react';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -44,11 +38,7 @@ export default function NotificationsPage() {
   const [selectedRoleNames, setSelectedRoleNames] = useState<string[]>([]);
   const [isSending, setIsSending] = useState(false);
 
-  /**
-   * Envía una notificación de prueba
-   */
   const handleSendTest = async () => {
-    // Validar que haya destinatarios seleccionados
     if (selectedUserIds.length === 0 && selectedRoleNames.length === 0) {
       toast.error('Selecciona al menos un usuario o rol');
       return;
@@ -70,7 +60,6 @@ export default function NotificationsPage() {
       });
 
       toast.success('Notificación enviada correctamente');
-      // Limpiar selección después de enviar
       setSelectedUserIds([]);
       setSelectedRoleNames([]);
     } catch (error: unknown) {
@@ -81,9 +70,6 @@ export default function NotificationsPage() {
     }
   };
 
-  /**
-   * Alterna un canal en el formulario
-   */
   const toggleChannel = (channel: NotificationChannelType) => {
     setTestForm((prev) => ({
       ...prev,
@@ -96,7 +82,7 @@ export default function NotificationsPage() {
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Panel de prueba */}
+        {}
         <PermissionElement require={['notificaciones.enviar_prueba']}>
         
         <Card className="lg:col-span-1">
@@ -107,7 +93,7 @@ export default function NotificationsPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {/* Título */}
+            {}
             <div className="space-y-2">
               <Label htmlFor="title">Título</Label>
               <Input
@@ -118,7 +104,7 @@ export default function NotificationsPage() {
               />
             </div>
 
-            {/* Mensaje */}
+            {}
             <div className="space-y-2">
               <Label htmlFor="message">Mensaje</Label>
               <Textarea
@@ -130,7 +116,7 @@ export default function NotificationsPage() {
               />
             </div>
 
-            {/* Tipo */}
+            {}
             <div className="space-y-2">
               <Label htmlFor="type">Tipo</Label>
               <Select
@@ -150,7 +136,7 @@ export default function NotificationsPage() {
               </Select>
             </div>
 
-            {/* Prioridad */}
+            {}
             <div className="space-y-2">
               <Label htmlFor="priority">Prioridad</Label>
               <Select
@@ -169,7 +155,7 @@ export default function NotificationsPage() {
               </Select>
             </div>
 
-            {/* Categoría */}
+            {}
             <div className="space-y-2">
               <Label htmlFor="category">Categoría</Label>
               <Select
@@ -189,7 +175,7 @@ export default function NotificationsPage() {
               </Select>
             </div>
 
-            {/* Canales */}
+            {}
             <div className="space-y-2">
               <Label>Canales</Label>
               <div className="flex flex-wrap gap-2">
@@ -208,7 +194,7 @@ export default function NotificationsPage() {
               </div>
             </div>
 
-            {/* Destinatarios */}
+            {}
             <div className="space-y-2">
               <Label>Destinatarios</Label>
               <RecipientSelector
@@ -220,7 +206,7 @@ export default function NotificationsPage() {
               />
             </div>
 
-            {/* Enviar */}
+            {}
             <Button
               onClick={handleSendTest}
               disabled={isSending || testForm.channels.length === 0}
@@ -229,7 +215,7 @@ export default function NotificationsPage() {
               {isSending ? 'Enviando...' : 'Enviar Notificación'}
             </Button>
 
-            {/* Estado de canales */}
+            {}
             <div className="pt-4 border-t">
               <p className="text-sm font-medium mb-2">Estado de Canales</p>
               <div className="space-y-2">
@@ -257,7 +243,7 @@ export default function NotificationsPage() {
         </Card>
           </PermissionElement>
 
-        {/* Lista de notificaciones */}
+        {}
         <div className="lg:col-span-2">
           <NotificationList userId={user?.id} />
         </div>

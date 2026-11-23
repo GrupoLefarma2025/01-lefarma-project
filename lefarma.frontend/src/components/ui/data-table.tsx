@@ -58,86 +58,58 @@ import { Skeleton } from '@/components/ui/skeleton';
 
 export type { ColumnDef } from '@tanstack/react-table';
 
-// ─── Props ────────────────────────────────────────────────────────────────────
-
 export interface DataTableProps<TData> {
   columns: ColumnDef<TData, unknown>[];
   data: TData[];
 
-  // Estéticos / layout
   title?: ReactNode;
   subtitle?: ReactNode;
   footer?: ReactNode;
   className?: string;
-  height?: number; // px fijo para el cuerpo de la tabla
+  height?: number; 
 
-  // Funcionalidades
   collapsible?: boolean;
   defaultCollapsed?: boolean;
-  globalFilter?: boolean; // muestra buscador interno
+  globalFilter?: boolean; 
   pagination?: boolean;
   pageSize?: number;
   showRowCount?: boolean;
 
-  // Botones de acciones
   showExportButton?: boolean;
   showRefreshButton?: boolean;
   showColumnToggle?: boolean;
   showDensityToggle?: boolean;
-  /** Texto del botón de exportación (por defecto "Exportar"). */
   exportLabel?: string;
 
-  // Callbacks
   onExport?: () => void;
   onRefresh?: () => void;
   onRowClick?: (row: TData) => void;
-  /** data-testid opcional por fila (pruebas y anclas). */
   rowTestId?: (row: TData) => string;
   isRowSelected?: (row: TData) => boolean;
 
-  // Row selection
   enableRowSelection?: boolean;
   onSelectionChange?: (rows: TData[]) => void;
   getRowId?: (row: TData, index: number) => string;
 
-  // Paginación controlada / server-side
   manualPagination?: boolean;
   totalCount?: number;
   paginationState?: PaginationState;
   onPaginationChange?: (state: PaginationState) => void;
 
-  /** Orden inicial de las columnas; por defecto la tabla abre sin ordenar. */
   initialSorting?: SortingState;
 
-  // Configuración de filtros
   filterConfig?: FilterConfigType;
-  /** Chips de filtros gestionados fuera de la tabla (búsqueda, selects, etc.). */
   extraFilters?: Array<{ id: string; label: string }>;
   onRemoveExtraFilter?: (id: string) => void;
   onClearExtraFilters?: () => void;
-  /** Estado vacío personalizado cuando no hay filas. */
   emptyState?: ReactNode;
 
-  /**
-   * Nombre histórico del flag de carga. Se conserva porque muchas pantallas
-   * ya lo pasan; para código nuevo se prefiere `loader`.
-   */
   loading?: boolean;
-  /**
-   * Activa el skeleton de filas (mismas columnas visibles de la tabla).
-   * Es opcional: si no se pasa, la tabla se comporta como siempre.
-   */
   loader?: boolean;
   density?: 'compact' | 'standard' | 'comfortable';
-  pageSizeOverride?: number; // renombrado para evitar conflicto con el pageSize existente
+  pageSizeOverride?: number; 
 }
 
-// ─── Skeleton de carga ────────────────────────────────────────────────────────
-
-/**
- * Anchos (en %) de las barras del skeleton. El patrón se desplaza por fila y
- * columna para que el bloque no parezca una cuadrícula uniforme.
- */
 const SKELETON_BAR_WIDTHS = [72, 48, 86, 58, 66, 42, 90, 54];
 
 interface TableSkeletonRowsProps {
@@ -146,19 +118,12 @@ interface TableSkeletonRowsProps {
   withSelectColumn: boolean;
 }
 
-/**
- * Filas de carga: replican el ritmo de una fila real (una línea de texto por
- * celda y dos en la columna principal) para que la tabla no "salte" al llegar
- * los datos.
- */
 function TableSkeletonRows({ rowCount, columnIds, withSelectColumn }: TableSkeletonRowsProps) {
   const primaryColumnIndex = withSelectColumn ? 1 : 0;
 
   return (
     <>
       {Array.from({ length: rowCount }).map((_, rowIndex) => {
-        // Desfase por fila: el pulso recorre la tabla como una ola en vez de
-        // parpadear todo el bloque a la vez.
         const rowDelay: CSSProperties = { animationDelay: `${rowIndex * 70}ms` };
 
         return (
@@ -199,15 +164,11 @@ function TableSkeletonRows({ rowCount, columnIds, withSelectColumn }: TableSkele
   );
 }
 
-// ─── Función auxiliar de encabezado de ordenamiento ─────────────────────────────────────────────────────
-
 function SortIcon({ direction }: { direction: 'asc' | 'desc' | false }) {
   if (direction === 'asc') return <ArrowUpIcon className="ml-1.5 h-3.5 w-3.5" />;
   if (direction === 'desc') return <ArrowDownIcon className="ml-1.5 h-3.5 w-3.5" />;
   return <ChevronsUpDownIcon className="ml-1.5 h-3.5 w-3.5 opacity-40" />;
 }
-
-// ─── Función auxiliar de tipo de filtro ─────────────────────────────────────────────────────────
 
 function getFilterTypeForColumn(
   columnId: string
@@ -226,19 +187,14 @@ function getFilterTypeForColumn(
   return 'text';
 }
 
-// ─── Filtro por valores (estilo Excel) ─────────────────────────────────────────
-
-/** Texto comparable de una celda, tal como se muestra en la lista de valores. */
 function textoDeCelda(value: unknown): string {
   if (value == null) return '';
   if (Array.isArray(value)) return value.map(textoDeCelda).join(' ').trim();
   return String(value).trim();
 }
 
-/** Orden natural: «valor 2» antes que «valor 10». */
 const ordenNatural = new Intl.Collator('es', { numeric: true, sensitivity: 'base' });
 
-/** Id con el que TanStack identifica la columna (id explícito o accessorKey). */
 function idDeColumna<TData>(column: ColumnDef<TData, unknown>): string {
   if (column.id) return column.id;
   return 'accessorKey' in column && column.accessorKey != null
@@ -246,7 +202,6 @@ function idDeColumna<TData>(column: ColumnDef<TData, unknown>): string {
     : '';
 }
 
-/** Valores distintos de una columna, como los listaría el filtro de Excel. */
 function valoresUnicosDeColumna<TData>(
   column: ColumnDef<TData, unknown>,
   data: TData[]
@@ -269,11 +224,6 @@ function valoresUnicosDeColumna<TData>(
   return [...vistos].sort(ordenNatural.compare);
 }
 
-/**
- * Filtro de la columna. Si el valor es una lista de textos (filtro del embudo
- * estilo Excel) compara la celda contra los valores elegidos; en cualquier otro
- * caso delega en el filtro que ya tenía la columna (propio, por nombre o auto).
- */
 function crearFiltroDeColumna<TData>(
   original: ColumnDef<TData, unknown>['filterFn']
 ): FilterFn<TData> {
@@ -297,9 +247,6 @@ function crearFiltroDeColumna<TData>(
           : undefined;
     if (heredado) return heredado(row, columnId, filterValue, addMeta);
 
-    // Sin filtro propio (o con el comodín `auto` de TanStack): se resuelve con
-    // texto. `filterFns` no trae la clave `auto`, así que llamarla directamente
-    // lanzaba «heredado is not a function» al escribir en el filtro de texto.
     const celda = row.getValue(columnId);
     if (typeof celda === 'string') {
       return celda
@@ -316,8 +263,6 @@ function crearFiltroDeColumna<TData>(
     return textoDeCelda(celda) === textoDeCelda(filterValue);
   };
 }
-
-// ─── Componente ────────────────────────────────────────────────────────────────
 
 export function DataTable<TData>({
   columns,
@@ -363,11 +308,9 @@ export function DataTable<TData>({
 }: DataTableProps<TData>) {
   const { ui, updateComponentPreferences } = useConfigStore();
 
-  // Usa la configuración si no se proporciona explícitamente
   const tableDensity = density || ui.componentes.tables.density;
   const tablePageSize = pageSizeOverride || pageSize || ui.componentes.tables.defaultPageSize;
   const skeletonRowCount = Math.min(tablePageSize, 10);
-  // `loader` es el nombre preferido; `loading` sigue funcionando por compatibilidad.
   const isLoading = loader ?? loading;
 
   const selectionColumn = useMemo<ColumnDef<TData>>(() => ({
@@ -393,8 +336,6 @@ export function DataTable<TData>({
   }), []);
 
   const displayColumns = useMemo<ColumnDef<TData, unknown>[]>(() => {
-    // Cada columna conserva su filtro, pero además acepta listas de valores
-    // elegidos en el embudo (filtro estilo Excel).
     const columnsWithFilters = columns.map<ColumnDef<TData, unknown>>((column) => ({
       ...column,
       filterFn: crearFiltroDeColumna(column.filterFn),
@@ -402,8 +343,6 @@ export function DataTable<TData>({
     return enableRowSelection ? [selectionColumn, ...columnsWithFilters] : columnsWithFilters;
   }, [enableRowSelection, selectionColumn, columns]);
 
-  // Valores distintos por columna para la lista del embudo. La llave es un
-  // texto para no depender de la identidad del arreglo que pasa la pantalla.
   const columnasFiltrablesKey = (filterConfig?.searchableColumns ?? []).join('|');
   const valoresPorColumna = useMemo(() => {
     const resultado: Record<string, string[]> = {};
@@ -484,7 +423,6 @@ export function DataTable<TData>({
     };
   }, [showDensityMenu, showColMenu]);
 
-  // Lógica de filtrado
   const filterEnabled = !!filterConfig;
   const {
     activeFilters,
@@ -533,22 +471,18 @@ export function DataTable<TData>({
     onClearExtraFilters?.();
   };
 
-  // Manejador de guardado que recibe los valores actuales de FilterConfig y guarda inmediatamente
   const handleSave = useCallback(
     (currentSearchColumns: string[], currentVisibleColumns: string[]) => {
-      // Guarda inmediatamente con los valores actuales de FilterConfig
       saveConfig({
         searchColumns: currentSearchColumns,
         visibleColumns: currentVisibleColumns,
       });
-      // Luego actualiza el estado del hook por consistencia
       setSearchColumns(currentSearchColumns);
       setVisibleColumns(currentVisibleColumns);
     },
     [saveConfig, setSearchColumns, setVisibleColumns]
   );
 
-  // Sincroniza la visibilidad de columnas cuando filterConfig está habilitado y visibleColumnIds cambia
   useEffect(() => {
     if (filterEnabled && visibleColumnIds.length > 0) {
       const allColumnIds = columns
@@ -564,9 +498,8 @@ export function DataTable<TData>({
       });
       setColumnVisibility(newVisibility);
     }
-  }, [filterEnabled, visibleColumnIds, columns]); // Se ejecuta cuando visibleColumnIds cambia
+  }, [filterEnabled, visibleColumnIds, columns]); 
 
-  // Función de sincronización: solo se llama explícitamente (botón Aplicar, Reset, etc.)
   const syncColumnVisibility = useCallback(() => {
     if (filterEnabled && visibleColumnIds.length > 0) {
       const allColumnIds = columns
@@ -584,7 +517,6 @@ export function DataTable<TData>({
     }
   }, [filterEnabled, visibleColumnIds, columns]);
 
-  // Convierte activeFilters al formato de TanStack Table
   const computedColumnFilters = useMemo(() => {
     return activeFilters.map((filter) => ({
       id: filter.columnId,
@@ -592,8 +524,6 @@ export function DataTable<TData>({
     }));
   }, [activeFilters]);
 
-  // TanStack Table expone funciones que el React Compiler no puede memoizar
-  // de forma segura; la tabla sigue siendo la fuente de verdad de su estado.
   // eslint-disable-next-line react-hooks/incompatible-library
   const table = useReactTable({
     data,
@@ -655,7 +585,7 @@ export function DataTable<TData>({
         className
       )}
     >
-      {/* ── Header card ── */}
+      {}
       <div className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-3">
         <div className="flex items-center gap-2">
           {collapsible && (
@@ -722,7 +652,7 @@ export function DataTable<TData>({
             </div>
           )}
 
-          {/* Column visibility toggle */}
+          {}
           {showColumnToggle && !collapsed && (
             <div className="relative" ref={colMenuRef}>
               <Button
@@ -813,7 +743,7 @@ export function DataTable<TData>({
         </div>
       </div>
 
-      {/* ── Table body ── */}
+      {}
       {!collapsed && (
         <>
           {(filterEnabled || extraFilters.length > 0) && (
@@ -939,7 +869,7 @@ export function DataTable<TData>({
             </div>
           </div>
 
-          {/* ── Pagination ── */}
+          {}
           {pagination && (
             <div className="flex flex-wrap items-center justify-between gap-2 border-t border-muted px-4 py-2 text-xs text-muted-foreground">
               <div className="flex items-center gap-3">
@@ -1023,7 +953,7 @@ export function DataTable<TData>({
             </div>
           )}
 
-          {/* ── Footer ── */}
+          {}
           {(showRowCount || footer) && (
             <div className="flex flex-wrap items-center justify-between gap-2 border-t border-muted px-4 py-2">
               {showRowCount && (

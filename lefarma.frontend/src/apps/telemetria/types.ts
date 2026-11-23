@@ -1,8 +1,3 @@
-/**
- * Tipos de la API de telemetría. Reflejan los DTO del backend
- * (`Features/Telemetria/Consulta/ConsultaDtos.cs`) y se serializan en camelCase.
- */
-
 export interface HuellaErrorResumen {
   huella: string;
   tipoError: string;
@@ -109,7 +104,6 @@ export interface EstadoTelemetria {
   consultadoEn: string;
 }
 
-/** Filtro de fechas disponible en todas las pestañas. */
 export interface RangoFechas {
   desde: Date;
   hasta: Date;

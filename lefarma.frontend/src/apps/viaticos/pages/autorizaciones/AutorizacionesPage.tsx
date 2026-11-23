@@ -12,11 +12,6 @@ import { SolicitudesViajeTable } from '../mis-viajes/SolicitudesViajeTable';
 import { enRango, leerDatosViaje, rangoDelFiltro, type FilaViaje, type FiltroPeriodo, type TipoViaje } from '../mis-viajes/viajes.helpers';
 import { RevisarSolicitudDialog } from './RevisarSolicitudDialog';
 
-/**
- * Punto intermedio entre «Mis viajes» y el concentrado: aquí llegan las
- * solicitudes enviadas y quien autoriza las deja pasar o las rechaza. Solo
- * entra quien tiene `viaticos.autorizar` (la ruta ya está protegida).
- */
 export function AutorizacionesPage({ hoy = new Date() }: { hoy?: Date }) {
   usePageTitle('Autorizaciones', 'Viáticos');
   const miId = useAuthStore((s) => s.user?.id);

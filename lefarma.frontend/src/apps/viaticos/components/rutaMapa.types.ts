@@ -1,5 +1,3 @@
-/** Tipos y estilos del mapa de ruta, compartidos por el resumen y el detalle. */
-
 export type TipoPuntoMapa = 'origen' | 'punto' | 'hotel' | 'regreso' | 'terminal';
 
 export interface PuntoMapa {
@@ -14,7 +12,6 @@ export type TipoSegmentoMapa = 'taxi' | 'transporte' | 'carretera';
 export interface SegmentoMapa {
   tipo: TipoSegmentoMapa;
   puntos: [number, number][];
-  /** Texto corto para la leyenda ("Taxi al aeropuerto"). */
   etiqueta?: string;
 }
 
@@ -34,7 +31,6 @@ export const ETIQUETA_TIPO: Record<TipoPuntoMapa, string> = {
   terminal: 'Terminal',
 };
 
-/** Estilo de cada tipo de tramo: el taxi punteado, el viaje largo sólido. */
 export const ESTILO_SEGMENTO: Record<TipoSegmentoMapa, { color: string; weight: number; dashArray?: string; opacity: number }> = {
   taxi: { color: '#6b7280', weight: 3, dashArray: '6 6', opacity: 0.9 },
   transporte: { color: '#eb6c36', weight: 4, opacity: 0.95 },

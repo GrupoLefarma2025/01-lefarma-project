@@ -1,10 +1,5 @@
 namespace Lefarma.API.Domain.Entities.EducacionMedica;
 
-/// <summary>
-/// Recurso polimórfico del taller (FOR-005 "Costo por Recurso"): muestras/producto,
-/// folletos, envío y box lunch (una fila por tipo). El subtotal lo calcula el servicio
-/// (cantidad × costo_unitario); el costo lo captura el AEM en el paso de costos (ADR-00007).
-/// </summary>
 public class TallerRecurso
 {
     public const string RecursoProducto = "Producto";

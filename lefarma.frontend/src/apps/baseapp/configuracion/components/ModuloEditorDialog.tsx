@@ -17,12 +17,10 @@ const CLAVE_MODULO_REGEX = /^[a-z][a-z0-9_]*$/;
 interface ModuloEditorDialogProps {
   open: boolean;
   setOpen: (open: boolean) => void;
-  /** Módulo a editar; `null` para crear uno nuevo. */
   modulo: ModuloConfig | null;
   onGuardado: (modulo: ModuloConfig) => void;
 }
 
-/** Convierte texto libre en slug de módulo: "Días límite" → "dias_limite". */
 function aSlug(texto: string): string {
   return sinAcentos(texto)
     .trim()

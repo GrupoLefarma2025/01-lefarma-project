@@ -120,7 +120,6 @@ namespace Lefarma.API.Features.Config.Workflows.Notification
 
                 var pasosConEntidades = entities.Select(e => e.IdPasoActual!.Value).Distinct().ToList();
 
-                // Mapa paso -> (idWorkflow, nivel mínimo de jefe requerido)
                 var pasosInfo = await (
                     from p in _db.WorkflowParticipantes
                     join paso in _db.WorkflowPasos on p.IdPaso equals paso.IdPaso
@@ -141,7 +140,6 @@ namespace Lefarma.API.Features.Config.Workflows.Notification
                     .Distinct()
                     .ToList();
 
-                // Resolver jefes efectivos por (workflow, solicitante, nivel) con caché
                 var jefeCache = new Dictionary<(int, int, int), JefeEfectivoResult>();
                 var idsJefesDirectos = new HashSet<int>();
 
@@ -447,7 +445,6 @@ namespace Lefarma.API.Features.Config.Workflows.Notification
 
         private static string FormatearMonto(ReminderEntity e)
         {
-            // Moneda de la orden; si no viene, peso mexicano ("$", a la izquierda)
             var numero = e.MontoTotal!.Value.ToString("N2", CultureInfo.InvariantCulture);
             var simbolo = string.IsNullOrWhiteSpace(e.SimboloMoneda) ? "$" : e.SimboloMoneda;
             return e.PosicionIzquierdaMoneda ? $"{simbolo} {numero}" : $"{numero} {simbolo}";

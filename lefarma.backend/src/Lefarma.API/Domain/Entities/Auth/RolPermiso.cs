@@ -6,7 +6,6 @@ public class RolPermiso
     public int IdPermiso { get; set; }
     public DateTime FechaAsignacion { get; set; } = DateTime.UtcNow;
 
-    // Navigation
     public Rol Rol { get; set; } = null!;
     public Permiso Permiso { get; set; } = null!;
 }

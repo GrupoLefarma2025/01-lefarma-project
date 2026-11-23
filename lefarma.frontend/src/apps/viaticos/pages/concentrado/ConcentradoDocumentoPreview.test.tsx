@@ -7,10 +7,6 @@ import {
 import type { SolicitudConcentrado } from '../costos/ConcentradoViaticosPrint';
 import type { SolicitudVuelo } from '../costos/ConcentradoVuelosPrint';
 
-/**
- * Vista previa del FOR-008: el contenedor decide las filas (no hay fetch) y el
- * documento solo debe imprimir autorizadas salvo que se pida lo contrario.
- */
 const seleccion: SolicitudConcentrado[] = [
   {
     id_solicitud: 1,
@@ -126,7 +122,7 @@ describe('ConcentradoDocumentoPreview FOR-008', () => {
 
     const totales = within(tablaDatos(doc).querySelector('tfoot tr')! as HTMLElement)
       .getAllByRole('cell');
-    expect(totales[8]).toHaveTextContent('$300.00'); // 100 + 200, sin la enviada
+    expect(totales[8]).toHaveTextContent('$300.00'); 
   });
 
   it('con soloAutorizadas=false imprime exactamente las filas dadas (vista previa de selección)', () => {
@@ -140,7 +136,7 @@ describe('ConcentradoDocumentoPreview FOR-008', () => {
 
     const totales = within(tablaDatos(doc).querySelector('tfoot tr')! as HTMLElement)
       .getAllByRole('cell');
-    expect(totales[8]).toHaveTextContent('$1,200.00'); // 100 + 200 + 900
+    expect(totales[8]).toHaveTextContent('$1,200.00'); 
   });
 
   it('si la selección no tiene autorizadas no arma el formato ni permite imprimir', () => {
@@ -165,7 +161,6 @@ describe('ConcentradoDocumentoPreview FOR-008', () => {
     expect(doc).toHaveTextContent('17/05/1990');
     expect(doc).toHaveTextContent('CANCÚN');
     expect(doc).toHaveTextContent('Taller de marca');
-    // El portal del FOR-008 ni siquiera se monta en este formato.
     expect(document.querySelector('#concentrado-viaticos-print')).toBeNull();
     expect(
       within(document.body).getByRole('button', { name: /imprimir/i }),

@@ -6,6 +6,5 @@ using System.Threading.Tasks;
 namespace Lefarma.API.Domain.Interfaces.Catalogos {
 public interface IMedioPagoRepository : IBaseRepository<MedioPago>
     {
-        // Métodos específicos para MedioPago si es necesario
     }
 }

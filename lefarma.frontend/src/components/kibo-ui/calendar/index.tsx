@@ -1,4 +1,3 @@
-
 import { getDay, getDaysInMonth, isSameDay } from "date-fns";
 import { atom, useAtom } from "jotai";
 import {
@@ -195,7 +194,6 @@ export const CalendarBody = ({ features, children }: CalendarBodyProps) => {
   const [year] = useCalendarYear();
   const { startDay } = useContext(CalendarContext);
 
-  // Memoiza los cálculos de fecha costosos
   const currentMonthDate = useMemo(
     () => new Date(year, month, 1),
     [year, month]
@@ -209,7 +207,6 @@ export const CalendarBody = ({ features, children }: CalendarBodyProps) => {
     [currentMonthDate, startDay]
   );
 
-  // Memoiza los cálculos del mes anterior
   const prevMonthData = useMemo(() => {
     const prevMonth = month === 0 ? 11 : month - 1;
     const prevMonthYear = month === 0 ? year - 1 : year;
@@ -221,7 +218,6 @@ export const CalendarBody = ({ features, children }: CalendarBodyProps) => {
     return { prevMonthDays, prevMonthDaysArray };
   }, [month, year]);
 
-  // Memoiza los cálculos del mes siguiente
   const nextMonthData = useMemo(() => {
     const nextMonth = month === 11 ? 0 : month + 1;
     const nextMonthYear = month === 11 ? year + 1 : year;
@@ -233,8 +229,6 @@ export const CalendarBody = ({ features, children }: CalendarBodyProps) => {
     return { nextMonthDaysArray };
   }, [month, year]);
 
-  // Memoiza el filtrado de features por día para evitar recalcular en cada render
-  // Muestra las features que: empiezan este día, terminan este día o están activas durante este día
   const featuresByDay = useMemo(() => {
     const result: { [day: number]: Feature[] } = {};
     for (let day = 1; day <= daysInMonth; day++) {
@@ -242,7 +236,6 @@ export const CalendarBody = ({ features, children }: CalendarBodyProps) => {
       result[day] = features.filter((feature) => {
         const featureStart = new Date(feature.startAt);
         const featureEnd = new Date(feature.endAt);
-        // Verifica si la feature está activa en este día
         return (
           isSameDay(featureStart, currentDay) ||
           isSameDay(featureEnd, currentDay) ||
@@ -337,7 +330,6 @@ export const CalendarMonthPicker = ({
   const [month, setMonth] = useCalendarMonth();
   const { locale } = useContext(CalendarContext);
 
-  // Memoiza los datos de los meses para evitar recalcular el formato de fecha
   const monthData = useMemo(() => {
     return monthsForLocale(locale).map((month, index) => ({
       value: index.toString(),
@@ -448,7 +440,6 @@ export type CalendarHeaderProps = {
 export const CalendarHeader = ({ className }: CalendarHeaderProps) => {
   const { locale, startDay } = useContext(CalendarContext);
 
-  // Memoiza los datos de los días para evitar recalcular el formato de fecha
   const daysData = useMemo(() => {
     return daysForLocale(locale, startDay);
   }, [locale, startDay]);

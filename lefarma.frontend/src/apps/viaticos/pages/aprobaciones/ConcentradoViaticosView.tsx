@@ -12,48 +12,12 @@ import {
   type SolicitudConcentrado,
 } from '../costos/ConcentradoViaticosPrint';
 
-/**
- * Host del concentrado FOR-008 dentro de la pantalla de aprobaciones.
- *
- * El concentrado consulta su PROPIA bandeja (`aprobacionesApi.bandeja`) en vez
- * de reutilizar las filas de `BandejaAprobacionesPage`. No es duplicar el
- * listado: la pregunta es distinta. La lista muestra lo que el admin tenga
- * filtrado en ese momento; el concentrado es un documento contable y necesita
- * TODAS las solicitudes autorizadas del periodo, sin importar los filtros de la
- * lista. Ademas, al abrirlo lee datos frescos del servidor.
- *
- * La impresion sigue el patron del repo (ver `ViaticosPage`): un portal propio a
- * `document.body` con id `concentrado-viaticos-print`, aislado con
- * `body.concentrado-print-active`. `ConcentradoViaticosPrint` recibe las filas
- * por props y no hace fetch: es presentacional puro y asi se queda.
- */
-
-/** Estados que el concentrado imprime: el FOR-008 es de lo autorizado. */
 export const ESTADOS_CONCENTRADO = ['autorizada', 'autorizada_con_ajustes'] as const;
 
 export function esEstadoConcentrado(estado: string): boolean {
   return (ESTADOS_CONCENTRADO as readonly string[]).includes(estado);
 }
 
-/**
- * MAPEO UNICO bandeja -> fila del concentrado.
- *
- * El backend ya proyecta en `SolicitudBandeja` el encabezado del FOR-008
- * (`origen` y el rango `fecha`) y el desglose por concepto (autobus, avion,
- * gasolina, casetas, vehiculo_propio, hospedaje, comida, taxi). Aqui se copian
- * TAL CUAL: los importes salen del servidor y nadie los inventa. Un campo
- * `null` o ausente (`undefined`) llega al concentrado como `null`, que el
- * componente imprime como "—". NUNCA 0: en un documento de dinero un "$0.00"
- * donde no hay dato es un error, no un vacio.
- *
- * `vehiculo_propio` no se mapea porque el formato no tiene una columna propia
- * para el: la cotizacion del automovil propio se desglosa en Gasolina y
- * Casetas, bajo el encabezado de grupo "Automóvil propio".
- *
- * `fecha` es el rango ya compuesto por el backend ("05/10/2026 AL 09/10/2026"),
- * no el `periodo` (que es el mes de la solicitud). Si viene ausente se deja
- * vacio y el concentrado lo imprime como "—".
- */
 export function filaConcentrado(solicitud: SolicitudBandeja): SolicitudConcentrado {
   return {
     id_solicitud: solicitud.id_solicitud,
@@ -74,16 +38,10 @@ export function filaConcentrado(solicitud: SolicitudBandeja): SolicitudConcentra
   };
 }
 
-/** Filas imprimibles: solo autorizadas, ya mapeadas al formato del concentrado. */
 export function filasConcentrado(solicitudes: SolicitudBandeja[]): SolicitudConcentrado[] {
   return solicitudes.filter((solicitud) => esEstadoConcentrado(solicitud.estado)).map(filaConcentrado);
 }
 
-/**
- * Reglas de pantalla del portal. Las de impresion (A4 landscape, ocultar el
- * resto del body) viven en `ConcentradoViaticosPrint`; aqui solo se define como
- * se ve la vista previa y se revierte el `position: fixed` al imprimir.
- */
 const SCREEN_CSS = `
 #concentrado-viaticos-print { display: none; }
 #concentrado-viaticos-print.concentrado-print-preview {
@@ -103,7 +61,6 @@ const SCREEN_CSS = `
   .concentrado-toolbar { display: none !important; }
 }`;
 
-/** Periodo (yyyy-MM) del mes en curso, que `aprobacionesApi.bandeja` espera. */
 function periodoMesActual(): string {
   const hoy = new Date();
   const dos = (n: number) => String(n).padStart(2, '0');
@@ -111,7 +68,6 @@ function periodoMesActual(): string {
 }
 
 interface Props {
-  /** Periodo (yyyy-MM) del concentrado; por defecto, el mes en curso. */
   periodo?: string;
 }
 
@@ -156,9 +112,6 @@ export function ConcentradoViaticosView({ periodo }: Props = {}) {
     }
   }, []);
 
-  // Un solo fetch por periodo: abrir y cerrar reutiliza lo cargado; solo se
-  // vuelve a consultar cuando cambia el periodo (o tras un error, para poder
-  // reintentar con el boton).
   useEffect(() => {
     if (!abierto || cargadoPara === periodoActivo) return;
     void cargar(periodoActivo);
@@ -183,8 +136,6 @@ export function ConcentradoViaticosView({ periodo }: Props = {}) {
     }
   }, [filas.length, imprimiendo]);
 
-  // Antes del primer render abierto aun no hay `cargadoPara`: se muestra la
-  // carga, no el mensaje de "sin autorizadas", para no parpadear un vacio falso.
   const mostrando = cargando || (!error && cargadoPara !== periodoActivo);
   const vacio = !mostrando && !error && filas.length === 0;
 

@@ -9,7 +9,6 @@ import { ENTIDAD_ARCHIVOS, type TipoDocumentoEm } from './documentoEntidad';
 interface DocumentoFirmaModalProps {
   open: boolean;
   onClose: () => void;
-  /** Encabezado del documento, p. ej. "Selección mensual 09/2026". */
   documento: string;
   estadoTexto: string;
   pasoNombre?: string | null;
@@ -26,17 +25,6 @@ interface DocumentoFirmaModalProps {
   ) => boolean | Promise<boolean>;
 }
 
-/**
- * Modal de firma de un documento de Educación Médica: lista las acciones
- * disponibles del paso actual y abre el formulario dinámico (WorkflowAccionModal)
- * al elegir una. Compartido por la Bandeja de Autorizaciones, el listado de
- * Selecciones Mensuales y la planificación de Rutas (mismo endpoint, mismas
- * validaciones).
- *
- * Patrón RH: al confirmar una acción solo se cierra el formulario; la lista de
- * acciones queda abierta y se refresca con las acciones restantes. `onConfirmar`
- * devuelve `true` cuando la acción se aplicó.
- */
 export function DocumentoFirmaModal({
   open,
   onClose,
@@ -53,7 +41,6 @@ export function DocumentoFirmaModal({
 }: DocumentoFirmaModalProps) {
   const [accionPendiente, setAccionPendiente] = useState<AccionWorkflow | null>(null);
 
-  // En cada transición del modal se parte de la lista de acciones (sin acción elegida).
   const [aperturaAnterior, setAperturaAnterior] = useState(false);
   if (open !== aperturaAnterior) {
     setAperturaAnterior(open);

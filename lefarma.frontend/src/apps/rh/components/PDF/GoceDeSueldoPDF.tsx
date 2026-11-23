@@ -13,9 +13,6 @@ const PRINT_EXACT: React.CSSProperties = {
   WebkitPrintColorAdjust: 'exact',
 };
 
-// ponytail: fontSize lives on the FormCopy wrapper (not only on #...-print) so the global
-// print rule `#solicitud-personal-pdf-print { font-size:10pt !important }` can't inflate the
-// body text — that inflation is what pushes the 2 copies onto a 2nd sheet.
 const BODY = 9;
 
 const MESES = [
@@ -23,7 +20,6 @@ const MESES = [
   'JULIO', 'AGOSTO', 'SEPTIEMBRE', 'OCTUBRE', 'NOVIEMBRE', 'DICIEMBRE',
 ];
 
-// Split an ISO date into day / month-name / 2-digit-year without JS-Date timezone drift.
 function splitFecha(fecha?: string | null) {
   if (!fecha) return { d: '', mNombre: '', yy: '' };
   const mt = /^(\d{4})-(\d{2})-(\d{2})/.exec(fecha);
@@ -35,7 +31,6 @@ function splitFecha(fecha?: string | null) {
   };
 }
 
-// ponytail: keyword heuristic for goce reason; map to a dedicated field if the backend ever stores it
 function goceReasonIndex(motivo?: string | null, tipoNombre?: string | null): number {
   const text = `${motivo ?? ''} ${tipoNombre ?? ''}`.toLowerCase();
   if (/matrimonio|boda/.test(text)) return 0;
@@ -66,7 +61,6 @@ const s: Record<string, React.CSSProperties> = {
   bold: { fontWeight: 700 },
 };
 
-// A fill-in blank: value sits on a short underline; empty still shows the line (like the form).
 const Blank: React.FC<{ children?: React.ReactNode; w?: number }> = ({ children, w = 30 }) => (
   <span
     style={{
@@ -125,10 +119,9 @@ function FormCopy({ solicitud, reasonIdx, firmantes }: { solicitud: Solicitud; r
   const sigLabel: React.CSSProperties = { ...s.bold, fontSize: 8 };
 
   return (
-    // fontSize here shields the body text from the global print 10pt !important rule.
     <div style={{ fontSize: BODY, breakInside: 'avoid' }}>
       <div style={s.form}>
-        {/* HEADER */}
+        {}
         <div style={{ display: 'flex', alignItems: 'center', padding: '8px 10px' }}>
           <div style={{ width: 150 }}>
             <img src={logoImage} alt="Grupo Lefarma" style={{ width: 130, height: 46, objectFit: 'contain' }} />
@@ -144,7 +137,7 @@ function FormCopy({ solicitud, reasonIdx, firmantes }: { solicitud: Solicitud; r
           </div>
         </div>
 
-        {/* FIELDS */}
+        {}
         <div style={{ padding: '2px 10px 4px' }}>
           <div style={fieldRow}>
             <span style={fieldLabel}>NOMBRE:</span>
@@ -158,13 +151,13 @@ function FormCopy({ solicitud, reasonIdx, firmantes }: { solicitud: Solicitud; r
             <span style={fieldLabel}>MOTIVO:</span>
             <span style={line}>{solicitud.motivo ?? ''}</span>
           </div>
-          {/* ponytail: no dedicated observations field on SolicitudPersonalResponse; line rendered empty */}
+          {}
           <div style={fieldRow}>
             <span style={fieldLabel}>OBSERVACIONES:</span>
             <span style={line} />
           </div>
 
-          {/* DÍAS */}
+          {}
           <div style={{ marginTop: 6, marginBottom: 8 }}>
             <span style={s.bold}>No DE DIAS HABILES:</span> <Blank w={26}>{solicitud.diasSolicitados ?? ''}</Blank>{' '}
             DEL <Blank w={26}>{ini.d}</Blank> DE <Blank w={70}>{ini.mNombre}</Blank> AL{' '}
@@ -173,7 +166,7 @@ function FormCopy({ solicitud, reasonIdx, firmantes }: { solicitud: Solicitud; r
           </div>
         </div>
 
-        {/* CON GOCE DE SUELDO POR — bordered 4-cell box + labels to the right */}
+        {}
         <div style={{ borderTop: BORDER, padding: '10px 10px' }}>
           <table style={{ borderCollapse: 'collapse' }}>
             <tbody>
@@ -208,7 +201,7 @@ function FormCopy({ solicitud, reasonIdx, firmantes }: { solicitud: Solicitud; r
           </table>
         </div>
 
-        {/* FIRMAS — una caja por firmante del flujo aprobado (SOLICITA + cada AUTORIZA firmado) */}
+        {}
         <div style={{ display: 'flex', flexWrap: 'wrap' }}>
           {firmantes.map((f, i) => (
             <div
@@ -222,7 +215,7 @@ function FormCopy({ solicitud, reasonIdx, firmantes }: { solicitud: Solicitud; r
             >
               <div style={sigCell}>
                 <div style={sigInner}>
-                  {/* Firma encima de una línea continua (la línea es elemento propio, no un border del contenedor). */}
+                  {}
                   <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', alignItems: 'center' }}>
                     {sigImg(f)}
                     <div style={{ width: '100%', borderTop: BORDER }} />
@@ -245,7 +238,6 @@ export function GoceDeSueldoPDF({
   pasosWorkflow = [],
   firmaDirector = false,
 }: Props) {
-  // Firmantes del flujo aprobado: solicitante + cada paso firmado en orden de workflow.
   const firmantes = useMemo(
     () => firmantesDelFlujo(pasosWorkflow, historial, firmaDirector),
     [pasosWorkflow, historial, firmaDirector]
@@ -253,11 +245,10 @@ export function GoceDeSueldoPDF({
 
   const reasonIdx = goceReasonIndex(solicitud.motivo, solicitud.tipoSolicitudNombre);
 
-  // El formato físico lleva 2 copias idénticas por hoja (original + empleado).
   return (
     <div id="solicitud-personal-pdf-print" style={s.page}>
       <FormCopy solicitud={solicitud} reasonIdx={reasonIdx} firmantes={firmantes} />
-      {/* ponytail: inter-copy cut gap (40px ≈ 10.6mm); keeps both copies on one A4 with default print margins. */}
+      {}
       <div style={{ height: 40 }} />
       <FormCopy solicitud={solicitud} reasonIdx={reasonIdx} firmantes={firmantes} />
     </div>

@@ -25,18 +25,15 @@ public static class CfdiParser
         if (comprobante.Name.LocalName != "Comprobante")
             throw new FormatException("El XML no es un CFDI (elemento raíz debe ser 'Comprobante')");
 
-        // TimbreFiscalDigital
         var tfd = comprobante
             .Descendants(NsTfd + "TimbreFiscalDigital")
             .FirstOrDefault();
 
         var uuid = tfd?.Attribute("UUID")?.Value;
 
-        // Emisor / Receptor
         var emisor   = comprobante.Element(NsCfdi + "Emisor");
         var receptor = comprobante.Element(NsCfdi + "Receptor");
 
-        // Impuestos globales
         var impuestos = comprobante.Element(NsCfdi + "Impuestos");
         var totalIva  = ParseDecimal(
             impuestos?.Elements(NsCfdi + "Traslados")
@@ -46,7 +43,6 @@ public static class CfdiParser
 
         var totalRetenciones = ParseDecimal(impuestos?.Attribute("TotalImpuestosRetenidos")?.Value);
 
-        // Conceptos
         var conceptosXml = comprobante
             .Element(NsCfdi + "Conceptos")?
             .Elements(NsCfdi + "Concepto")

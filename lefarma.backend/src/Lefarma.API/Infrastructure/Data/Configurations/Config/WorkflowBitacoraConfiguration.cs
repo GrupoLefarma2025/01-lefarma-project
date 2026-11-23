@@ -19,8 +19,7 @@ public class WorkflowBitacoraConfiguration : IEntityTypeConfiguration<WorkflowBi
             builder.Property(b => b.DatosSnapshot).HasColumnName("datos_snapshot");
             builder.Property(b => b.FechaEvento).HasColumnName("fecha_evento").HasDefaultValueSql("GETDATE()");
 
-
-            builder.Property(x => x.IdOrden).HasColumnName("id_orden").IsRequired(false);  // nullable ahora
+builder.Property(x => x.IdOrden).HasColumnName("id_orden").IsRequired(false);  
             builder.Property(x => x.TipoEntidad).HasColumnName("tipo_entidad").HasMaxLength(30).IsRequired();
             builder.Property(x => x.IdEntidad).HasColumnName("id_entidad").IsRequired();
 

@@ -13,11 +13,6 @@ using Swashbuckle.AspNetCore.Annotations;
 
 namespace Lefarma.API.Features.Viaticos;
 
-/// <summary>
-/// Endpoint que envuelve <c>captura-viaticos.mjs</c> (T7) y lo expone a la SPA.
-/// T8 del plan costos-ruta-demo: el wizard de viaticos necesita una imagen
-/// "para ir a comprar de inmediato" por opcion de la tabla.
-/// </summary>
 [ApiController]
 [Route("api/viaticos")]
 [EndpointGroupName("Viaticos")]
@@ -37,18 +32,9 @@ public class CapturasController : ControllerBase
         _service = service;
         _context = context;
         _logger = logger;
-        // Una sola fuente de verdad con CapturasService: si
-        // CapturasSettings:OutputPath cambia la carpeta, el GET la sigue.
         _capturasDir = service.DirectorioCapturas;
     }
 
-    /// <summary>
-    /// Ruta absoluta de <paramref name="archivo"/> dentro del directorio de
-    /// capturas, o <c>null</c> si la ruta escapa del directorio (traversal o
-    /// ruta absoluta). Mismo criterio que <see cref="CapturasService"/>:
-    /// <c>Path.GetFullPath</c> + comprobacion del prefijo del directorio con
-    /// separador final.
-    /// </summary>
     public static string? RutaDentroDelDirectorio(string directorioCapturas, string archivo)
     {
         if (string.IsNullOrWhiteSpace(archivo)) return null;
@@ -141,11 +127,6 @@ public class CapturasController : ControllerBase
         });
     }
 
-    /// <summary>
-    /// Unico camino a los PNG bajo wwwroot/media/capturas-viaticos. El estatico
-    /// anonimo /api/media/capturas-viaticos quedo cerrado (Program.cs), por eso
-    /// el frontend pide la imagen con token y la pinta desde un object URL.
-    /// </summary>
     [HttpGet("capturas/{**archivo}")]
     [SwaggerOperation(
         Summary = "Servir un PNG de captura de viaticos",
@@ -179,9 +160,6 @@ public class CapturasController : ControllerBase
         return PhysicalFile(ruta, "image/png");
     }
 
-    // ----------------------------------------------------------------
-    // GET /api/viaticos/solicitudes/{id}/capturas
-    // ----------------------------------------------------------------
     [HttpGet("solicitudes/{id:int}/capturas")]
     [SwaggerOperation(
         Summary = "Evidencias de un viaje: capturas y links de compra",
@@ -197,9 +175,6 @@ public class CapturasController : ControllerBase
         var (solicitud, error) = await CargarSolicitudPropiaAsync(id, ct);
         if (error is not null) return error;
 
-        // En el GET no se captura nada: lo que ya existe se reporta como
-        // reutilizada para que el cliente sepa cuantas pantallas hay sin
-        // tener que revisar ruta_captura renglon por renglon.
         var existentes = solicitud!.Opciones.Count(o =>
             !string.IsNullOrWhiteSpace(o.RutaCaptura) && CapturaEnDisco(o.RutaCaptura));
 
@@ -211,9 +186,6 @@ public class CapturasController : ControllerBase
         });
     }
 
-    // ----------------------------------------------------------------
-    // POST /api/viaticos/solicitudes/{id}/capturas
-    // ----------------------------------------------------------------
     [HttpPost("solicitudes/{id:int}/capturas")]
     [SwaggerOperation(
         Summary = "Capturar pantallas de las opciones de un viaje",
@@ -238,8 +210,6 @@ public class CapturasController : ControllerBase
         var forzar = request?.Forzar ?? false;
         var opciones = solicitud!.Opciones.OrderBy(o => o.IdOpcion).ToList();
 
-        // Captura de una sola opción: se usa para el botón por tarjeta y para
-        // reemplazar una captura existente con confirmación en la UI.
         if (request?.OpcionId is int soloOpcion)
         {
             var opcionSola = opciones.FirstOrDefault(o => o.IdOpcion == soloOpcion);
@@ -254,16 +224,9 @@ public class CapturasController : ControllerBase
             opciones = new List<SolicitudOpcion> { opcionSola };
         }
 
-        // La captura masiva es para la evidencia de la solicitud, no para el
-        // menu completo de alternativas: si el viajero ya marco opciones, solo
-        // se capturan esas. Si no hay ninguna marcada, se conserva el comportamiento
-        // anterior (todas) para no dejar la solicitud sin evidencia.
         var elegidas = opciones.Where(o => o.FueElegida).ToList();
         var objetivo = elegidas.Count > 0 ? elegidas : opciones;
 
-        // Solo se intenta capturar lo que tiene link y (aun) no tiene PNG en
-        // disco; `forzar` re-captura aunque ya exista. Si el PNG registrado en
-        // la BD se perdio (otra maquina, carpeta limpiada), tambien se repite.
         var pendientes = objetivo
             .Where(o => !string.IsNullOrWhiteSpace(o.UrlCompra))
             .Where(o => forzar || string.IsNullOrWhiteSpace(o.RutaCaptura) || !CapturaEnDisco(o.RutaCaptura))
@@ -279,9 +242,6 @@ public class CapturasController : ControllerBase
 
         var generadas = 0;
         var fallidas = 0;
-        // Errores por opcion para que el POST los devuelva en el DTO y el
-        // usuario vea el motivo real (captcha, timeout, navegador ausente)
-        // en vez de solo "2 fallaron".
         var errores = new Dictionary<int, string>();
         if (pendientes.Count > 0)
         {
@@ -289,8 +249,6 @@ public class CapturasController : ControllerBase
                 .Select(o => new CapturaItem
                 {
                     Url = o.UrlCompra!,
-                    // Nombre deterministico: re-capturar sobreescribe el mismo
-                    // PNG en vez de acumular archivos huerfanos.
                     Nombre = CapturasService.NombreSugerido(
                         solicitud.Folio,
                         solicitud.IdSolicitud,
@@ -353,9 +311,6 @@ public class CapturasController : ControllerBase
         });
     }
 
-    // ----------------------------------------------------------------
-    // POST /api/viaticos/solicitudes/{id}/buscar
-    // ----------------------------------------------------------------
     [HttpPost("solicitudes/{id:int}/buscar")]
     [SwaggerOperation(
         Summary = "Buscar informacion del viaje y capturar pantallas con el agente",
@@ -449,9 +404,6 @@ public class CapturasController : ControllerBase
         });
     }
 
-    // ----------------------------------------------------------------
-    // POST /api/viaticos/capturas/buscar
-    // ----------------------------------------------------------------
     [HttpPost("capturas/buscar")]
     [SwaggerOperation(
         Summary = "Buscar una oferta en su sitio y capturar los RESULTADOS",
@@ -513,11 +465,6 @@ public class CapturasController : ControllerBase
         });
     }
 
-    /// <summary>
-    /// Arma el contexto que se manda al agente para que llene el buscador del
-    /// sitio: origen, destino y fecha de llegada del <c>datos_json</c> del
-    /// wizard (solicitud-v2).
-    /// </summary>
     private static string? ContextoDeSolicitud(Solicitud solicitud)
     {
         if (string.IsNullOrWhiteSpace(solicitud.DatosJson)) return null;
@@ -586,10 +533,6 @@ public class CapturasController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// Carga la solicitud activa con sus opciones y valida dueño / permiso
-    /// <c>viaticos.ver_todos</c>, igual que el GET de detalle de la solicitud.
-    /// </summary>
     private async Task<(Solicitud? Solicitud, IActionResult? Error)> CargarSolicitudPropiaAsync(
         int id,
         CancellationToken ct)
@@ -671,7 +614,6 @@ public class CapturasController : ControllerBase
         };
     }
 
-    /// <summary>true si la ruta persistida apunta a un PNG que sigue en disco.</summary>
     private bool CapturaEnDisco(string rutaCaptura)
     {
         var ruta = RutaDentroDelDirectorio(_capturasDir, rutaCaptura
@@ -679,7 +621,6 @@ public class CapturasController : ControllerBase
         return ruta is not null && System.IO.File.Exists(ruta);
     }
 
-    /// <summary>Ruta publica autenticada del PNG: /api/viaticos/capturas/{archivo}.</summary>
     private static string? UrlPublicaCaptura(string? rutaCaptura)
     {
         if (string.IsNullOrWhiteSpace(rutaCaptura)) return null;
@@ -689,17 +630,11 @@ public class CapturasController : ControllerBase
             : $"/api/viaticos/capturas/{Uri.EscapeDataString(nombre)}";
     }
 
-    /// <summary>Tamaño maximo aceptado para una captura externa (8 MiB).</summary>
     public const long MaxCapturaBytes = 8 * 1024 * 1024;
 
     private static ReadOnlySpan<byte> PngSignature =>
         new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A };
 
-    /// <summary>
-    /// Valida y lee un PNG subido por multipart. Devuelve el error exacto que
-    /// se muestra al usuario cuando el archivo falta, excede el límite, no es
-    /// PNG o no se puede leer completo.
-    /// </summary>
     private async Task<(byte[]? Bytes, string? Error)> LeerPngAsync(
         IFormFile? archivo,
         CancellationToken ct)
@@ -735,7 +670,6 @@ public class CapturasController : ControllerBase
         return (bytes, null);
     }
 
-    /// <summary>Publica los bytes en la carpeta de capturas y devuelve la ruta relativa.</summary>
     private async Task<(string? Archivo, string? Error)> GuardarPngAsync(
         byte[] bytes,
         string baseName,
@@ -755,13 +689,6 @@ public class CapturasController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// Adjunta un PNG tomado FUERA del backend (navegador real, harness del
-    /// agente o captura manual) y lo publica en la misma carpeta y ruta publica
-    /// que usa la captura automatica. No sustituye a POST /capturas: es la via
-    /// para las paginas que el headless no alcanza (login, CAPTCHA o precio que
-    /// solo aparece tras llenar el formulario).
-    /// </summary>
     [HttpPost("capturas/adjuntar")]
     [RequestSizeLimit(MaxCapturaBytes)]
     [Consumes("multipart/form-data")]
@@ -810,12 +737,6 @@ public class CapturasController : ControllerBase
         });
     }
 
-    /// <summary>
-    /// Adjunta manualmente un PNG a una opción concreta del viaje. A diferencia
-    /// de <see cref="Adjuntar"/>, guarda con nombre determinista
-    /// <c>viaje{id}-op{idOpcion}.png</c> y actualiza
-    /// <c>solicitud_opciones.ruta_captura</c> en la misma operación.
-    /// </summary>
     [HttpPost("solicitudes/{id:int}/opciones/{idOpcion:int}/captura")]
     [RequestSizeLimit(MaxCapturaBytes)]
     [Consumes("multipart/form-data")]
@@ -856,8 +777,6 @@ public class CapturasController : ControllerBase
             });
         }
 
-        // Nombre determinista: reemplaza la captura anterior de ESA opcion y
-        // evita que un nombre arbitrario pise el PNG de otra opción.
         var baseName = $"viaje{id}-op{idOpcion}";
         var (archivoPublicado, errorGuardado) = await GuardarPngAsync(bytes, baseName, ct);
         if (archivoPublicado is null)
@@ -885,10 +804,6 @@ public class CapturasController : ControllerBase
         });
     }
 
-    /// <summary>
-    /// Nombre de archivo seguro: mismos caracteres que sanitizeName del script
-    /// ([a-zA-Z0-9_-]); el resto se vuelve '_'. <c>null</c> si no queda nada.
-    /// </summary>
     private static string? NombreSeguro(string? nombre)
     {
         if (string.IsNullOrWhiteSpace(nombre)) return null;
@@ -901,10 +816,6 @@ public class CapturasController : ControllerBase
         return limpio.Length <= 120 ? limpio : limpio[..120];
     }
 
-    /// <summary>
-    /// Guarda el bloque <c>informacion_buscada</c> dentro del JSON de la opcion
-    /// sin pisar lo que ya tenia (por ejemplo, los datos importados de pi).
-    /// </summary>
     private static string? CombinarDatos(string? datosExistentes, JsonElement? datos)
     {
         if (datos is null) return datosExistentes;
@@ -931,7 +842,6 @@ public class CapturasController : ControllerBase
         return raiz.ToJsonString();
     }
 
-    /// <summary>Extrae <c>informacion_buscada</c> del JSON persistido (si existe).</summary>
     private static JsonElement? LeerInformacionBuscada(string? datosJson)
     {
         if (string.IsNullOrWhiteSpace(datosJson)) return null;
@@ -950,7 +860,6 @@ public class CapturasController : ControllerBase
         }
     }
 
-    /// <summary>Fecha de la ultima busqueda agentica guardada en el JSON.</summary>
     private static DateTime? LeerBuscadoEn(string? datosJson)
     {
         if (string.IsNullOrWhiteSpace(datosJson)) return null;

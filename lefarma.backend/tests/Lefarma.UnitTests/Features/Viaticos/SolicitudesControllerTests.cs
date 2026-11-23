@@ -7,9 +7,6 @@ using Lefarma.API.Domain.Entities.EducacionMedica;
 using Lefarma.API.Domain.Entities.Viaticos;
 using Lefarma.API.Infrastructure.Data;
 using Lefarma.API.Shared.Constants;
-// WebHostBuilder y TestServer(IWebHostBuilder) estan obsoletos en .NET 8+
-// (ASPDEPR004/ASPDEPR008). Mismo criterio que PermisosEndpointTests: mini
-// pipeline in-memory sin importar Program.cs ni una DB real.
 #pragma warning disable ASPDEPR004
 #pragma warning disable ASPDEPR008
 using Microsoft.AspNetCore.Authentication;
@@ -25,25 +22,8 @@ using Microsoft.Extensions.Logging;
 
 namespace Lefarma.UnitTests.Features.Viaticos;
 
-/// <summary>
-/// Tests HTTP de <see cref="Lefarma.API.Features.Viaticos.SolicitudesController"/>
-/// levantando una mini aplicacion ASP.NET Core en memoria con
-/// <see cref="TestServer"/>, <c>ApplicationDbContext</c> sobre EF InMemory y el
-/// <c>TestAuthHandler</c> compartido de <see cref="PermisosEndpointTests"/>
-/// (inyecta <c>X-Test-UserId</c> / <c>X-Test-Permissions</c> sin JWT real).
-///
-/// Endpoints cubiertos (todos del scope de este incremento):
-///   - POST /api/viaticos/solicitudes
-///   - GET  /api/viaticos/solicitudes/mis
-///   - GET  /api/viaticos/solicitudes/{id}
-///   - PUT  /api/viaticos/solicitudes/{id}/opciones
-///
-/// Cada test crea su propio <see cref="TestContext"/> con un nombre de base
-/// InMemory unico (Guid), por lo que son independientes y no dependen del orden.
-/// </summary>
 public class SolicitudesControllerTests
 {
-    // ---------------- POST /api/viaticos/solicitudes ----------------
 
     [Fact]
     public async Task Post_SinToken_Retorna401()
@@ -62,7 +42,6 @@ public class SolicitudesControllerTests
         using var ctx = new TestContext();
         using var cliente = ctx.Servidor.CreateClient();
         cliente.DefaultRequestHeaders.Add("X-Test-UserId", "5001");
-        // Token valido, pero con 'ver_todos' (no 'solicitar').
         cliente.DefaultRequestHeaders.Add("X-Test-Permissions", Permissions.Viaticos.VerTodos);
 
         var resp = await cliente.PostAsJsonAsync("/api/viaticos/solicitudes", new { datos = new { } });
@@ -78,7 +57,6 @@ public class SolicitudesControllerTests
         cliente.DefaultRequestHeaders.Add("X-Test-UserId", "7777");
         cliente.DefaultRequestHeaders.Add("X-Test-Permissions", Permissions.Viaticos.Solicitar);
 
-        // El body NO lleva id_usuario_solicitante: debe usarse el del token.
         var resp = await cliente.PostAsJsonAsync("/api/viaticos/solicitudes", new
         {
             gerencia = "Operaciones",
@@ -91,7 +69,6 @@ public class SolicitudesControllerTests
         envelope!.Success.Should().BeTrue();
         envelope.Data.Should().NotBeNull();
         envelope.Data!.IdUsuarioSolicitante.Should().Be(7777);
-        // periodo derivado del servidor (yyyy-MM), no del body.
         envelope.Data.Periodo.Should().MatchRegex(@"^\d{4}-\d{2}$");
         envelope.Data.Gerencia.Should().Be("Operaciones");
         envelope.Data.Estado.Should().Be("borrador");
@@ -107,7 +84,6 @@ public class SolicitudesControllerTests
         cliente.DefaultRequestHeaders.Add("X-Test-UserId", "4242");
         cliente.DefaultRequestHeaders.Add("X-Test-Permissions", Permissions.Viaticos.Solicitar);
 
-        // Caso de seguridad clave: el body intenta pedir en nombre de 9999.
         var resp = await cliente.PostAsJsonAsync("/api/viaticos/solicitudes", new
         {
             id_usuario_solicitante = 9999,
@@ -129,9 +105,7 @@ public class SolicitudesControllerTests
             .Should().BeFalse("el id del body no debe crear filas ajenas");
     }
 
-    // ---------------- POST /api/viaticos/solicitudes/desde-educacion-medica ----------------
-
-    [Fact]
+[Fact]
     public async Task PostDesdeEducacionMedica_CreaLigaYReutilizaMismoConjunto()
     {
         using var ctx = new TestContext();
@@ -180,7 +154,6 @@ public class SolicitudesControllerTests
         reutilizada!.Data!.Reutilizado.Should().BeTrue();
         reutilizada.Data.IdSolicitud.Should().Be(id);
 
-        // Un conjunto distinto (sin traslape) crea otra cotización.
         var respOtra = await cliente.PostAsJsonAsync("/api/viaticos/solicitudes/desde-educacion-medica", new
         {
             id_ruta = 9,
@@ -349,9 +322,7 @@ public class SolicitudesControllerTests
         texto.Should().Contain("VIA-EM-9999");
     }
 
-    // ---------------- GET /api/viaticos/solicitudes/por-ruta/{idRuta} ----------------
-
-    [Fact]
+[Fact]
     public async Task GetPorRuta_DevuelveTodasConFolioEstadoYTotal()
     {
         using var ctx = new TestContext();
@@ -387,9 +358,7 @@ public class SolicitudesControllerTests
         segunda.IdRutaVisitas.Should().BeEquivalentTo(new[] { 401, 402 });
     }
 
-    // ---------------- GET /api/viaticos/solicitudes/mis ----------------
-
-    [Fact]
+[Fact]
     public async Task GetMis_DevuelveSoloLasDelUsuarioAutenticado()
     {
         using var ctx = new TestContext();
@@ -399,7 +368,6 @@ public class SolicitudesControllerTests
         var mia1 = ctx.SembrarSolicitud(yoId, "MIA -> MTY");
         var mia2 = ctx.SembrarSolicitud(yoId, "MIA -> GDL");
         var ajena = ctx.SembrarSolicitud(otroId, "OTRO -> CUN");
-        // Una solicitud inactiva del mismo usuario tampoco debe listarse.
         var inactiva = ctx.SembrarSolicitud(yoId, "MIA -> SJD", activo: false);
 
         using var cliente = ctx.Servidor.CreateClient();
@@ -442,7 +410,6 @@ public class SolicitudesControllerTests
         var mia = ctx.SembrarSolicitud(yoId, "MIA -> MTY", estado: "enviada");
         var borradorMio = ctx.SembrarSolicitud(yoId, "MIA -> GDL");
         var ajenaEnviada = ctx.SembrarSolicitud(otroId, "OTRO -> CUN", estado: "enviada");
-        // "Ver todas" incluye los borradores ajenos, no solo los enviados.
         var borradorAjeno = ctx.SembrarSolicitud(otroId, "OTRO -> SJD");
         var inactivaAjena = ctx.SembrarSolicitud(otroId, "OTRO -> PBC", activo: false);
 
@@ -469,7 +436,6 @@ public class SolicitudesControllerTests
 
         using var cliente = ctx.Servidor.CreateClient();
         cliente.DefaultRequestHeaders.Add("X-Test-UserId", "6211");
-        // Sin 'ver_todos': pedir 'todas' es un error de configuración, no se ignora.
         cliente.DefaultRequestHeaders.Add("X-Test-Permissions", Permissions.Viaticos.Solicitar);
 
         var resp = await cliente.GetAsync("/api/viaticos/solicitudes/mis?todas=true");
@@ -477,9 +443,7 @@ public class SolicitudesControllerTests
         resp.StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
 
-    // ---------------- GET /api/viaticos/solicitudes/por-autorizar ----------------
-
-    [Fact]
+[Fact]
     public async Task GetPorAutorizar_DevuelveSoloEnviadasActivasDeTodosUsuarios()
     {
         using var ctx = new TestContext();
@@ -488,7 +452,7 @@ public class SolicitudesControllerTests
 
         var enviadaPropia = ctx.SembrarSolicitud(solicitante, "MIA -> MTY", estado: "enviada");
         var enviadaAjena = ctx.SembrarSolicitud(otro, "OTRO -> CUN", estado: "enviada");
-        ctx.SembrarSolicitud(otro, "OTRO -> GDL");                                  // borrador
+        ctx.SembrarSolicitud(otro, "OTRO -> GDL");                                  
         ctx.SembrarSolicitud(otro, "OTRO -> SJD", estado: "autorizada");
         ctx.SembrarSolicitud(otro, "OTRO -> PBC", estado: "enviada", activo: false);
 
@@ -512,7 +476,6 @@ public class SolicitudesControllerTests
         using var ctx = new TestContext();
         using var cliente = ctx.Servidor.CreateClient();
         cliente.DefaultRequestHeaders.Add("X-Test-UserId", "6320");
-        // 'ver_todos' no alcanza: la cola es de autorización.
         cliente.DefaultRequestHeaders.Add("X-Test-Permissions", Permissions.Viaticos.VerTodos);
 
         var resp = await cliente.GetAsync("/api/viaticos/solicitudes/por-autorizar");
@@ -531,9 +494,7 @@ public class SolicitudesControllerTests
         resp.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 
-    // ---------------- GET /api/viaticos/solicitudes/{id} ----------------
-
-    [Fact]
+[Fact]
     public async Task GetDetalle_DeSolicitudAjenaSinVerTodos_Retorna403()
     {
         using var ctx = new TestContext();
@@ -543,7 +504,6 @@ public class SolicitudesControllerTests
 
         using var cliente = ctx.Servidor.CreateClient();
         cliente.DefaultRequestHeaders.Add("X-Test-UserId", solicitanteId.ToString());
-        // Solo 'solicitar' (sin 'ver_todos'): no debe ver lo ajeno.
         cliente.DefaultRequestHeaders.Add("X-Test-Permissions", Permissions.Viaticos.Solicitar);
 
         var resp = await cliente.GetAsync($"/api/viaticos/solicitudes/{idSolicitud}");
@@ -600,8 +560,6 @@ public class SolicitudesControllerTests
         using var ctx = new TestContext();
         const int duenoId = 322;
         var idSolicitud = ctx.SembrarSolicitud(duenoId, "QRO -> TIJ ajuste");
-        // Mismo payload_json que escribe AprobacionesController al aplicar un
-        // ajuste: sin esto el frontend nunca ve "que cambio" ni "por que".
         ctx.SembrarEvento(idSolicitud, "creada", duenoId);
         ctx.SembrarEvento(idSolicitud, "ajuste_aplicado", duenoId,
             payloadJson: "{\"campo\":\"total\",\"valor_anterior\":\"5000.00\",\"valor_nuevo\":\"4200.00\",\"motivo\":\"cotizacion mas barata\",\"id_opcion\":null}");
@@ -624,7 +582,6 @@ public class SolicitudesControllerTests
         payload.GetProperty("valor_nuevo").GetString().Should().Be("4200.00");
         payload.GetProperty("motivo").GetString().Should().Be("cotizacion mas barata");
 
-        // El evento sin payload sigue saliendo completo (payload = null).
         var creada = envelope.Data.Eventos.Single(e => e.Tipo == "creada");
         creada.Payload.Should().BeNull();
         creada.IdEvento.Should().BeGreaterThan(0);
@@ -693,9 +650,7 @@ public class SolicitudesControllerTests
         datos.RootElement.GetProperty("linea").GetString().Should().Be("MIA -> MTY");
     }
 
-    // ---------------- PUT /api/viaticos/solicitudes/{id}/opciones ----------------
-
-    [Fact]
+[Fact]
     public async Task PutOpciones_OpcionSinUrlCompra_SeGuardaConUrlNull()
     {
         using var ctx = new TestContext();
@@ -718,8 +673,6 @@ public class SolicitudesControllerTests
                         linea = "MTY -> BJX 2026-11-12",
                         fuente = "GoogleFlights",
                         precio = 1500m,
-                        // url_compra omitido: el proveedor no trae enlace real
-                        // y la opcion se guarda con url_compra = null.
                     }
                 }
             }
@@ -755,7 +708,6 @@ public class SolicitudesControllerTests
                         linea = "MTY -> SJD 2026-11-20",
                         url_compra = "https://www.google.com/travel/flights",
                         precio = 2200m,
-                        // fuente omitida -> debe fallar
                     }
                 }
             }
@@ -787,9 +739,9 @@ public class SolicitudesControllerTests
                     {
                         tipo = "hotel",
                         linea = "Hotel Majestic 2 noches",
-                        fuente = "Booking", // NO contiene "estimado"
+                        fuente = "Booking", 
                         url_compra = "https://www.booking.com/hotel/majestic",
-                        precio = (decimal?)null, // null + fuente no-estimado -> 400
+                        precio = (decimal?)null, 
                     }
                 }
             }
@@ -863,23 +815,7 @@ public class SolicitudesControllerTests
         resp.StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
 
-    // =====================================================================
-    //   Transicion borrador -> enviada al guardar la cotizacion
-    // =====================================================================
-
-    /// <summary>
-    /// Regresion del bug original: <c>GuardarOpciones</c> persistia la
-    /// cotizacion pero NUNCA tocaba <c>Solicitud.Estado</c>, asi que toda
-    /// solicitud se quedaba en 'borrador' para siempre y
-    /// <c>AprobacionesController</c> (que solo acepta 'enviada') respondia
-    /// 409: la bandeja autorizable quedaba vacia sin que nadie lo notara.
-    ///
-    /// Este test recorre el flujo REAL completo por HTTP
-    /// (POST -> PUT opciones -> GET detalle) y lee el estado devuelto por el
-    /// SERVIDOR, no un mock: si se quita la transicion del controller, el
-    /// GET devuelve 'borrador' y el test falla.
-    /// </summary>
-    [Fact]
+[Fact]
     public async Task PutOpciones_PasaLaSolicitudDeBorradorAEnviadaYElDetalleLoDevuelve()
     {
         using var ctx = new TestContext();
@@ -888,7 +824,6 @@ public class SolicitudesControllerTests
         cliente.DefaultRequestHeaders.Add("X-Test-UserId", userId.ToString());
         cliente.DefaultRequestHeaders.Add("X-Test-Permissions", Permissions.Viaticos.Solicitar);
 
-        // 1) Crear: nace en 'borrador'.
         var creada = await cliente.PostAsJsonAsync("/api/viaticos/solicitudes", new
         {
             gerencia = "Operaciones",
@@ -899,7 +834,6 @@ public class SolicitudesControllerTests
         envelopeCreada!.Data!.Estado.Should().Be("borrador");
         var idSolicitud = envelopeCreada.Data.IdSolicitud;
 
-        // 2) Guardar la cotizacion: ES el envio.
         var guardada = await cliente.PutAsJsonAsync($"/api/viaticos/solicitudes/{idSolicitud}/opciones", new
         {
             cotizacion = new
@@ -920,7 +854,6 @@ public class SolicitudesControllerTests
         });
         guardada.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        // 3) Leer el estado final DESDE EL SERVIDOR (otra peticion HTTP).
         var detalle = await cliente.GetAsync($"/api/viaticos/solicitudes/{idSolicitud}");
         detalle.StatusCode.Should().Be(HttpStatusCode.OK);
         var envelopeDetalle = await detalle.Content.ReadFromJsonAsync<ApiEnvelope<SolicitudDtoJson>>();
@@ -929,7 +862,6 @@ public class SolicitudesControllerTests
             "enviada",
             "guardar la cotizacion debe dejar la solicitud autorizable; si se queda en 'borrador' AprobacionesController devuelve 409");
 
-        // Corroboracion en la BD (misma fuente de verdad del servidor, no un mock).
         using (var scope = ctx.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
@@ -938,17 +870,10 @@ public class SolicitudesControllerTests
             enBd.Estado.Should().Be("enviada");
         }
 
-        // La transicion no debe alterar el comportamiento de las opciones.
         envelopeDetalle.Data.Opciones.Should().HaveCount(1);
         envelopeDetalle.Data.Opciones[0].FueElegida.Should().BeTrue();
     }
 
-    /// <summary>
-    /// La transicion deja traza en <c>solicitud_eventos</c>: el evento
-    /// 'enviada' debe quedar en el historial, con el usuario del token y la
-    /// fecha del envio. Sin el, la auditoria del wizard no explica cuando
-    /// salto de 'borrador' a 'enviada'.
-    /// </summary>
     [Fact]
     public async Task PutOpciones_RegistraElEventoEnviadaEnElHistorial()
     {
@@ -987,7 +912,6 @@ public class SolicitudesControllerTests
         var envelope = await detalle.Content.ReadFromJsonAsync<ApiEnvelope<SolicitudDtoJson>>();
         var eventos = envelope!.Data!.Eventos;
 
-        // 'creada' + 'cotizacion_guardada' + 'enviada'.
         eventos.Select(e => e.Tipo).Should().Contain(new[] { "creada", "cotizacion_guardada", "enviada" });
 
         var enviada = eventos.Single(e => e.Tipo == "enviada");
@@ -1004,17 +928,6 @@ public class SolicitudesControllerTests
         eventosBd[0].PayloadJson.Should().Contain("enviada");
     }
 
-    /// <summary>
-    /// Regla anti-retroceso: la transicion a 'enviada' SOLO aplica cuando la
-    /// solicitud esta en 'borrador'. Una solicitud ya resuelta ('autorizada'
-    /// o 'rechazada') no debe volver a 'enviada' porque reenviar opciones
-    /// borraria la decision del autorizador, y tampoco debe registrar un
-    /// evento 'enviada' que no ocurrio.
-    ///
-    /// El estado terminal se SIEMBRA en la fila real de EF InMemory (via
-    /// <see cref="TestContext.SembrarSolicitud"/>), no se falsea con un mock:
-    /// si la regla se rompe, el PUT mueve la fila a 'enviada' y el test falla.
-    /// </summary>
     [Theory]
     [InlineData("autorizada")]
     [InlineData("rechazada")]
@@ -1023,7 +936,6 @@ public class SolicitudesControllerTests
         using var ctx = new TestContext();
         const int duenoId = 970;
         var idSolicitud = ctx.SembrarSolicitud(duenoId, "MTY -> CUN terminal", estado: estadoTerminal);
-        // El desenlace ya quedo en la bitacora antes de reenviar opciones.
         ctx.SembrarEvento(idSolicitud, estadoTerminal, duenoId);
 
         using var cliente = ctx.Servidor.CreateClient();
@@ -1052,8 +964,6 @@ public class SolicitudesControllerTests
         var envelope = await resp.Content.ReadFromJsonAsync<ApiEnvelope<SolicitudDtoJson>>();
         envelope!.Data.Should().NotBeNull();
 
-        // (a) El estado terminal sigue intacto, tanto en la respuesta como en
-        //     la fila real de la BD.
         envelope.Data!.Estado.Should().Be(
             estadoTerminal,
             "reenviar opciones no debe borrar una autorizacion ni revivir una solicitud rechazada");
@@ -1071,24 +981,12 @@ public class SolicitudesControllerTests
             .ToList();
         eventosEnviada.Should().BeEmpty("no hubo transicion, no hay evento 'enviada'");
 
-        // La cotizacion SI se guarda (es el proposito del endpoint): el evento
-        // 'cotizacion_guardada' existe aunque no haya envio.
         db.SolicitudEventos.AsNoTracking()
             .Any(e => e.IdSolicitud == idSolicitud && e.Tipo == "cotizacion_guardada")
             .Should().BeTrue("guardar opciones sigue registrando su propia bitacora");
     }
 
-    // =====================================================================
-    //                            Test harness
-    // =====================================================================
-
-    /// <summary>
-    /// Levanta un <see cref="TestServer"/> con el SolicitudesController real,
-    /// <see cref="ApplicationDbContext"/> sobre EF InMemory y la auth de
-    /// pruebas. El nombre de la base InMemory es unico por instancia, asi que
-    /// los tests no comparten estado.
-    /// </summary>
-    private sealed class TestContext : IDisposable
+private sealed class TestContext : IDisposable
     {
         private readonly string _dbName = $"SolicitudesCtrl-{Guid.NewGuid():N}";
         public TestServer Servidor { get; }
@@ -1099,7 +997,6 @@ public class SolicitudesControllerTests
                 .UseInMemoryDatabase(databaseName: _dbName)
                 .Options;
 
-            // Crea el modelo EF antes de que el controller pida el DbContext.
             using (var seed = new ApplicationDbContext(options))
             {
                 seed.Database.EnsureCreated();
@@ -1112,9 +1009,6 @@ public class SolicitudesControllerTests
                     services.AddLogging();
                     services.AddRouting();
                     services.AddDbContext<ApplicationDbContext>(o => o.UseInMemoryDatabase(_dbName));
-                    // El controller resuelve el directorio de Asokam; sin este
-                    // registro la activacion del controller falla (500) y todos
-                    // los tests HTTP de esta clase quedan rojos.
                     services.AddDbContext<AsokamDbContext>(o => o.UseInMemoryDatabase($"{_dbName}-asokam"));
                     services.AddAuthentication(PermisosEndpointTests.TestAuthHandler.NombreEsquema)
                         .AddScheme<AuthenticationSchemeOptions, PermisosEndpointTests.TestAuthHandler>(
@@ -1235,7 +1129,6 @@ public class SolicitudesControllerTests
                 Periodo = ahora.ToString("yyyy-MM"),
                 Gerencia = "Operaciones",
                 Estado = estado,
-                // 'linea' se usa solo para distinguir semillas en fallos.
                 DatosJson = $"{{\"linea\":\"{linea}\"}}",
                 Activo = activo,
                 FechaCreacion = ahora,
@@ -1285,14 +1178,7 @@ public class SolicitudesControllerTests
         public void Dispose() => Servidor.Dispose();
     }
 
-    // ---------------------------------------------------------------------
-    // Tipos auxiliares para deserializar el envelope ApiResponse<T> sin
-    // acoplar el test a las clases de dominio (que son internas al controller).
-    // ---------------------------------------------------------------------
-
-    // La API serializa en snake_case, asi que los tipos de deserializacion
-    // replican los JsonPropertyName de SolicitudDtos.cs.
-    private sealed class ApiEnvelope<T>
+private sealed class ApiEnvelope<T>
     {
         [JsonPropertyName("success")]
         public bool Success { get; set; }

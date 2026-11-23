@@ -10,13 +10,10 @@ import { dentroDeMexico } from '../services/ubicacionMexico';
 import { PuntoMapaPicker } from './PuntoMapaPicker';
 
 export interface SelectorRutaModalProps {
-  /** Secuencia confirmada por el padre; el modal trabaja sobre una copia. */
   puntos: PuntoSeleccion[];
-  /** Recibe la secuencia completa al confirmar. */
   onChange: (puntos: PuntoSeleccion[]) => void;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** Callback opcional adicional al confirmar. */
   onConfirm?: (puntos: PuntoSeleccion[]) => void;
   disabled?: boolean;
 }
@@ -25,7 +22,6 @@ const CENTRO_MEXICO: [number, number] = [23.6345, -102.5528];
 const ZOOM_MEXICO = 6;
 const ZOOM_SECUENCIA = 12;
 
-/** Marcador numerado: azul, distingue el orden del punto naranja del picker. */
 function iconoSecuencia(numero: number) {
   return L.divIcon({
     className: 'custom-map-marker-secuencia',
@@ -42,20 +38,17 @@ function centroDe(puntos: PuntoSeleccion[]): [number, number] {
   return [suma[0] / puntos.length, suma[1] / puntos.length];
 }
 
-/** Recentra el mapa cada vez que cambia la secuencia de puntos. */
 function ControladorSecuencia({ puntos }: { puntos: PuntoSeleccion[] }) {
   const map = useMap();
   const centro = useMemo(() => centroDe(puntos), [puntos]);
   useEffect(() => {
     if (puntos.length === 0) return;
     map.setView(centro, ZOOM_SECUENCIA);
-    // `map` se recrea en cada render del mock; la identidad de los puntos manda.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [centro, puntos]);
   return null;
 }
 
-/** Un clic en el mapa agrega el siguiente punto, no reemplaza el anterior. */
 function ManejadorClic({ onPunto }: { onPunto: (lat: number, lng: number) => void }) {
   useMapEvents({
     click(event) {
@@ -90,7 +83,6 @@ function ListaPuntos({
 }) {
   const refs = useRef<(HTMLLIElement | null)[]>([]);
 
-  /** Flechas arriba/abajo mueven el foco entre puntos sin cambiar el orden. */
   const onTeclaLista = useCallback(
     (evento: React.KeyboardEvent<HTMLLIElement>, indice: number) => {
       if (evento.key !== 'ArrowDown' && evento.key !== 'ArrowUp') return;
@@ -223,7 +215,6 @@ export function SelectorRutaModal({
   const [editando, setEditando] = useState<number | null>(null);
   const [nombreEdicion, setNombreEdicion] = useState('');
 
-  // El padre manda la lista confirmada; el borrador sólo se resincroniza al abrir.
   const puntosRef = useRef(puntos);
   useEffect(() => {
     puntosRef.current = puntos;
@@ -260,7 +251,6 @@ export function SelectorRutaModal({
     setNombreEdicion('');
   }, []);
 
-  /** El clic inserta siempre al final: la secuencia previa se conserva. */
   const agregar = useCallback((punto: PuntoSeleccion) => {
     setBorrador((actual) => [...actual, punto]);
     setPendiente(null);

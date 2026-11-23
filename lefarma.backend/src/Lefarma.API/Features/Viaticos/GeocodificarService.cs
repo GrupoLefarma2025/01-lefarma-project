@@ -4,24 +4,6 @@ using Microsoft.Extensions.Caching.Memory;
 
 namespace Lefarma.API.Features.Viaticos;
 
-// Proxy de geocodificación para el selector de puntos en mapa (viáticos).
-// Búsqueda (tipo=global): Nominatim es el motor primario bajo la política de
-// OSM (https://operations.osmfoundation.org/policies/nominatim/: User-Agent
-// identificable y máximo 1 request/s) y Photon (photon.komoot.io, misma fuente
-// OSM, pensado para consultas parciales del tipo "hosp xoco") entra como
-// refuerzo SOLO cuando Nominatim no devuelve nada o falla, para tolerar
-// palabras incompletas o abreviadas sin cargar a Nominatim con más tráfico.
-// Geocodificación inversa (tipo=reversa): coordenadas pegadas → dirección de
-// referencia, vía Nominatim /reverse.
-// Cada motor tiene su compuerta de 1 req/s, timeout de 12 s y cache de 6 h
-// (patrón de CalculoCostosRuta); los HttpClient los crea el controller desde
-// los clientes nombrados "nominatim" y "photon" (User-Agent configurado en
-// Program.cs). La respuesta se acota a México por partida doble (parámetro
-// countrycodes cuando el motor lo soporta y candado sobre el país del
-// resultado), con hasta 8 resultados y etiqueta estilo Google; el `viewbox`
-// opcional sesga hacia la ubicación del navegador ("Cerca de mí") sin excluir
-// el resto del país. Los duplicados —misma coordenada o misma etiqueta
-// visible— se descartan. Estado y municipio se extraen de la dirección.
 public record GeocodificarResultado(
     string Nombre, double Latitud, double Longitud,
     string? Estado = null, string? Municipio = null);
@@ -32,17 +14,12 @@ public static class GeocodificarService
     private const string NominatimReverseBase = "https://nominatim.openstreetmap.org/reverse";
     private const string PhotonBase = "https://photon.komoot.io/api";
     private const int MinCaracteres = 3;
-    // Siempre México; el selector pedía 5 resultados y se sube a 8 para dar
-    // más opciones manteniendo la misma carga sobre upstream.
     private const int ResultadosMaximos = 8;
     private const int MinSeparacionUpstreamMs = 1000;
     private const string NombreFallback = "Punto sin nombre";
     private static readonly TimeSpan CacheDuracion = TimeSpan.FromHours(6);
     private static readonly TimeSpan TimeoutUpstream = TimeSpan.FromSeconds(12);
 
-    // Compuerta por motor: separa los inicios de request >= 1 s aunque lleguen
-    // en ráfaga (política de máximo 1 req/s); contadores independientes para
-    // que el refuerzo de Photon no espere el turno de Nominatim.
     private sealed class CompuertaUpstream
     {
         private readonly SemaphoreSlim _gate = new(1, 1);
@@ -67,12 +44,6 @@ public static class GeocodificarService
     private static readonly CompuertaUpstream NominatimGate = new();
     private static readonly CompuertaUpstream PhotonGate = new();
 
-    /// <summary>
-    /// Busca direcciones o lugares por nombre (tipo=global). Nominatim primero;
-    /// si devuelve cero resultados o falla, Photon (tolerante a palabras
-    /// parciales) aporta los suyos. Devuelve null solo cuando ningún motor
-    /// pudo responder; ArgumentException si la entrada es inválida.
-    /// </summary>
     public static async Task<List<GeocodificarResultado>?> GeocodificarAsync(
         HttpClient nominatim, HttpClient photon, IMemoryCache cache,
         string? texto, string? viewbox,
@@ -102,22 +73,13 @@ public static class GeocodificarService
         else if (photonRes is { Count: > 0 }) resultados = photonRes;
         else if (nominatimRes is not null || photonRes is not null) resultados = [];
         else resultados = null;
-        if (resultados is null) return null; // Ningún motor respondió: el controller responde 502.
+        if (resultados is null) return null; 
 
-        // El vacío solo se cachea cuando todos los motores consultados
-        // respondieron; así un fallo transitorio no congela un "sin
-        // resultados" por 6 h ni oculta lo que Photon pudiera encontrar luego.
         if (resultados.Count > 0 || (nominatimRes is not null && (!photonIntentado || photonRes is not null)))
             cache.Set(claveCache, resultados, CacheDuracion);
         return resultados;
     }
 
-    /// <summary>
-    /// Geocodificación inversa (tipo=reversa): coordenadas pegadas → dirección
-    /// de referencia en una sola fila, con los mismos campos que la búsqueda.
-    /// Devuelve lista vacía si upstream respondió sin dirección y null si no
-    /// respondió; ArgumentException si lat/lon faltan o están fuera de rango.
-    /// </summary>
     public static async Task<List<GeocodificarResultado>?> RevertirAsync(
         HttpClient http, IMemoryCache cache,
         string? lat, string? lon,
@@ -151,8 +113,6 @@ public static class GeocodificarService
             var resultados = new List<GeocodificarResultado>();
             if (raiz.ValueKind == JsonValueKind.Object && !raiz.TryGetProperty("error", out _) && !EsDeOtroPais(raiz))
             {
-                // Las coordenadas pegadas mandan: el pin queda exactamente
-                // donde se pegó aunque el edificio cercano esté a un lado.
                 var (estado, municipio) = LeerEstadoMunicipio(raiz);
                 resultados.Add(new GeocodificarResultado(ConstruirNombre(raiz), latitud, longitud, estado, municipio));
             }
@@ -161,15 +121,14 @@ public static class GeocodificarService
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
-            throw; // El cliente se fue: no fabricar un 502.
+            throw; 
         }
         catch
         {
-            return null; // Upstream falló: el controller responde 502.
+            return null; 
         }
     }
 
-    /// <summary>Camino Nominatim de la búsqueda; null = upstream no respondió.</summary>
     private static async Task<List<GeocodificarResultado>?> BuscarNominatimAsync(
         HttpClient http, string textoLimpio, string viewboxLimpio, CancellationToken ct)
     {
@@ -194,8 +153,6 @@ public static class GeocodificarService
                 foreach (var item in doc.RootElement.EnumerateArray())
                 {
                     if (!LeerLatLonNominatim(item, out var lat, out var lon)) continue;
-                    // Candado país: upstream ya va con countrycodes=mx, pero
-                    // cualquier resultado que declare otro país se descarta.
                     if (EsDeOtroPais(item)) continue;
                     var (estado, municipio) = LeerEstadoMunicipio(item);
                     AgregarSiNuevo(resultados, vistos, etiquetas, ConstruirNombre(item), lat, lon, estado, municipio);
@@ -205,15 +162,14 @@ public static class GeocodificarService
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
-            throw; // El cliente se fue: no fabricar un 502.
+            throw; 
         }
         catch
         {
-            return null; // Upstream falló: se intenta Photon.
+            return null; 
         }
     }
 
-    /// <summary>Camino Photon de la búsqueda; null = upstream no respondió.</summary>
     private static async Task<List<GeocodificarResultado>?> BuscarPhotonAsync(
         HttpClient http, string textoLimpio, string viewboxLimpio, CancellationToken ct)
     {
@@ -239,8 +195,6 @@ public static class GeocodificarService
                 foreach (var feature in features.EnumerateArray())
                 {
                     if (!LeerLugarPhoton(feature, out var props, out var lat, out var lon)) continue;
-                    // Candado país: Photon no filtra por país, así que solo se
-                    // aceptan resultados que declaren México.
                     if (!string.Equals(TextoDe(props, "countrycode"), "MX", StringComparison.OrdinalIgnoreCase)) continue;
                     var estado = TextoDe(props, "state");
                     var municipio = TextoDe(props, "city") ?? TextoDe(props, "district") ?? TextoDe(props, "county");
@@ -251,20 +205,14 @@ public static class GeocodificarService
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
-            throw; // El cliente se fue: no fabricar un 502.
+            throw; 
         }
         catch
         {
-            return null; // Upstream falló: el controller decide (502 si tampoco hubo Nominatim).
+            return null; 
         }
     }
 
-    /// <summary>
-    /// Agrega solo si no se repitieron la coordenada redondeada ni la etiqueta
-    /// visible (OSM repite nodos con la misma dirección). El fallback sin
-    /// nombre no cuenta para el dedupe por etiqueta: dos puntos distintos
-    /// pueden quedarse sin dirección útil.
-    /// </summary>
     private static void AgregarSiNuevo(
         List<GeocodificarResultado> resultados,
         HashSet<(double, double)> vistos, HashSet<string> etiquetas,
@@ -275,7 +223,6 @@ public static class GeocodificarService
         resultados.Add(new GeocodificarResultado(nombre, lat, lon, estado, municipio));
     }
 
-    /// <summary>lat/lon de un resultado de Nominatim (llegan como texto).</summary>
     private static bool LeerLatLonNominatim(JsonElement item, out double lat, out double lon)
     {
         lat = 0;
@@ -286,7 +233,6 @@ public static class GeocodificarService
             && double.TryParse(lonEl.GetString(), NumberStyles.Float, CultureInfo.InvariantCulture, out lon);
     }
 
-    /// <summary>Propiedades y geometría de un `feature` de Photon.</summary>
     private static bool LeerLugarPhoton(JsonElement feature, out JsonElement props, out double lat, out double lon)
     {
         props = default;
@@ -296,14 +242,9 @@ public static class GeocodificarService
         if (!feature.TryGetProperty("geometry", out var geometry) ||
             !geometry.TryGetProperty("coordinates", out var coordenadas) ||
             coordenadas.ValueKind != JsonValueKind.Array || coordenadas.GetArrayLength() < 2) return false;
-        // GeoJSON: [longitud, latitud].
         return coordenadas[0].TryGetDouble(out lon) && coordenadas[1].TryGetDouble(out lat);
     }
 
-    /// <summary>
-    /// Etiqueta legible estilo Google para resultados de Photon ("Nombre,
-    /// Calle Núm, Colonia, Municipio, Estado"), sin repetir segmentos.
-    /// </summary>
     private static string ConstruirNombrePhoton(JsonElement props)
     {
         var etiqueta = new Etiqueta();
@@ -318,11 +259,6 @@ public static class GeocodificarService
         return etiqueta.HayPartes ? etiqueta.ToString() : NombreFallback;
     }
 
-    /// <summary>
-    /// Constructor de etiquetas sin segmentos repetidos (misma regla para
-    /// Nominatim y Photon): cada parte entra una sola vez sin distinguir
-    /// mayúsculas y el primer grupo agrega solo su primer candidato nuevo.
-    /// </summary>
     private sealed class Etiqueta
     {
         private readonly List<string> _partes = [];
@@ -352,10 +288,6 @@ public static class GeocodificarService
         public override string ToString() => string.Join(", ", _partes);
     }
 
-    /// <summary>
-    /// Estado y municipio del bloque `address` de Nominatim. El municipio se
-    /// busca en las variantes que usa OSM según el tamaño del lugar.
-    /// </summary>
     private static (string? Estado, string? Municipio) LeerEstadoMunicipio(JsonElement item)
     {
         if (!item.TryGetProperty("address", out var address) || address.ValueKind != JsonValueKind.Object)
@@ -377,11 +309,6 @@ public static class GeocodificarService
         return string.IsNullOrEmpty(texto) ? null : texto;
     }
 
-    /// <summary>
-    /// true solo cuando el resultado declara un país distinto de México; sin
-    /// bloque `address` no se puede afirmar y se conserva (upstream ya va
-    /// acotado con countrycodes=mx cuando el motor lo soporta).
-    /// </summary>
     private static bool EsDeOtroPais(JsonElement item)
     {
         if (!item.TryGetProperty("address", out var address) || address.ValueKind != JsonValueKind.Object)
@@ -390,18 +317,9 @@ public static class GeocodificarService
         return codigo is not null && !string.Equals(codigo, "mx", StringComparison.OrdinalIgnoreCase);
     }
 
-    /// <summary>
-    /// Clave de comparación de etiquetas: minúsculas y espacios colapsados,
-    /// para que dos textos visiblemente iguales cuenten como el mismo lugar.
-    /// </summary>
     private static string NormalizarEtiqueta(string nombre) =>
         string.Join(' ', nombre.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)).ToLowerInvariant();
 
-    /// <summary>
-    /// Etiqueta legible estilo Google ("Calle Núm, Colonia, Ciudad, Estado")
-    /// armada del bloque `address`, sin repetir segmentos. Si no hay dirección
-    /// útil cae al `display_name` de Nominatim.
-    /// </summary>
     private static string ConstruirNombre(JsonElement item)
     {
         var display = TextoDe(item, "display_name");
@@ -412,7 +330,6 @@ public static class GeocodificarService
         var via = TextoDe(address, "road") ?? TextoDe(address, "pedestrian") ?? TextoDe(address, "footway");
         var numero = TextoDe(address, "house_number");
         var nombre = TextoDe(item, "name");
-        // En nodos de casa `name` repite la vía: si ya hay calle y número, sobra.
         if (nombre is not null && via is not null && string.Equals(nombre, via, StringComparison.OrdinalIgnoreCase))
             nombre = null;
         etiqueta.Agregar(nombre);
@@ -429,10 +346,6 @@ public static class GeocodificarService
         return etiqueta.HayPartes ? etiqueta.ToString() : display ?? NombreFallback;
     }
 
-    /// <summary>
-    /// Valida y normaliza el viewbox de sesgo (esquina suroeste y noreste, con
-    /// longitud antes de latitud, como Nominatim). Vacío/null => sin sesgo.
-    /// </summary>
     private static string NormalizarViewbox(string? viewbox)
     {
         var crudo = (viewbox ?? string.Empty).Trim();

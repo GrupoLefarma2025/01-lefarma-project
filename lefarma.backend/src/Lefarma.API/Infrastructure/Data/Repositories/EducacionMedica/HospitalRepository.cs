@@ -123,7 +123,6 @@ public class HospitalRepository : IHospitalRepository
 
         if (filter.TieneCoordenadas.HasValue)
         {
-            // Coordenadas validas = no nulas y no ambas en 0 (0/0 es dato basura).
             var tiene = filter.TieneCoordenadas.Value;
             hospitales = hospitales
                 .Where(h =>

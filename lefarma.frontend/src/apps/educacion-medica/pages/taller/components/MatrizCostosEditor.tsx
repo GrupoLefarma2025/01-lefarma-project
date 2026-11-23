@@ -52,7 +52,6 @@ interface MatrizCostosEditorProps {
   onGuardar: (idTaller: number, recursos: GuardarCostoRecursoRequest[]) => void | Promise<void>;
 }
 
-/** Registro de costos del AEM: costo unitario por recurso del taller (subtotales en vivo). */
 export function MatrizCostosEditor({
   open,
   onClose,

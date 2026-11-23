@@ -146,7 +146,6 @@ async function resolverPuntosGenericos(solicitud: Solicitud): Promise<Solicitud>
   };
 }
 
-/** "10/12 08:00" o "2026-11-20T08:00" -> "08:00". */
 function horaDeTexto(texto: string | null | undefined): string | null {
   if (!texto) return null;
   const match = texto.match(/(\d{1,2}:\d{2})/);
@@ -154,7 +153,6 @@ function horaDeTexto(texto: string | null | undefined): string | null {
   return match[1].padStart(5, '0');
 }
 
-/** Nombre legible para el PNG: folio, destino, línea y tipo. */
 function nombreCapturaPreview(
   folio: string | null | undefined,
   idSolicitud: number,
@@ -173,7 +171,6 @@ function nombreCapturaPreview(
     .join('-');
 }
 
-/** Reemplaza la hora (y opcionalmente el día) de "dd/MM HH:mm". */
 function reemplazarHoraTexto(texto: string, hora: string | null, dias = 0): string {
   if (!hora) return texto;
   const match = texto.match(/^(\d{1,2})\/(\d{1,2})\s+(\d{1,2}:\d{2})$/);
@@ -182,7 +179,6 @@ function reemplazarHoraTexto(texto: string, hora: string | null, dias = 0): stri
   return `${String(fecha.getDate()).padStart(2, '0')}/${String(fecha.getMonth() + 1).padStart(2, '0')} ${hora}`;
 }
 
-/** Reemplaza la hora (y opcionalmente el día) de una fecha ISO del motor. */
 function reemplazarHoraIso(
   iso: string | null | undefined,
   hora: string | null,
@@ -198,7 +194,6 @@ function reemplazarHoraIso(
   return `${anio}-${mes}-${dia}T${hora}:00`;
 }
 
-/** "Ciudad de México, Ciudad de México" -> "Ciudad de México". */
 function nombreCorto(nombre: string): string {
   const [municipio, estado] = nombre.split(',').map((parte) => parte.trim());
   if (municipio && estado && municipio.toLowerCase() !== estado.toLowerCase()) {
@@ -234,10 +229,6 @@ function minutosDeHora(hora: string | null | undefined): number | null {
   return partes[0] * 60 + partes[1];
 }
 
-/**
- * Convierte una oferta estimada en cotizada con el precio que devolvió la
- * vista previa. Conserva la proporción grupo/persona que traía el motor.
- */
 function fusionarOferta(
   oferta: CostosRutaOferta,
   detectado: PrecioDetectadoDto,
@@ -273,7 +264,6 @@ function fusionarOferta(
   };
 }
 
-/** Convierte un hotel de referencia/estimado en cotizado con el total real. */
 function fusionarHotel(
   hotel: CostosRutaHotel,
   detectado: PrecioDetectadoDto,
@@ -304,18 +294,8 @@ export function CalculosViajeModal({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onEnviado: (id: number) => void;
-  /**
-   * 'enviar' = flujo del viajero (borrador -> concentrado).
-   * 'autorizar' = flujo del revisor: recalcula la misma solicitud y entrega la
-   * propuesta al padre; la solicitud no cambia en el servidor desde aquí.
-   */
   modo?: 'enviar' | 'autorizar';
-  /** Versión calculada (cálculo + opciones + resumen) que el revisor confirma. */
   onPropuesta?: (propuesta: PropuestaRuta) => void;
-  /**
-   * @deprecated La propuesta se entrega con `onPropuesta` y la autorización se
-   * registra en el concentrado; se conserva para no romper llamadas previas.
-   */
   onAutorizado?: (id: number) => void;
 }) {
   const [paso, setPaso] = useState(0);
@@ -403,10 +383,6 @@ export function CalculosViajeModal({
     sesionRef.current += 1;
   }, [open, solicitud?.id_solicitud]);
 
-  // La ruta de Educación Médica puede traer hospedaje marcado por defecto
-  // (varios días). El flag vive en el destino que se acaba de visitar, así que
-  // enciende la noche DESPUÉS de ese destino (el tramo siguiente), no la noche
-  // antes del mismo. El primer destino no se enciende por este flag.
   useEffect(() => {
     if (!open || !hidratado) return;
     const inicial: Record<number, boolean> = {};
@@ -519,11 +495,6 @@ export function CalculosViajeModal({
   const salidaTemprana = esCarro && paso === 0
     && /^\d{2}:\d{2}$/.test(horaSalidaCarro) && horaSalidaCarro < '05:00';
 
-  /**
-   * Opción marcada por el viajero en este paso. Sin ella no se sugiere dormir:
-   * la sugerencia depende de a qué hora llega el transporte que eligió, no de
-   * la propuesta del motor (que solo es una recomendación inicial).
-   */
   const ofertaElegida = useMemo(() => {
     if (hotelRutaDelPaso) {
       return ofertaLargaHotel(
@@ -542,9 +513,6 @@ export function CalculosViajeModal({
     hidratado && hidratado.destinos.length > 0
       ? hidratado.destinos[Math.min(paso, hidratado.destinos.length - 1)]
       : null;
-  // EM marca el destino que se acaba de visitar: la noche va DESPUÉS de ese
-  // destino, es decir, en el tramo siguiente. En carro se conserva el
-  // comportamiento anterior (la noche se busca cerca del destino del tramo).
   const destinoAnterior = hidratado && paso > 0 ? hidratado.destinos[paso - 1] : null;
   const hospedajeSugerido = esCarro
     ? destinoHidratado?.hospedaje.necesario === true
@@ -560,10 +528,6 @@ export function CalculosViajeModal({
       : paso === 0 || tramo?.esRegreso
         ? incumple
         : false);
-  // Si el destino se alcanza el mismo día y hay otro punto al día siguiente,
-  // la noche se configura en el tramo siguiente (noche después). Sirve para
-  // avisar que la estancia se captura más adelante; la casilla sigue
-  // disponible en este tramo para no perder la captura de "noche antes".
   const siguienteTramo = tramos[paso + 1] ?? null;
   const hotelEnSiguienteTramo = !esCarro
     && paso === 0
@@ -572,16 +536,10 @@ export function CalculosViajeModal({
     && tramo!.desde.fecha === tramo!.hasta.fecha
     && Boolean(tramo!.hasta.fecha && siguienteTramo!.hasta.fecha)
     && siguienteTramo!.hasta.fecha > tramo!.hasta.fecha;
-  // En transporte solicitado el hotel se puede activar en cualquier tramo: la
-  // etiqueta ya dice si es noche antes o después. En carro se mantiene la
-  // sugerencia anterior para no alterar ese flujo.
   const mostrarHotel = !esCarro || sugerirHotel;
   const hotelDelPaso = hotelResultados[paso];
   const hotelElegidoDelPaso = hotelElegido[paso];
   const usarHotelDelPaso = usarHotel[paso] === true;
-  // En carro se conserva la semántica anterior: noche antes del destino del
-  // tramo (o después del último punto en el regreso). En transporte solicitado
-  // manda la regla nueva: antes del primer destino, después de los demás.
   const posicionNoche = esCarro
     ? (tramo?.esRegreso ? 'despues' : 'antes')
     : posicionDelPaso;
@@ -606,8 +564,6 @@ export function CalculosViajeModal({
       { latitud: terminalHotel.latitud, longitud: terminalHotel.longitud },
     );
   };
-  // La cabecera muestra las horas reales de la cadena con hotel (salida el día
-  // anterior o llegada al día siguiente), no las del tramo directo.
   const ofertaSalidaCadena = hotelRutaDelPaso
     ? posicionNoche === 'antes'
       ? ofertaLargaActual
@@ -637,7 +593,6 @@ export function CalculosViajeModal({
     );
   }, [hotelDelPaso]);
 
-  /** Hotel elegido de un tramo (si el viajeroActivó la opción de dormir). */
   const hotelElegidoDeTramo = useMemo(
     () => (indice: number) => {
       const clave = hotelElegido[indice];
@@ -649,12 +604,6 @@ export function CalculosViajeModal({
     [hotelElegido, hotelResultados],
   );
 
-  /**
-   * Cadena completa del resumen: origen → terminal → vuelo/bus → terminal →
-   * hotel o punto → … → regreso. Si la oferta elegida no usa terminal (auto o
-   * renta) se dibuja la carretera. Alimenta el mapa y el diagrama de ruta, que
-   * usa el mismo diseño que el resumen del viaje.
-   */
   const cadenaResumen = useMemo(() => {
     const puntos: PuntoRutaResumen[] = [];
     const segmentos: SegmentoRuta[] = [];
@@ -674,8 +623,6 @@ export function CalculosViajeModal({
       importes?: { costo?: number | null; urlCompra?: string | null },
     ) => {
       const clave = `${lat.toFixed(4)},${lng.toFixed(4)}`;
-      // Los marcadores del mapa no se repiten, pero el diagrama sí: un viaje
-      // redondo vuelve al origen y el regreso tiene que verse como parada.
       if (!vistos.has(clave)) {
         vistos.add(clave);
         puntos.push({ lat, lng, nombre, tipo });
@@ -711,8 +658,6 @@ export function CalculosViajeModal({
       if (Math.abs(de[0] - a[0]) < 1e-6 && Math.abs(de[1] - a[1]) < 1e-6) return;
       segmentos.push({ tipo, puntos: [de, a], etiqueta });
     };
-    // Un proveedor puede mandar la terminal con lat/lon en 0. Esa coordenada
-    // no sirve para el mapa: se omite el nodo y el tramo se dibuja directo.
     const coordsTerminal = (
       terminal: { latitud: number; longitud: number } | null | undefined,
     ): [number, number] | null => (
@@ -730,9 +675,6 @@ export function CalculosViajeModal({
       const hotel = hotelElegidoDeTramo(indice);
       const origen: [number, number] = [tramo.desde.punto.latitud, tramo.desde.punto.longitud];
 
-      // Cadena con hotel en transporte solicitado: el hotel es una parada, no
-      // el destino. Noche antes = origen → terminal → hotel → hospital; noche
-      // después = hospital → hotel → terminal → siguiente punto/regreso.
       if (hotelRuta && hotel) {
         const posicion = hotelRuta.posicion;
         const destino: [number, number] = [tramo.hasta.punto.latitud, tramo.hasta.punto.longitud];
@@ -884,8 +826,6 @@ export function CalculosViajeModal({
             );
           }
         } else {
-          // Auto o renta: el hotel es una parada en carretera y el vehículo
-          // cubre el traslado local; no se agrega un taxi que no se paga.
           if (posicion === 'antes') {
             agregarSegmento('carretera', origen, puntoHotel, `Carretera a ${nombreHotel}`);
             agregarPunto(puntoHotel[0], puntoHotel[1], nombreHotel, 'hotel', detalleHotel, chipsHotel, importeHotel);
@@ -914,8 +854,6 @@ export function CalculosViajeModal({
         ? [hotel!.latitud as number, hotel!.longitud as number]
         : [tramo.hasta.punto.latitud, tramo.hasta.punto.longitud];
       const destinoNombre = conHotel ? (hotel!.nombre ?? hotel!.lugar) : tramo.hasta.nombre;
-      // El importe de la parada es el del hotel cuando se duerme ahí y el de la
-      // oferta de transporte cuando solo se llega al punto.
       const importesDestino = conHotel && hotel
         ? { costo: hotel.precioTotal ?? hotel.precioNoche ?? null, urlCompra: hotel.link || null }
         : oferta
@@ -927,7 +865,6 @@ export function CalculosViajeModal({
       const terminalOrigen = oferta?.terminalOrigen ?? null;
       const terminalDestino = oferta?.terminalDestino ?? null;
       const transporteLargo = oferta?.modo === 'bus' || oferta?.modo === 'avion';
-      // Chips del tramo: lo que el revisor necesita ver sin abrir nada.
       const kmTramo = resultados[indice]?.resultados[0]?.rutaArmada.totales.km;
       const chipsTramo = [
         kmTramo != null ? `${kmTramo.toLocaleString('es-MX', { maximumFractionDigits: 1 })} km` : '',
@@ -935,16 +872,11 @@ export function CalculosViajeModal({
         tramo.desde.fecha && tramo.desde.hora ? `Salida ${horaAmPm(tramo.desde.hora) ?? tramo.desde.hora}` : '',
         tramo.hasta.fecha && tramo.hasta.hora ? `Llegada ${horaAmPm(tramo.hasta.hora) ?? tramo.hasta.hora}` : '',
       ].filter((chip) => chip !== '');
-      // El taxi total de la oferta cubre las dos puntas: se reparte a la mitad
-      // para no prometer un minuto exacto en cada tramo.
       const minutosTaxiPunta = oferta?.minutosTaxi && oferta.minutosTaxi > 0
         ? Math.max(1, Math.round(oferta.minutosTaxi / 2))
         : null;
 
       if (oferta && transporteLargo) {
-        // Cadena del viaje largo: taxi a la terminal, vuelo/autobús y taxi al
-        // punto. Si alguna terminal no está en el catálogo se usa el punto
-        // capturado como extremo, para no dejar el tramo sin dibujar.
         const tOrigen = coordsTerminal(terminalOrigen);
         const tDestino = coordsTerminal(terminalDestino);
         if (tOrigen) {
@@ -978,7 +910,6 @@ export function CalculosViajeModal({
           importesDestino,
         );
       } else {
-        // Sin terminal: auto propio, renta o taxi de punta a punta.
         const fuente = conHotel ? hotelResultados[indice] : resultados[indice];
         const grafica = (fuente?.resultados[0]?.rutaArmada.tramos ?? [])
           .flatMap((t) => (t.grafica ?? []).map((p) => [p[0], p[1]] as [number, number]));
@@ -999,8 +930,7 @@ export function CalculosViajeModal({
     return { puntos, segmentos, nodos };
   }, [tramos, resultados, hotelResultados, hotelElegidoDeTramo, hotelRutas, seleccion, seleccionLocal, esCarro]);
 
-
-  useEffect(() => {
+useEffect(() => {
     if (!buscandoEste && buscando !== -1) {
       setProgreso(0);
       return;
@@ -1069,7 +999,6 @@ export function CalculosViajeModal({
     }
     const sesion = sesionRef.current;
     setBuscando(-1);
-    // Invalida cualquier recálculo de ruta anterior de este tramo.
     hotelRutaSeqRef.current[indice] = (hotelRutaSeqRef.current[indice] ?? 0) + 1;
     setBuscandoRutaHotel((actual) => (actual === indice ? null : actual));
     setHotelRutas((r) => {
@@ -1098,11 +1027,6 @@ export function CalculosViajeModal({
     }
   }
 
-  /**
-   * Elige el hotel y, en transporte solicitado, recalcula la cadena con sus
-   * coordenadas reales. El resultado trae el tramo largo (hotel ↔ terminal) y
-   * el local (hotel ↔ hospital), que antes se descartaban.
-   */
   async function elegirHotel(indice: number, hotel: CostosRutaHotel) {
     const tramoHotel = tramos[indice];
     if (!solicitud || !tramoHotel) return;
@@ -1121,8 +1045,6 @@ export function CalculosViajeModal({
     const seq = (hotelRutaSeqRef.current[indice] ?? 0) + 1;
     hotelRutaSeqRef.current[indice] = seq;
     setBuscandoRutaHotel(indice);
-    // Mientras llega la ruta nueva, no se muestra la cadena anterior con otro
-    // hotel: mejor el aviso de cálculo que un mapa que no corresponde.
     setHotelRutas((r) => {
       const copia = { ...r };
       delete copia[indice];
@@ -1138,8 +1060,6 @@ export function CalculosViajeModal({
       const respuesta = res.data.data;
       const persona = respuesta.resultados[0];
       const opcionesLargas = persona?.tramos[posicion === 'antes' ? 0 : 1]?.opciones ?? [];
-      // Se conserva el modo/linea que el viajero ya había elegido en el tramo
-      // directo; si no existe, se toma la primera oferta viable.
       const anterior = resultados[indice]?.resultados[0]?.tramos
         .flatMap((t) => t.opciones)
         .find((oferta) => oferta.id === seleccion[indice]);
@@ -1186,9 +1106,6 @@ export function CalculosViajeModal({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, solicitud, tramo, paso, resultadoActual, usarHotelDelPaso, hotelDelPaso, buscando]);
 
-  // Hotel activo por defecto: en cuanto llega el catálogo se elige el primer
-  // hotel real con coordenadas (el orden ya deja la referencia al final), para
-  // que la solicitud no salga con hospedaje activo pero sin costo.
   useEffect(() => {
     if (!open || esCarro || !usarHotelDelPaso || hotelElegidoDelPaso) return;
     if (!hotelDelPaso || buscando !== null || buscandoRutaHotel !== null) return;
@@ -1200,11 +1117,6 @@ export function CalculosViajeModal({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, esCarro, usarHotelDelPaso, hotelElegidoDelPaso, hotelDelPaso, hotelesDelPaso, buscando, buscandoRutaHotel, paso]);
 
-  /**
-   * Vista previa al seleccionar una opción: no bloquea el guardado. Si tarda
-   * más de 30 s se avisa, y a los 75 s el backend/axios corta y se deja el
-   * estimado para que la cola lo confirme después de guardar.
-   */
   async function detectarPrecioOferta(indice: number, oferta: CostosRutaOferta) {
     if (!solicitud) return;
     const tipo = oferta.modo === 'avion' ? 'vuelo' : oferta.modo === 'bus' ? 'autobus' : null;
@@ -1286,7 +1198,6 @@ export function CalculosViajeModal({
     }
   }
 
-  /** Cambia el precio de la oferta en todos los tramos que la contengan. */
   function aplicarPrecioDetectado(
     oferta: CostosRutaOferta,
     detectado: PrecioDetectadoDto,
@@ -1443,11 +1354,6 @@ export function CalculosViajeModal({
     return resultados[indice]?.resultados[0]?.tramos.flatMap((tramo) => tramo.opciones) ?? [];
   }
 
-  /**
-   * Convierte una opción real de Kayak en la misma forma que usa el motor.
-   * Conserva terminales y taxis de la oferta base; el precio y los horarios
-   * son los detectados.
-   */
   function mapearVueloReal(
     detectado: PrecioDetectadoDto,
     base: CostosRutaOferta,
@@ -1568,10 +1474,6 @@ export function CalculosViajeModal({
     ));
   }
 
-  /**
-   * Pide a Kayak la lista real de vuelos del tramo. Una sola consulta por
-   * tramo; el tab de avión muestra "Confirmando…" hasta que llega.
-   */
   async function cargarVuelosReales(indice: number) {
     if (!solicitud || vuelosCargadosRef.current.has(indice) || cargandoVuelos[indice]) return;
     const tramoActual = tramos[indice];
@@ -1620,9 +1522,6 @@ export function CalculosViajeModal({
 
       const resultado = data.data;
       const realesDto = (resultado?.opciones ?? []).filter((opcion) => !opcion.patrocinado);
-      // Aunque no haya un vuelo "elegido" a tiempo, la consulta puede traer
-      // opciones reales (tarde). Se muestran para que el usuario decida; solo
-      // se exige que haya captura de evidencia.
       if (!data.success || realesDto.length === 0) {
         const motivo = resultado?.motivo
           ?? data.message
@@ -1672,8 +1571,6 @@ export function CalculosViajeModal({
   async function enviar() {
     if (!solicitudActiva || !resultadoActual) return;
 
-    // Si una vista previa sigue en curso, se cancela: el guardado no espera y
-    // la cola del backend confirmará el precio de la opción persistida.
     abortPrecioRef.current?.abort();
     abortHotelRef.current?.abort();
     abortVuelosRef.current?.abort();
@@ -1739,9 +1636,6 @@ export function CalculosViajeModal({
       seleccionLocal,
     );
     const calculoBase = construirCalculo(tramos, resultados, modoCalculo, seleccion);
-    // Una sola versión coherente: el cálculo usa las mismas selecciones que
-    // las opciones y el resumen, y conserva costo/enlace en la ruta. En carro
-    // se conserva el cálculo anterior; la cadena con hotel es para bus/avión.
     const calculo: CalculoViaje = {
       ...(esCarro ? calculoBase : aplicarHotelesAlCalculo(calculoBase, hotelRutas, seleccion, seleccionLocal)),
       ruta: {
@@ -1774,8 +1668,6 @@ export function CalculosViajeModal({
     );
 
     if (modo === 'autorizar') {
-      // El concentrado registra la autorización con esta propuesta; aquí no se
-      // toca la solicitud del servidor.
       onPropuesta?.({ calculo, opciones, resumen });
       onOpenChange(false);
       return;
@@ -1783,10 +1675,6 @@ export function CalculosViajeModal({
 
     setEnviando(true);
     try {
-      // La ruta calculada se guarda con la solicitud: es la que manda después
-      // del envío (la propuesta del wizard queda como referencia). Se incluye
-      // la cadena revisada (terminales, hoteles y taxis) para que el detalle
-      // pueda mostrar la evolución sin recalcular.
       const res = opciones.length > 0
         ? await solicitudesApi.guardarOpciones(solicitudActiva.id_solicitud, opciones, calculo)
         : await solicitudesApi.enviar(solicitudActiva.id_solicitud, calculo);
@@ -1795,8 +1683,6 @@ export function CalculosViajeModal({
         return;
       }
       toast.success('Solicitud enviada a concentrado.');
-      // Best-effort: captura las opciones elegidas sin retrasar el cierre del
-      // modal. Si falla, el detalle conserva "Generar capturas" para reintentar.
       generarCapturasEnSegundoPlano(solicitudActiva.id_solicitud);
       onEnviado(solicitudActiva.id_solicitud);
       onOpenChange(false);

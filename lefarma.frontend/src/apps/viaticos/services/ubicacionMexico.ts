@@ -1,10 +1,3 @@
-/**
- * Candado geográfico de los mapas de viáticos: solo se permiten puntos dentro
- * de México. Contorno de Natural Earth 1:10m simplificado (~500 m): incluye
- * costas, islas y el trazo real de las fronteras, sin depender de la red.
- */
-
-/** Polígonos de México: [anillo exterior, ...huecos] en [longitud, latitud]. */
 const POLIGONOS_MEXICO: ReadonlyArray<ReadonlyArray<ReadonlyArray<readonly [number, number]>>> = [
   [
     [
@@ -3695,7 +3688,6 @@ function enAnillo(latitud: number, longitud: number, anillo: ReadonlyArray<reado
   return dentro;
 }
 
-/** true si el punto cae dentro del territorio de México. */
 export function dentroDeMexico(latitud: number, longitud: number): boolean {
   if (!Number.isFinite(latitud) || !Number.isFinite(longitud)) return false;
   if (latitud < LIMITES.minLat || latitud > LIMITES.maxLat

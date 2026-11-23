@@ -77,10 +77,6 @@ function destinoVacio(indice: number): DestinoV2 {
   };
 }
 
-/**
- * Reconstruye el estado del wizard desde el snapshot `datos` de un borrador.
- * Devuelve `null` si el documento no es `solicitud-v2`.
- */
 export function hidratarSolicitud(datos: unknown): BorradorHidratado | null {
   const d = comoObjeto(datos);
   if (!d || d.version !== 'solicitud-v2') return null;

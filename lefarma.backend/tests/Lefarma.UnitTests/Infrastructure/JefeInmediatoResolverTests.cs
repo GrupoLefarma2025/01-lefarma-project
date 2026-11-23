@@ -32,7 +32,6 @@ public class JefeInmediatoResolverTests
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
-            // La vista real es keyless; para pruebas InMemory necesitamos una clave.
             modelBuilder.Ignore<VwEmpleadoYJefe>();
             modelBuilder.Entity<VwEmpleadoYJefe>().HasKey(e => e.Nomina);
         }
@@ -40,7 +39,6 @@ public class JefeInmediatoResolverTests
 
     private static void SembrarCadena(AsistenciasDbContext ctx)
     {
-        // Cadena aplanada: 100 -> 200 -> 300 -> 1 (director general)
         ctx.VwEmpleadosYJefes.Add(new VwEmpleadoYJefe
         { Nomina = 100, NominaJefe = 200, NominaJefe2 = 300, NominaJefe3 = 1 });
         ctx.SaveChanges();
@@ -52,11 +50,11 @@ public class JefeInmediatoResolverTests
         mock.Setup(r => r.ResolverNominaPorUsuarioAsync(55, It.IsAny<CancellationToken>()))
             .ReturnsAsync((long?)100);
         mock.Setup(r => r.ResolverIdUsuarioPorNominaAsync(200, It.IsAny<CancellationToken>()))
-            .ReturnsAsync((int?)77);   // jefe nivel 1 -> usuario 77
+            .ReturnsAsync((int?)77);   
         mock.Setup(r => r.ResolverIdUsuarioPorNominaAsync(300, It.IsAny<CancellationToken>()))
-            .ReturnsAsync((int?)88);   // jefe nivel 2 -> usuario 88
+            .ReturnsAsync((int?)88);   
         mock.Setup(r => r.ResolverIdUsuarioPorNominaAsync(1, It.IsAny<CancellationToken>()))
-            .ReturnsAsync((int?)99);   // nómina 1 (director) -> usuario 99
+            .ReturnsAsync((int?)99);   
         return mock;
     }
 
@@ -99,7 +97,7 @@ public class JefeInmediatoResolverTests
     public async Task Columna_Sin_Valor_Motivo_CadenaRota()
     {
         var asistencias = CreateAsistenciasContext();
-        SembrarCadena(asistencias); // niveles 4 y 5 son NULL en la fila sembrada
+        SembrarCadena(asistencias); 
         var app = ActivarNivel(55, 4);
         var resolver = new JefeInmediatoResolver(asistencias, app, CrearRepoEmpleadoMock().Object);
 
@@ -113,7 +111,6 @@ public class JefeInmediatoResolverTests
     public async Task Jefe_Sin_Usuario_Motivo_SinUsuario()
     {
         var asistencias = CreateAsistenciasContext();
-        // nómina 400 existe como jefe pero el mock no la resuelve a usuario
         asistencias.VwEmpleadosYJefes.Add(new VwEmpleadoYJefe { Nomina = 100, NominaJefe = 400 });
         asistencias.SaveChanges();
 
@@ -131,7 +128,6 @@ public class JefeInmediatoResolverTests
         var asistencias = CreateAsistenciasContext();
         SembrarCadena(asistencias);
         var app = ActivarNivel(55, 3);
-        // vetamos al usuario 99 (el director general de la cadena) en el workflow 1
         app.WorkflowJefesExcluidos.Add(new WorkflowJefeExcluido
         { IdWorkflow = 1, IdUsuarioJefe = 99, Activo = true });
         app.SaveChanges();
@@ -157,7 +153,7 @@ public class JefeInmediatoResolverTests
 
         var resultado = await resolver.ResolverJefeEfectivoAsync(idWorkflow: 2, idUsuarioCreador: 55, nivel: 3);
 
-        resultado.IdUsuario.Should().Be(99); // workflow 2 no tiene exclusiones
+        resultado.IdUsuario.Should().Be(99); 
     }
 
     [Fact]
@@ -183,7 +179,7 @@ public class JefeInmediatoResolverTests
 
         (await resolver.AplicaNivelJefeAsync(55, 1)).Should().BeTrue();
         (await resolver.AplicaNivelJefeAsync(55, 2)).Should().BeFalse();
-        (await resolver.AplicaNivelJefeAsync(55, 3)).Should().BeFalse(); // nivel sin fila = false
+        (await resolver.AplicaNivelJefeAsync(55, 3)).Should().BeFalse(); 
     }
 
     [Fact]
@@ -193,7 +189,6 @@ public class JefeInmediatoResolverTests
         SembrarCadena(asistencias);
         var resolver = new JefeInmediatoResolver(asistencias, CreateAppContext(), CrearRepoEmpleadoMock().Object);
 
-        // sin config: todos los niveles de la cadena aplican
         var resultado = await resolver.ResolverJefeEfectivoAsync(1, 55, 2);
 
         resultado.IdUsuario.Should().Be(88);
@@ -204,7 +199,7 @@ public class JefeInmediatoResolverTests
     public async Task Sin_Config_Columna_Sin_Valor_Motivo_CadenaRota()
     {
         var asistencias = CreateAsistenciasContext();
-        SembrarCadena(asistencias); // niveles 4 y 5 son NULL en la fila sembrada
+        SembrarCadena(asistencias); 
         var resolver = new JefeInmediatoResolver(asistencias, CreateAppContext(), CrearRepoEmpleadoMock().Object);
 
         var resultado = await resolver.ResolverJefeEfectivoAsync(1, 55, 4);
@@ -219,7 +214,6 @@ public class JefeInmediatoResolverTests
         var asistencias = CreateAsistenciasContext();
         SembrarCadena(asistencias);
         var app = CreateAppContext();
-        // vetamos al usuario 88 (jefe de nivel 2) en el workflow 1
         app.WorkflowJefesExcluidos.Add(new WorkflowJefeExcluido
         { IdWorkflow = 1, IdUsuarioJefe = 88, Activo = true });
         app.SaveChanges();

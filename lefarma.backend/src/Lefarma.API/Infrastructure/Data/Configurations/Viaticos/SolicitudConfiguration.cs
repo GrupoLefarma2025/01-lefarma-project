@@ -4,15 +4,6 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace Lefarma.API.Infrastructure.Data.Configurations.Viaticos;
 
-/// <summary>
-/// Mapeo Fluent API para las tablas del wizard de viáticos
-/// ([viaticos].[solicitudes], [viaticos].[solicitud_opciones],
-/// [viaticos].[solicitud_ajustes], [viaticos].[solicitud_eventos]).
-///
-/// Refleja el script 0003_20261007-0000_viaticos_schema-solicitudes.lefarma.sql
-/// (snake_case + tipos). La regla "autorizada_con_ajustes requiere >=1
-/// ajuste" la valida el backend, no la BD.
-/// </summary>
 public class SolicitudConfiguration : IEntityTypeConfiguration<Solicitud>
 {
     public void Configure(EntityTypeBuilder<Solicitud> builder)

@@ -52,7 +52,6 @@ export function FirmaUploadCard() {
       if (response.data.success && response.data.data) {
         const detalle = response.data.data.detalle;
         const firmaCifrada = detalle?.firmaPathCifrada ?? null;
-        // La firma ya no es una URL pública: se descarga como blob autenticado.
         if (firmaPreviewUrl) URL.revokeObjectURL(firmaPreviewUrl);
         setFirmaPreviewUrl(firmaCifrada ? await fetchFirmaObjectUrl(firmasEndpoints.miFirma) : null);
         setFirmaSubidas(detalle?.firmaSubidas ?? 0);
@@ -62,7 +61,6 @@ export function FirmaUploadCard() {
         setFechaSolicitudCambio(detalle?.fechaSolicitudCambioFirma ?? null);
       }
     } catch {
-      // Silent: the page must render even if the profile fetch fails
     }
   };
 
@@ -70,7 +68,6 @@ export function FirmaUploadCard() {
     fetchFirmaPreview();
   }, []);
 
-  // Liberar los object URL pendientes al desmontar (evitar fugas).
   useEffect(() => {
     return () => {
       if (firmaPreviewUrl) URL.revokeObjectURL(firmaPreviewUrl);
@@ -93,7 +90,6 @@ export function FirmaUploadCard() {
       return;
     }
 
-    // Abrir dialog de cropper
     setSelectedFile(file);
     setCropDialogOpen(true);
     if (fileInputRef.current) fileInputRef.current.value = '';
@@ -132,8 +128,6 @@ export function FirmaUploadCard() {
     }
   };
 
-  // Paso de doble validación: tras el recorte o el dibujo, la firma queda pendiente
-  // y se muestra en el dialog de confirmación antes de guardarla.
   const prepararConfirmacion = (file: File) => {
     if (pendingFirmaUrl) URL.revokeObjectURL(pendingFirmaUrl);
     setPendingFirmaFile(file);
@@ -176,7 +170,6 @@ export function FirmaUploadCard() {
     setInePreviewUrl(URL.createObjectURL(file));
   };
 
-  // Volver (o X/Esc): cierra solo el confirm; el recorte/pad queda abierto con lo editado.
   const handleConfirmOpenChange = (open: boolean) => {
     setConfirmDialogOpen(open);
     if (!open) descartarPendiente();
@@ -191,7 +184,7 @@ export function FirmaUploadCard() {
     }
 
     const ok = await uploadFirma(pendingFirmaFile, ineFile);
-    if (!ok) return; // El dialog queda abierto para reintentar.
+    if (!ok) return; 
 
     setConfirmDialogOpen(false);
     setCropDialogOpen(false);
@@ -203,7 +196,6 @@ export function FirmaUploadCard() {
   const handleCropComplete = async (croppedImageUrl: string) => {
     if (!selectedFile) return;
 
-    // No cerrar el recorte: al "Volver" del confirm el usuario sigue editándolo.
     const response = await fetch(croppedImageUrl);
     const blob = await response.blob();
     const croppedFile = new File([blob], selectedFile.name, {
@@ -214,8 +206,6 @@ export function FirmaUploadCard() {
     prepararConfirmacion(croppedFile);
   };
 
-  // Regla: solo la subida inicial es libre. Una vez registrada (firmaSubidas >= 1),
-  // cualquier reemplazo requiere que RH haya habilitado el cambio (un solo uso).
   const firmaBloqueada = hasFirma && firmaSubidas >= 1 && !firmaCambioHabilitado;
   const firmaHabilitadaRh = hasFirma && firmaCambioHabilitado;
 
@@ -238,7 +228,7 @@ export function FirmaUploadCard() {
 
   return (
     <>
-      {/* Firma Digital */}
+      {}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -374,7 +364,7 @@ export function FirmaUploadCard() {
         </CardContent>
       </Card>
 
-      {/* Dialog de elección: subir imagen o dibujar firma */}
+      {}
       <Dialog open={choiceDialogOpen} onOpenChange={setChoiceDialogOpen}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
@@ -419,7 +409,7 @@ export function FirmaUploadCard() {
         </DialogContent>
       </Dialog>
 
-      {/* Dialog de Signature Pad */}
+      {}
       <SignaturePadDialog
         open={padDialogOpen}
         onOpenChange={setPadDialogOpen}
@@ -427,7 +417,7 @@ export function FirmaUploadCard() {
         onSave={(file) => prepararConfirmacion(file)}
       />
 
-      {/* Dialog de confirmación final: doble validación con vista previa antes de guardar */}
+      {}
       <Dialog open={confirmDialogOpen} onOpenChange={handleConfirmOpenChange}>
         <DialogContent className="flex max-w-sm flex-col gap-0 overflow-y-auto p-0">
           <DialogHeader className="sticky top-0 z-10 shrink-0 border-b bg-background px-6 py-4">
@@ -532,7 +522,7 @@ export function FirmaUploadCard() {
         </DialogContent>
       </Dialog>
 
-      {/* Dialog de Cropper para Firma */}
+      {}
       <Dialog open={cropDialogOpen} onOpenChange={setCropDialogOpen}>
         <DialogContent className="max-w-3xl overflow-hidden">
           <DialogHeader className="shrink-0">

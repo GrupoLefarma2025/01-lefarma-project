@@ -54,7 +54,7 @@ public class CreateProveedorDetalleRequest
 
 public class CreateProveedorFormaPagoCuentaRequest
 {
-    public int IdCuenta { get; set; }  // 0 = nueva cuenta, >0 = cuenta existente
+    public int IdCuenta { get; set; }  
     public int IdFormaPago { get; set; }
     public int? IdBanco { get; set; }
     public string? NumeroCuenta { get; set; }
@@ -64,10 +64,6 @@ public class CreateProveedorFormaPagoCuentaRequest
     public string? CorreoNotificacion { get; set; }
     public bool Activo { get; set; } = true;
 
-    /// <summary>
-    /// Ruta relativa de la carátula asociada a esta cuenta (cuando la carátula viaja
-    /// dentro de un edit normal). El frontend sube el archivo antes y manda la ruta aquí.
-    /// </summary>
     public string? CaratulaUrl { get; set; }
 }
 
@@ -191,9 +187,6 @@ public class StagingProveedorFormaPagoCuentaResponse
     public string? CaratulaUrl { get; set; }
 }
 
-/// <summary>
-/// Carátula de una cuenta bancaria, para el modal "Ver carátulas" del listado.
-/// </summary>
 public class CaratulaCuentaResponse
 {
     public int CuentaId { get; set; }
@@ -269,10 +262,6 @@ public static class BulkUploadColumns
         RazonSocial
     };
 
-    /// <summary>
-    /// Cleans header text by stripping " (requerido)" / " (opcional)" suffixes
-    /// so user-friendly plantilla headers map back to the canonical column names.
-    /// </summary>
     public static string NormalizeHeader(string raw)
     {
         if (string.IsNullOrWhiteSpace(raw)) return string.Empty;

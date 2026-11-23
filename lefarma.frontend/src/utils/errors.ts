@@ -9,10 +9,6 @@ function isApiError(value: unknown): value is ApiError {
   );
 }
 
-/**
- * Estrecha un error desconocido de un catch-clause a ApiError.
- * Recurre a un ApiError sintético cuando el valor no coincide con la forma esperada.
- */
 export function toApiError(error: unknown): ApiError {
   if (isApiError(error)) return error;
   if (error instanceof Error) {

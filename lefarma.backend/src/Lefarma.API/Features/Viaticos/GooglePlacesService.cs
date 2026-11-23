@@ -5,7 +5,6 @@ using Microsoft.Extensions.Caching.Memory;
 
 namespace Lefarma.API.Features.Viaticos;
 
-/// <summary>Hotel devuelto por una búsqueda (Google Places u OpenStreetMap).</summary>
 public record HotelCercano(
     string Nombre,
     double DistKm,
@@ -17,20 +16,10 @@ public record HotelCercano(
     double Latitud = 0,
     double Longitud = 0);
 
-/// <summary>
-/// Búsqueda de hoteles en Google Places (Text Search) para que la lista sea de
-/// hoteles locales reales. La configuración (habilitada, llave y radio) vive en
-/// la tabla <c>viaticos.config_parametros</c>; sin llave el motor sigue con
-/// OpenStreetMap.
-/// </summary>
 public static class GooglePlacesService
 {
     private const string Endpoint = "https://places.googleapis.com/v1/places:searchText";
 
-    /// <summary>
-    /// Hoteles alrededor de un punto. Devuelve null si no hay llave o la API no
-    /// responde, para que el motor caiga a OpenStreetMap.
-    /// </summary>
     public static async Task<List<HotelCercano>?> BuscarHotelesAsync(
         HttpClient http, IMemoryCache cache, double lat, double lon, CancellationToken ct)
     {

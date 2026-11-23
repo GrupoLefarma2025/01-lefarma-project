@@ -9,12 +9,6 @@ using Xunit;
 
 namespace Lefarma.UnitTests.Features.EducacionMedica;
 
-/// <summary>
-/// Regresion del filtro TieneCoordenadas (aplicado en HospitalRepository, SQL-side).
-/// Coordenadas validas = latitud/longitud no nulas y no ambas en 0 (0/0 es dato basura).
-/// Lo consumen el catalogo (pantalla Hospitales / Seleccion "Agregar hospital") y el
-/// ranking de sugerencias (solo hospitales ubicables en el mapa).
-/// </summary>
 public class HospitalRepositoryCoordenadasTests
 {
     private static AsokamDbContext CrearContextoConHospitales()

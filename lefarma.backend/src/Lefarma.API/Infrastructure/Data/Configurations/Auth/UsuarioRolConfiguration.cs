@@ -13,7 +13,6 @@ public class UsuarioRolConfiguration : IEntityTypeConfiguration<UsuarioRol>
             builder.Property(e => e.IdUsuarioRol)
                 .ValueGeneratedOnAdd();
 
-            // Explicitly map FK column names to match database
             builder.Property(e => e.IdUsuario).HasColumnName("IdUsuario");
             builder.Property(e => e.IdRol).HasColumnName("IdRol");
 

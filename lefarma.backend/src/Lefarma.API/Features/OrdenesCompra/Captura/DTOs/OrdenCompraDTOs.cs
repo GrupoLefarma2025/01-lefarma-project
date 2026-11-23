@@ -3,7 +3,6 @@ using Lefarma.API.Domain.Entities.Operaciones;
 namespace Lefarma.API.Features.OrdenesCompra.Captura.DTOs
 {
 
-    /// <summary>Cuenta de pago capturada por el tesorero (clave cuentaPagoTesorero del documento JSON).</summary>
     public class CuentaPagoTesoreroResponse
     {
         public int? IdFormaPago { get; set; }
@@ -14,7 +13,6 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura.DTOs
         public string? Clabe { get; set; }
     }
 
-    /// <summary>Entrada de la bitácora de pagos (clave historial del documento JSON).</summary>
     public class HistorialOrdenItemResponse
     {
         public DateTime Fecha { get; set; }
@@ -54,13 +52,10 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura.DTOs
         public int IdUsuarioCreador { get; set; }
         public string? SolicitanteNombre { get; set; }
         public string? SolicitantePuesto { get; set; }
-        /// <summary>Área (departamento) del solicitante según Asistencias.dbo.vwEmpleados.</summary>
         public string? SolicitanteArea { get; set; }
         public string? SolicitanteCorreo { get; set; }
         public string? SegundoAutorizador { get; set; }
-        /// <summary>Puesto del segundo autorizador según Asistencias.dbo.vwEmpleados.</summary>
         public string? SegundoAutorizadorPuesto { get; set; }
-        /// <summary>Área (departamento) del segundo autorizador según Asistencias.dbo.vwEmpleados.</summary>
         public string? SegundoAutorizadorArea { get; set; }
         public bool SinDatosFiscales { get; set; }
         public string? NotaFormaPago { get; set; }
@@ -160,7 +155,6 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura.DTOs
 
     public class CreatePartidaRequest
     {
-        // null/0 = partida nueva; >0 = partida existente a actualizar
         public int? IdPartida { get; set; }
         public required string Descripcion { get; set; }
         public required decimal Cantidad { get; set; }
@@ -179,10 +173,6 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura.DTOs
         public string? TipoComprobante { get; set; }
     }
 
-    /// <summary>
-    /// Representa el JSON almacenado en la columna ids_cuentas_bancarias de la tabla ordenes_compra.
-    /// Formato: {"ids_cuentas_bancarias":[1,2], "ids_forma_pago":[1,2,3], "numero_mensualidades":3}
-    /// </summary>
     public class CuentasBancariasYFormasPago
     {
         public List<int> IdsCuentasBancarias { get; set; } = new();

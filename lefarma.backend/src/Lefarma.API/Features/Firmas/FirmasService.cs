@@ -18,12 +18,6 @@ using System.Text.RegularExpressions;
 
 namespace Lefarma.API.Features.Firmas;
 
-/// <summary>
-/// Gestión de firmas digitales de usuarios por parte de RH:
-/// listado con estado, habilitación de cambio (un solo uso) y
-/// comprobación (aprobación/rechazo) de firmas remitidas con INE.
-/// El estado se deriva del historial de eventos JSON (firma_control).
-/// </summary>
 public class FirmasService : BaseService, IFirmasService
 {
     private readonly AsokamDbContext _asokamContext;
@@ -55,12 +49,10 @@ public class FirmasService : BaseService, IFirmasService
     private string FirmasDir => Path.Combine(_archivosSettings.Value.PrivatePath, "firmas");
     private string IneDir => Path.Combine(_archivosSettings.Value.PrivatePath, "ine");
 
-    // Nombre lógico válido: "firmas|ine/{userId}_{yyyyMMddHHmmss}.{ext}" (sin traversal).
     private static readonly Regex LogicalNameRegex = new(
         @"^(?<dir>firmas|ine)/(?<file>\d+_\d{14}\.(?:png|jpg|jpeg|pdf))$",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
-    // Firma legacy CxP: "firmas_usuarios/{archivo}.{png|jpg|jpeg}" (sin traversal).
     private static readonly Regex LegacyFirmaRegex = new(
         @"^firmas_usuarios/(?<file>[A-Za-z0-9_-]+\.(?:png|jpg|jpeg))$",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
@@ -100,7 +92,6 @@ public class FirmasService : BaseService, IFirmasService
         return parts != null && File.Exists(Path.Combine(parts.Value.Directorio, parts.Value.Archivo + ".enc"));
     }
 
-    /// <summary>Elimina la firma candidata de una remisión (cifrada).</summary>
     private void EliminarFirmaCandidata(string? firmaPendiente)
     {
         var parts = SplitLogical(firmaPendiente, "firmas");
@@ -108,7 +99,6 @@ public class FirmasService : BaseService, IFirmasService
             _cipher.DeleteEncrypted(parts.Value.Directorio, parts.Value.Archivo);
     }
 
-    /// <summary>Elimina la foto de INE de una remisión (cifrada).</summary>
     private void EliminarIne(string? ine)
     {
         var parts = SplitLogical(ine, "ine");
@@ -120,8 +110,6 @@ public class FirmasService : BaseService, IFirmasService
     {
         try
         {
-            // Detalles (Lefarma) de usuarios con firma cifrada o con historial
-            // (el historial basta para que aparezcan remisiones de primera firma).
             var detalles = await _appContext.UsuariosDetalle
                 .AsNoTracking()
                 .Where(d => (d.FirmaPathCifrada != null && d.FirmaPathCifrada != "")
@@ -131,7 +119,6 @@ public class FirmasService : BaseService, IFirmasService
             if (detalles.Count == 0)
                 return new List<FirmaUsuarioResponse>();
 
-            // Estado derivado del historial JSON por usuario.
             var controles = detalles.ToDictionary(d => d.IdUsuario, d => FirmaControl.Parse(d.FirmaControlJson));
 
             var ids = detalles.Select(d => d.IdUsuario).ToList();
@@ -143,7 +130,6 @@ public class FirmasService : BaseService, IFirmasService
                 .Distinct()
                 .ToList();
 
-            // Nombres (Asokam) y áreas (Lefarma) en consultas separadas; se cruzan en memoria.
             var usuarios = await _asokamContext.Usuarios
                 .AsNoTracking()
                 .Where(u => ids.Contains(u.IdUsuario))
@@ -197,8 +183,6 @@ public class FirmasService : BaseService, IFirmasService
                     FechaHabilitoFirma = ultimaHabilitacion?.Fecha,
                 };
             })
-            // Primero las firmas en comprobación y luego quienes solicitaron cambio:
-            // son los pendientes de atender.
             .OrderByDescending(r => r.EnComprobacion)
             .ThenByDescending(r => r.FirmaCambioSolicitado)
             .ThenBy(r => r.NombreCompleto)
@@ -279,8 +263,6 @@ public class FirmasService : BaseService, IFirmasService
             if (control.CambioHabilitado)
                 return CommonErrors.Validation("Firma.CambioYaHabilitado", "Este usuario ya tiene un cambio de firma habilitado.");
 
-            // Un evento "habilitacion" habilita el cambio (un solo uso) y, si existía,
-            // atiende la solicitud pendiente (el estado se deriva del último evento).
             control.AgregarHabilitacion(idUsuarioRh, DateTime.Now);
             detalle.FirmaControlJson = control.Serialize();
             detalle.FechaModificacion = DateTime.Now;
@@ -322,12 +304,8 @@ public class FirmasService : BaseService, IFirmasService
                 return CommonErrors.Validation("Firma.RemisionIncompleta",
                     "La remisión no tiene firma pendiente registrada.");
 
-            // La candidata ya vive cifrada en firmas/; aprobar solo mueve el puntero.
-            // No se borra nada: la firma vigente anterior queda como versión autorizada
-            // y la foto del INE queda como evidencia (retención de versiones autorizadas).
             var ahora = DateTime.Now;
             control.AgregarAprobacion(idUsuarioRh, ahora, remision.FirmaPendiente, remision.Ine);
-            // La aprobación va acompañada de "subida" para mantener el conteo y el bloqueo vigente.
             control.AgregarSubida(idUsuario, ahora);
             detalle.FirmaControlJson = control.Serialize();
             detalle.FirmaPathCifrada = remision.FirmaPendiente;
@@ -372,9 +350,6 @@ public class FirmasService : BaseService, IFirmasService
 
             var remision = control.UltimaRemision!;
 
-            // Rechazo: se eliminan la firma candidata y la foto del INE (la vigente no se toca).
-            // El evento de remisión queda en el historial como registro del proceso,
-            // aunque sus nombres de archivo apunten a archivos ya eliminados.
             EliminarFirmaCandidata(remision.FirmaPendiente);
             EliminarIne(remision.Ine);
 
@@ -410,7 +385,6 @@ public class FirmasService : BaseService, IFirmasService
 
             var control = FirmaControl.Parse(firmaControlJson);
 
-            // Pares remisión/aprobación que tienen INE asociada (nombre lógico o legacy).
             var candidatos = control.Eventos
                 .Select(e => new { e.Fecha, IneRef = e.Accion == FirmaAccion.Remision ? e.Ine : e.Accion == FirmaAccion.Aprobacion ? e.IneArchivo : null })
                 .Where(x => !string.IsNullOrWhiteSpace(x.IneRef))
@@ -423,7 +397,6 @@ public class FirmasService : BaseService, IFirmasService
             }
             else
             {
-                // ?archivo= solo sirve versiones referenciadas en el historial (anti-enumeración).
                 ineRef = candidatos
                     .FirstOrDefault(x => string.Equals(x.IneRef, archivo, StringComparison.OrdinalIgnoreCase))?.IneRef;
             }
@@ -462,7 +435,6 @@ public class FirmasService : BaseService, IFirmasService
         }
     }
 
-    /// <summary>Firma candidata en comprobación (para el modal de comprobación de RH).</summary>
     public async Task<ErrorOr<ArchivoProtegidoResponse>> GetFirmaPendienteAsync(int idUsuario, CancellationToken cancellationToken = default)
     {
         try
@@ -490,10 +462,6 @@ public class FirmasService : BaseService, IFirmasService
         }
     }
 
-    /// <summary>
-    /// Firma vigente del usuario en el sistema RH: solo el puntero firma_path_cifrada.
-    /// Sin puntero → NotFound (los usuarios legacy se tratan como nuevos).
-    /// </summary>
     public async Task<ErrorOr<ArchivoProtegidoResponse>> GetFirmaVigenteAsync(int idUsuario, CancellationToken cancellationToken = default)
     {
         try
@@ -513,10 +481,6 @@ public class FirmasService : BaseService, IFirmasService
         }
     }
 
-    /// <summary>
-    /// Firma vigente para el concentrado de órdenes. Prefiere la firma cifrada
-    /// de RH; si no existe o no se puede leer, usa la firma legacy de CxP.
-    /// </summary>
     public async Task<ErrorOr<ArchivoProtegidoResponse>> GetFirmaVigenteConLegacyAsync(
         int idUsuario, CancellationToken cancellationToken = default)
     {
@@ -553,12 +517,6 @@ public class FirmasService : BaseService, IFirmasService
         }
     }
 
-    /// <summary>
-    /// Firma usada en un evento de la bitácora del workflow. Autorización estricta:
-    /// solo quien puede ver el documento del evento (SP/OC). Si el evento no tiene
-    /// firmaArchivo capturado (documentos anteriores a la captura), se sirve la
-    /// firma vigente actual del actor (fallback).
-    /// </summary>
     public async Task<ErrorOr<ArchivoProtegidoResponse>> GetFirmaBitacoraAsync(
         int idEvento, int idUsuarioActual, IReadOnlyCollection<string> permisos, CancellationToken cancellationToken = default)
     {
@@ -588,8 +546,6 @@ public class FirmasService : BaseService, IFirmasService
                     "No tiene permiso para ver las firmas de este documento.");
             }
 
-            // Preferir la firma capturada en el evento (Fase 2); si no, la vigente del actor.
-            // OC también puede referenciar la firma legacy de CxP.
             var firmaEvento = ExtraerFirmaArchivo(evento.DatosSnapshot);
             if (!string.IsNullOrWhiteSpace(firmaEvento))
             {
@@ -606,8 +562,6 @@ public class FirmasService : BaseService, IFirmasService
                 }
             }
 
-            // Eventos históricos de OC sin referencia capturada: usar la firma vigente
-            // del actor, prefiriendo la cifrada RH y luego la legacy CxP.
             if (evento.TipoEntidad == CodigoProceso.ORDEN_COMPRA)
             {
                 var firmas = await _appContext.UsuariosDetalle
@@ -642,11 +596,6 @@ public class FirmasService : BaseService, IFirmasService
         }
     }
 
-    /// <summary>
-    /// Firma del solicitante de una solicitud de personal, con autorización por documento
-    /// (misma regla que la bitácora). Prefiere la capturada al crear la solicitud
-    /// (`firmaSolicitanteArchivo`, Fase 2/T7); si no existe, la vigente actual.
-    /// </summary>
     public async Task<ErrorOr<ArchivoProtegidoResponse>> GetFirmaSolicitanteAsync(
         int idSolicitud, int idUsuarioActual, IReadOnlyCollection<string> permisos, CancellationToken cancellationToken = default)
     {
@@ -670,8 +619,6 @@ public class FirmasService : BaseService, IFirmasService
                 return Error.Forbidden("Firma.Acceso", "No tiene permiso para ver las firmas de este documento.");
             }
 
-            // Preferir la firma del solicitante capturada al crear la solicitud (Fase 2, T7);
-            // si no existe (solicitudes anteriores), servir la vigente actual.
             var snapshotCreacion = await _appContext.WorkflowBitacoras
                 .AsNoTracking()
                 .Where(b => b.TipoEntidad == CodigoProceso.SOLICITUD_PERSONAL && b.IdEntidad == idSolicitud)
@@ -696,9 +643,6 @@ public class FirmasService : BaseService, IFirmasService
         }
     }
 
-    /// <summary>
-    /// Sirve una firma por su nombre lógico cifrado.
-    /// </summary>
     private async Task<ErrorOr<ArchivoProtegidoResponse>> ServirFirmaAsync(
         string accion, int idUsuarioObjetivo, string? firmaRef, CancellationToken cancellationToken)
     {
@@ -722,10 +666,6 @@ public class FirmasService : BaseService, IFirmasService
         return CommonErrors.NotFound("Firma", $"Usuario {idUsuarioObjetivo}");
     }
 
-    /// <summary>
-    /// Sirve la firma legacy de CxP almacenada bajo BasePath/firmas_usuarios.
-    /// Solo acepta la ruta lógica esperada y evita traversal fuera de esa carpeta.
-    /// </summary>
     private async Task<ErrorOr<ArchivoProtegidoResponse>> ServirFirmaLegacyAsync(
         string accion, int idUsuarioObjetivo, string? firmaRef, CancellationToken cancellationToken)
     {
@@ -758,7 +698,6 @@ public class FirmasService : BaseService, IFirmasService
         };
     }
 
-    // Quien puede ver la solicitud: creador, solicitante, participante del flujo o "ver todas".
     private async Task<bool> PuedeVerSolicitudAsync(int idSolicitud, int idUsuario, IReadOnlyCollection<string> permisos, CancellationToken cancellationToken)
     {
         if (permisos.Contains("solicitud_personal.puede_ver_todas"))
@@ -781,7 +720,6 @@ public class FirmasService : BaseService, IFirmasService
                 && b.IdEntidad == idSolicitud && b.IdUsuario == idUsuario, cancellationToken);
     }
 
-    // Quien puede ver la orden: política única de visibilidad (servicio de órdenes de compra).
     private async Task<bool> PuedeVerOrdenAsync(int idOrden, int idUsuario, IReadOnlyCollection<string> permisos, CancellationToken cancellationToken)
     {
         return await _visibilidadOrdenCompra.PuedeVerAsync(idOrden, idUsuario, cancellationToken);
@@ -805,15 +743,10 @@ public class FirmasService : BaseService, IFirmasService
         }
         catch (JsonException)
         {
-            // Snapshot no-JSON: no hay firma capturada.
         }
         return null;
     }
 
-    /// <summary>
-    /// Notifica al usuario (in-app + correo) la resolución de su firma en comprobación.
-    /// No debe romper la resolución si falla.
-    /// </summary>
     private async Task NotificarResolucionUsuarioAsync(int idUsuario, bool aprobada, string? motivo, CancellationToken cancellationToken)
     {
         try

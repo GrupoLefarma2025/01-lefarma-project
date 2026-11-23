@@ -14,7 +14,6 @@ namespace Lefarma.API.Features.Config.EmpleadoJefes.DTOs
         public int? IdUsuarioJefeOverride { get; set; }
         public string? NombreJefeOverride { get; set; }
 
-        // Información de la vista (contexto para la UI)
         public long? NominaJefeVista { get; set; }
         public int? IdUsuarioJefeVista { get; set; }
         public string? NombreJefeVista { get; set; }
@@ -56,8 +55,8 @@ namespace Lefarma.API.Features.Config.EmpleadoJefes.DTOs
     public class JefeCadenaNivelDto
     {
         public int Nivel { get; set; }
-        public long? NominaJefe { get; set; }      // null = cadena rota en la vista
-        public int? IdUsuarioJefe { get; set; }    // null = sin usuario en el sistema
+        public long? NominaJefe { get; set; }      
+        public int? IdUsuarioJefe { get; set; }    
         public string? NombreJefe { get; set; }
     }
 

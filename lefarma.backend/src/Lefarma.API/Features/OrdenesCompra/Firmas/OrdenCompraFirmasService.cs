@@ -69,7 +69,6 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
                 if (firmaValidacion.IsError)
                     return firmaValidacion.Errors;
 
-                // Cargar orden con partidas
                 var orden = await _ordenRepo.GetWithPartidasAsync(idOrden);
                 if (orden is null)
                 {
@@ -77,11 +76,9 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
                     return CommonErrors.NotFound("OrdenCompra", idOrden.ToString());
                 }
 
-                // Validar estado no terminal
                 if (orden.IdEstado == 7 || orden.IdEstado == 9)
                     return CommonErrors.Conflict("OrdenCompra", $"La orden {orden.Folio} ya está cerrada o cancelada.");
 
-                // Cargar workflow config con todas las navegaciones necesarias
                 var workflowConfig = await _workflowRepo.GetQueryable()
                     .Include(w => w.Pasos)
                         .ThenInclude(p => p.AccionesOrigen)
@@ -94,19 +91,15 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
                 if (workflowConfig is null)
                     return CommonErrors.NotFound("Workflow", orden.IdWorkflow.ToString());
 
-                // Validar paso actual
                 var pasoActual = workflowConfig.Pasos.FirstOrDefault(p => p.IdPaso == orden.IdPasoActual);
                 if (pasoActual is null || !pasoActual.Activo)
                     return CommonErrors.Conflict("orden", "La orden no tiene un paso activo válido.");
 
-                // Si la pantalla quedó desactualizada, la acción enviada ya no pertenece
-                // al paso actual. Mensaje explícito antes de validar al participante.
                 if (!pasoActual.AccionesOrigen.Any(a => a.IdAccion == request.IdAccion && a.Activo))
                     return CommonErrors.Conflict("OrdenCompra",
                         $"La acción ya no está disponible para el paso actual ({pasoActual.NombrePaso}). " +
                         "La orden pudo haber cambiado de paso; recarga la bandeja e inténtalo de nuevo.");
 
-                // Validar participante (USANDO HELPER)
                 var validacion = await WorkflowFirmaHelper.ValidarParticipanteAsync(
                     pasoActual, orden.IdWorkflow, idUsuario, orden.IdUsuarioCreador, _asokamContext, _jefeInmediatoResolver);
                 if (validacion.IsError)
@@ -114,11 +107,9 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
 
                 var estadoAnterior = orden.Estado?.Codigo;
 
-                // Construir contexto con datos adicionales (Total para condiciones)
                 var datosAdicionales = request.DatosAdicionales ?? new Dictionary<string, object>();
                 datosAdicionales["Total"] = orden.Total;
 
-                // Ejecutar motor de workflow
                 var ctx = new WorkflowContext(
                     IdWorkflow: orden.IdWorkflow,
                     IdEntidad: orden.IdOrden,
@@ -133,9 +124,6 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
                 if (!resultado.Exitoso)
                     return CommonErrors.Validation("Workflow", resultado.Error ?? "Error en el motor de workflow.");
 
-                // Documento JSON compartido: el tesorero escribe solo cuentaPagoTesorero,
-                // preservando las claves de los demas flujos (merge-on-write).
-                // Debe ejecutarse ANTES de ActualizarEstadoYFechasAsync, que persiste la orden.
                 var jsonDocumento = orden.IdsCuentasBancarias;
                 if (request.DatosAdicionales != null
                     && request.DatosAdicionales.TryGetValue("cuentaPagoTesorero", out var cuentaRaw))
@@ -149,17 +137,13 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
                 }
                 orden.IdsCuentasBancarias = jsonDocumento;
 
-                // Lógica específica OC: reset facturación en DEVOLVER
                 await ProcesarDevolucionAsync(workflowConfig, request.IdAccion, idOrden);
 
-                // Actualizar estado de la orden + fechas de ciclo de vida
                 await ActualizarEstadoYFechasAsync(orden, resultado);
 
-                // Resolver notificación a disparar
                 var notificacion = WorkflowFirmaHelper.ResolverNotificacion(
                     workflowConfig, request.IdAccion, resultado.NuevoIdPaso);
 
-                // Disparar notificación fire-and-forget (USANDO HELPER)
                 var variables = ConstruirVariablesNotificacion(orden);
                 var partidasHtml = notificacion.IncluirPartidas
                     ? BuildPartidasTable(orden.Partidas,
@@ -298,13 +282,11 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
                     };
                 }
 
-                // Obtener ordenes exitosas para calcular total
                 var ordenesExitosas = await _context.OrdenesCompra
                     .Where(o => idsExitosas.Contains(o.IdOrden))
                     .ToListAsync();
                 var total = ordenesExitosas.Sum(o => o.Total);
 
-                // Crear registro de envio concentrado
                 var token = Guid.NewGuid().ToString("N");
                 var envioConcentrado = new EnvioConcentrado
                 {
@@ -364,9 +346,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
                 _asokamContext.Documentos.Add(documento);
                 await _asokamContext.SaveChangesAsync();
 
-
-
-                await transaction.CommitAsync();
+await transaction.CommitAsync();
 
                 EnrichWideEvent("EnvioConcentrado", additionalContext: new Dictionary<string, object>
                 {
@@ -668,10 +648,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
 
                     var resultado = await FirmarAsync(orden.IdOrden, new FirmarRequest { IdAccion = accion.IdAccion, Comentario = request.Comentario }, request.IdUsuario);
 
-
-                    //var resultado = await _engine.EjecutarAccionAsync(ctx);
-
-                    resultados.Add(new EnvioConcentradoItemResult
+resultados.Add(new EnvioConcentradoItemResult
                     {
                         IdOrden = orden.IdOrden,
                         Folio = orden.Folio,
@@ -681,9 +658,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
                     });
                 }
 
-                // Actualizar concentrado
-
-                concentrado.Estado = esAprobar ? "APROBADO" : "DEVUELTO";
+concentrado.Estado = esAprobar ? "APROBADO" : "DEVUELTO";
                 concentrado.FechaRespuesta = DateTime.Now;
                 concentrado.ComentarioRespuesta = request.Comentario;
                 concentrado.FechaModificacion = DateTime.Now;
@@ -743,10 +718,8 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
         public Task<ErrorOr<IEnumerable<HistorialWorkflowItemResponse>>> GetHistorialAsync(int idOrden)
             => _queryService.GetHistorialWorkflowAsync(idOrden, CodigoProceso.ORDEN_COMPRA);
 
-
-        private async Task<ErrorOr<Success>> ValidarFirmaUsuarioAsync(int idUsuario)
+private async Task<ErrorOr<Success>> ValidarFirmaUsuarioAsync(int idUsuario)
         {
-            // Autorizaciones OC conserva la firma legacy de CxP (firma_path).
             var tieneFirmaLegacy = await _profileService.HasFirmaLegacyAsync(idUsuario);
             if (tieneFirmaLegacy.IsError)
                 return tieneFirmaLegacy.Errors;
@@ -921,6 +894,5 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
                 : $"{value:N2} {simboloMoneda}";
         }
 
-
-    }
+}
 }

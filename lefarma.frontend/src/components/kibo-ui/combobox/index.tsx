@@ -1,4 +1,3 @@
-
 import { useControllableState } from "@radix-ui/react-use-controllable-state";
 import { ChevronsUpDownIcon, PlusIcon } from "lucide-react";
 import {
@@ -208,9 +207,7 @@ export const ComboboxInput = ({
     defaultProp: defaultValue ?? inputValue,
     prop: controlledValue,
     onChange: (newValue) => {
-      // Sincroniza con el estado del contexto
       setInputValue(newValue);
-      // Llama al onChange externo si se proporciona
       controlledOnValueChange?.(newValue);
     },
   });

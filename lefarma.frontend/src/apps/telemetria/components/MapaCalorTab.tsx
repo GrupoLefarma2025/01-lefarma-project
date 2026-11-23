@@ -19,7 +19,6 @@ interface Props {
   hasta: Date;
 }
 
-/** Rutas donde no tiene sentido incrustar la pantalla (o sería recursivo). */
 function sinFondo(ruta: string): boolean {
   return ruta.startsWith('/configuracion') || ruta.startsWith('/login');
 }
@@ -84,8 +83,6 @@ export function MapaCalorTab({ desde, hasta }: Props) {
   const alto = mapa ? mapa.filas * mapa.tamanoCelda : 0;
   const conPantalla = Boolean(mapa && conFondo && !sinFondo(mapa.ruta));
 
-  // La captura se tomó con un ancho de ventana concreto (columnas × celda);
-  // se dibuja a ese tamaño y se reduce para que quepa, así las celdas coinciden.
   useEffect(() => {
     const elemento = contenedorRef.current;
     if (!elemento || !ancho) return;

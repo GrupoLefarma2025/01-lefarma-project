@@ -1,11 +1,5 @@
 namespace Lefarma.API.Shared.Constants;
 
-/// <summary>
-/// Permission codes as typed constants for compile-time safety and IntelliSense.
-/// The source of truth is app.Permisos in the database.
-/// These constants are optional convenience: a permission that exists in app.Permisos
-/// but has no constant here still works at runtime.
-/// </summary>
 public static class Permissions
 {
     public static class Catalogos
@@ -73,9 +67,6 @@ public static class Permissions
         public const string Manage = "workflows.manage";
     }
 
-    /// <summary>
-    /// Módulo Configuración: variables globales, bitácora y API keys de integraciones.
-    /// </summary>
     public static class Configuracion
     {
         public const string View = "configuracion.view";
@@ -142,9 +133,6 @@ public static class Permissions
         public const string Ajustar = "viaticos.ajustar";
     }
 
-    /// <summary>
-    /// Módulo Telemetría: errores del navegador, clics y mapa de calor.
-    /// </summary>
     public static class Telemetria
     {
         public const string View = "telemetria.ver";

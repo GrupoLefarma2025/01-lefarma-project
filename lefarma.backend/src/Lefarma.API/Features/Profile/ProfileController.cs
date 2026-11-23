@@ -8,12 +8,9 @@ using Microsoft.AspNetCore.Mvc;
 using Swashbuckle.AspNetCore.Annotations;
 
 namespace Lefarma.API.Features.Profile;
-/// <summary>
-/// Controller para operaciones del usuario autenticado sobre su propio perfil
-/// </summary>
 [Route("api/[controller]")]
 [ApiController]
-[Authorize] // Requiere autenticación
+[Authorize] 
 [EndpointGroupName("Profile")]
 public class ProfileController : ControllerBase
 {
@@ -24,9 +21,6 @@ public class ProfileController : ControllerBase
         _profileService = profileService;
     }
 
-    /// <summary>
-    /// Obtiene el perfil del usuario autenticado
-    /// </summary>
     [HttpGet]
     [SwaggerOperation(Summary = "Obtener mi perfil")]
     [ProducesResponseType(typeof(ApiResponse<ProfileResponse>), StatusCodes.Status200OK)]
@@ -50,9 +44,6 @@ public class ProfileController : ControllerBase
         }));
     }
 
-    /// <summary>
-    /// Actualiza el perfil del usuario autenticado
-    /// </summary>
     [HttpPut]
     [SwaggerOperation(Summary = "Actualizar mi perfil")]
     [ProducesResponseType(typeof(ApiResponse<ProfileResponse>), StatusCodes.Status200OK)]
@@ -193,10 +184,6 @@ public class ProfileController : ControllerBase
         }));
     }
 
-    /// <summary>
-    /// Contrato legacy exclusivo de CxP: verifica la firma de la columna firma_path.
-    /// No usa firma_control ni firma_path_cifrada.
-    /// </summary>
     [HttpGet("firma-legacy/check")]
     [SwaggerOperation(Summary = "Legacy CxP: verificar si el usuario tiene firma (firma_path)")]
     [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status200OK)]
@@ -219,10 +206,6 @@ public class ProfileController : ControllerBase
         }));
     }
 
-    /// <summary>
-    /// Contrato legacy exclusivo de CxP: sube/reemplaza la firma de la columna firma_path
-    /// (reemplazo libre, sin INE ni comprobación de RH).
-    /// </summary>
     [HttpPost("firma-legacy")]
     [SwaggerOperation(Summary = "Legacy CxP: subir firma digital (firma_path)")]
     [ProducesResponseType(typeof(ApiResponse<string>), StatusCodes.Status200OK)]
@@ -257,9 +240,6 @@ public class ProfileController : ControllerBase
         }));
     }
 
-    /// <summary>
-    /// Contrato legacy exclusivo de CxP: elimina la firma de la columna firma_path.
-    /// </summary>
     [HttpDelete("firma-legacy")]
     [SwaggerOperation(Summary = "Legacy CxP: eliminar firma digital (firma_path)")]
     [ProducesResponseType(typeof(ApiResponse<string>), StatusCodes.Status200OK)]
@@ -285,9 +265,6 @@ public class ProfileController : ControllerBase
         }));
     }
 
-    /// <summary>
-    /// Extrae el ID del usuario autenticado desde los claims del JWT
-    /// </summary>
     private int? GetAuthenticatedUserId()
     {
         var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value

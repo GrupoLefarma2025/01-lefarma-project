@@ -1,8 +1,5 @@
 namespace Lefarma.API.Features.Help.DTOs;
 
-/// <summary>
-/// DTO para representar un artículo de ayuda completo
-/// </summary>
 public record HelpArticleDto
 {
     public int Id { get; init; }

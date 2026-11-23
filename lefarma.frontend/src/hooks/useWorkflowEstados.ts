@@ -3,7 +3,6 @@ import { API } from '@/shared/api/apiClient';
 import type { ApiResponse } from '@/types/api.types';
 import type { WorkflowEstado } from '@/types/workflow.types';
 
-// ponytail: module-level cache + in-flight dedup so every consumer shares one request (por proceso)
 const cache = new Map<string, WorkflowEstado[]>();
 const inflight = new Map<string, Promise<WorkflowEstado[]>>();
 

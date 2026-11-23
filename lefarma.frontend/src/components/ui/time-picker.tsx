@@ -17,7 +17,6 @@ const VALORES_SEGUNDOS = Array.from({ length: 60 }, (_, indice) => indice);
 
 const dosDigitos = (numero: number) => String(numero).padStart(2, '0');
 
-/** "HH:mm" o "HH:mm:ss" → partes; null cuando el valor no es una hora válida. */
 function partesDeHora(valor: string | null | undefined): PartesHora | null {
   if (!valor) return null;
   const coincidencia = valor.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
@@ -85,14 +84,10 @@ function ColumnaTiempo({ etiqueta, valores, actual, abierto, onElegir }: Columna
 }
 
 export interface TimePickerProps {
-  /** Hora en formato `HH:mm` o `HH:mm:ss`; `null` o vacío cuando no hay valor. */
   value: string | null;
-  /** Devuelve `HH:mm:ss` (o `HH:mm` sin segundos) y `null` al limpiar. */
   onValueChange: (value: string | null) => void;
-  /** Muestra la columna de segundos y conserva la precisión al devolver el valor. */
   conSegundos?: boolean;
   disabled?: boolean;
-  /** Marca el campo como inválido (borde y `aria-invalid`). */
   invalid?: boolean;
   id?: string;
   className?: string;

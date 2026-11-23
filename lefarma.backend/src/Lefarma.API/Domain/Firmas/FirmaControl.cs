@@ -2,19 +2,6 @@ using System.Text.Json;
 
 namespace Lefarma.API.Domain.Firmas;
 
-/// <summary>
-/// Historial de eventos de la firma digital de un usuario, persistido como JSON
-/// (arreglo) en config.usuario_detalle.firma_control.
-/// Es la unica fuente de verdad: el estado se DERIVA de los eventos.
-///   - Subidas:            numero de eventos "subida".
-///   - CambioHabilitado:   el ultimo evento entre subida/eliminacion/habilitacion/remision
-///                         es "habilitacion" (una subida, eliminacion o remision posterior
-///                         la consume, por ser de un solo uso).
-///   - SolicitudPendiente: el ultimo evento entre solicitud/habilitacion es
-///                         "solicitud" (la habilitacion la atiende).
-///   - EnComprobacion:     el ultimo evento entre remision/aprobacion/rechazo es
-///                         "remision" (RH aun no resuelve la firma enviada).
-/// </summary>
 public class FirmaControl
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -34,15 +21,10 @@ public class FirmaControl
         .Where(e => e.Accion is FirmaAccion.Solicitud or FirmaAccion.Habilitacion)
         .LastOrDefault()?.Accion == FirmaAccion.Solicitud;
 
-    /// <summary>Hay una firma (con INE) esperando aprobación de RH.</summary>
     public bool EnComprobacion => Eventos
         .Where(e => e.Accion is FirmaAccion.Remision or FirmaAccion.Aprobacion or FirmaAccion.Rechazo)
         .LastOrDefault()?.Accion == FirmaAccion.Remision;
 
-    /// <summary>
-    /// El usuario puede enviar firma + INE a revisión: primera firma (subidasEfectivas == 0)
-    /// o cambio habilitado por RH, y nunca mientras haya otra remisión en comprobación.
-    /// </summary>
     public bool PuedeEnviarRemision(int subidasEfectivas) =>
         !EnComprobacion && (subidasEfectivas == 0 || CambioHabilitado);
 
@@ -52,7 +34,6 @@ public class FirmaControl
 
     public FirmaEvento? UltimaRemision => Eventos.LastOrDefault(e => e.Accion == FirmaAccion.Remision);
 
-    /// <summary>Parse defensivo: JSON nulo/vacío/corrupto se trata como historial vacío.</summary>
     public static FirmaControl Parse(string? json)
     {
         if (string.IsNullOrWhiteSpace(json))
@@ -77,10 +58,8 @@ public class FirmaControl
 
     public void AgregarSolicitud(int idUsuario, DateTime fecha) => Agregar(FirmaAccion.Solicitud, idUsuario, fecha);
 
-    /// <param name="idUsuarioRh">Usuario de RH que habilita el cambio.</param>
     public void AgregarHabilitacion(int idUsuarioRh, DateTime fecha) => Agregar(FirmaAccion.Habilitacion, idUsuarioRh, fecha);
 
-    /// <summary>El usuario remite firma + INE a revisión de RH (consume la habilitación si la había).</summary>
     public void AgregarRemision(int idUsuario, DateTime fecha, string firmaPendiente, string ine)
     {
         Eventos.Add(new FirmaEvento
@@ -93,9 +72,6 @@ public class FirmaControl
         });
     }
 
-    /// <param name="idUsuarioRh">Usuario de RH que aprueba.</param>
-    /// <param name="firmaArchivo">Nombre lógico de la firma que queda autorizada (versión conservada).</param>
-    /// <param name="ineArchivo">Nombre lógico de la foto de INE que queda como evidencia.</param>
     public void AgregarAprobacion(int idUsuarioRh, DateTime fecha, string? firmaArchivo = null, string? ineArchivo = null)
     {
         Eventos.Add(new FirmaEvento
@@ -108,7 +84,6 @@ public class FirmaControl
         });
     }
 
-    /// <param name="idUsuarioRh">Usuario de RH que rechaza.</param>
     public void AgregarRechazo(int idUsuarioRh, DateTime fecha, string motivo)
     {
         Eventos.Add(new FirmaEvento

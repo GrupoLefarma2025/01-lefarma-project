@@ -84,9 +84,7 @@ import { DynamicValueEditor } from './DynamicValueEditor';
 import { ICONOS_TIPO, TONOS_TIPO } from './typeVisuals';
 
 interface VariableEditorDialogProps {
-  /** `null` = creación. */
   variable: VariableConfiguracion | null;
-  /** Módulos disponibles; el primero define el prefijo de la clave. */
   modulos: ModuloConfig[];
   onClose: () => void;
   onSaved: () => void;
@@ -116,10 +114,6 @@ const PASOS = [
   { numero: 3, titulo: 'Valor' },
 ];
 
-/**
- * Separación vertical fluida: se encoge en pantallas bajas para que el asistente
- * quepa completo sin scroll. `dvh` mide el alto visible real del navegador.
- */
 const ESTILO_FLUIDO = {
   '--ve-gap': 'clamp(0.5rem, 1.5dvh, 1.25rem)',
   '--ve-gap-sm': 'clamp(0.375rem, 1dvh, 0.875rem)',
@@ -178,8 +172,6 @@ function estadoInicial(variable: VariableConfiguracion | null): EstadoInicial {
     tipoBase = 'json';
   }
 
-  // Con tres segmentos (modulo.namespace.clave) el primero es el módulo y el
-  // segundo el namespace; con dos (namespace.clave) se mantiene el formato previo.
   const partesClave = segmentosDeClave(variable.clave);
   const tieneModulo = partesClave.length >= 3;
   const namespace = tieneModulo ? (partesClave[1] ?? '') : (partesClave[0] ?? '');
@@ -208,14 +200,12 @@ function estadoInicial(variable: VariableConfiguracion | null): EstadoInicial {
   };
 }
 
-/** Compara nombres ignorando acentos, espacios, mayúsculas y signos. */
 function normalizarNombre(texto: string): string {
   return sinAcentos(texto)
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '');
 }
 
-/** Primer elemento para una lista recién creada (texto vacío, `{}`, etc.). */
 function valorInicialLista(tipo: string): unknown[] {
   return [valorInicialFormulario(tipo)];
 }
@@ -230,8 +220,6 @@ export function VariableEditorDialog({
   const esEdicion = variable !== null;
   const [inicial] = useState(() => estadoInicial(variable));
 
-  // Al editar, el tipo y la clave son inmutables; abrimos directamente la
-  // definición para que nombre, descripción y destinos sean evidentes.
   const [paso, setPaso] = useState(esEdicion ? 2 : 1);
   const [pasoMax, setPasoMax] = useState(esEdicion ? 3 : 1);
 
@@ -256,7 +244,6 @@ export function VariableEditorDialog({
   const [errorGeneral, setErrorGeneral] = useState<string | null>(null);
   const [guardando, setGuardando] = useState(false);
 
-  // Comprobaciones en vivo contra las variables ya registradas.
   const [claveDuplicada, setClaveDuplicada] = useState<VariableConfiguracion | null>(null);
   const [nombreExistente, setNombreExistente] = useState<VariableConfiguracion | null>(null);
   const [detalleNombreAbierto, setDetalleNombreAbierto] = useState(false);
@@ -279,7 +266,6 @@ export function VariableEditorDialog({
 
   const moduloSeleccionado =
     idModulo != null ? (modulos.find((modulo) => modulo.idModulo === idModulo) ?? null) : null;
-  // Al editar, una variable sin módulo pertenece a «Global».
   const moduloEfectivo = esEdicion
     ? (moduloSeleccionado ?? modulos.find((modulo) => modulo.clave === 'global') ?? null)
     : moduloSeleccionado;
@@ -305,8 +291,6 @@ export function VariableEditorDialog({
     ? TONOS_TIPO[metaTipoSeleccionado.tono]
     : null;
 
-  // ¿Ya existe una variable con esta misma clave? Se consulta mientras se
-  // escribe, antes de intentar crear, para no chocar hasta el final.
   useEffect(() => {
     if (esEdicion) return;
     const claveBuscada = claveEfectiva.trim().toLowerCase();
@@ -325,7 +309,6 @@ export function VariableEditorDialog({
           setClaveDuplicada(igual ?? null);
         })
         .catch(() => {
-          // Una comprobación fallida no debe romper el formulario.
         });
     }, 350);
 
@@ -335,8 +318,6 @@ export function VariableEditorDialog({
     };
   }, [claveEfectiva, esEdicion]);
 
-  // Sugerencia de nombre: si ya hay una variable con el mismo nombre
-  // (ignorando acentos, espacios y signos), se ofrece revisarla.
   useEffect(() => {
     const nombreBuscado = normalizarNombre(nombre);
     if (nombreBuscado.length < 3) {
@@ -357,7 +338,6 @@ export function VariableEditorDialog({
           setNombreExistente(igual ?? null);
         })
         .catch(() => {
-          // Sin red o sin permisos se sigue adelante sin sugerencia.
         });
     }, 400);
 
@@ -383,8 +363,6 @@ export function VariableEditorDialog({
     return [];
   }, [tipoActual, campos]);
 
-  // El payload se ajusta al esquema: sin claves fuera de properties cuando
-  // additionalProperties=false (el backend las rechazaría).
   const valorParaGuardar = useMemo(
     () => (esquemaActual ? depurarValorSegunEsquema(valor, esquemaActual) : valor),
     [valor, esquemaActual],
@@ -496,7 +474,6 @@ export function VariableEditorDialog({
         toast.error('Revisa la definición antes de continuar.');
         return;
       }
-      // Una lista arranca con un elemento para que el paso 3 sea accionable.
       if (esLista && Array.isArray(valor) && valor.length === 0) {
         setValor(valorInicialLista(tipoActual || 'json'));
       }
@@ -559,9 +536,6 @@ export function VariableEditorDialog({
     abortRef.current = controller;
 
     try {
-      // La generación del identificador también va protegida: cualquier
-      // excepción debe liberar el estado "Guardando…".
-      // Un idOperacion por intento lógico: se conserva si hay timeout.
       const idOperacion = idOperacionRef.current ?? nuevoIdOperacion();
       idOperacionRef.current = idOperacion;
 
@@ -716,7 +690,7 @@ export function VariableEditorDialog({
         className="flex min-h-0 flex-1 flex-col gap-[var(--ve-gap)]"
         style={ESTILO_FLUIDO}
       >
-        {/* Pasos */}
+        {}
         <ol className="flex shrink-0 items-center gap-1.5">
           {PASOS.map((item, indice) => {
             const activo = paso === item.numero;
@@ -771,7 +745,7 @@ export function VariableEditorDialog({
           </div>
         )}
 
-        {/* Paso 1: tipo */}
+        {}
         {paso === 1 && (
           <section className="flex min-h-0 flex-1 flex-col gap-[var(--ve-gap-sm)] overflow-y-auto overscroll-contain">
             <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
@@ -842,7 +816,7 @@ export function VariableEditorDialog({
           </section>
         )}
 
-        {/* Paso 2: definición */}
+        {}
         {paso === 2 && (
           <section className="flex min-h-0 flex-1 flex-col gap-[var(--ve-gap-sm)] overflow-y-auto overscroll-contain">
             {esEdicion && (
@@ -857,7 +831,7 @@ export function VariableEditorDialog({
             )}
 
             <div className="grid min-h-0 flex-1 content-start gap-x-6 gap-y-[var(--ve-gap-sm)] md:grid-cols-2">
-              {/* Identidad: módulo, nombre y clave */}
+              {}
               <div className="flex min-w-0 flex-col gap-[var(--ve-gap-sm)]">
                 <div className="flex min-w-0 flex-col gap-1">
                   <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
@@ -1109,7 +1083,7 @@ export function VariableEditorDialog({
             </div>
             </div>
 
-            {/* Detalle: descripción y destinos */}
+            {}
             <div className="flex min-w-0 flex-col gap-[var(--ve-gap-sm)]">
               <div className="flex min-w-0 flex-col gap-1">
                 <Label htmlFor="variable-descripcion" className="text-xs">
@@ -1261,7 +1235,7 @@ export function VariableEditorDialog({
           </section>
         )}
 
-        {/* Paso 3: valor */}
+        {}
         {paso === 3 && (
           <section className="flex min-h-0 flex-1 flex-col gap-[var(--ve-gap-sm)]">
             <div className="flex flex-wrap items-center justify-between gap-2">

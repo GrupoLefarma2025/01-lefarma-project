@@ -22,10 +22,6 @@ import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 import { jsonATexto, parsearJson } from '../utils';
 
-/* ------------------------------------------------------------------ */
-/* Modelo del constructor                                              */
-/* ------------------------------------------------------------------ */
-
 type TipoNodo = 'texto' | 'numero' | 'booleano' | 'objeto' | 'lista' | 'nulo';
 
 interface CampoJson {
@@ -90,7 +86,6 @@ function aNodo(valor: unknown): NodoJson {
   return { tipo: 'nulo' };
 }
 
-/** JSON vacío o sin valor arranca como objeto, que es el caso habitual. */
 function aNodoInicial(valor: unknown): NodoJson {
   if (valor === '' || valor === undefined) return crearNodo('objeto');
   return aNodo(valor);
@@ -118,10 +113,6 @@ function aValor(nodo: NodoJson): unknown {
     }
   }
 }
-
-/* ------------------------------------------------------------------ */
-/* Editor de un nodo                                                   */
-/* ------------------------------------------------------------------ */
 
 interface EditorNodoProps {
   nodo: NodoJson;
@@ -418,10 +409,6 @@ function EditorNodo({ nodo, onCambiar, disabled, raiz = false, onEliminar }: Edi
   );
 }
 
-/* ------------------------------------------------------------------ */
-/* Modo código                                                         */
-/* ------------------------------------------------------------------ */
-
 function EditorCodigoJson({
   valor,
   disabled,
@@ -490,10 +477,6 @@ function EditorCodigoJson({
   );
 }
 
-/* ------------------------------------------------------------------ */
-/* Editor principal                                                    */
-/* ------------------------------------------------------------------ */
-
 export interface JsonValueEditorProps {
   valor: unknown;
   disabled?: boolean;
@@ -516,7 +499,6 @@ export function JsonValueEditor({
   };
 
   const cambiarModo = (siguiente: 'formulario' | 'codigo') => {
-    // Al volver del código, el formulario se arma con el JSON ya parseado.
     if (siguiente === 'formulario' && valor !== undefined) {
       setRaiz(aNodoInicial(valor));
     }

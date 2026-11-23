@@ -40,9 +40,6 @@ interface RawDashboardResponse {
   error?: string;
 }
 
-/**
- * Fetch dashboard statistics from the API (mismo endpoint del backend que en SIGMA).
- */
 export async function fetchDashboardData(): Promise<DashboardData> {
   const result = await get<RawDashboardResponse>("/documentos/dashboard");
 

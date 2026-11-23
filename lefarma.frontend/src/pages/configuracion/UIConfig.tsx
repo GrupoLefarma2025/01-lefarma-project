@@ -27,7 +27,7 @@ export function UIConfig() {
 
   return (
     <div className="space-y-6">
-      {/* Configuración de Tema */}
+      {}
       <Card>
         <CardHeader>
           <CardTitle>Apariencia</CardTitle>
@@ -60,7 +60,7 @@ export function UIConfig() {
         </CardContent>
       </Card>
 
-      {/* Configuración de Sidebar */}
+      {}
       <Card>
         <CardHeader>
           <CardTitle>Barra Lateral</CardTitle>
@@ -83,7 +83,7 @@ export function UIConfig() {
         </CardContent>
       </Card>
 
-      {/* Configuración de Presets */}
+      {}
       <Card>
         <CardHeader>
           <CardTitle>Preconfiguración de Interfaz</CardTitle>
@@ -94,7 +94,7 @@ export function UIConfig() {
         <CardContent className="space-y-4">
           <PresetSelector />
 
-          {/* Toggle Configuración Avanzada */}
+          {}
           <div className="pt-4 border-t">
             <Button
               variant="outline"
@@ -105,7 +105,7 @@ export function UIConfig() {
             </Button>
           </div>
 
-          {/* Configuración Avanzada */}
+          {}
           {showAdvanced && <AdvancedConfigUI />}
         </CardContent>
       </Card>

@@ -14,7 +14,6 @@ public class Sesion
     public DateTime? FechaCierre { get; set; }
     public bool EsActiva { get; set; } = true;
 
-    // Navigation
     public Usuario Usuario { get; set; } = null!;
     public ICollection<RefreshToken> RefreshTokens { get; set; } = new List<RefreshToken>();
 }

@@ -1,14 +1,5 @@
 import type { TipoError } from './tipos';
 
-/**
- * Huella local para agrupar errores repetidos y no inundar la cola. El servidor
- * recalcula la huella canónica; esta solo sirve para deduplicar en el navegador.
- *
- * No usa `crypto.subtle` a propósito: el API de pruebas y el de productivo se
- * sirven por HTTP, donde `crypto.subtle` no existe. FNV-1a es determinista y
- * suficiente para agrupar.
- */
-
 const FNV_PRIMO = 0x01000193;
 const FNV_BASE = 0x811c9dc5;
 

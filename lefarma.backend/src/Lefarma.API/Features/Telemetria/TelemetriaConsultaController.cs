@@ -9,10 +9,6 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Lefarma.API.Features.Telemetria;
 
-/// <summary>
-/// Consulta de la telemetría capturada por el navegador y de los errores que
-/// ya guarda el servidor. Todo es de solo lectura.
-/// </summary>
 [ApiController]
 [Route("api/telemetria")]
 [EndpointGroupName("Telemetria")]
@@ -124,10 +120,6 @@ public sealed class TelemetriaConsultaController : ControllerBase
         return Ok(Respuesta(rutas, "Rutas con actividad."));
     }
 
-    /// <summary>
-    /// Errores que ya guarda el servidor en <c>ErrorLog</c> (SQL Server). Es la
-    /// vista de lo que hoy existe, sin duplicarlo en la telemetría.
-    /// </summary>
     [HttpGet("errores-servidor")]
     public async Task<IActionResult> ErroresServidor(
         [FromQuery] string? severidad,

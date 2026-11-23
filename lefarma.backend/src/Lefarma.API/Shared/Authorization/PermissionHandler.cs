@@ -4,10 +4,6 @@ using System.Security.Claims;
 
 namespace Lefarma.API.Shared.Authorization;
 
-/// <summary>
-/// Validates permissions by delegating to UserPermissionService, which reads from
-/// app.RolesPermisos + app.UsuariosPermisos via a shared 5-minute IMemoryCache.
-/// </summary>
 public class PermissionHandler : AuthorizationHandler<PermissionRequirement>
 {
     private readonly UserPermissionService _permissionService;

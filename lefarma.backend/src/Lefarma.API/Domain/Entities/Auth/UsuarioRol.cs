@@ -7,7 +7,6 @@ public class UsuarioRol
     public DateTime FechaAsignacion { get; set; } = DateTime.UtcNow;
     public DateTime? FechaExpiracion { get; set; }
 
-    // Navigation
     public Usuario Usuario { get; set; } = null!;
     public Rol Rol { get; set; } = null!;
 }

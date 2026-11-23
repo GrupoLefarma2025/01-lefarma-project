@@ -8,16 +8,13 @@ public class TipoImpuestoConfiguration : IEntityTypeConfiguration<TipoImpuesto>
 {
     public void Configure(EntityTypeBuilder<TipoImpuesto> builder)
     {
-        // Tabla
         builder.ToTable("tipos_impuesto", "catalogos");
 
-        // Clave primaria
         builder.HasKey(t => t.IdTipoImpuesto);
         builder.Property(t => t.IdTipoImpuesto)
             .HasColumnName("id_tipo_impuesto")
             .ValueGeneratedOnAdd();
 
-        // Propiedades requeridas
         builder.Property(t => t.Nombre)
             .HasColumnName("nombre")
             .HasMaxLength(255)
@@ -57,7 +54,6 @@ public class TipoImpuestoConfiguration : IEntityTypeConfiguration<TipoImpuesto>
         builder.Property(t => t.FechaModificacion)
             .HasColumnName("fecha_modificacion");
 
-        // Índices
         builder.HasIndex(t => t.NombreNormalizado)
             .HasDatabaseName("ix_tipos_impuesto_nombre_normalizado");
 

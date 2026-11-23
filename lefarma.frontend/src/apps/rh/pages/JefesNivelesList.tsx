@@ -186,7 +186,6 @@ export default function JefesNivelesList() {
     form.setValue('idUsuario', 0);
     setIsEditing(false);
     toggleModal('edit', true);
-    //if (usuarios.length === 0) fetchUsuarios();
   };
 
   const handleEditar = (idUsuario: number) => {

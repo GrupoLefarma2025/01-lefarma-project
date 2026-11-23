@@ -88,7 +88,6 @@ public class SucursalConfiguration : IEntityTypeConfiguration<Sucursal>
                 .HasColumnName("fecha_modificacion")
                 .HasDefaultValueSql("GETDATE()");
 
-            // Relaciones
             builder.HasOne(e => e.Empresa)
               .WithMany(e => e.Sucursales)
               .HasForeignKey(e => e.IdEmpresa)

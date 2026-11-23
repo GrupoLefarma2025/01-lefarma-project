@@ -23,11 +23,6 @@ import {
 } from 'lucide-react';
 import type { SidebarMenuItemConfig } from '@/components/layout/sidebar-types';
 
-/**
- * Config de navegación del sidebar CxP. Extraído de AppSidebar para hacer el
- * sidebar configurable por app. Los paths son absolutos con el prefijo `/cxp/`
- * (nav-reorg: CxP está montado en `/cxp/`, no en la raíz).
- */
 export const cxpMenuItems: SidebarMenuItemConfig[] = [
   {
     title: 'Dashboard',

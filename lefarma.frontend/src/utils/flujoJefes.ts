@@ -1,13 +1,6 @@
 import type { EmpleadoJefesConfigResponse } from '@/types/jefesNiveles.types';
 import type { WorkflowPasoFlowResponse } from '@/types/solicitudPersonalWorkflow.types';
 
-/**
- * Réplica de la regla del motor al llegar a un paso (`DebeOmitirsePasoJefeAsync` +
- * `ResolverJefeEfectivoAsync`): un paso cuyos participantes son todos "jefe inmediato"
- * se omite si el nivel no aplica para el empleado, si el jefe no tiene cuenta en el
- * sistema o si está excluido en ese workflow. Solo sirve para la línea de tiempo;
- * el motor sigue siendo quien decide al ejecutar.
- */
 export function pasoSeOmitira(
   paso: WorkflowPasoFlowResponse,
   config: EmpleadoJefesConfigResponse | null,
@@ -30,12 +23,6 @@ export function pasoSeOmitira(
   });
 }
 
-/**
- * Nombres de los jefes que el motor esperaría en el paso, con la misma
- * precedencia que `DebeOmitirsePasoJefeAsync` (override > vista, config del
- * empleado y exclusiones del workflow). Sirve para mostrar en la línea de
- * tiempo quién debe firmar aunque todavía no lo haya hecho.
- */
 export function responsablesJefePaso(
   paso: WorkflowPasoFlowResponse,
   config: EmpleadoJefesConfigResponse | null,

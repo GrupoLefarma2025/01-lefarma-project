@@ -12,7 +12,6 @@ public class Permiso
     public bool EsSistema { get; set; } = false;
     public DateTime FechaCreacion { get; set; } = DateTime.UtcNow;
 
-    // Navigation
     public ICollection<RolPermiso> RolesPermisos { get; set; } = new List<RolPermiso>();
     public ICollection<UsuarioPermiso> UsuariosPermisos { get; set; } = new List<UsuarioPermiso>();
 }

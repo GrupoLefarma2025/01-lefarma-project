@@ -466,7 +466,6 @@ export default function CalendarioPage() {
     [rutasVersionActual, seleccionesMes]
   );
 
-  /** Ruta de la visita seleccionada: el modal abre en ella, no en la primera. */
   const rutaInicialCotizar = useMemo(() => {
     if (seleccionadoId == null) return undefined;
     return rutasParaCotizar.find((ruta) =>

@@ -11,20 +11,10 @@ import {
   totalViatico,
 } from './concentradoViaticos.helpers';
 
-/**
- * Concentrado de viáticos con el formato ASK-ADM-FOR-008 (A4 horizontal).
- *
- * Se genera con jsPDF + autotable y texto real (no html2canvas). La tabla
- * principal pagina por filas y solo lleva el encabezado en la primera página,
- * como el Excel; la fila de totales y el bloque de firmas se dibujan a mano
- * para conservar la geometría del formato.
- */
-
 const NAVY = '#1f3864';
 const HEADER_FILL = '#dbe5f1';
 const BORDER = '#777';
 
-/** Anchos de las 13 columnas; suman 277 mm (A4 horizontal menos 10+10). */
 const COL_WIDTHS = [8, 36, 28, 26, 38, 19, 19, 15, 15, 19, 17, 17, 20];
 
 const REVISORES: Array<{
@@ -128,7 +118,6 @@ export interface GenerarConcentradoViaticosPdfOptions {
   nombre: string;
   gerencia: string;
   fecha: string;
-  /** Imágenes de firma ya registradas en CxP, como object URL o data URL. */
   firmas?: {
     diego?: string | null;
     luis?: string | null;
@@ -183,7 +172,6 @@ export async function generarConcentradoViaticosPDF(
   const pageW = doc.internal.pageSize.width;
   const pageH = doc.internal.pageSize.height;
 
-  // ── Encabezado ──────────────────────────────────────────────────────────
   const logoBase64 = await loadImageAsBase64(logoAsokam);
   doc.addImage(logoBase64, 'PNG', 10, 8, 26, 9.5);
 
@@ -192,8 +180,6 @@ export async function generarConcentradoViaticosPDF(
   doc.setFontSize(9.5);
   doc.text('Concentrado de Viáticos', pageW - 10, 16, { align: 'right' });
 
-  // Fila de identificación como el Excel: etiquetas en negrita sobre blanco,
-  // sin celdas de color ni bordes verticales.
   doc.setTextColor('#222222');
   doc.setFontSize(8.5);
   doc.setFont('helvetica', 'bold');
@@ -211,7 +197,6 @@ export async function generarConcentradoViaticosPDF(
   doc.line(117, 33.5, 210, 33.5);
   doc.line(230, 33.5, 287, 33.5);
 
-  // ── Tabla principal ─────────────────────────────────────────────────────
   const body = filas.map((fila) => [
     fila.renglon?.toString() ?? '',
     texto(fila.solicitante),
@@ -281,12 +266,10 @@ export async function generarConcentradoViaticosPDF(
     margin: { top: 10, left: 10, right: 10, bottom: 14 },
   });
 
-  // ── Fila de totales ─────────────────────────────────────────────────────
   const totales = sumarCostos(filas);
   const totalRowHeight = 7;
   let y = (doc as unknown as { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? 38;
 
-  // Totales + firmas necesitan ~50 mm; si no caben, empiezan en otra página.
   if (y + totalRowHeight + 50 > pageH - 10) {
     doc.addPage();
     y = 14;
@@ -325,7 +308,6 @@ export async function generarConcentradoViaticosPDF(
 
   y += totalRowHeight;
 
-  // ── Firmas ──────────────────────────────────────────────────────────────
   const signatureWidths = [22, 55, 60, 33];
   const signatureHeaderH = 7;
   const signatureRowH = 9;
@@ -400,8 +382,6 @@ export async function generarConcentradoViaticosPDF(
             : null;
 
     if (firmaBase64) {
-      // La celda conserva el mismo borde que las demás; la firma se dibuja
-      // centrada y escalada sin deformarse.
       celda(doc, firmaX, rowY, firmaW, signatureRowH, '', { align: 'center' });
       const props = doc.getImageProperties(firmaBase64);
       const maxW = firmaW - 4;
@@ -424,7 +404,6 @@ export async function generarConcentradoViaticosPDF(
     }
   });
 
-  // ── Pie de página ───────────────────────────────────────────────────────
   const totalPages = doc.getNumberOfPages();
   for (let page = 1; page <= totalPages; page++) {
     doc.setPage(page);

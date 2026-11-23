@@ -7,11 +7,6 @@ using Microsoft.Extensions.Caching.Memory;
 
 namespace Lefarma.UnitTests.Services.Identity;
 
-/// <summary>
-/// app.UsuariosPermisos admite filas con EsConcedido = 0 que actúan como denegación
-/// explícita: restan el permiso que el usuario recibiría por sus roles, igual que
-/// app.sp_ObtenerPermisosUsuario en el sistema anterior.
-/// </summary>
 public class UserPermissionServiceTests
 {
     private const int IdUsuario = 73;
@@ -39,7 +34,6 @@ public class UserPermissionServiceTests
         var usuario = new Usuario { IdUsuario = IdUsuario, NombreCompleto = "Marco Polo Narvaez Oropeza" };
         contexto.Usuarios.Add(usuario);
 
-        // El rol concede los tres permisos de documentos más el menú base.
         contexto.RolesPermisos.AddRange(
             new RolPermiso { IdRol = IdRol, IdPermiso = pSubir.IdPermiso, Rol = rol, Permiso = pSubir },
             new RolPermiso { IdRol = IdRol, IdPermiso = pEliminar.IdPermiso, Rol = rol, Permiso = pEliminar },

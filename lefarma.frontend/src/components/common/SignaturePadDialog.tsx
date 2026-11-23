@@ -9,13 +9,9 @@ import {
 } from '@/components/ui/dialog';
 import { Check, Eraser, Loader2, PenLine, Undo2 } from 'lucide-react';
 
-// Internal resolution of the pad. Landscape keeps the wide 16:9 pad; portrait
-// (phone/tablet held upright) uses a taller 3:4 pad so there is room to sign
-// without forcing the user to rotate the device.
 const CANVAS_LANDSCAPE = { w: 1280, h: 720 } as const;
 const CANVAS_PORTRAIT = { w: 900, h: 1200 } as const;
 
-// Pen tuning: slow strokes draw thick, fast strokes draw thin (ballpoint feel)
 const MAX_W = 5.5;
 const MIN_W = 1.2;
 const K = 1.5;
@@ -85,8 +81,6 @@ export function SignaturePadDialog({ open, onOpenChange, onSave, isSaving = fals
   const [isPortrait, setIsPortrait] = useState(false);
   const [wasOpen, setWasOpen] = useState(false);
 
-  // Reset the emptiness flag during render when the dialog opens (React's
-  // adjust-state-when-props-change pattern; avoids setState inside an effect).
   if (open !== wasOpen) {
     setWasOpen(open);
     if (open) setIsEmpty(true);
@@ -106,7 +100,6 @@ export function SignaturePadDialog({ open, onOpenChange, onSave, isSaving = fals
       const portrait = window.innerHeight > window.innerWidth;
       if (portraitRef.current !== portrait) {
         portraitRef.current = portrait;
-        // Canvas aspect changes with orientation; old strokes would distort.
         strokesRef.current = [];
         setIsEmpty(true);
         setIsPortrait(portrait);
@@ -128,7 +121,6 @@ export function SignaturePadDialog({ open, onOpenChange, onSave, isSaving = fals
     }
   }, [open, redrawAll]);
 
-  // Repaint after the canvas switches aspect (changing width/height wipes the surface)
   useEffect(() => {
     if (open) redrawAll();
   }, [isPortrait, open, redrawAll]);
@@ -173,7 +165,6 @@ export function SignaturePadDialog({ open, onOpenChange, onSave, isSaving = fals
 
       const point = { x, y, w };
       stroke.push(point);
-      // Live draw with start taper only; pointerup redraw applies the end taper
       drawSegment(ctx, stroke[stroke.length - 2], point, startTaper(stroke.length - 2, 4), 1);
       lastRawRef.current = { x, y, t: ev.timeStamp, w };
     }
@@ -183,7 +174,6 @@ export function SignaturePadDialog({ open, onOpenChange, onSave, isSaving = fals
     if (!drawingRef.current) return;
     drawingRef.current = false;
     lastRawRef.current = null;
-    // Normalize the finished stroke so live drawing and redrawAll match exactly
     redrawAll();
   };
 
@@ -202,8 +192,6 @@ export function SignaturePadDialog({ open, onOpenChange, onSave, isSaving = fals
   const handleSave = () => {
     const canvas = canvasRef.current;
     if (!canvas || strokesRef.current.length === 0) return;
-    // Trim to the ink's bounding box so both pad orientations export the same
-    // tight PNG (downstream PDFs place firmas in fixed wide boxes, e.g. 40x12).
     let minX = Infinity;
     let minY = Infinity;
     let maxX = -Infinity;

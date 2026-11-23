@@ -12,7 +12,6 @@ using Moq;
 
 namespace Lefarma.UnitTests.Features.EducacionMedica;
 
-/// <summary>Ajustes post-cierre, solicitudes de cambio, extraordinarios y captura asistida (ADR-00010/00011).</summary>
 public class TalleresServiceAjustesTests
 {
     private const int IdEv = 500;
@@ -157,9 +156,7 @@ public class TalleresServiceAjustesTests
         Motivo = motivo,
     };
 
-    // ----- Ajustes post-cierre del taller (ADR-00010) -----
-
-    [Fact]
+[Fact]
     public async Task AjustarTaller_Programado_ConPermisoYCambios_Debe_AplicarAuditarYSincronizarVisita()
     {
         _workflow.OtorgarPermiso(IdCem, Permissions.EducacionMedica.TalleresAjustar);
@@ -180,7 +177,6 @@ public class TalleresServiceAjustesTests
         ajuste.ValoresAntes.Should().Contain("2026-10-20");
         ajuste.ValoresDespues.Should().Contain("2026-10-21");
 
-        // Sincronización taller → ruta: la visita activa se mueve en el mismo acto.
         _workflow.Context.RutasVisitas.Single().FechaVisita.Should().Be(new DateOnly(2026, 10, 21));
     }
 
@@ -237,7 +233,6 @@ public class TalleresServiceAjustesTests
     public async Task AjustarTaller_ConflictoDeCapacidadEnRuta_Debe_FallarSinCambioParcial()
     {
         _workflow.OtorgarPermiso(IdCem, Permissions.EducacionMedica.TalleresAjustar);
-        // El día destino ya tiene 3 visitas (tope 3/día) en la ruta del equipo.
         _workflow.Context.RutasVisitas.AddRange(
             new RutaVisita { IdRuta = 1, IdSeleccionHospital = 2, IdHospital = 101, FechaVisita = new DateOnly(2026, 10, 21), Orden = 2 },
             new RutaVisita { IdRuta = 1, IdSeleccionHospital = 3, IdHospital = 102, FechaVisita = new DateOnly(2026, 10, 21), Orden = 3 },
@@ -253,9 +248,7 @@ public class TalleresServiceAjustesTests
         _workflow.Context.AjustesPostCierre.Count().Should().Be(0);
     }
 
-    // ----- Solicitudes de cambio (ADR-00010, decisiones 13-15) -----
-
-    [Fact]
+[Fact]
     public async Task CrearSolicitud_TallerCreadaConCandado_Debe_CrearPendiente()
     {
         BloquearCaptura();
@@ -383,9 +376,7 @@ public class TalleresServiceAjustesTests
         await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("*permiso*ajustar*");
     }
 
-    // ----- Taller extraordinario y captura asistida (ADR-00011) -----
-
-    [Fact]
+[Fact]
     public async Task CrearExtraordinario_ConPermiso_Debe_NacerProgramadoConHistorialYMatrices()
     {
         _workflow.OtorgarPermiso(IdCem, Permissions.EducacionMedica.TalleresCapturarExtraordinarios);

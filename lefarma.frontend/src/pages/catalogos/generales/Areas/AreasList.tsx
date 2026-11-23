@@ -99,7 +99,6 @@ export default function AreasList() {
         setEmpresas(response.data.data || []);
       }
     } catch {
-      // silencioso — el select quedará vacío
     }
   };
 

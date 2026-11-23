@@ -55,7 +55,6 @@ public class HelpImageConfiguration : IEntityTypeConfiguration<HelpImage>
             .HasColumnName("subido_por")
             .HasMaxLength(100);
 
-        // Índices
         builder.HasIndex(x => x.NombreArchivo)
             .HasDatabaseName("IX_HelpImages_nombre_archivo");
 

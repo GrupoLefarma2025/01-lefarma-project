@@ -8,11 +8,6 @@ namespace Lefarma.API.Features.EducacionMedica;
 
 public interface IAprobacionesService
 {
-    /// <summary>
-    /// Documentos de la Bandeja de Autorizaciones (selecciones y versiones de rutas).
-    /// <paramref name="filtro"/>: "pendientes" (default; pasos de firma donde el usuario participa),
-    /// "mios" (creados por el usuario) o "todos" (sin filtro de usuario).
-    /// </summary>
     Task<List<PendienteAprobacionDto>> GetDocumentosAsync(
         int idUsuario,
         string? filtro = null,
@@ -50,8 +45,6 @@ public class AprobacionesService : IAprobacionesService
             filtroNormalizado = FiltroPendientes;
         }
 
-        // Pasos activos de todos los workflows; se usan para resolver el nombre del paso
-        // actual (cualquier documento) y para el subconjunto "de firma" (filtro pendientes).
         var pasos = await _context.WorkflowPasos.AsNoTracking()
             .Where(p => p.Activo)
             .Select(p => new { p.IdPaso, p.NombrePaso, p.EsInicio, p.EsFinal })
@@ -68,7 +61,6 @@ public class AprobacionesService : IAprobacionesService
         var tiposGerencia = await _context.TiposGerencia.AsNoTracking()
             .ToDictionaryAsync(t => t.IdTipoGerencia, t => t.Descripcion, ct);
 
-        // ----- Selecciones mensuales -----
         var querySelecciones = _context.SeleccionesMensuales.AsNoTracking()
             .Include(s => s.EstadoWorkflow)
             .Where(s => s.Activo);
@@ -132,7 +124,6 @@ public class AprobacionesService : IAprobacionesService
             });
         }
 
-        // ----- Matrices generales de talleres -----
         var queryMatrices = _context.MatricesGenerales.AsNoTracking()
             .Include(m => m.EstadoWorkflow)
             .Include(m => m.TipoGerencia)

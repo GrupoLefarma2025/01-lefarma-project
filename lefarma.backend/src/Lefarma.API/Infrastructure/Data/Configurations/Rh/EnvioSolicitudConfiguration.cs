@@ -34,13 +34,11 @@ namespace Lefarma.API.Infrastructure.Data.Configurations.Rh
 
             builder.Property(e => e.Activo).HasColumnName("activo").HasDefaultValue(true);
 
-            // Relación con SolicitudPersonal
             builder.HasOne(e => e.Solicitud)
                 .WithMany()
                 .HasForeignKey(e => e.IdSolicitud)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // Relación con TipoSolicitud
             builder.HasOne(e => e.TipoSolicitud)
                 .WithMany()
                 .HasForeignKey(e => e.IdTipoSolicitud)

@@ -1,6 +1,5 @@
 namespace Lefarma.API.Domain.Entities.Telemetria;
 
-/// <summary>Error capturado en el navegador del usuario.</summary>
 public class EventoErrorTelemetria
 {
     public long IdError { get; set; }

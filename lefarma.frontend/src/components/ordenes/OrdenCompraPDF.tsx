@@ -47,8 +47,6 @@ interface Props {
   formasPagoMap?: Map<number, { idFormaPago: number; nombre: string }>;
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
 function fmtDate(dateStr: string) {
   try {
     return new Date(dateStr).toLocaleDateString('es-MX', {
@@ -61,7 +59,6 @@ function fmtDate(dateStr: string) {
   }
 }
 
-// Formato largo para el encabezado: "20 de enero del 2026"
 function fmtDateLarga(dateStr: string) {
   try {
     const d = new Date(dateStr);
@@ -74,18 +71,11 @@ function fmtDateLarga(dateStr: string) {
   }
 }
 
-// function fmtMoney(n: number) {
-//   return n.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
-// }
-
-// ─── Styles ───────────────────────────────────────────────────────────────────
-
 const DARK_BLUE = '#1a3a5c';
 const HEADER_BG = '#1a3a5c';
 const ROW_LABEL = '#2c5f8a';
 const BORDER = '#4a7aad';
 const WHITE = '#ffffff';
-// const LIGHT_GRAY = '#f5f5f5';
 
 const s: Record<string, React.CSSProperties> = {
   page: {
@@ -373,8 +363,6 @@ const s: Record<string, React.CSSProperties> = {
   },
 };
 
-// ─── Logo ──────────────────────────────────────────────────────────────────────
-
 const Logo: React.FC<{ src: string }> = ({ src }) => (
   <div style={s.logoBox}>
     <img
@@ -384,8 +372,6 @@ const Logo: React.FC<{ src: string }> = ({ src }) => (
     />
   </div>
 );
-
-// ─── Main Component ────────────────────────────────────────────────────────────
 
 const EMPTY_LINES = 7;
 
@@ -427,7 +413,7 @@ export function OrdenCompraPDF({ orden, historial = [], pasosWorkflow = [], prov
 
   return (
     <div id="orden-compra-pdf-print" style={s.page}>
-      {/* ── HEADER ── */}
+      {}
       <div style={s.headerRow}>
         <Logo src={_logoSrc} />
         <div style={s.docTitle}>ORDEN DE COMPRA</div>
@@ -445,7 +431,7 @@ export function OrdenCompraPDF({ orden, historial = [], pasosWorkflow = [], prov
         </div>
       </div>
 
-      {/* ── DATOS DEL SOLICITANTE ── */}
+      {}
       <div style={s.sectionHeader}>Datos del solicitante</div>
       <table style={s.table}>
         <tbody>
@@ -474,7 +460,7 @@ export function OrdenCompraPDF({ orden, historial = [], pasosWorkflow = [], prov
         </tbody>
       </table>
 
-      {/* ── DATOS DEL PROVEEDOR ── */}
+      {}
       <div style={{ ...s.sectionHeader, marginTop: 6 }}>Datos del Proveedor</div>
       <table style={s.table}>
         <tbody>
@@ -548,7 +534,7 @@ export function OrdenCompraPDF({ orden, historial = [], pasosWorkflow = [], prov
         </tbody>
       </table>
 
-      {/* ── DATOS DE ENTREGA ── */}
+      {}
       <div style={{ ...s.sectionHeader, marginTop: 6 }}>Datos de entrega</div>
       <table style={s.table}>
         <thead>
@@ -586,7 +572,7 @@ export function OrdenCompraPDF({ orden, historial = [], pasosWorkflow = [], prov
         </tbody>
       </table>
 
-      {/* ── OBSERVACIONES + TOTALES ── */}
+      {}
       <div style={s.bottomSection}>
         <div style={s.obsBox}>
           <div style={s.obsHeader}>Observaciones</div>
@@ -610,19 +596,19 @@ export function OrdenCompraPDF({ orden, historial = [], pasosWorkflow = [], prov
         </div>
       </div>
 
-      {/* ── LUGAR DE ENTREGA (debajo de Observaciones) ── */}
+      {}
       <div style={{ border: `1px solid ${BORDER}`, borderTop: 'none' }}>
         <div style={s.obsHeader}>Lugar de entrega</div>
         <div style={{ padding: '4px 6px', fontSize: 12, lineHeight: 1.4 }}>{orden.domicilioEntrega ?? '-'}</div>
       </div>
 
-      {/* ── DATOS DE FACTURACIÓN (debajo de Lugar de entrega) ── */}
+      {}
       <div style={{ border: `1px solid ${BORDER}`, borderTop: 'none' }}>
         <div style={s.obsHeader}>Datos de facturación</div>
         <div style={{ padding: '4px 6px', fontSize: 12, lineHeight: 1.4 }}>{orden.facturarA ?? '-'}</div>
       </div>
 
-      {/* ── FOLIO DE TRANSPORTE (una fila, ancho completo) ── */}
+      {}
       {orden.nombreTraslado && (
         <table style={{ ...s.table, marginTop: 6 }}>
           <tbody>
@@ -634,7 +620,7 @@ export function OrdenCompraPDF({ orden, historial = [], pasosWorkflow = [], prov
         </table>
       )}
 
-      {/* ── FLUJO DINÁMICO ── */}
+      {}
       {flujoPasos.length > 0 && (
         <div style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}>
           <table style={{ ...s.firmasTable, width: '100%' }}>
@@ -695,12 +681,8 @@ export function OrdenCompraPDF({ orden, historial = [], pasosWorkflow = [], prov
         </div>
       )}
 
-      {/* ── FOOTER ── */}
-      {/* <div style={s.footer}>
-        <span>LEF-AYF-FOR-009</span>
-        <span>Versión: 01 · Prohibida la reproducción no autorizada</span>
-        <span>Pág 1 de 1</span>
-      </div> */}
+      {}
+      {}
     </div>
   );
 }

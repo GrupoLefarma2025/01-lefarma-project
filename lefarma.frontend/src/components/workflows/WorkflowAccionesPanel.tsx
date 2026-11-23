@@ -12,7 +12,6 @@ interface WorkflowAccionesPanelProps {
   vacioTexto?: string;
 }
 
-/** Panel de acciones disponibles del paso actual (mismo patrón que solicitudes de personal). */
 export function WorkflowAccionesPanel({
   acciones,
   onAccionClick,

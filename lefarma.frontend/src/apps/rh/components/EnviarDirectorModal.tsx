@@ -22,7 +22,6 @@ import { SolicitudPersonalPDF } from './PDF/SolicitudPersonalPDF';
 import { generarPdfSolicitud } from './PDF/generarPdfSolicitud';
 import { getCategoriaNombre } from '@/types/solicitudPersonal.types';
 
-/** Comentario inicial del envío al director: menciona el tipo y quién solicita (editable). */
 function comentarioDefault(solicitud: SolicitudPersonalResponse): string {
   const tipo = solicitud.tipoSolicitudNombre || getCategoriaNombre(solicitud.categoria);
   const solicitante = solicitud.solicitanteNombre ?? '—';
@@ -74,8 +73,6 @@ export function EnviarDirectorModal({
 
   const haySoporte = !!(archivoSoporte || archivoExistente);
 
-  // El modal se monta al abrir la acción (estado inicial limpio).
-  // Carga los PDFs ya adjuntos a la solicitud, candidatos a documento soporte.
   useEffect(() => {
     if (!solicitud?.idSolicitud) return;
     let cancelado = false;
@@ -121,7 +118,6 @@ export function EnviarDirectorModal({
     try {
       const pdfBlob = await generarPdfSolicitud(solicitud, historial, pasosWorkflow);
 
-      // Soporte: el archivo subido tiene prioridad; si no, se envía el PDF seleccionado de los adjuntos.
       let soporte: File | null = archivoSoporte;
       if (!soporte && archivoExistente) {
         const res = await API.get<Blob>(`/archivos/${archivoExistente.id}/download`, {
@@ -175,11 +171,10 @@ export function EnviarDirectorModal({
       >
         <div className="space-y-5">
 
-          {/* 1. Vista previa (arriba, como OC) */}
+          {}
           <div className="space-y-2">
             <Label>Vista previa de la solicitud</Label>
-            {/* Ancho fijo 820px (igual que el portal de captura): si se deja al ancho de
-                la columna, el documento re-acomoda el texto y el PDF no coincide. */}
+            {}
             <div className="solicitud-pdf-preview max-h-[55vh] overflow-auto rounded-lg border bg-white">
               <div style={{ width: 820, minWidth: 820, margin: '0 auto' }}>
                 <SolicitudPersonalPDF
@@ -193,7 +188,7 @@ export function EnviarDirectorModal({
             </div>
           </div>
 
-          {/* 2. Documento soporte (uno, PDF) */}
+          {}
           <div className="space-y-2">
               <div className="flex items-center gap-2">
                 <Label htmlFor="soporte-archivo">Documento soporte</Label>
@@ -313,7 +308,7 @@ export function EnviarDirectorModal({
               </p>
           </div>
 
-          {/* 3. Comentario (con valor por defecto: la solicitud y quién solicita) */}
+          {}
           <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label htmlFor="comentario-enviar-director">
@@ -336,7 +331,7 @@ export function EnviarDirectorModal({
         </div>
       </Modal>
 
-      {/* Vista previa del PDF de soporte */}
+      {}
       <FileViewer
         archivoId={archivoSoporte ? null : (archivoExistente?.id ?? null)}
         localFile={archivoSoporte}

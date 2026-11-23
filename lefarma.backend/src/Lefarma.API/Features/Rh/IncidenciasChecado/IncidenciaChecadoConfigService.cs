@@ -132,8 +132,6 @@ public class IncidenciaChecadoConfigService : IIncidenciaChecadoConfigService
 
         var diasQueConsumenSaldo = await ObtenerDiasQueConsumenSaldoAsync(items, cancellationToken);
 
-        // Si un día no consume saldo (día de asueto oficial), entonces no se aplicará la regla
-        // a ese día, o sea no se generará incidencia ni descuento, aunque la regla coincida
         var conRegla = items
             .SelectMany(i => ClasificarReglas(i, reglas).Select(r => new { Item = i, Regla = r }))
             .Where(x => !(x.Regla.ExcluirDiasHabilesConsumenSaldo
@@ -163,8 +161,6 @@ public class IncidenciaChecadoConfigService : IIncidenciaChecadoConfigService
 
             for (var i = 0; i < ordenados.Count; i++)
             {
-                // El descuento real se acumula solo con días no justificados; el teórico
-                // cuenta todos los días y sirve para el tope de descuentos justificados.
                 var generaDescuentoTeorico = ((i + 1) % cantidadParaDescuento) == 0;
                 var generaDescuento = false;
                 int? posicionAcumulacion = null;
@@ -246,8 +242,6 @@ public class IncidenciaChecadoConfigService : IIncidenciaChecadoConfigService
 
         var idEmpresas = empresaPorNomina.Values.Distinct().ToList();
 
-        // Obtener los días hábiles que no consumen saldo (días de asueto oficial) para las
-        // empresas y fechas relevantes: en esos días no se generan incidencias
         var diasHabiles = await _context.DiasHabiles
             .AsNoTracking()
             .Where(d => d.Activo && !d.ConsumeSaldo && idEmpresas.Contains(d.IdEmpresa) && fechas.Contains(d.Fecha.Date))
@@ -336,14 +330,6 @@ public class IncidenciaChecadoConfigService : IIncidenciaChecadoConfigService
         return true;
     }
 
-    /// <summary>
-    /// Minutos entre dos horas contando los límites de minuto, igual que
-    /// DATEDIFF(MINUTE, ...) del resumen SQL (045_sp_incidencias_checado_resumen...)
-    /// y que la notificación (que arma las horas en formato hh:mm).
-    /// Ej.: 18:10:57 → 18:30:00 son 20 minutos, no 19. Con el truncamiento anterior
-    /// ((int)TotalMinutes) el calendario descartaba los días límite que la
-    /// notificación y el reporte sí contaban, y el día no aparecía en el calendario.
-    /// </summary>
     private static int MinutosDeReloj(TimeSpan desde, TimeSpan hasta) =>
         (int)(TruncarAMinuto(hasta) - TruncarAMinuto(desde)).TotalMinutes;
 

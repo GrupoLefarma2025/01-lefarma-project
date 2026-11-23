@@ -28,8 +28,6 @@ type Visit = [day: number, hospital: string, city: string | null];
 type Row = [person: number, start: number, end: number, cities: string[], mode: 'bus' | 'avion', time: string,
   flight: string | null, visits: Visit[], costs: [number | null, number | null, number | null, number, number, number], conflicts?: string[]];
 
-// Dates are explicit FOR-007 taxi-table dates, not generated working days.
-// Terminal departure references are intentionally not copied into origin departure fields.
 const rows: Row[] = [
   [0,5,5,['TOLUCA'],'bus','05:00',null,[[5,'ISSSTE TOLUCA','TOLUCA']], [600,null,null,450,1060,2110]],
   [1,5,9,['CANCÚN','PLAYA DEL CARMEN','CANCÚN'],'avion','12:00','18:30',[

@@ -10,18 +10,10 @@ using System.Linq.Expressions;
 
 namespace Lefarma.API.Features.OrdenesCompra.Visibilidad;
 
-/// <summary>
-/// Resuelve y aplica el alcance de visibilidad de las órdenes de compra en un solo
-/// punto (ADR 00001). Permisos desde la BD (no claims), roles vigentes desde Asokam,
-/// empresas desde <c>config.usuario_alcance_empresa</c> y flujos desde
-/// <c>config.workflow_mappings</c> / <c>config.workflow_participantes</c>.
-/// </summary>
 public class OrdenCompraVisibilidadService : IOrdenCompraVisibilidadService
 {
     private const string ScopeUsuario = "USUARIO";
 
-    // Estados que no exponen una orden por el simple hecho de estar detenida en un paso:
-    // Creada (1), Rechazada (7) y Cancelada (9).
     private const int EstadoCreada = 1;
     private const int EstadoRechazada = 7;
     private const int EstadoCancelada = 9;
@@ -52,7 +44,6 @@ public class OrdenCompraVisibilidadService : IOrdenCompraVisibilidadService
         if (permisos.Contains(Permissions.OrdenesCompra.VerTodas))
             return AlcanceOrdenCompra.Vacio(idUsuario) with { VerTodas = true };
 
-        // Roles vigentes en Asokam (por id de rol, nunca por el nombre del claim).
         var roles = await (
                 from ur in _asokamContext.UsuariosRoles.AsNoTracking()
                 join rol in _asokamContext.Roles.AsNoTracking() on ur.IdRol equals rol.IdRol
@@ -63,7 +54,6 @@ public class OrdenCompraVisibilidadService : IOrdenCompraVisibilidadService
             .Distinct()
             .ToListAsync(ct);
 
-        // Empresas asignadas: solo con el permiso y solo filas activas (fail-closed).
         var empresas = new List<int>();
         if (permisos.Contains(Permissions.OrdenesCompra.VerPorEmpresa))
         {
@@ -74,13 +64,11 @@ public class OrdenCompraVisibilidadService : IOrdenCompraVisibilidadService
                 .ToListAsync(ct);
         }
 
-        // Alcance base: pasos donde el usuario participa, por usuario o por rol vigente.
         var pasosParticipante = await ParticipantesDelUsuario(idUsuario, roles)
             .Select(p => p.IdPaso)
             .Distinct()
             .ToListAsync(ct);
 
-        // Flujos: mappings con scope USUARIO del usuario + workflows donde participa.
         var workflows = new List<int>();
         if (permisos.Contains(Permissions.OrdenesCompra.VerPorFlujo))
         {
@@ -119,7 +107,6 @@ public class OrdenCompraVisibilidadService : IOrdenCompraVisibilidadService
             workflows = porMapping.Concat(porParticipante).Distinct().ToList();
         }
 
-        // Jefe inmediato: nivel mínimo por paso que lo requiere.
         var pasosConJefeInmediato = await _context.WorkflowParticipantes.AsNoTracking()
             .Where(p => p.Activo && p.RequiereJefeInmediato)
             .GroupBy(p => p.IdPaso)
@@ -138,7 +125,6 @@ public class OrdenCompraVisibilidadService : IOrdenCompraVisibilidadService
                 .Distinct()
                 .ToListAsync(ct);
 
-            // Caché por (workflow, creador, nivel) para no repetir consultas.
             var jefeCache = new Dictionary<(int, int, int), JefeEfectivoResult>();
 
             foreach (var orden in ordenesEnPasosJefe)
@@ -182,8 +168,6 @@ public class OrdenCompraVisibilidadService : IOrdenCompraVisibilidadService
         var idUsuario = alcance.IdUsuario;
         Expression<Func<OrdenCompra, bool>> criterio = o => o.IdUsuarioCreador == idUsuario;
 
-        // Los sets se copian a listas locales para que EF los traduzca y, si están
-        // vacíos, se omite esa rama del OR (no amplía ni rompe la traducción).
         var creadoresPosibles = alcance.CreadoresPosibles.ToList();
         if (creadoresPosibles.Count > 0)
             criterio = CombinarConOr(criterio, o => creadoresPosibles.Contains(o.IdUsuarioCreador));
@@ -240,7 +224,6 @@ public class OrdenCompraVisibilidadService : IOrdenCompraVisibilidadService
         if (alcance.PasosParticipante.Contains(orden.IdPasoActual.Value))
             return true;
 
-        // El jefe inmediato se resuelve para el paso y creador concretos.
         if (!alcance.NivelPorPaso.TryGetValue(orden.IdPasoActual.Value, out var nivel))
             return false;
 

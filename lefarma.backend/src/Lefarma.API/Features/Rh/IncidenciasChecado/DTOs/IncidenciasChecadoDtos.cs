@@ -29,11 +29,6 @@ public class IncidenciaChecadoResponse
     public string? TipoSolicitudNombre { get; set; }
 }
 
-/// <summary>
-/// Respuesta de "mis incidencias". Si el empleado tiene el checado deshabilitado
-/// (Checa = "No") no se consultan incidencias: nunca tendrá, y el frontend muestra
-/// el aviso correspondiente.
-/// </summary>
 public class MisIncidenciasChecadoResponse
 {
     public bool ChecaDeshabilitado { get; set; }
@@ -46,18 +41,12 @@ public class IncidenciaCalculadaDto
     public string Nombre { get; set; } = string.Empty;
     public bool GeneraDescuento { get; set; }
 
-    // Marca que tendría la incidencia si el día no estuviera justificado; se usa para
-    // contabilizar el tope de descuentos justificados por mes.
     public bool GeneraDescuentoTeorico { get; set; }
 
-    // Cuántas incidencias del mismo tipo/periodo generan un descuento (N de la regla).
     public int CantidadAcumulada { get; set; }
 
-    // Posición del día entre los no justificados del periodo (1, 2, 3...). Null si el
-    // día está justificado y por lo tanto no cuenta para la acumulación.
     public int? PosicionAcumulacion { get; set; }
 
-    // Periodo de la acumulación, ej. "septiembre 2026" o "1.ª quincena de septiembre 2026".
     public string? EtiquetaPeriodo { get; set; }
 }
 

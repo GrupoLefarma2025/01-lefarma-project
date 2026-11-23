@@ -30,11 +30,6 @@ const MESES_LARGOS = [
   'diciembre',
 ];
 
-/**
- * Convierte una fecha ISO (o ISO con hora) a Date local sin pasar por UTC.
- * El API entrega `YYYY-MM-DD` o `YYYY-MM-DDTHH:mm:ss`; `new Date(string)`
- * interpretaría la medianoche como UTC y en México cambiaría de día.
- */
 export function parseFechaLocal(value?: string | null): Date | null {
   if (!value) return null;
 
@@ -61,7 +56,6 @@ export function fmtMesCorto(value?: string | null): string {
   return `${MESES_CORTOS[fecha.getMonth()]}-${String(fecha.getFullYear()).slice(-2)}`;
 }
 
-/** Fecha larga en español, por ejemplo: "26 de julio del 2026". */
 export function fmtFechaLarga(value?: string | null): string {
   const fecha = parseFechaLocal(value);
   if (!fecha) return '—';
@@ -73,10 +67,6 @@ export function texto(value?: string | null): string {
   return limpio ? limpio : '—';
 }
 
-/**
- * Líneas de la columna Fecha del concentrado, con el mismo formato del Excel:
- * una fecha o dos líneas cuando el viaje termina otro día.
- */
 export function fechaViajeLineas(
   inicio?: string | null,
   fin?: string | null,
@@ -100,7 +90,6 @@ export function fmtMoney(n: number): string {
   });
 }
 
-/** En el Excel los costos vacíos o en cero se imprimen como "$ -". */
 export function fmtMoneyCelda(n?: number | null): string {
   if (n == null || n === 0) return '$ -';
   return fmtMoney(n);
@@ -211,7 +200,6 @@ export interface ConcentradoViaticosHeader {
   fecha: string;
 }
 
-/** Un valor si todas las filas comparten el mismo; "VARIAS" si no; "—" si no hay. */
 export function unicoOVarias(values: Array<string | null | undefined>): string {
   const limpios = values
     .map((value) => (value ?? '').trim())
@@ -231,10 +219,6 @@ export function buildHeader(filas: MacroViatico[]): ConcentradoViaticosHeader {
   };
 }
 
-/**
- * Clave de selección del concentrado: mismo nombre, misma gerencia y misma
- * fecha. Se normaliza para que mayúsculas/espacios no permitan mezclar grupos.
- */
 export function claveGrupoViatico(fila: MacroViatico): string {
   const nombre = (fila.nombre ?? '').trim().toLocaleLowerCase('es');
   const gerencia = (fila.gerencia ?? '').trim().toLocaleLowerCase('es');

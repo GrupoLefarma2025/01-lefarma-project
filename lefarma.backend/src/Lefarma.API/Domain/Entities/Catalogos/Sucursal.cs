@@ -24,7 +24,6 @@ public class Sucursal
         public DateTime FechaCreacion { get; set; }
         public DateTime? FechaModificacion { get; set; }
 
-        // Navegación
         public virtual Empresa? Empresa { get; set; } 
     }
 }

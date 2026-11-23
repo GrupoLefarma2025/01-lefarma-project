@@ -1,24 +1,7 @@
-// Contrato de la bandeja de autorizaciones del admin de viaticos
-// (backend: lefarma.backend/src/Lefarma.API/Features/Viaticos/DTOs/AprobacionDtos.cs).
-
 import type { SolicitudEvento, SolicitudOpcion } from './solicitud.types';
 
-/**
- * Una fila de `GET /api/viaticos/solicitudes`.
- * `destino` llega null cuando el snapshot `datos_json` de la solicitud no lo
- * tiene; `nombre_solicitante` llega vacio si el directorio no pudo resolverlo.
- *
- * El servidor proyecta ademas el encabezado del FOR-008 (`origen` y el rango
- * `fecha` ya compuesto) y el desglose por concepto. Son OPCIONALES porque el
- * listado puede no traerlos y los fixtures de la bandeja no los declaran;
- * `null` y `undefined` se imprimen como "—" en el concentrado, nunca "$0.00".
- * `total` es nullable: `null` significa "no se conoce" (el backend no encontro
- * `$.total` en el snapshot) y la bandeja lo imprime como "—", nunca como
- * "$0.00".
- */
 export interface SolicitudBandeja {
   id_solicitud: number;
-  /** Folio legible (VIA-XXXX-0001); `null` en solicitudes viejas. */
   folio?: string | null;
   id_usuario_solicitante: number;
   nombre_solicitante: string;
@@ -26,14 +9,8 @@ export interface SolicitudBandeja {
   gerencia: string;
   destino: string | null;
   estado: string;
-  /** Origen de la ruta (`$.origen`); `null`/`undefined` imprime "—". */
   origen?: string | null;
-  /** Rango del viaje: "05/10/2026 AL 09/10/2026". */
   fecha?: string | null;
-  /**
-   * Fechas reales del viaje tal como las guarda el snapshot (ISO `aaaa-mm-dd`).
-   * Existen para filtrar por fecha de viaje sin parsear el texto de `fecha`.
-   */
   fecha_salida?: string | null;
   fecha_regreso?: string | null;
   autobus?: number | null;
@@ -45,44 +22,20 @@ export interface SolicitudBandeja {
   comida?: number | null;
   taxi?: number | null;
   total: number | null;
-  /** Suma de precios reales de las opciones elegidas. */
   total_cotizado?: number | null;
-  /** Suma de referencias estimadas/tabulador (no autorizable como real). */
   total_estimado?: number | null;
-  /** Vuelos elegidos sin precio real: bloquean la autorización. */
   precios_pendientes?: number;
-  /**
-   * Medio de transporte ya resuelto por el servidor: `aereo`, `autobus`,
-   * `propio`, `solicitado` o `sin-clasificar`. El wizard no escribe
-   * `$.avion`/`$.autobus`; el medio vive en la opción elegida y el modo en
-   * `datos.transporte.modo`. `solicitado` = la empresa gestiona el viaje y aún
-   * no se elige medio. Opcional para respuestas viejas.
-   */
   tipo_transporte?: TipoTransporteConcentrado;
-  /** Nombre de la persona que viaja (`datos.persona.nombre`); puede diferir del solicitante. */
   persona_nombre?: string | null;
-  /** Motivo del viaje (`datos.persona.motivo`). */
   motivo?: string | null;
-  /** Puesto del viajero según el directorio de personal; `null` si no resuelve. */
   puesto?: string | null;
-  /** Fecha de nacimiento del viajero en ISO (`aaaa-mm-dd`); la pide la agencia de vuelos. */
   fecha_nacimiento?: string | null;
-  /**
-   * Itinerario imprimible del formato «Solicitud de avión»: ida y vuelta (máx.
-   * dos), desde `datos.calculo_autorizado` o `datos.calculo`.
-   */
   trayectos?: TrayectoBandeja[];
   fecha_creacion: string;
-  /** Última modificación: con ella se filtra "última actualización". */
   fecha_modificacion?: string | null;
-  /**
-   * La solicitud pasó por los cálculos: trae cotización (casetas, vuelos,
-   * hoteles). Es lo que el concentrado necesita para autorizar.
-   */
   recalculada?: boolean;
 }
 
-/** Medio de transporte del concentrado; ver `tipo_transporte`. */
 export type TipoTransporteConcentrado =
   | 'aereo'
   | 'autobus'
@@ -90,30 +43,19 @@ export type TipoTransporteConcentrado =
   | 'solicitado'
   | 'sin-clasificar';
 
-/** Un tramo del itinerario imprimible (ida o vuelta). */
 export interface TrayectoBandeja {
-  /** Fecha de salida ISO (`aaaa-mm-dd`). */
   fecha?: string | null;
-  /** Hora planeada de salida (`HH:mm`). */
   hora?: string | null;
   origen?: string | null;
   destino?: string | null;
 }
 
-/**
- * Filtros del GET de la bandeja. Un valor vacio o `undefined` se omite de la
- * query string: el backend trata `null` como "sin filtro".
- */
 export interface FiltrosBandeja {
   periodo?: string;
   estado?: string;
   gerencia?: string;
 }
 
-/**
- * Estados por los que pasa una solicitud. Solo `enviada` es autorizable: el
- * backend responde 409 en cualquier otro (ver AprobacionesController).
- */
 export const ESTADO_ENVIADA = 'enviada';
 
 export const ESTADOS_SOLICITUD = [
@@ -126,7 +68,6 @@ export const ESTADOS_SOLICITUD = [
 
 export type EstadoSolicitud = (typeof ESTADOS_SOLICITUD)[number];
 
-/** Etiqueta legible por estado; lo desconocido se devuelve tal cual. */
 const ETIQUETA_POR_ESTADO: Record<string, string> = {
   borrador: 'Borrador',
   enviada: 'Enviada',
@@ -139,7 +80,6 @@ export function estadoTexto(estado: string): string {
   return ETIQUETA_POR_ESTADO[estado] ?? estado;
 }
 
-/** Variante de badge por estado; lo desconocido se queda neutral. */
 export const VARIANTE_POR_ESTADO: Record<string, 'default' | 'secondary' | 'destructive' | 'outline'> =
   {
     borrador: 'secondary',
@@ -149,7 +89,6 @@ export const VARIANTE_POR_ESTADO: Record<string, 'default' | 'secondary' | 'dest
     rechazada: 'destructive',
   };
 
-/** Body de POST /api/viaticos/solicitudes/{id}/ajustes. `motivo` es obligatorio. */
 export interface AjusteSolicitudPayload {
   id_opcion: number;
   campo: string;
@@ -158,14 +97,8 @@ export interface AjusteSolicitudPayload {
   motivo: string;
 }
 
-/** Permiso que exige TODA accion del editor de ajustes. */
 export const PERMISO_AJUSTAR = 'viaticos.ajustar';
 
-/**
- * Estados en los que el backend acepta un ajuste: AprobacionesController
- * responde 409 en cualquier otro. El editor replica la regla para no ofrecer
- * un boton que solo va a fallar.
- */
 export const ESTADOS_AJUSTABLES: readonly string[] = [
   'autorizada',
   'autorizada_con_ajustes',
@@ -174,8 +107,6 @@ export const ESTADOS_AJUSTABLES: readonly string[] = [
 export function esAjustable(estado: string): boolean {
   return ESTADOS_AJUSTABLES.includes(estado);
 }
-
-// -------- valores de `campo` que escribe el editor --------
 
 export const CAMPO_VUELO_ELEGIDO = 'vuelo_elegido';
 export const CAMPO_PRECIO_PARTIDA = 'precio_partida';
@@ -189,21 +120,14 @@ const ETIQUETA_POR_CAMPO: Record<string, string> = {
   [CAMPO_PARTIDA_QUITADA]: 'Partida quitada',
 };
 
-/** Etiqueta legible de `campo`; lo desconocido se devuelve tal cual. */
 export function campoTexto(campo: string): string {
   return ETIQUETA_POR_CAMPO[campo] ?? campo;
 }
 
-/**
- * Sentinelas de `valor_anterior` / `valor_nuevo`. Son texto y no `null` a
- * proposito: el backend guarda columnas string y la linea de tiempo tiene que
- * poder distinguir "no habia nada" de "el motivo quedo vacio".
- */
 export const SIN_PRECIO = '(sin precio de proveedor)';
 export const SIN_VUELO_ELEGIDO = '(sin vuelo elegido)';
 export const PARTIDA_QUITADA = '(se quitó)';
 
-/** Importe ya formateado en la moneda dada. */
 export function importeFormateado(valor: number, moneda: string | null): string {
   return new Intl.NumberFormat('es-MX', {
     style: 'currency',
@@ -213,11 +137,6 @@ export function importeFormateado(valor: number, moneda: string | null): string 
   }).format(valor);
 }
 
-/**
- * Tipo de precio efectivo de una opción. Si el backend no lo guardó, una
- * fuente que declara "estimado" sigue siendo referencia; el resto se asume
- * cotizado (así vienen las cotizaciones importadas antes de este contrato).
- */
 export function tipoPrecioOpcion(
   opcion: Pick<SolicitudOpcion, 'datos' | 'fuente'>,
 ): string {
@@ -228,14 +147,12 @@ export function tipoPrecioOpcion(
   return /estimad/i.test(opcion.fuente ?? '') ? 'estimado' : 'cotizado';
 }
 
-/** Solo un precio real cuenta para autorizar. */
 export function esOpcionCotizada(
   opcion: Pick<SolicitudOpcion, 'datos' | 'fuente'>,
 ): boolean {
   return tipoPrecioOpcion(opcion) === 'cotizado';
 }
 
-/** Referencia estimada; nunca se suma al total cotizado. */
 export function precioReferenciaOpcion(
   opcion: Pick<SolicitudOpcion, 'precio' | 'datos' | 'fuente'>,
 ): number | null {
@@ -247,7 +164,6 @@ export function precioReferenciaOpcion(
   return null;
 }
 
-/** Vuelo elegido sin precio real: bloquea la autorización en el backend. */
 export function esVueloPendientePrecio(
   opcion: Pick<SolicitudOpcion, 'tipo' | 'fue_elegida' | 'precio' | 'datos' | 'fuente'>,
 ): boolean {
@@ -256,10 +172,6 @@ export function esVueloPendientePrecio(
   return !esOpcionCotizada(opcion) || opcion.precio === null;
 }
 
-/**
- * Importe para la tabla: el precio real si existe; si no, la referencia
- * marcada como estimada (nunca un precio real aparente).
- */
 export function precioTexto(opcion: SolicitudOpcion): string {
   if (esOpcionCotizada(opcion) && opcion.precio !== null) {
     return importeFormateado(opcion.precio, opcion.moneda);
@@ -270,25 +182,14 @@ export function precioTexto(opcion: SolicitudOpcion): string {
     : `Referencia ${importeFormateado(referencia, opcion.moneda)} (estimado)`;
 }
 
-/** "linea · $1,200.00": identifica la partida dentro del rastro. */
 export function describirPartida(opcion: SolicitudOpcion): string {
   return `${opcion.linea} · ${precioTexto(opcion)}`;
 }
 
-/**
- * Numero como texto estable para el rastro: sin notacion cientifica y con dos
- * decimales cuando no es entero, para que `valor_anterior` y `valor_nuevo` se
- * puedan comparar caracter por caracter.
- */
 export function importeTexto(valor: number): string {
   return Number.isInteger(valor) ? String(valor) : valor.toFixed(2);
 }
 
-/**
- * Lee un importe escrito por el admin. Devuelve `null` —no 0 ni NaN— cuando el
- * texto no es un numero, para que un campo vacio no se guarde como un precio
- * de cero.
- */
 export function analizarImporte(texto: string): number | null {
   const limpio = texto.trim().replace(/[$\s,]/g, '');
   if (limpio === '') return null;
@@ -296,18 +197,13 @@ export function analizarImporte(texto: string): number | null {
   return Number.isFinite(valor) ? valor : null;
 }
 
-// -------- construccion del payload --------
-
 export interface DatosAjusteVuelo {
-  /** Opcion que el admin quiere dejar como vuelo elegido. */
   alternativa: SolicitudOpcion;
-  /** Vuelo que el solicitante habia elegido; null si la solicitud no tiene. */
   elegidaActual: SolicitudOpcion | null;
 }
 
 export interface DatosAjustePrecio {
   partida: SolicitudOpcion;
-  /** Importe ya capturado del input del admin. */
   nuevoImporte: string;
 }
 
@@ -320,23 +216,12 @@ export interface DatosAjusteQuitar {
   partida: SolicitudOpcion;
 }
 
-/** Las cuatro acciones del editor, discriminadas por `tipo`. */
 export type AccionAjuste =
   | { tipo: 'vuelo'; datos: DatosAjusteVuelo }
   | { tipo: 'precio'; datos: DatosAjustePrecio }
   | { tipo: 'agregar'; datos: DatosAjustePartidaNueva }
   | { tipo: 'quitar'; datos: DatosAjusteQuitar };
 
-/**
- * Traduce una accion al body de POST /ajustes, o devuelve `null` si todavia no
- * se puede confirmar. `null` es la unica fuente de verdad del boton Guardar:
- * un motivo vacio, un concepto sin monto o un vuelo identico al actual dejan la
- * accion sin payload, y sin payload no hay forma de pulsar Guardar.
- *
- * Regla que no se negocia: `valor_anterior` describe SIEMPRE lo que habia y
- * `valor_nuevo` lo que queda. Agregar una partida es el unico caso donde no
- * habia valor anterior, y por eso manda `''` explicito y no un texto inventado.
- */
 export function construirPayloadAjuste(
   accion: AccionAjuste,
   motivo: string,
@@ -351,8 +236,6 @@ export function construirPayloadAjuste(
         ? describirPartida(elegidaActual)
         : SIN_VUELO_ELEGIDO;
       const valorNuevo = describirPartida(alternativa);
-      // Cambiar por algo identico no es un cambio: sin valor distinto no hay
-      // rastro util y no se registra nada.
       if (valorAnterior === valorNuevo) return null;
       return {
         id_opcion: alternativa.id_opcion,
@@ -384,8 +267,6 @@ export function construirPayloadAjuste(
       const importe = analizarImporte(monto);
       if (conceptoLimpio === '' || importe === null || importe <= 0) return null;
       return {
-        // id_opcion 0 lo persiste el backend como NULL: la partida no
-        // corresponde a ninguna opcion cotizada, la invento el admin.
         id_opcion: 0,
         campo: CAMPO_PARTIDA_AGREGADA,
         valor_anterior: '',
@@ -406,20 +287,12 @@ export function construirPayloadAjuste(
   }
 }
 
-// -------- linea de tiempo --------
-
 export const EVENTO_AJUSTE_APLICADO = 'ajuste_aplicado';
 
-/** Un ajuste ya normalizado para pintar en la linea de tiempo. */
 export interface AjusteLineaTiempo {
   id_evento: number;
   id_usuario: number;
   fecha_creacion: string;
-  /**
-   * false cuando el backend aun no expone `payload`: se sabe que hubo un
-   * ajuste y quien lo hizo, pero no que cambio. Se muestra como tal en vez de
-   * inventar un valor.
-   */
   hayDetalle: boolean;
   campo: string;
   valorAnterior: string;
@@ -427,12 +300,6 @@ export interface AjusteLineaTiempo {
   motivo: string;
 }
 
-/**
- * Normaliza los eventos de tipo `ajuste_aplicado` a filas de linea de tiempo.
- * Los demas tipos (creada, enviada, autorizada, rechazada) no son ajustes y se
- * descartan. Un payload ausente o con campos vacios degrada a `hayDetalle:
- * false` en lugar de romper el render.
- */
 export function lineaTiempoAjustes(eventos: SolicitudEvento[]): AjusteLineaTiempo[] {
   return eventos
     .filter((evento) => evento.tipo === EVENTO_AJUSTE_APLICADO)

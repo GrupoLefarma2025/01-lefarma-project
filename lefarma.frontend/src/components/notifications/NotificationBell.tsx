@@ -1,10 +1,3 @@
-﻿/**
- * Componente NotificationBell
- * Campana de notificaciones con badge de conteo
- * Se integra en el Header de la aplicación
- */
-
-
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Bell, ExternalLink } from 'lucide-react';
@@ -32,9 +25,6 @@ interface NotificationBellProps {
   onError?: (error: Error) => void;
 }
 
-/**
- * Retorna el icono según el tipo de notificación
- */
 function getNotificationIcon(type: NotificationType) {
   switch (type) {
     case 'success':
@@ -50,9 +40,6 @@ function getNotificationIcon(type: NotificationType) {
   }
 }
 
-/**
- * Retorna el color según la prioridad
- */
 function getPriorityColor(priority: NotificationPriority): string {
   switch (priority) {
     case 'urgent':
@@ -66,9 +53,6 @@ function getPriorityColor(priority: NotificationPriority): string {
   }
 }
 
-/**
- * Componente principal NotificationBell
- */
 export function NotificationBell({ onError }: NotificationBellProps) {
   const { user } = useAuthStore();
   const navigate = useNavigate();
@@ -85,21 +69,14 @@ export function NotificationBell({ onError }: NotificationBellProps) {
     markAllAsRead,
   } = useNotificationList();
 
-  /**
-   * Maneja el click en una notificación
-   */
   const handleNotificationClick = async (notificationId: number) => {
     try {
       await markAsRead(notificationId);
-      // Aquí podrías navegar a una página específica relacionada con la notificación
     } catch (error) {
       console.error('Error marking notification as read:', error);
     }
   };
 
-  /**
-   * Marca todas como leídas
-   */
   const handleMarkAllAsRead = async () => {
     try {
       await markAllAsRead();
@@ -108,9 +85,6 @@ export function NotificationBell({ onError }: NotificationBellProps) {
     }
   };
 
-  /**
-   * Carga inicial de notificaciones cuando el usuario se autentica
-   */
   useEffect(() => {
     if (user?.id && notifications.length === 0) {
       loadNotifications(user.id);
@@ -118,9 +92,6 @@ export function NotificationBell({ onError }: NotificationBellProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
-  /**
-   * Carga notificaciones al abrir el dropdown
-   */
   const handleOpenChange = (isOpen: boolean) => {
     setOpen(isOpen);
     if (isOpen && notifications.length === 0 && user?.id) {
@@ -173,8 +144,6 @@ export function NotificationBell({ onError }: NotificationBellProps) {
               </div>
             ) : (
               notifications.slice(0, 5).map((userNotification) => {
-                // Backend devuelve los datos directamente en userNotification,
-                // no anidados en userNotification.notification
                 const title = userNotification.title ||
                               userNotification.notification?.title ||
                               'Sin título';

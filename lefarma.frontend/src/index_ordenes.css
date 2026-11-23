@@ -1,10 +1,3 @@
-/* =====================================================================
-   Base global (tema, tipografía, layout) + estilos de impresión de CxP:
-   flujo, orden de compra y envío concentrado.
-   Los estilos de impresión de RH y de Educación Médica viven en
-   index_rh.css e index_educacion_medica.css respectivamente.
-   ===================================================================== */
-
 @import '@fontsource-variable/geist';
 @import '@fontsource-variable/geist-mono';
 
@@ -13,7 +6,6 @@
 @tailwind utilities;
 
 @custom-variant dark (&:is(.dark *));
-
 
 @layer base {
   :root {
@@ -70,18 +62,15 @@
     --tracking-normal: 0em;
     --spacing: 0.24rem;
 
-    /* UI Preferences - Dynamic Variables */
-    --font-scale: 1; /* 0.875 (small), 1 (medium), 1.125 (large) */
-    --spacing-factor: 1; /* 0.75 (compacto), 1 (comodo) */
-    --transition-duration: 150ms; /* 0ms when animations disabled */
+    --font-scale: 1; 
+    --spacing-factor: 1; 
+    --transition-duration: 150ms; 
   }
 
-  /* Apply font scale to root */
   :root {
     font-size: calc(16px * var(--font-scale));
   }
 
-  /* Disable animations when data-no-animations is true */
   [data-no-animations="true"] * {
     transition: none !important;
     animation: none !important;
@@ -220,8 +209,6 @@
   }
 }
 
-/* ─── Alta de partidas en órdenes de compra ──────────────────────────────── */
-
 @keyframes partida-nueva {
   0% {
     background-color: hsl(223 70% 26%);
@@ -246,10 +233,6 @@
   animation: partida-nueva 0.9s ease-out both;
 }
 
-/* ─── Print / PDF styles ─────────────────────────────────────────────────── */
-
-/* On screen: hide all print documents (CxP). Los portales de RH y de
-   Educación Médica se ocultan en sus propios archivos. */
 #flujo-pdf-print,
 #orden-compra-pdf-print,
 #envio-concentrado-pdf-print,
@@ -264,13 +247,10 @@
   width: 100% !important;
 }
 
-/* Capture portals (html2canvas): the print doc must be laid out inside the
-   off-screen portal, otherwise it collapses to 0 height and captures blank. */
 #envio-concentrado-pdf-portal #envio-concentrado-pdf-print {
   display: block !important;
 }
 
-/* ─── Named page boxes (must be outside @media) ───────────────────────────── */
 @page portrait {
   size: A4 portrait;
   margin: 16mm 14mm;
@@ -281,24 +261,20 @@
   margin: 8mm;
 }
 
-/* On print: base styles */
 @media print {
   @page {
     size: A4 portrait;
     margin: 16mm 14mm;
   }
 
-  /* Ocultar TODO por defecto */
   body * {
     visibility: hidden;
   }
 
-  /* Eliminar el contenedor raíz de la app para que el PDF (portal en body) inicie en la página 1 */
   #root {
     display: none !important;
   }
 
-  /* ── FLUJO ── */
   body.print-flujo #flujo-pdf-print,
   body.print-flujo #flujo-pdf-print * {
     visibility: visible !important;
@@ -322,7 +298,6 @@
     display: none !important;
   }
 
-  /* ── ORDEN DE COMPRA ── */
   body.print-orden #orden-compra-pdf-print,
   body.print-orden #orden-compra-pdf-print * {
     visibility: visible !important;
@@ -358,7 +333,6 @@
     display: none !important;
   }
 
-  /* ── ENVIO CONCENTRADO ── */
   @page landscape {
     size: A4 landscape;
     margin: 8mm;
@@ -403,10 +377,7 @@
     display: table-row-group;
   }
 
-  /* (La impresion de Solicitud de Personal de RH vive en index_rh.css) */
-
-  /* Header */
-  .pdf-header {
+.pdf-header {
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
@@ -444,7 +415,6 @@
     margin-top: 2pt;
   }
 
-  /* Sections */
   .pdf-section {
     margin-bottom: 12pt;
     }
@@ -468,7 +438,6 @@
     margin-bottom: 7pt;
   }
 
-  /* Orden grid */
   .pdf-orden-grid {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
@@ -536,7 +505,6 @@
     color: #374151;
   }
 
-  /* Table */
   .pdf-table {
     width: 100%;
     border-collapse: collapse;
@@ -578,7 +546,6 @@
     text-align: right !important;
   }
 
-  /* Timeline */
   .pdf-timeline {
     display: flex;
     flex-direction: column;
@@ -658,7 +625,6 @@
     margin: 2pt 0;
   }
 
-  /* Events */
   .pdf-eventos {
     display: flex;
     flex-direction: column;
@@ -740,7 +706,6 @@
     line-height: 1.4;
   }
 
-  /* Firmas */
   .pdf-firmas-grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
@@ -800,7 +765,6 @@
     word-wrap: break-word;
   }
 
-  /* Footer */
   .pdf-footer {
     display: flex;
     justify-content: space-between;
@@ -813,7 +777,6 @@
   }
 }
 
-/* Table Density Styles */
 .data-table-compact tbody tr td {
   padding-top: calc(var(--spacing-factor) * 0.25rem);
   padding-bottom: calc(var(--spacing-factor) * 0.25rem);
@@ -824,26 +787,20 @@
   padding-bottom: calc(var(--spacing-factor) * 1rem);
 }
 
-/* Force muted-foreground text and be light on primary background */
 [data-selected="true"] .text-muted-foreground,
 [data-selected="true"] .bg-border,
 [data-selected="true"] .text-xs {
   color: hsl(210 100% 85%) !important;
 }
 
-/* Force badge text to be light on primary background */
 [data-selected="true"] [data-slot="badge"] {
   color: white !important;
   background-color: rgba(255, 255, 255, 0.2) !important;
   border-color: rgba(255, 255, 255, 0.3) !important;
 }
 
-/* Force muted-foreground text to be light on primary background */
 .data-table-comfortable tbody tr td {
   padding-top: calc(var(--spacing-factor) * 1rem);
   padding-bottom: calc(var(--spacing-factor) * 1rem);
 }
 
-/* Los estilos de impresion de Educacion Medica (resumen de seleccion,
-   planificacion de rutas y matriz de talleres) viven en
-   index_educacion_medica.css. */

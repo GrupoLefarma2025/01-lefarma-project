@@ -1,7 +1,5 @@
 ﻿"use client"
 
-
-// Inspirado en la librería react-hot-toast
 import * as React from "react"
 
 import type {
@@ -94,8 +92,6 @@ export const reducer = (state: State, action: Action): State => {
     case "DISMISS_TOAST": {
       const { toastId } = action
 
-      // ! Efectos secundarios ! - Esto podría extraerse en una acción dismissToast(),
-      // pero lo mantengo aquí por simplicidad
       if (toastId) {
         addToRemoveQueue(toastId)
       } else {

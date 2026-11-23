@@ -1,10 +1,5 @@
 namespace Lefarma.API.Domain.Entities.EducacionMedica;
 
-/// <summary>
-/// Usuario que puede cubrir como ejecutivo de ventas cuando una región no tiene
-/// ejecutivo primario (ADR-00015). Null en gerencia/región = cobertura total.
-/// El motor busca primero un <see cref="EjecutivoRegion"/> activo.
-/// </summary>
 public class EjecutivoSuplente
 {
     public int IdEjecutivoSuplente { get; set; }

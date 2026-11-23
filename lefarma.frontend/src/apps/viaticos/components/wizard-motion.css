@@ -1,8 +1,3 @@
-/* Entrada del contenido al cambiar de paso del wizard: aparece el material
-   (opacidad + leve elevación que se asienta), no solo un fundido plano.
-   La envoltura lleva `key={paso}`, así cada paso monta fresco y la
-   animación corre una vez por cambio. Con `prefers-reduced-motion` queda
-   un fundido corto de opacidad, sin desplazamiento. */
 .wizard-paso {
   animation: wizard-paso-in 220ms ease-out;
 }

@@ -4,17 +4,11 @@ using Lefarma.API.Shared.Constants;
 
 namespace Lefarma.API.Domain.Entities.EducacionMedica;
 
-/// <summary>
-/// Matriz general de talleres por gerencia (IMSS/Descentralizado) y mes: es la entidad
-/// autorizable del workflow EDUCACION_MEDICA_MATRIZ (GV -> costos AEM -> CA -> DC).
-/// No tiene estado propio: su estado es el del motor (IdEstado). Nace automáticamente
-/// con el primer taller capturado de la gerencia/mes (ADR-00007).
-/// </summary>
 public class MatrizGeneral : IWorkflowEntity
 {
     public int IdMatrizGeneral { get; set; }
     public int IdTipoGerencia { get; set; }
-    public DateOnly Periodo { get; set; }   // primer día del mes
+    public DateOnly Periodo { get; set; }   
     public int? IdRutaVersion { get; set; }
     public int? IdWorkflow { get; set; }
     public int? IdPasoActual { get; set; }
@@ -28,7 +22,6 @@ public class MatrizGeneral : IWorkflowEntity
     public virtual WorkflowEstados? EstadoWorkflow { get; set; }
     public virtual ICollection<Taller> Talleres { get; set; } = new List<Taller>();
 
-    // IWorkflowEntity (implementación explícita: las columnas de auditoría son nullable)
     int IWorkflowEntity.Id { get => IdMatrizGeneral; set => IdMatrizGeneral = value; }
     int IWorkflowEntity.IdWorkflow { get => IdWorkflow ?? 0; set => IdWorkflow = value; }
     int? IWorkflowEntity.IdPasoActual { get => IdPasoActual; set => IdPasoActual = value; }

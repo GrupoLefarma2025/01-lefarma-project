@@ -16,7 +16,6 @@ interface UseMatrizPeriodoResult {
   reload: () => Promise<void>;
 }
 
-/** Carga la matriz general de la gerencia/periodo y su cobertura de visitas. */
 export function useMatrizPeriodo(
   idGerencia: number | null,
   periodo: string,

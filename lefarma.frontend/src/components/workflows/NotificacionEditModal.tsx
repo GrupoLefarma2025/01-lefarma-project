@@ -64,7 +64,6 @@ const EMPTY_FORM: NotificacionFormState = {
   canales: [],
 };
 
-// Variables que el dispatcher siempre resuelve (WorkflowNotificationDispatcher)
 const VARS_SISTEMA = [
   '{{Folio}}',
   '{{Solicitante}}',
@@ -120,7 +119,6 @@ export function NotificacionEditModal({ workflow, notificacion, open, setOpen, o
   const getIdTipo = (t: WorkflowTipoNotificacionCatalogo) => t.idTipo ?? t.idTipoNotificacion;
   const tipoSeleccionado = tiposNotificacion.find((t) => getIdTipo(t) === formData.idTipoNotificacion);
 
-  // Cargar tipos de notificación la primera vez
   useEffect(() => {
     API.get<ApiResponse<WorkflowTipoNotificacionCatalogo[]>>('/config/workflows/tipos-notificacion')
       .then(res => setTiposNotificacion(res.data?.data ?? []))
@@ -129,7 +127,6 @@ export function NotificacionEditModal({ workflow, notificacion, open, setOpen, o
 
   useEffect(() => {
     if (notificacion) {
-      // Cargar canales de la notificación
       const canales = notificacion.canales ?? [];
       setFormData({
         ...EMPTY_FORM,
@@ -140,7 +137,6 @@ export function NotificacionEditModal({ workflow, notificacion, open, setOpen, o
         canales,
       });
     } else {
-      // Encontrar la primera acción disponible
       const primeraAccion = [...workflow.pasos].sort((a, b) => a.orden - b.orden).flatMap((p: WorkflowPaso) => p.acciones || [])[0];
       setFormData({
         ...EMPTY_FORM,
@@ -210,7 +206,7 @@ export function NotificacionEditModal({ workflow, notificacion, open, setOpen, o
       }
     >
       <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Acción asociada */}
+        {}
         <div className="space-y-2">
           <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             Acción que Dispara la Notificación *
@@ -269,7 +265,7 @@ export function NotificacionEditModal({ workflow, notificacion, open, setOpen, o
           </Select>
         </div>
 
-        {/* Tipo de Notificación */}
+        {}
         <div className="space-y-2">
           <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             Tipo de Notificación
@@ -317,7 +313,7 @@ export function NotificacionEditModal({ workflow, notificacion, open, setOpen, o
           </p>
         </div>
 
-        {/* Canales */}
+        {}
         <div className="space-y-3">
           <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             Canales de Notificación
@@ -362,7 +358,7 @@ export function NotificacionEditModal({ workflow, notificacion, open, setOpen, o
           </div>
         </div>
 
-        {/* Destinatarios */}
+        {}
         <div className="space-y-3">
           <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             Destinatarios
@@ -414,7 +410,7 @@ export function NotificacionEditModal({ workflow, notificacion, open, setOpen, o
           </p>
         </div>
 
-        {/* Templates por canal */}
+        {}
         <PlantillasEditModal
           canales={formData.canales ?? []}
           enviarEmail={formData.enviarEmail}
@@ -432,7 +428,7 @@ export function NotificacionEditModal({ workflow, notificacion, open, setOpen, o
           onChange={(canales) => setFormData((prev) => ({ ...prev, canales }))}
         />
 
-        {/* Opciones adicionales (solo órdenes de compra: parten del catálogo de partidas) */}
+        {}
         {esOrdenCompra && (
           <div className="p-3 rounded-lg border border-blue-500/30 bg-blue-500/10 text-blue-700 dark:text-blue-300">
             <div className="flex items-center gap-2">
@@ -451,7 +447,7 @@ export function NotificacionEditModal({ workflow, notificacion, open, setOpen, o
           </div>
         )}
 
-        {/* Activo */}
+        {}
         <div className="flex items-center gap-3 p-3 rounded-lg border border-border bg-muted/30">
           <Checkbox
             id="notificacion-activa"

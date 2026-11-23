@@ -1,11 +1,3 @@
-﻿/**
- * Tipos para el sistema de notificaciones de Lefarma
- * Soporta múltiples canales: email, telegram, in-app
- */
-
-
-// ============= Notificaciones =============
-
 export type NotificationPriority = 'low' | 'normal' | 'high' | 'urgent';
 export type NotificationType = 'info' | 'warning' | 'error' | 'success' | 'alert';
 export type NotificationCategory = 'system' | 'orders' | 'payments' | 'catalogs' | 'security';
@@ -35,11 +27,9 @@ export interface UserNotification {
   userId: number;
   isRead: boolean;
   readAt?: string;
-  receivedVia: string; // JSON array
+  receivedVia: string; 
   createdAt: string;
-  // Datos del notification relacionados
   notification?: Notification;
-  // Propiedades planas que el backend puede devolver directamente
   title?: string;
   message?: string;
   type?: NotificationType;
@@ -52,20 +42,18 @@ export interface NotificationChannel {
   notificationId: number;
   channelType: NotificationChannelType;
   status: 'pending' | 'sent' | 'failed' | 'retrying';
-  recipient: string; // email;email o chatId;chatId
+  recipient: string; 
   sentAt?: string;
   errorMessage?: string;
   retryCount: number;
-  externalId?: string; // messageId, telegram_id
+  externalId?: string; 
   createdAt: string;
 }
 
-// ============= Request DTOs =============
-
 export interface NotificationChannelRequest {
   channelType: NotificationChannelType;
-  userIds?: number[]; // Lista de IDs de usuarios
-  roleNames?: string[]; // Lista de nombres de roles
+  userIds?: number[]; 
+  roleNames?: string[]; 
   channelSpecificData?: Record<string, unknown>;
 }
 
@@ -78,8 +66,8 @@ export interface SendNotificationRequest {
   category?: NotificationCategory;
   templateId?: string;
   templateData?: Record<string, unknown>;
-  scheduledFor?: string; // ISO date string
-  expiresAt?: string; // ISO date string
+  scheduledFor?: string; 
+  expiresAt?: string; 
 }
 
 export interface BulkNotificationRequest {
@@ -91,7 +79,7 @@ export interface BulkNotificationRequest {
   category?: NotificationCategory;
   templateId?: string;
   templateData?: Record<string, unknown>;
-  userIds: number[]; // Lista de IDs de usuarios
+  userIds: number[]; 
   scheduledFor?: string;
   expiresAt?: string;
 }
@@ -105,12 +93,10 @@ export interface RoleNotificationRequest {
   category?: NotificationCategory;
   templateId?: string;
   templateData?: Record<string, unknown>;
-  roles: string[]; // Lista de nombres de roles
+  roles: string[]; 
   scheduledFor?: string;
   expiresAt?: string;
 }
-
-// ============= Response DTOs =============
 
 export interface ChannelResult {
   success: boolean;
@@ -126,8 +112,6 @@ export interface SendNotificationResponse {
   createdAt: string;
 }
 
-// ============= SSE Events =============
-
 export interface SseNotificationEvent {
   type: 'notification';
   data: UserNotification;
@@ -142,8 +126,6 @@ export interface SseHeartbeatEvent {
 
 export type SseEvent = SseNotificationEvent | SseHeartbeatEvent;
 export type NotificationSseEvent = SseEvent;
-
-// ============= UI State =============
 
 export interface NotificationUiState {
   notifications: UserNotification[];
@@ -161,8 +143,6 @@ export interface NotificationFilter {
   startDate?: string;
   endDate?: string;
 }
-
-// ============= Component Props =============
 
 export interface NotificationBellProps {
   onError?: (error: Error) => void;

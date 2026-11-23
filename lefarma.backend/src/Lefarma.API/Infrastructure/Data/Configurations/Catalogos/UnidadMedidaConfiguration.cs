@@ -54,11 +54,6 @@ public class UnidadMedidaConfiguration : IEntityTypeConfiguration<UnidadMedida>
                 .HasColumnName("fecha_modificacion")
                 .HasDefaultValueSql("GETDATE()");
 
-            //builder.HasOne(e => e.TipoMedida)
-            //  .WithMany(e => e.UnidadMedidas)
-            //  .HasForeignKey(e => e.IdTipoMedida)
-            //  .OnDelete(DeleteBehavior.Restrict);
-
-        }
+}
     }
 }

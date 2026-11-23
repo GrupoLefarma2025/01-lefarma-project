@@ -47,11 +47,8 @@ interface SeleccionesTableProps {
   title?: string;
   subtitle?: string;
   onVer: (s: SeleccionMensual) => void;
-  /** Abre el detalle en modo edición (solo disponible en Creada). */
   onEditar: (s: SeleccionMensual) => void;
-  /** Permiso del usuario para editar selecciones; el candado por paso se evalúa en cada fila. */
   puedeEditar?: boolean;
-  /** Lleva a la planificación de rutas (solo si la selección ya tiene propuesta). */
   onRutas?: (s: SeleccionMensual) => void;
   onFirma: (s: SeleccionMensual) => void;
   onHistorial: (s: SeleccionMensual) => void;
@@ -60,7 +57,6 @@ interface SeleccionesTableProps {
   pageSize?: number;
 }
 
-/** DataTable del listado de Selecciones Mensuales — mismo patrón que la Bandeja (RH). */
 export function SeleccionesTable({
   data,
   loading,

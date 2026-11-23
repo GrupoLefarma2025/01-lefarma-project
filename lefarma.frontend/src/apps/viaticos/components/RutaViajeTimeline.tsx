@@ -6,13 +6,9 @@ export interface NodoRutaTimeline {
   id: string;
   titulo: string;
   detalles: ReactNode[];
-  /** Etiquetas cortas del tramo (km, tiempo, horarios) que van bajo el título. */
   chips?: string[];
-  /** Importe de la opción que llega a esta parada. */
   costo?: number | null;
-  /** Enlace real de compra; sin URL no se pinta ningún enlace. */
   urlCompra?: string | null;
-  /** Fase del viaje: separa y colorea la ida del regreso. */
   fase?: 'ida' | 'regreso';
   testId?: string;
 }
@@ -23,10 +19,6 @@ function urlCompraVisible(url: string | null | undefined): string | null {
   return typeof url === 'string' && url.trim() !== '' ? url.trim() : null;
 }
 
-/**
- * El punto se llena desde abajo (como agua) cuando el líquido de la tubería
- * lo alcanza. La clase la pone el bucle de animación del componente.
- */
 const ANIMACION_RUTA_CSS = `
 .ruta-punto-relleno {
   clip-path: inset(100% 0 0 0 round 9999px);
@@ -40,11 +32,6 @@ const ANIMACION_RUTA_CSS = `
 }
 `;
 
-/**
- * Diagrama vertical de una ruta: una tubería que se llena de arriba a abajo y
- * un punto por parada que se rellena al ser alcanzado. Es el diseño de "Ruta
- * del viaje" del resumen y del resumen reconstruido antes de enviar.
- */
 function esParadaClave(nodo: NodoRutaTimeline): boolean {
   const titulo = nodo.titulo.trim();
   return /^\d+\./.test(titulo)
@@ -59,9 +46,7 @@ export function RutaViajeTimeline({
   compacto = false,
 }: {
   nodos: NodoRutaTimeline[];
-  /** En la vista de dos columnas la fase ya la dice el encabezado. */
   mostrarFase?: boolean;
-  /** Oculta terminales y taxis; quedan origen, destinos, hotel y regreso. */
   compacto?: boolean;
 }) {
   const visibles = compacto
@@ -100,7 +85,6 @@ export function RutaViajeTimeline({
       alto = Math.max(0, ultimo - primero);
       centros = absolutos.map((centro) => centro - primero);
       if (alto > 0) {
-        // La tubería va del primer punto al último, no más abajo.
         guia.style.top = `${primero}px`;
         guia.style.height = `${alto}px`;
       }
@@ -114,7 +98,6 @@ export function RutaViajeTimeline({
       puntosRef.current.forEach((punto) => punto?.classList.add('ruta-punto-lleno'));
     };
 
-    // Sin layout real (jsdom) o sin ResizeObserver: se muestra lleno, sin animar.
     if (typeof ResizeObserver === 'undefined' || alto <= 0) {
       llenarTodo();
       return;
@@ -130,7 +113,6 @@ export function RutaViajeTimeline({
       return () => observador.disconnect();
     }
 
-    // El líquido tarda más mientras más puntos tenga la ruta.
     const duracion = Math.min(7000, Math.max(3200, nodosTimeline.length * 1000));
     const pausa = 900;
     const ciclo = duracion + pausa;
@@ -141,7 +123,6 @@ export function RutaViajeTimeline({
       const transcurrido = (tiempo - inicio) % ciclo;
       const enPausa = transcurrido >= duracion;
       const avance = enPausa ? 1 : transcurrido / duracion;
-      // Fundido suave al terminar y al reiniciar el ciclo.
       const opacidad = enPausa
         ? Math.min(1, (ciclo - transcurrido) / 220)
         : Math.min(1, transcurrido / 180);

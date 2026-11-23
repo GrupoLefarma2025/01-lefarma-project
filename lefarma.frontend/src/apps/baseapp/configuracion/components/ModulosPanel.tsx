@@ -25,9 +25,7 @@ import { ModuloEditorDialog } from './ModuloEditorDialog';
 interface ModulosPanelProps {
   modulos: ModuloConfig[];
   cargando: boolean;
-  /** Permiso para crear y editar módulos. */
   puedeGestionar: boolean;
-  /** Recarga la lista de módulos en la página. */
   onCambio: () => void;
 }
 

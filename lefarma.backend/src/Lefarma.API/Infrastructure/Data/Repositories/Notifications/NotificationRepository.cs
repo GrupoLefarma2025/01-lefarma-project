@@ -4,10 +4,6 @@ using Lefarma.API.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 
 namespace Lefarma.API.Infrastructure.Data.Repositories.Notifications;
-/// <summary>
-/// Repository implementation for notification data access.
-/// Manages persistence of notifications and user notification relationships.
-/// </summary>
 public class NotificationRepository : INotificationRepository
 {
     private readonly ApplicationDbContext _context;
@@ -21,7 +17,6 @@ public class NotificationRepository : INotificationRepository
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
-    /// <inheritdoc/>
     public async Task<Notification> CreateAsync(Notification notification, CancellationToken ct = default)
     {
         _logger.LogDebug("Creating notification: {Title}", notification.Title);
@@ -37,7 +32,6 @@ public class NotificationRepository : INotificationRepository
         return notification;
     }
 
-    /// <inheritdoc/>
     public async Task<Notification?> GetByIdAsync(int id, CancellationToken ct = default)
     {
         return await _context.Notifications
@@ -46,7 +40,6 @@ public class NotificationRepository : INotificationRepository
             .FirstOrDefaultAsync(n => n.Id == id, ct);
     }
 
-    /// <inheritdoc/>
     public async Task<List<Notification>> GetByUserIdAsync(int userId, bool unreadOnly = false, CancellationToken ct = default)
     {
         var query = _context.UserNotifications
@@ -68,7 +61,6 @@ public class NotificationRepository : INotificationRepository
             .OrderByDescending(n => n.CreatedAt)
             .ToListAsync(ct);
 
-        // Set IsRead and ReceivedVia for each notification
         foreach (var notification in notifications)
         {
             var userNotifs = await _context.UserNotifications
@@ -78,7 +70,6 @@ public class NotificationRepository : INotificationRepository
             if (userNotifs.Any())
             {
                 var firstUserNotif = userNotifs.First();
-                // We'll add these as temporary properties for DTO mapping
                 notification.GetType().GetProperty("IsRead")?.SetValue(notification, firstUserNotif.IsRead);
             }
         }
@@ -86,14 +77,12 @@ public class NotificationRepository : INotificationRepository
         return notifications;
     }
 
-    /// <inheritdoc/>
     public async Task<UserNotification?> GetUserNotificationAsync(int notificationId, int userId, CancellationToken ct = default)
     {
         return await _context.UserNotifications
             .FirstOrDefaultAsync(un => un.NotificationId == notificationId && un.UserId == userId, ct);
     }
 
-    /// <inheritdoc/>
     public async Task<UserNotification> CreateUserNotificationAsync(UserNotification userNotification, CancellationToken ct = default)
     {
         _logger.LogDebug(
@@ -113,7 +102,6 @@ public class NotificationRepository : INotificationRepository
         return userNotification;
     }
 
-    /// <inheritdoc/>
     public async Task UpdateAsync(Notification notification, CancellationToken ct = default)
     {
         _logger.LogDebug("Updating notification: {NotificationId}", notification.Id);
@@ -126,7 +114,6 @@ public class NotificationRepository : INotificationRepository
         _logger.LogInformation("Notification updated: {NotificationId}", notification.Id);
     }
 
-    /// <inheritdoc/>
     public async Task UpdateUserNotificationAsync(UserNotification userNotification, CancellationToken ct = default)
     {
         _logger.LogDebug(

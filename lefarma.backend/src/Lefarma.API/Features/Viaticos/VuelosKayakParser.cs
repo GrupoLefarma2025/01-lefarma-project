@@ -4,10 +4,6 @@ using System.Text.RegularExpressions;
 
 namespace Lefarma.API.Features.Viaticos;
 
-/// <summary>
-/// Una opción de vuelo extraída de Kayak (Playwright o Firecrawl). El precio
-/// es el que muestra la página; no se inventa ni se redondea.
-/// </summary>
 public sealed record VueloDetectado(
     string Aerolinea,
     TimeOnly Salida,
@@ -29,17 +25,6 @@ public sealed class ResultadoParseoVuelos
     public List<VueloDetectado> Opciones { get; init; } = new();
 }
 
-/// <summary>
-/// Parser único para las dos fuentes de detección:
-/// <list type="bullet">
-///   <item>las tarjetas de texto que devuelve Playwright, y</item>
-///   <item>el markdown que devuelve Firecrawl.</item>
-/// </list>
-/// No depende de un LLM: reconoce el patrón de Kayak (hora de salida, llegada,
-/// duración, aerolínea, precio y link de compra) y descarta autobuses y
-/// anuncios. Un cambio de DOM puede romperlo; por eso el servicio declara la
-/// fuente y conserva el texto original en la evidencia.
-/// </summary>
 public static partial class VuelosKayakParser
 {
     private static readonly string[] Aerolineas =
@@ -108,10 +93,6 @@ public static partial class VuelosKayakParser
         }
 
         var limpio = Limpiar(texto);
-        // Las tarjetas de Playwright traen la etiqueta "Boleto de autobús"
-        // ANTES de la hora; si solo se corta por la hora, esa etiqueta queda
-        // pegada al vuelo anterior y lo descarta por error. Se corta también
-        // antes de la etiqueta del autobús.
         var bloques = Regex.Split(
             limpio,
             @"(?=(?:\b\d{1,2}:\d{2}\s*(?:[–-]|a)\s*\d{1,2}:\d{2})|(?:Boleto de autob[uú]s))",
@@ -160,7 +141,6 @@ public static partial class VuelosKayakParser
             ? int.Parse(tiempos.Groups[5].Value, CultureInfo.InvariantCulture)
             : 0;
 
-        // El autobús de Kayak también trae horas y precio; no es un vuelo.
         if (MarcaAutobus.IsMatch(bloque)) return null;
 
         var precioMatch = Precio.Match(bloque);
@@ -216,7 +196,6 @@ public static partial class VuelosKayakParser
                 return aerolinea;
         }
 
-        // Fallback: la línea que sigue a la duración suele ser la aerolínea.
         var despuesDuracion = Regex.Match(
             bloque,
             @"\d+\s*h\s*\d+\s*min\s+([A-Za-z][A-Za-z .&]{2,40}?)\s+(?:\$\{Price\}|Anuncio|\$|Incluye)",
@@ -224,10 +203,6 @@ public static partial class VuelosKayakParser
         return despuesDuracion.Success ? despuesDuracion.Groups[1].Value.Trim() : null;
     }
 
-    /// <summary>
-    /// Deja el texto comparable: quita imágenes, convierte links en
-    /// "texto URL:url" (para conservar el botón de compra) y colapsa espacios.
-    /// </summary>
     private static string Limpiar(string texto)
     {
         var sinImagenes = Regex.Replace(texto, @"!\[[^\]]*\]\([^)]*\)", " ");

@@ -1,16 +1,10 @@
 using Serilog;
 
 namespace Lefarma.API.Shared.Logging;
-/// <summary>
-/// Helper for creating and emitting Wide Events.
-/// </summary>
 public static class WideEventLogger
 {
     private static readonly global::Serilog.ILogger _baseLogger = global::Serilog.Log.ForContext(typeof(WideEventLogger));
 
-    /// <summary>
-    /// Create a new WideEvent with request context.
-    /// </summary>
     public static WideEvent StartRequest(
         string method,
         string endpoint,
@@ -28,9 +22,6 @@ public static class WideEventLogger
         };
     }
 
-    /// <summary>
-    /// Complete and emit a WideEvent.
-    /// </summary>
     public static void CompleteRequest(
         WideEvent evt,
         string status,
@@ -52,9 +43,6 @@ public static class WideEventLogger
         evt.EmitWithSampling(_baseLogger);
     }
 
-    /// <summary>
-    /// Emit error event immediately.
-    /// </summary>
     public static void EmitError(
         WideEvent evt,
         string errorType,

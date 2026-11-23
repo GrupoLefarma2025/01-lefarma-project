@@ -43,7 +43,6 @@ export function textoAcumulacion(inc: IncidenciaCalculada): string {
   return '—';
 }
 
-/** Explicación corta y visible de la acumulación (no tooltip). */
 export function textoAcumulacionDetalle(inc: IncidenciaCalculada): string | null {
   const cantidad = inc.cantidadAcumulada ?? 1;
   if (cantidad <= 1 || !inc.posicionAcumulacion) return null;
@@ -79,10 +78,6 @@ export interface ResumenDescuentoIncidencia {
   detalle: string | null;
 }
 
-/**
- * Resumen de descuento para una incidencia de un día, con la misma lógica
- * que la vista de detalle por empleado.
- */
 export function resumenDescuentoIncidencia(
   incidencias: IncidenciaCalculada[],
   justificada?: boolean,
@@ -119,13 +114,8 @@ export function resumenDescuentoIncidencia(
   return { genera: false, texto: '—', detalle: null };
 }
 
-/* ------------------------------------------------------------------------- */
-/* Preselección del tipo de solicitud al justificar una incidencia de checado */
-/* ------------------------------------------------------------------------- */
-
 const UMBRAL_RETARDO_MINUTOS = 20;
 
-/** Prioridad con la que el motor de reglas calcula las incidencias del día. */
 const PRIORIDAD_TIPO_INCIDENCIA: Record<string, number> = {
   SALIDA_ANTICIPADA: 50,
   OMISION_SALIDA: 40,
@@ -162,7 +152,6 @@ const normalizarTexto = (valor: string) =>
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '');
 
-/** Minutos desde medianoche de un TimeSpan serializado ("HH:mm:ss"). */
 function horaEnMinutos(valor?: string | null): number | null {
   if (!valor) return null;
   const [horas, minutos, segundos] = valor.split(':');
@@ -180,11 +169,6 @@ function minutosEntre(fin?: string | null, inicio?: string | null): number | nul
   return valorFin - valorInicio;
 }
 
-/**
- * Un retardo de entrada es "mayor a 20 min" cuando supera el umbral, con la
- * misma truncación que usa el backend ((int)TotalMinutes). Si no hay horas
- * para calcularlo, se usa el nombre de la regla como respaldo.
- */
 function esRetardoMayor(
   incidenciaCalculada: IncidenciaCalculada,
   incidencia: IncidenciaParaPreseleccion
@@ -212,7 +196,6 @@ function resolverClaveTipoSolicitud(
     case 'SALIDA_ANTICIPADA':
       return { clave: 'SALIDA_TEMPRANA_SIN_REPOSICION', categoria: '2' };
     default:
-      // TARDANZA_SALIDA no tiene tipo de solicitud equivalente en el catálogo.
       return null;
   }
 }
@@ -260,10 +243,6 @@ function prioridadCandidata(
   return PRIORIDAD_TIPO_INCIDENCIA[incidenciaCalculada.tipoIncidencia] ?? 0;
 }
 
-/**
- * Respaldos con las columnas legacy de la vista de checado, que ya no se
- * llenan. Solo se usan si la API no trae incidencias calculadas.
- */
 function candidatasLegacy(incidencia: IncidenciaParaPreseleccion): IncidenciaCalculada[] {
   const entrada = normalizarTexto(incidencia.incidenciaEntrada ?? '');
   const salida = normalizarTexto(incidencia.incidenciaSalida ?? '');
@@ -301,13 +280,6 @@ function candidatasLegacy(incidencia: IncidenciaParaPreseleccion): IncidenciaCal
   return resultado;
 }
 
-/**
- * Resuelve qué tipo de solicitud corresponde a una incidencia de checado.
- *
- * Usa las incidencias calculadas por el motor (fuente real) y elige la de
- * mayor prioridad configurada cuando el día tiene varias. La resolución del
- * tipo es por clave del catálogo, con respaldo por nombre.
- */
 export function resolverTipoSolicitudIncidencia(
   incidencia: IncidenciaParaPreseleccion,
   tipos: TipoSolicitudResponse[]

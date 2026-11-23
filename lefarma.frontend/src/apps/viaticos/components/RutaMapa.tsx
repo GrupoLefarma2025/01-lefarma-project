@@ -9,10 +9,6 @@ import {
   type SegmentoMapa,
 } from './rutaMapa.types';
 
-/**
- * Mapa de la ruta: SOLO LECTURA para editar (los puntos no se arrastran), pero
- * se puede mover y hacer zoom para revisarla.
- */
 export function RutaMapa({
   puntos,
   segmentos,
@@ -74,7 +70,6 @@ export function RutaMapa({
   );
 }
 
-/** Diálogo con el mapa de la ruta. */
 export function RutaMapaDialog({
   abierto,
   onOpenChange,
@@ -108,7 +103,6 @@ export function RutaMapaDialog({
   );
 }
 
-/** Botón estándar para abrir el mapa de una ruta. */
 export function BotonVerMapa({ onClick }: { onClick: () => void }) {
   return (
     <Button type="button" variant="outline" size="sm" className="gap-1.5" onClick={onClick}>

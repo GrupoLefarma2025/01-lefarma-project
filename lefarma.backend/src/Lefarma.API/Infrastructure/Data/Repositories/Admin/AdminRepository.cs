@@ -4,10 +4,6 @@ using Lefarma.API.Domain.Interfaces.Admin;
 using Microsoft.EntityFrameworkCore;
 
 namespace Lefarma.API.Infrastructure.Data.Repositories.Admin;
-/// <summary>
-/// Repositorio para operaciones de administración de usuarios, roles y permisos.
-/// Maneja dos contextos: AsokamDbContext (auth) y ApplicationDbContext (catalogos).
-/// </summary>
 public class AdminRepository : IAdminRepository
 {
     private readonly AsokamDbContext _asokamContext;
@@ -214,10 +210,8 @@ public class AdminRepository : IAdminRepository
         if (usuario == null)
             throw new InvalidOperationException($"Usuario con ID {usuarioId} no encontrado");
 
-        // Eliminar roles existentes
         _asokamContext.UsuariosRoles.RemoveRange(usuario.UsuariosRoles);
 
-        // Agregar nuevos roles
         foreach (var rolId in rolesIds)
         {
             var rolExiste = await RolExisteYActivoAsync(rolId);
@@ -244,10 +238,8 @@ public class AdminRepository : IAdminRepository
         if (usuario == null)
             throw new InvalidOperationException($"Usuario con ID {usuarioId} no encontrado");
 
-        // Eliminar permisos existentes
         _asokamContext.UsuariosPermisos.RemoveRange(usuario.UsuariosPermisos);
 
-        // Agregar nuevos permisos
         foreach (var permisoId in permisosIds)
         {
             var permisoExiste = await PermisoExisteYActivoAsync(permisoId);
@@ -274,10 +266,8 @@ public class AdminRepository : IAdminRepository
         if (rol == null)
             throw new InvalidOperationException($"Rol con ID {rolId} no encontrado");
 
-        // Eliminar permisos existentes
         _asokamContext.RolesPermisos.RemoveRange(rol.RolesPermisos);
 
-        // Agregar nuevos permisos
         foreach (var permisoId in permisosIds)
         {
             var permisoExiste = await PermisoExisteYActivoAsync(permisoId);
@@ -303,10 +293,8 @@ public class AdminRepository : IAdminRepository
         if (rol == null)
             throw new InvalidOperationException($"Rol con ID {rolId} no encontrado");
 
-        // Eliminar asignaciones existentes
         _asokamContext.UsuariosRoles.RemoveRange(rol.UsuariosRoles);
 
-        // Agregar nuevas asignaciones
         foreach (var usuarioId in usuariosIds)
         {
             var usuarioExiste = await UsuarioExisteYActivoAsync(usuarioId);
@@ -358,10 +346,8 @@ public class AdminRepository : IAdminRepository
         if (permiso == null)
             throw new InvalidOperationException($"Permiso con ID {permisoId} no encontrado");
 
-        // Eliminar asignaciones existentes
         _asokamContext.RolesPermisos.RemoveRange(permiso.RolesPermisos);
 
-        // Agregar nuevas asignaciones
         foreach (var rolId in rolesIds)
         {
             var rolExiste = await RolExisteYActivoAsync(rolId);
@@ -388,10 +374,8 @@ public class AdminRepository : IAdminRepository
         if (permiso == null)
             throw new InvalidOperationException($"Permiso con ID {permisoId} no encontrado");
 
-        // Eliminar asignaciones existentes
         _asokamContext.UsuariosPermisos.RemoveRange(permiso.UsuariosPermisos);
 
-        // Agregar nuevas asignaciones
         foreach (var usuarioId in usuariosIds)
         {
             var usuarioExiste = await UsuarioExisteYActivoAsync(usuarioId);

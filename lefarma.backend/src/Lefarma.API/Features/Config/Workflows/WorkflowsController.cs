@@ -14,7 +14,6 @@ namespace Lefarma.API.Features.Config.Workflows
 [Route("api/config/[controller]")]
     [ApiController]
     [EndpointGroupName("Config")]
-//    [HasPermission(Permissions.Workflows.View)]
     public class WorkflowsController : ControllerBase
     {
         private readonly IWorkflowService _service;
@@ -66,7 +65,6 @@ namespace Lefarma.API.Features.Config.Workflows
         }
 
         [HttpPost]
-    //    [HasPermission(Permissions.Workflows.Manage)]
         [SwaggerOperation(Summary = "Crear nuevo workflow")]
         public async Task<IActionResult> Create( CreateWorkflowRequest request)
         {
@@ -77,7 +75,6 @@ namespace Lefarma.API.Features.Config.Workflows
         }
 
         [HttpPut("{id}")]
-    //    [HasPermission(Permissions.Workflows.Manage)]
         [SwaggerOperation(Summary = "Actualizar workflow")]
         public async Task<IActionResult> Update(int id,  UpdateWorkflowRequest request)
         {
@@ -87,7 +84,6 @@ namespace Lefarma.API.Features.Config.Workflows
         }
 
         [HttpDelete("{id}")]
-    //    [HasPermission(Permissions.Workflows.Manage)]
         [SwaggerOperation(Summary = "Eliminar workflow")]
         public async Task<IActionResult> Delete(int id)
         {
@@ -97,7 +93,6 @@ namespace Lefarma.API.Features.Config.Workflows
         }
 
         [HttpPut("{idWorkflow}/pasos/{idPaso}")]
-    //    [HasPermission(Permissions.Workflows.Manage)]
         [SwaggerOperation(Summary = "Actualizar paso de workflow")]
         public async Task<IActionResult> UpdatePaso(int idWorkflow, int idPaso,  UpdatePasoRequest request)
         {
@@ -124,12 +119,7 @@ namespace Lefarma.API.Features.Config.Workflows
             { Success = true, Message = "Paso inactivado exitosamente.", Data = null }));
         }
 
-        // ============================================================================
-        // ACCIONES
-        // ============================================================================
-        
-        [HttpPost("{idWorkflow}/pasos/{idPaso}/acciones")]
-    //    [HasPermission(Permissions.Workflows.Manage)]
+[HttpPost("{idWorkflow}/pasos/{idPaso}/acciones")]
         [SwaggerOperation(Summary = "Crear acción en un paso")]
         public async Task<IActionResult> CreateAccion(int idWorkflow, int idPaso,  CreateAccionRequest request)
         {
@@ -139,7 +129,6 @@ namespace Lefarma.API.Features.Config.Workflows
         }
 
         [HttpPut("{idWorkflow}/pasos/{idPaso}/acciones/{idAccion}")]
-    //    [HasPermission(Permissions.Workflows.Manage)]
         [SwaggerOperation(Summary = "Actualizar acción de un paso")]
         public async Task<IActionResult> UpdateAccion(int idWorkflow, int idPaso, int idAccion,  UpdateAccionRequest request)
         {
@@ -149,7 +138,6 @@ namespace Lefarma.API.Features.Config.Workflows
         }
 
         [HttpDelete("{idWorkflow}/pasos/{idPaso}/acciones/{idAccion}")]
-    //    [HasPermission(Permissions.Workflows.Manage)]
         [SwaggerOperation(Summary = "Eliminar acción de un paso")]
         public async Task<IActionResult> DeleteAccion(int idWorkflow, int idPaso, int idAccion)
         {
@@ -185,12 +173,7 @@ namespace Lefarma.API.Features.Config.Workflows
             { Success = true, Message = "Handler eliminado exitosamente.", Data = null }));
         }
 
-        // ============================================================================
-        // CONDICIONES
-        // ============================================================================
-        
-        [HttpPost("{idWorkflow}/acciones/{idAccion}/condiciones")]
-    //    [HasPermission(Permissions.Workflows.Manage)]
+[HttpPost("{idWorkflow}/acciones/{idAccion}/condiciones")]
         [SwaggerOperation(Summary = "Crear condición en un paso")]
         public async Task<IActionResult> CreateCondicion(int idWorkflow, int idAccion,  CreateCondicionRequest request)
         {
@@ -200,7 +183,6 @@ namespace Lefarma.API.Features.Config.Workflows
         }
 
         [HttpPut("{idWorkflow}/acciones/{idAccion}/condiciones/{idCondicion}")]
-    //    [HasPermission(Permissions.Workflows.Manage)]
         [SwaggerOperation(Summary = "Actualizar condición de un paso")]
         public async Task<IActionResult> UpdateCondicion(int idWorkflow, int idAccion, int idCondicion,  UpdateCondicionRequest request)
         {
@@ -210,7 +192,6 @@ namespace Lefarma.API.Features.Config.Workflows
         }
 
         [HttpDelete("{idWorkflow}/acciones/{idAccion}/condiciones/{idCondicion}")]
-    //    [HasPermission(Permissions.Workflows.Manage)]
         [SwaggerOperation(Summary = "Eliminar condición de un paso")]
         public async Task<IActionResult> DeleteCondicion(int idWorkflow, int idAccion, int idCondicion)
         {
@@ -219,12 +200,7 @@ namespace Lefarma.API.Features.Config.Workflows
             { Success = true, Message = "Condición eliminada exitosamente.", Data = null }));
         }
 
-        // ============================================================================
-        // PARTICIPANTES
-        // ============================================================================
-        
-        [HttpPost("{idWorkflow}/pasos/{idPaso}/participantes")]
-    //    [HasPermission(Permissions.Workflows.Manage)]
+[HttpPost("{idWorkflow}/pasos/{idPaso}/participantes")]
         [SwaggerOperation(Summary = "Crear participante en un paso")]
         public async Task<IActionResult> CreateParticipante(int idWorkflow, int idPaso,  CreateParticipanteRequest request)
         {
@@ -234,7 +210,6 @@ namespace Lefarma.API.Features.Config.Workflows
         }
 
         [HttpPut("{idWorkflow}/pasos/{idPaso}/participantes/{idParticipante}")]
-    //    [HasPermission(Permissions.Workflows.Manage)]
         [SwaggerOperation(Summary = "Actualizar participante de un paso")]
         public async Task<IActionResult> UpdateParticipante(int idWorkflow, int idPaso, int idParticipante,  UpdateParticipanteRequest request)
         {
@@ -244,7 +219,6 @@ namespace Lefarma.API.Features.Config.Workflows
         }
 
         [HttpDelete("{idWorkflow}/pasos/{idPaso}/participantes/{idParticipante}")]
-    //    [HasPermission(Permissions.Workflows.Manage)]
         [SwaggerOperation(Summary = "Eliminar participante de un paso")]
         public async Task<IActionResult> DeleteParticipante(int idWorkflow, int idPaso, int idParticipante)
         {
@@ -253,12 +227,7 @@ namespace Lefarma.API.Features.Config.Workflows
             { Success = true, Message = "Participante eliminado exitosamente.", Data = null }));
         }
 
-        // ============================================================================
-        // NOTIFICACIONES
-        // ============================================================================
-        
-        [HttpPost("{idWorkflow}/acciones/{idAccion}/notificaciones")]
-    //    [HasPermission(Permissions.Workflows.Manage)]
+[HttpPost("{idWorkflow}/acciones/{idAccion}/notificaciones")]
         [SwaggerOperation(Summary = "Crear notificación para una acción")]
         public async Task<IActionResult> CreateNotificacion(int idWorkflow, int idAccion,  CreateNotificacionRequest request)
         {
@@ -268,7 +237,6 @@ namespace Lefarma.API.Features.Config.Workflows
         }
 
         [HttpPut("{idWorkflow}/acciones/{idAccion}/notificaciones/{idNotificacion}")]
-    //    [HasPermission(Permissions.Workflows.Manage)]
         [SwaggerOperation(Summary = "Actualizar notificación de una acción")]
         public async Task<IActionResult> UpdateNotificacion(int idWorkflow, int idAccion, int idNotificacion,  UpdateNotificacionRequest request)
         {
@@ -278,7 +246,6 @@ namespace Lefarma.API.Features.Config.Workflows
         }
 
         [HttpDelete("{idWorkflow}/acciones/{idAccion}/notificaciones/{idNotificacion}")]
-    //    [HasPermission(Permissions.Workflows.Manage)]
         [SwaggerOperation(Summary = "Eliminar notificación de una acción")]
         public async Task<IActionResult> DeleteNotificacion(int idWorkflow, int idAccion, int idNotificacion)
         {
@@ -323,11 +290,7 @@ namespace Lefarma.API.Features.Config.Workflows
             { Success = true, Message = "Campo eliminado exitosamente.", Data = null }));
         }
 
-        // ============================================================================
-        // CANAL TEMPLATES
-        // ============================================================================
-
-        [HttpGet("canal-templates")]
+[HttpGet("canal-templates")]
         [SwaggerOperation(Summary = "Obtener plantillas de canal")]
         public async Task<IActionResult> GetCanalTemplates()
         {
@@ -354,11 +317,7 @@ namespace Lefarma.API.Features.Config.Workflows
             { Success = true, Message = "Plantilla de canal guardada exitosamente.", Data = data }));
         }
 
-        // ============================================================================
-        // TIPOS NOTIFICACION
-        // ============================================================================
-
-        [HttpGet("tipos-notificacion")]
+[HttpGet("tipos-notificacion")]
         [SwaggerOperation(Summary = "Obtener tipos de notificación disponibles")]
         public async Task<IActionResult> GetTiposNotificacion()
         {
@@ -378,7 +337,6 @@ namespace Lefarma.API.Features.Config.Workflows
             { Success = true, Message = "Plantillas obtenidas.", Data = data }));
         }
 
-        // RECORDATORIOS
         [HttpGet("{idWorkflow}/recordatorios")]
         [SwaggerOperation(Summary = "Obtener recordatorios automáticos del workflow")]
         public async Task<IActionResult> GetRecordatorios(int idWorkflow)

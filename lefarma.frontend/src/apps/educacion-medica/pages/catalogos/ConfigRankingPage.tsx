@@ -47,7 +47,6 @@ export default function ConfigRankingPage() {
     }
   }, []);
 
-  // Carga inicial: setState solo tras await (evita renders en cascada).
   useEffect(() => {
     let cancelado = false;
     (async () => {

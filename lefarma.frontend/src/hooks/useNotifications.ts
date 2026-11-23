@@ -1,9 +1,3 @@
-/**
- * Hook personalizado para la conexión SSE de notificaciones
- * Maneja la recepción de notificaciones en tiempo real
- */
-
-
 import { useEffect, useRef, useCallback } from 'react';
 import { useNotificationStore } from '@/store/notificationStore';
 import { useAuthStore } from '@/shared/auth/authStore';
@@ -17,19 +11,14 @@ import type { SseEvent, UserNotification, NotificationFilter } from '@/types/not
 
 const SSE_NOTIFICATIONS_URL = (() => {
   const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5174/api';
-  // Remover barra final si existe para evitar doble slash
   const cleanUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
-  // Agregar /api si no está presente
   const apiPath = cleanUrl.includes('/api') ? cleanUrl : `${cleanUrl}/api`;
   return `${apiPath}/notifications/stream`;
 })();
 
-const MAX_RECONNECT_ATTEMPTS = 10; // Solo contamos errores reales (CLOSED), no reconexiones automaticas
-const BASE_RECONNECT_DELAY = 1000; // 1 segundo
+const MAX_RECONNECT_ATTEMPTS = 10; 
+const BASE_RECONNECT_DELAY = 1000; 
 
-// Fallos de red consecutivos (servidor inalcanzable) antes de disparar el overlay global.
-// Un fetch que RECHAZA (throw) significa que el servidor no respondio nada;
-// un response !ok significa que el servidor SI respondio (esta vivo, p.ej. 401).
 const SSE_NETWORK_FAILURE_THRESHOLD = 2;
 let sseNetworkFailures = 0;
 
@@ -52,7 +41,6 @@ async function fetchSseTicket(token: string): Promise<string | null> {
     });
 
     if (!response.ok) {
-      // El servidor respondio: esta vivo (error de auth u otro). Resetear contador.
       registrarFalloHttp({
         metodo: 'POST',
         url: ticketUrl,
@@ -66,7 +54,6 @@ async function fetchSseTicket(token: string): Promise<string | null> {
     sseNetworkFailures = 0;
     return data.ticket ?? null;
   } catch (error) {
-    // Error a nivel red (ERR_CONNECTION_REFUSED, DNS, etc.): el servidor no respondio.
     registrarFalloDeRed({
       metodo: 'POST',
       url: ticketUrl,
@@ -93,10 +80,6 @@ export interface UseNotificationsReturn {
   reconnect: () => void;
 }
 
-/**
- * Hook para manejar la conexión SSE de notificaciones
- * Conecta automáticamente cuando el usuario está autenticado
- */
 export function useNotifications(options: UseNotificationsOptions = {}): UseNotificationsReturn {
   const {
     autoConnect = true,
@@ -118,34 +101,15 @@ export function useNotifications(options: UseNotificationsOptions = {}): UseNoti
   const isMountedRef = useRef(true);
   const connectRef = useRef<(() => void) | null>(null);
 
-  /**
-   * Maneja la apertura exitosa de la conexion SSE.
-   * Reinicia el contador de errores porque ya tenemos conexion estable.
-   */
   const handleOpen = useCallback(() => {
     reconnectAttemptsRef.current = 0;
     sseNetworkFailures = 0;
-    // El stream SSE abrio: el servidor esta vivo. Restaurar conexion global si estaba perdida.
     useConnectionStore.getState().markConnected();
     setConnected(true);
     setError(undefined);
     onConnectionChange?.(true);
   }, [setConnected, setError, onConnectionChange]);
 
-  /**
-   * Maneja errores de la conexion SSE.
-   *
-   * IMPORTANTE: EventSource.onerror se dispara para TODO tipo de error:
-   *  - readyState === CONNECTING (0): el navegador esta reintentando automaticamente.
-   *    NO es un error real. Sucede en microcortes de red, WiFi inestable, etc.
-   *    NO contamos estos como fallos.
-   *  - readyState === CLOSED (2): el servidor cerro la conexion definitivamente.
-   *    Esto SI es un error real (401 token expirado, 500 del servidor, etc.)
-   *    SOLO estos los contamos para decidir si hacer logout.
-   *
-   * Antes el contador acumulaba TODOS los errores sin distinguir, causando que
-   * cualquier microcorte de red (4 reconexiones del navegador) forzara logout.
-   */
   const handleError = useCallback(() => {
     const es = eventSourceRef.current;
     if (!es) return;
@@ -163,12 +127,10 @@ export function useNotifications(options: UseNotificationsOptions = {}): UseNoti
       }),
     });
 
-    // Solo contar si el servidor CERRÓ la conexion (error real, no reconexion automatica)
     if (es.readyState === EventSource.CLOSED) {
       reconnectAttemptsRef.current++;
     }
 
-    // Solo hacer logout si se acumulan demasiados errores REALES (CLOSED)
     if (reconnectAttemptsRef.current > MAX_RECONNECT_ATTEMPTS) {
       setConnected(false);
       setError('Tu sesion ha expirado. Por favor, inicia sesion nuevamente.');
@@ -187,8 +149,6 @@ export function useNotifications(options: UseNotificationsOptions = {}): UseNoti
     }
 
     if (es.readyState === EventSource.CONNECTING) {
-      // Close to prevent native auto-reconnect reusing the stale ticket URL.
-      // Manual reconnect below fetches a fresh ticket.
       es.close();
       setConnected(false);
       onConnectionChange?.(false);
@@ -209,9 +169,6 @@ export function useNotifications(options: UseNotificationsOptions = {}): UseNoti
     }
   }, [setConnected, setError, onConnectionChange, isAuthenticated]);
 
-  /**
-   * Maneja mensajes recibidos por SSE
-   */
   const handleMessage = useCallback((eventType: string, event: MessageEvent) => {
     try {
       const data: SseEvent = JSON.parse(event.data);
@@ -221,25 +178,16 @@ export function useNotifications(options: UseNotificationsOptions = {}): UseNoti
         addNotification(notification);
         onNotification?.(notification);
 
-        // Sonido de notificación (opcional)
         playNotificationSound(notification);
-      } else if (data.type === 'heartbeat') {
-        // Heartbeat recibido, conexión está viva
       }
     } catch {
-      // Ignorar errores de parseo
     }
   }, [addNotification, onNotification]);
 
-  /**
-   * Reproduce un sonido de notificación
-   */
   const playNotificationSound = useCallback((notification: UserNotification) => {
-    // Solo reproducir para notificaciones importantes
     if (notification.notification?.priority === 'high' ||
         notification.notification?.priority === 'urgent') {
       try {
-        // Usar Web Audio API para un beep simple
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const AudioContextCtor = window.AudioContext || (window as unknown as Record<string, unknown>).webkitAudioContext as typeof AudioContext;
         const audioContext = new AudioContextCtor();
@@ -256,15 +204,10 @@ export function useNotifications(options: UseNotificationsOptions = {}): UseNoti
         oscillator.start();
         oscillator.stop(audioContext.currentTime + 0.1);
       } catch {
-        // Silenciar errores de audio
       }
     }
   }, []);
 
-  /**
-   * Establece la conexión SSE
-   * SIEMPRE lee el token actual del store para evitar usar tokens expirados
-   */
   const connect = useCallback(async () => {
     const currentToken = useAuthStore.getState().token;
     const currentAuth = useAuthStore.getState().isAuthenticated;
@@ -288,17 +231,14 @@ export function useNotifications(options: UseNotificationsOptions = {}): UseNoti
       eventSourceRef.current.onopen = handleOpen;
       eventSourceRef.current.onerror = handleError;
 
-      // Escuchar evento de notificación
       eventSourceRef.current.addEventListener('notification', (event) => {
         handleMessage('notification', event);
       });
 
-      // Escuchar heartbeat
       eventSourceRef.current.addEventListener('heartbeat', (event) => {
         handleMessage('heartbeat', event);
       });
 
-      // Escuchar eventos de prueba (para debug)
       eventSourceRef.current.addEventListener('test', (event) => {
         handleMessage('test', event);
       });
@@ -308,27 +248,19 @@ export function useNotifications(options: UseNotificationsOptions = {}): UseNoti
     }
   }, [handleOpen, handleError, handleMessage]);
 
-  // Guardar la referencia actual de connect para usarla en handleError
   connectRef.current = connect;
 
-  /**
-   * Reconecta manualmente
-   */
   const reconnect = useCallback(() => {
     reconnectAttemptsRef.current = 0;
     connect();
   }, [connect]);
 
-  // Efecto principal: conectar/desconectar según autenticación
-  // NO incluimos 'token' en las dependencias para evitar reconexiones infinitas
-  // connect() ya lee el token actual del store directamente
   useEffect(() => {
     if (autoConnect && isAuthenticated) {
       connectRef.current?.();
     }
 
     return () => {
-      // No actualizar estado en cleanup - solo cerrar conexión
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
         reconnectTimeoutRef.current = null;
@@ -338,9 +270,8 @@ export function useNotifications(options: UseNotificationsOptions = {}): UseNoti
         eventSourceRef.current = null;
       }
     };
-  }, [autoConnect, isAuthenticated]); // Quitar 'token' para evitar bucle infinito
+  }, [autoConnect, isAuthenticated]); 
 
-  // Cleanup al desmontar
   useEffect(() => {
     isMountedRef.current = true;
 
@@ -349,16 +280,13 @@ export function useNotifications(options: UseNotificationsOptions = {}): UseNoti
     };
   }, []);
 
-  // Solicitar permiso para notificaciones del navegador
   useEffect(() => {
     if ('Notification' in window && Notification.permission === 'default') {
       Notification.requestPermission().then(() => {
-        // Permiso solicitado
       });
     }
   }, []);
 
-  // Wrapper público para disconnect
   const publicDisconnect = useCallback(() => {
     if (reconnectTimeoutRef.current) {
       clearTimeout(reconnectTimeoutRef.current);
@@ -381,9 +309,6 @@ export function useNotifications(options: UseNotificationsOptions = {}): UseNoti
   };
 }
 
-/**
- * Hook simplificado que solo retorna las notificaciones sin conectar
- */
 export function useNotificationList(): {
   notifications: UserNotification[];
   unreadCount: number;

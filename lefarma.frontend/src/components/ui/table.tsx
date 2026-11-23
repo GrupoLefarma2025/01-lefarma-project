@@ -3,7 +3,6 @@ import * as React from 'react';
 import { cn } from '@/lib/utils';
 
 interface TableProps extends React.HTMLAttributes<HTMLTableElement> {
-  /** Clases del contenedor con scroll que envuelve a la tabla. */
   containerClassName?: string;
 }
 

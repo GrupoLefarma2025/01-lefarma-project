@@ -5,13 +5,6 @@ using Lefarma.API.Shared.Extensions;
 
 namespace Lefarma.UnitTests.Features.Rh.SolicitudesPersonal;
 
-/// <summary>
-/// Los formatos de RH deben imprimir empresa, área, puesto y ubicación del empleado desde
-/// Asistencias (vwEmpleados.empresareal / departamento / puesto / ubicacion), no desde los
-/// catálogos de Lefarma, que están desalineados. Evidencia: usuario 54 (Adriana Gutiérrez
-/// Espinosa, nómina 1627181) tiene empresa Artricenter y área nula en config.usuario_detalle,
-/// mientras Asistencias devuelve ASOKAM / CALIDAD / ANALISTA DE METODOS Y PROCEDIMIENTOS.
-/// </summary>
 public class RhMappingsDatosAsistenciasTests
 {
     private const int IdSolicitante = 54;
@@ -127,7 +120,6 @@ public class RhMappingsDatosAsistenciasTests
     [Fact]
     public void El_Solicitante_Manda_Sobre_El_Creador_Cuando_Difieren()
     {
-        // RH captura para otro empleado: el formato debe llevar los datos del solicitante.
         const int idCreador = 75;
         var solicitud = NuevaSolicitud();
         solicitud.IdUsuarioCreador = idCreador;

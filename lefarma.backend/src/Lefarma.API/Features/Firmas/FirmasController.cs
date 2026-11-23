@@ -10,10 +10,6 @@ using Swashbuckle.AspNetCore.Annotations;
 
 namespace Lefarma.API.Features.Firmas;
 
-/// <summary>
-/// Gestión de firmas digitales: comprobación por RH (permiso usuarios.firma.habilitar_cambio)
-/// y servicio autenticado de imágenes (mi firma, firma por documento, INE).
-/// </summary>
 [Route("api/[controller]")]
 [ApiController]
 [EndpointGroupName("Firmas")]
@@ -166,7 +162,6 @@ public class FirmasController : ControllerBase
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetFirmaUsuario(int idUsuario, CancellationToken cancellationToken = default)
     {
-        // Listado RH o concentrado de OC ("revisó"); el dueño usa /mi-firma.
         if (!TienePermiso(Permissions.Usuarios.HabilitarCambioFirma) && !TienePermiso("ordenes.envio_concentrado"))
             return StatusCode(StatusCodes.Status403Forbidden, new ApiResponse<object>
             {

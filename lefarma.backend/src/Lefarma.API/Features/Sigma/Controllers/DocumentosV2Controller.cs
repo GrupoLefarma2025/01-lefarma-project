@@ -10,12 +10,6 @@ using Microsoft.Data.SqlClient;
 
 namespace Lefarma.API.Features.Sigma.Controllers;
 
-/// <summary>
-/// Puerto de <c>DocumentosModuleV2</c> de SIGMA: flujo de documentos con aprobadores,
-/// aprobación/rechazo, consulta y descarga. Sin <c>[Authorize]</c> global para permitir
-/// visitantes externos con la cabecera <c>X-Sigma-Visitor</c>; la identidad se resuelve
-/// siempre con <see cref="SigmaIdentity"/>.
-/// </summary>
 [ApiController]
 [Route("api/v2/documentos")]
 [EndpointGroupName("Sigma")]
@@ -47,12 +41,7 @@ public sealed class DocumentosV2Controller : ControllerBase
         _log = log;
     }
 
-    // ---------------------------------------------------------------------
-    // Alta de visitante externo (sustituye a POST /api/auth/anonymous de SIGMA)
-    // ---------------------------------------------------------------------
-
-    /// <summary>Registra/reutiliza un visitante anónimo y devuelve su ticket firmado (sin JWT).</summary>
-    [HttpPost("acceso-externo")]
+[HttpPost("acceso-externo")]
     [AllowAnonymous]
     public async Task<IActionResult> AccesoExterno([FromBody] AccesoExternoRequest? solicitud, CancellationToken ct)
     {
@@ -105,12 +94,7 @@ public sealed class DocumentosV2Controller : ControllerBase
         }
     }
 
-    // ---------------------------------------------------------------------
-    // Flujo
-    // ---------------------------------------------------------------------
-
-    /// <summary>Usuarios disponibles como aprobadores (SP sin parámetros).</summary>
-    [HttpGet("usuarios-para-flujo")]
+[HttpGet("usuarios-para-flujo")]
     public async Task<IActionResult> UsuariosParaFlujo(CancellationToken ct)
     {
         var actor = _identidad.Resolve();
@@ -119,8 +103,6 @@ public sealed class DocumentosV2Controller : ControllerBase
             return NoAutenticado();
         }
 
-        // El catálogo de usuarios es información interna: un visitante externo
-        // no debe poder enumerar las cuentas de Active Directory.
         if (actor.EsAnonimo)
         {
             return SinPermiso();
@@ -134,7 +116,6 @@ public sealed class DocumentosV2Controller : ControllerBase
                 CommandType.StoredProcedure,
                 ct);
 
-            // SIGMA no filtra por TieneFirma y devuelve null cuando el identificador es vacío.
             var data = usuarios.Select(u => new
             {
                 usuario = u.Usuario,
@@ -152,7 +133,6 @@ public sealed class DocumentosV2Controller : ControllerBase
         }
     }
 
-    /// <summary>Crea un documento con flujo de aprobación.</summary>
     [HttpPost("crear-con-flujo")]
     [Consumes("multipart/form-data")]
     [RequestSizeLimit(52_428_800)]
@@ -245,7 +225,6 @@ public sealed class DocumentosV2Controller : ControllerBase
         }
     }
 
-    /// <summary>Crea un grupo de documentos (uno o varios PDF) con un flujo común.</summary>
     [HttpPost("crear-grupo-con-flujo")]
     [Consumes("multipart/form-data")]
     [RequestSizeLimit(52_428_800)]
@@ -340,7 +319,6 @@ public sealed class DocumentosV2Controller : ControllerBase
                 });
             }
 
-            // El SP parsea el JSON con OPENJSON y rutas $.IdDocumento (PascalCase): no cambiar el casing.
             var json = JsonSerializer.Serialize(documentos);
 
             await _db.ExecuteAsync(
@@ -369,12 +347,7 @@ public sealed class DocumentosV2Controller : ControllerBase
         }
     }
 
-    // ---------------------------------------------------------------------
-    // Bandejas
-    // ---------------------------------------------------------------------
-
-    /// <summary>Documentos donde el usuario tiene el turno de firma.</summary>
-    [HttpGet("pendientes-firmar")]
+[HttpGet("pendientes-firmar")]
     public async Task<IActionResult> PendientesFirmar(CancellationToken ct)
     {
         var actor = _identidad.Resolve();
@@ -399,7 +372,6 @@ public sealed class DocumentosV2Controller : ControllerBase
         }
     }
 
-    /// <summary>Documentos creados por el usuario.</summary>
     [HttpGet("mis-documentos")]
     public async Task<IActionResult> MisDocumentos(
         [FromQuery] DateTime? fechaDesde,
@@ -428,7 +400,6 @@ public sealed class DocumentosV2Controller : ControllerBase
         }
     }
 
-    /// <summary>Documentos en los que el usuario ya firmó.</summary>
     [HttpGet("firmados-por-mi")]
     public async Task<IActionResult> FirmadosPorMi(CancellationToken ct)
     {
@@ -454,7 +425,6 @@ public sealed class DocumentosV2Controller : ControllerBase
         }
     }
 
-    /// <summary>Todos los documentos visibles para el usuario (con filtros opcionales).</summary>
     [HttpGet("todos")]
     public async Task<IActionResult> Todos(
         [FromQuery] string? filtroUsuario,
@@ -492,12 +462,7 @@ public sealed class DocumentosV2Controller : ControllerBase
         }
     }
 
-    // ---------------------------------------------------------------------
-    // Acciones sobre un documento
-    // ---------------------------------------------------------------------
-
-    /// <summary>Elimina un documento sin firmas (sólo el creador).</summary>
-    [HttpDelete("{idDocumento:guid}")]
+[HttpDelete("{idDocumento:guid}")]
     public async Task<IActionResult> Eliminar(Guid idDocumento, CancellationToken ct)
     {
         var actor = _identidad.Resolve();
@@ -535,7 +500,6 @@ public sealed class DocumentosV2Controller : ControllerBase
         }
     }
 
-    /// <summary>Aprueba el paso pendiente del usuario.</summary>
     [HttpPost("aprobar")]
     public async Task<IActionResult> Aprobar([FromBody] AprobarDocumentoRequest? solicitud, CancellationToken ct)
     {
@@ -557,7 +521,6 @@ public sealed class DocumentosV2Controller : ControllerBase
 
         try
         {
-            // TODO: sustituir la copia por la firma digital real (igual que SIGMA).
             var rutaInicial = await _db.ExecuteScalarAsync<string>(
                 "SELECT RutaArchivoInicial FROM app.DocumentosConFlujo WHERE IdDocumento = @IdDocumento",
                 new { IdDocumento = solicitud.IdDocumento },
@@ -599,7 +562,6 @@ public sealed class DocumentosV2Controller : ControllerBase
         }
     }
 
-    /// <summary>Rechaza el paso pendiente del usuario.</summary>
     [HttpPost("rechazar")]
     public async Task<IActionResult> Rechazar([FromBody] RechazarDocumentoRequest? solicitud, CancellationToken ct)
     {
@@ -649,7 +611,6 @@ public sealed class DocumentosV2Controller : ControllerBase
         }
     }
 
-    /// <summary>Flujo de aprobación del documento (documento + pasos).</summary>
     [HttpGet("{idDocumento:guid}/flujo")]
     public async Task<IActionResult> Flujo(Guid idDocumento, CancellationToken ct)
     {
@@ -678,7 +639,6 @@ public sealed class DocumentosV2Controller : ControllerBase
                 return NotFound(new { success = false, message = "Documento no encontrado" });
             }
 
-            // SIGMA proyecta sólo estos campos en los pasos.
             var pasosProyectados = pasos.Select(p => new
             {
                 orden = p.Orden,
@@ -694,7 +654,6 @@ public sealed class DocumentosV2Controller : ControllerBase
         }
         catch (SqlException ex)
         {
-            // El SP hace RAISERROR 'Documento no encontrado'.
             return NotFound(new { success = false, message = ex.Message });
         }
         catch (Exception ex)
@@ -703,7 +662,6 @@ public sealed class DocumentosV2Controller : ControllerBase
         }
     }
 
-    /// <summary>Historial de comentarios/acciones del documento.</summary>
     [HttpGet("{idDocumento:guid}/historial-comentarios")]
     public async Task<IActionResult> HistorialComentarios(Guid idDocumento, CancellationToken ct)
     {
@@ -738,7 +696,6 @@ public sealed class DocumentosV2Controller : ControllerBase
         }
     }
 
-    /// <summary>Reenvía el recordatorio al aprobador del turno actual (sólo el creador).</summary>
     [HttpPost("{idDocumento:guid}/reenviar-notificacion")]
     public async Task<IActionResult> ReenviarNotificacion(Guid idDocumento, CancellationToken ct)
     {
@@ -802,7 +759,6 @@ public sealed class DocumentosV2Controller : ControllerBase
         }
     }
 
-    /// <summary>Descarga el PDF del documento (firmado por defecto; si no existe, el inicial).</summary>
     [HttpGet("{idDocumento:guid}/descargar")]
     public async Task<IActionResult> Descargar(
         Guid idDocumento,
@@ -855,11 +811,7 @@ public sealed class DocumentosV2Controller : ControllerBase
         }
     }
 
-    // ---------------------------------------------------------------------
-    // Utilidades
-    // ---------------------------------------------------------------------
-
-    private static List<AprobadorDto> LeerAprobadores(string? json, out string? error)
+private static List<AprobadorDto> LeerAprobadores(string? json, out string? error)
     {
         error = null;
 

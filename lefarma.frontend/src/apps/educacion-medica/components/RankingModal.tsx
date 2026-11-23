@@ -63,7 +63,7 @@ import { cn } from '@/lib/utils';
 interface RankingFiltrosForm {
   search: string;
   codigoEstado: string | null;
-  zonaMetropolitana: boolean | null; // keep
+  zonaMetropolitana: boolean | null; 
   idRegion: number | null;
 }
 
@@ -83,7 +83,6 @@ interface RankingModalProps {
   onFiltrosChange?: (filtros: RankingFiltrosForm) => void;
 }
 
-// El Top N se calcula desde el objetivo de talleres, siempre en múltiplos de 50.
 function redondearCincuenta(n: number): number {
   return Math.max(50, Math.ceil(n / 50) * 50);
 }
@@ -164,8 +163,6 @@ const TONO_PESO: Record<string, string> = {
   cobertura_taller: 'bg-violet-50 text-violet-600 dark:bg-violet-950/40 dark:text-violet-300',
 };
 
-// Etiqueta del estado de cobertura a partir del score del factor (los valores
-// 100/90/10 son el contrato del motor, ver RankingScoreEngine.CalcularCoberturaTaller).
 function etiquetaCobertura(score: number): string | null {
   if (score <= 10) return 'Taller realizado';
   if (score >= 100) return 'Nunca seleccionado';
@@ -200,8 +197,6 @@ export function RankingModal({
 
   const [seleccionados, setSeleccionados] = useState<Set<number>>(() => {
     if (!ejecucion) return new Set<number>();
-    // Se preseleccionan los primeros hospitales necesarios para cubrir el objetivo
-    // del mes, descontando los que ya están en la selección.
     const faltantes = Math.max(
       0,
       objetivo - (ejecucion.cantidadYaAgregados ?? 0)
@@ -215,7 +210,6 @@ export function RankingModal({
     );
   });
   const [hospitalActivo, setHospitalActivo] = useState<RankingHospitalItem | null>(null);
-  /** Producto a promocionar por hospital (opcional, FOR-004). */
   const [productos, setProductos] = useState<Record<number, string>>({});
   const [detallesAbierto, setDetallesAbierto] = useState(false);
 

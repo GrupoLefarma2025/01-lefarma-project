@@ -2,11 +2,6 @@ using System.Collections.Concurrent;
 
 namespace Lefarma.API.Features.Auth;
 
-/// <summary>
-/// Tickets de un solo uso para abrir el canal SSE sin exponer el JWT en la URL.
-/// Se guardan en memoria del proceso: si el backend reinicia, el cliente pide
-/// otro ticket al reconectar.
-/// </summary>
 public class SseTicketService : ISseTicketService
 {
     private static readonly TimeSpan VigenciaTicket = TimeSpan.FromMinutes(5);
@@ -23,7 +18,7 @@ public class SseTicketService : ISseTicketService
     {
         PurgarExpirados();
 
-        var ticket = Guid.NewGuid().ToString("N"); // 32 caracteres, sin guiones
+        var ticket = Guid.NewGuid().ToString("N"); 
         _tickets[ticket] = new TicketSse(userId, DateTime.UtcNow.Add(VigenciaTicket));
 
         _logger.LogDebug("Generated SSE ticket for user {UserId}", userId);
@@ -35,7 +30,6 @@ public class SseTicketService : ISseTicketService
         if (string.IsNullOrWhiteSpace(ticket))
             return null;
 
-        // TryRemove garantiza un solo uso incluso con peticiones concurrentes.
         if (!_tickets.TryRemove(ticket, out var entrada))
         {
             _logger.LogWarning("SSE ticket not found or already consumed");

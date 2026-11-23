@@ -84,9 +84,7 @@ public class TallerImparticionServiceTests
         PuestoMedico = "Anestesiólogo",
     };
 
-    // ----- Material -----
-
-    [Fact]
+[Fact]
     public async Task GuardarMaterial_Debe_HacerUpsertUnoAUno()
     {
         var servicio = CrearServicio();
@@ -157,9 +155,7 @@ public class TallerImparticionServiceTests
         await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("*Ejecutivo de Ventas o el Especialista*");
     }
 
-    // ----- Asistencias -----
-
-    [Fact]
+[Fact]
     public async Task CrearAsistencia_Debe_LimitarAMaximo20()
     {
         var servicio = CrearServicio();
@@ -170,7 +166,6 @@ public class TallerImparticionServiceTests
 
         var act = () => servicio.CrearAsistenciaAsync(IdTaller, NuevaAsistencia(21), IdEp);
 
-        // El DTO valida 1..20; el servicio además corta al llegar a 20 con número válido.
         await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("*máximo de 20*");
     }
 
@@ -209,9 +204,7 @@ public class TallerImparticionServiceTests
         _workflow.Context.TalleresAsistencias.Count().Should().Be(0);
     }
 
-    // ----- Evidencias -----
-
-    [Fact]
+[Fact]
     public async Task AgregarEvidencia_TallerProgramado_Debe_Fallar()
     {
         var servicio = CrearServicio();
@@ -261,9 +254,7 @@ public class TallerImparticionServiceTests
         await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("*Tipo de evidencia desconocido*");
     }
 
-    // ----- Máquina de estados -----
-
-    [Fact]
+[Fact]
     public async Task CambiarEstado_ProgramadoAEnCurso_Debe_RegistrarHistorialManual()
     {
         var servicio = CrearServicio();
@@ -367,7 +358,6 @@ public class TallerImparticionServiceTests
     {
         var servicio = CrearServicio();
 
-        // Programado → Realizado no es una transición permitida (debe pasar por EnCurso).
         var act = () => servicio.CambiarEstadoAsync(IdTaller,
             new CambiarEstadoTallerRequest { NuevoEstado = Taller.EstadoRealizado }, IdEv);
 

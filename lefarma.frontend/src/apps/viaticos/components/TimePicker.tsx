@@ -14,13 +14,6 @@ export interface TimePickerProps {
   className?: string;
 }
 
-/**
- * Reloj propio sobre el Popover de shadcn (mismo patrón que el DatePicker):
- * display grande + las columnas de hora compartidas. Elegir una opción
- * completa la hora (la parte faltante es 00) y cierra, igual que el
- * calendario cierra al elegir día. Se muestra en 12 horas (AM/PM); el valor
- * se guarda en 24 horas.
- */
 export function TimePicker({ id, value, onChange, disabled, error, className }: TimePickerProps) {
   const [open, setOpen] = useState(false);
   const { hora, minuto } = partirHoraMinuto(value);

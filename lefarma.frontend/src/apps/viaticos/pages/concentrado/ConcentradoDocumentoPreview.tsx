@@ -14,28 +14,10 @@ import {
 } from '../costos/ConcentradoVuelosPrint';
 import type { GrupoConcentrado } from '../../constants/grupos';
 
-/**
- * Vista previa imprimible del concentrado desde la pantalla de revisión.
- *
- * Dos formatos, el mismo patrón de impresión del repo (portal a
- * `document.body`, aislado con la clase del formato en `body` y el id del
- * portal):
- *
- * - `for-008`: concentrado de costos ASK-ADM-FOR-008 (`ConcentradoViaticosPrint`).
- * - `vuelos`: concentrado de vuelos «Solicitud de avión», el formato del Excel
- *   VUELOS EDUCACION MEDICA (`ConcentradoVuelosPrint`).
- *
- * Las filas NO se piden al servidor: llegan por props ya filtradas por la
- * persona. El documento es WYSIWYG: se imprime lo que está viendo.
- */
-
-/** Mismos estados que imprime el documento oficial (ver ConcentradoViaticosPrint). */
 const ESTADOS_AUTORIZADOS = ['autorizada', 'autorizada_con_ajustes'] as const;
 
-/** Formatos imprimibles del concentrado. */
 export type FormatoConcentrado = 'for-008' | 'vuelos';
 
-/** Id del portal y clase de aislamiento en `body` de cada formato. */
 const IMPRESION: Record<
   FormatoConcentrado,
   { id: string; claseCuerpo: string; etiqueta: string }
@@ -52,7 +34,6 @@ const IMPRESION: Record<
   },
 };
 
-/** Reglas de pantalla del portal; dependen del id del formato activo. */
 function cssPantalla(id: string): string {
   return `
 #${id} { display: none; }
@@ -76,29 +57,13 @@ function cssPantalla(id: string): string {
 
 interface Props {
   abierto: boolean;
-  /** Filas del FOR-008, ya filtradas en pantalla. */
   solicitudes: SolicitudConcentrado[];
-  /** Filas del concentrado de vuelos («Solicitud de avión»). */
   vuelos: SolicitudVuelo[];
-  /** Formato a previsualizar/imprimir. */
   formato?: FormatoConcentrado;
-  /** Texto de la barra: periodo o filtro activo. */
   titulo: string;
   gerencia?: string;
-  /** Criterio con el que se parten los bloques del FOR-008. */
   grupoPor?: GrupoConcentrado;
-  /**
-   * Imprimir solo las solicitudes autorizadas. Activo por defecto porque el
-   * FOR-008 es el documento oficial; el concentrado de vuelos imprime la
-   * selección tal cual (incluye enviadas: la solicitud a la agencia va antes
-   * de la autorización).
-   */
   soloAutorizadas?: boolean;
-  /**
-   * Abre directamente el diálogo de impresión del navegador al montar (lo usa
-   * el botón «Vista previa» de la pantalla, igual que el envío concentrado de
-   * CxP). El visor queda detrás del diálogo como vista previa en pantalla.
-   */
   imprimirAlAbrir?: boolean;
   onCerrar: () => void;
 }
@@ -117,13 +82,10 @@ export function ConcentradoDocumentoPreview({
 }: Props) {
   const [imprimiendo, setImprimiendo] = useState(false);
   const mounted = useRef(true);
-  /** Evita que el disparo automático se repita en cada render. */
   const autoImpreso = useRef(false);
   const filasFor008 = soloAutorizadas
     ? solicitudes.filter(s => (ESTADOS_AUTORIZADOS as readonly string[]).includes(s.estado))
     : solicitudes;
-  // El documento de vuelos es de lo seleccionado; solo se salta si el
-  // contenedor pidió explícitamente el filtro de autorizadas.
   const filasVuelos = vuelos;
   const hayFilas = formato === 'vuelos' ? filasVuelos.length > 0 : filasFor008.length > 0;
 
@@ -160,7 +122,6 @@ export function ConcentradoDocumentoPreview({
     }
   }, [imprimiendo, hayFilas, id, claseCuerpo, quitarClase]);
 
-  // «Vista previa» abre el diálogo de impresión del navegador de una vez.
   useEffect(() => {
     if (!abierto) {
       autoImpreso.current = false;

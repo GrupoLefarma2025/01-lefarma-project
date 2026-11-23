@@ -1,17 +1,3 @@
-// Lefarma.Migrations — DbUp-based database migration runner.
-// Usage:
-//   lefarma-migrations status <env> [--app X] [--tipo Y] [--json]
-//   lefarma-migrations apply   <env> [--app X] [--tipo Y] [--id ID]
-//   lefarma-migrations diff    <fromEnv> <toEnv>
-//   lefarma-migrations list    <env>
-//
-// Environment variables override migrations.config.json:
-//   MIGRATIONS_CONFIG_PATH=path/to/config.json
-//
-// SQL scripts are routed to databases exclusively via "routing" in
-// migrations.config.json: app folder name -> list of DB aliases.
-// An app NOT listed in routing applies to NO database (fail-closed).
-
 using System.Text.Json;
 using DbUp;
 using DbUp.Engine;
@@ -39,8 +25,6 @@ static int Run(string[] args)
         _        => PrintUnknown(command)
     };
 }
-
-// ============== Commands ==============
 
 static int Status(string[] args)
 {
@@ -138,15 +122,12 @@ static int Apply(string[] args)
     var executedFiles = new List<string>();
     foreach (var (db, connString) in dbs)
     {
-        // --force: quitar del journal la entrada del script (por id) para que DbUp lo re-ejecute.
         if (force && id != null)
             RemoveFromJournal(connString, id);
 
         var upgrader = BuildUpgrader(connString, scriptsRoot, db, env, app, tipo, cfg, id,
             executedFiles: executedFiles);
 
-        // Si con --id no hay ningún script pendiente para esta db, es normal:
-        // el id puede aplicar a otra db de la familia (ej. lefarma no aplica en Asokam).
         var pendingCount = upgrader.GetScriptsToExecute().Count;
         if (pendingCount == 0)
             continue;
@@ -161,11 +142,10 @@ static int Apply(string[] args)
             Console.WriteLine($"  FAIL: {result.Error.Message}");
             Console.ResetColor();
             overallSuccess = false;
-            break;  // abort on first failure within this DB
+            break;  
         }
     }
 
-    // Fail loudly only when --id matched nothing in ANY db of this env.
     if (id != null && !anyScheduled)
     {
         Console.ForegroundColor = ConsoleColor.Red;
@@ -182,8 +162,6 @@ static int Apply(string[] args)
         return 1;
     }
 
-    // Registrar en el nombre de cada script ejecutado el ambiente en el que ya corrió:
-    // "<id>.<familia>.sql" -> "<id>.<familia>.<env>.sql" (extensible: ".dev.prod" etc).
     foreach (var file in executedFiles.Distinct(StringComparer.OrdinalIgnoreCase))
     {
         var (family, applied) = ParseSuffix(file);
@@ -252,13 +230,11 @@ static int ListApplied(string[] args)
     return 0;
 }
 
-// ============== Helpers ==============
-
 static UpgradeEngine BuildUpgrader(string connString, string scriptsRoot,
     string db, string env, string? appFilter, string? tipoFilter, Config cfg, string? idFilter = null,
     bool silent = false, List<string>? executedFiles = null)
 {
-    var appFolders = cfg.GetAppFolders(db, appFilter, scriptsRoot);  // list of app paths under scriptsRoot
+    var appFolders = cfg.GetAppFolders(db, appFilter, scriptsRoot);  
 
     var options = new FileSystemScriptOptions
     {
@@ -267,30 +243,22 @@ static UpgradeEngine BuildUpgrader(string connString, string scriptsRoot,
         Encoding = System.Text.Encoding.UTF8,
         Filter = path =>
         {
-            // Only keep files inside one of the applicable app folders for this db.
             if (!appFolders.Any(af => path.StartsWith(af, StringComparison.OrdinalIgnoreCase)))
                 return false;
-            // Suffix: "<id>.<familia>[.<env-aplicado>...].sql".
-            // familia = DB family (* = todas); los demás segmentos son ambientes donde YA se ejecutó.
-            // Sin sufijo de familia = aplica a NINGUNA db (fail-closed).
             var (family, applied) = ParseSuffix(path);
             if (family == null)
                 return false;
             if (family != "*" && !db.StartsWith(family, StringComparison.OrdinalIgnoreCase))
                 return false;
-            // Si este ambiente ya está marcado como aplicado en el nombre, no lo ofrezcas de nuevo.
             if (applied.Contains(env, StringComparer.OrdinalIgnoreCase))
                 return false;
-            // Filter by tipo folder
             if (tipoFilter != null && !path.Contains($"\\{tipoFilter}\\") && !path.Contains($"/{tipoFilter}/"))
                 return false;
-            // Filter by id: full name ("0002_20260805-..._create-schema") or
-            // short prefix ("0002") both work; tolerate trailing ".sql".
             if (idFilter != null)
             {
                 var idClean = Path.GetFileNameWithoutExtension(idFilter);
                 var name = Path.GetFileNameWithoutExtension(Path.GetFileNameWithoutExtension(path));
-                var nameCore = name.Split('.')[0];   // id = parte antes del sufijo
+                var nameCore = name.Split('.')[0];   
                 if (nameCore != idClean && !name.StartsWith(idClean + ".", StringComparison.OrdinalIgnoreCase))
                     return false;
             }
@@ -299,8 +267,6 @@ static UpgradeEngine BuildUpgrader(string connString, string scriptsRoot,
         }
     };
 
-    // Single provider rooted at scriptsRoot; the Filter above restricts to applicable app/tipo/id/target.
-    // silent = NoOp log so machine output (--json) isn't polluted by DbUp's console logs.
     var builder = DeployChanges.To
         .SqlDatabase(connString)
         .WithScripts(new FileSystemScriptProvider(scriptsRoot, options))
@@ -313,10 +279,6 @@ static UpgradeEngine BuildUpgrader(string connString, string scriptsRoot,
         : builder.LogToConsole()).Build();
 }
 
-// Suffix of a script path: "<id>.<familia>[.<ambientes-aplicados>...].sql"
-// e.g. "..._create-schema.lefarma.sql" -> ("lefarma", []),
-//      "..._create-schema.lefarma.dev.prod.sql" -> ("lefarma", [dev, prod]).
-// Returns (null, []) when the file has no family suffix.
 static (string? Family, string[] Applied) ParseSuffix(string path)
 {
     var fileName = Path.GetFileNameWithoutExtension(path);
@@ -327,8 +289,6 @@ static (string? Family, string[] Applied) ParseSuffix(string path)
     return (segs[0], segs.Skip(1).ToArray());
 }
 
-// DbUp joins the script's relative path with '.': "<app>.<id>.<familia>[.<env>...].sql".
-// Applies env tail is cut from the right by matching known environment names.
 static (string App, string Id, string Familia, string[] Applied) ParseScriptPath(
     string scriptName, HashSet<string> envNames)
 {
@@ -348,7 +308,7 @@ static (string App, string Id, string Familia, string[] Applied) ParseScriptPath
 
     var familia = segs[cursor];
     cursor--;
-    var id = string.Join(".", segs, 1, cursor);            // id may itself contain dots
+    var id = string.Join(".", segs, 1, cursor);            
     return (segs[0], id, familia, applied.ToArray());
 }
 
@@ -368,13 +328,10 @@ static HashSet<string> GetAppliedScripts(string connString)
     }
     catch
     {
-        // Table might not exist yet — return empty.
     }
     return applied;
 }
 
-// Quita del journal (app.SchemaVersions) las entradas cuyo ScriptName contiene el id.
-// Se usa con apply --force para permitir que DbUp re-ejecute un script ya aplicado.
 static int RemoveFromJournal(string connString, string id)
 {
     try
@@ -389,7 +346,6 @@ static int RemoveFromJournal(string connString, string id)
     }
     catch
     {
-        // Table might not exist yet — nothing to remove.
         return 0;
     }
 }
@@ -404,7 +360,6 @@ static Config LoadConfig()
 
 static string FindScriptsRoot()
 {
-    // Walk up from CWD until we find lefarma.database/
     var dir = new DirectoryInfo(Directory.GetCurrentDirectory());
     while (dir != null)
     {
@@ -450,8 +405,6 @@ static int PrintUnknown(string cmd)
 
 static JsonSerializerOptions JsonOpts() => new() { PropertyNameCaseInsensitive = true };
 
-// ============== Config model ==============
-
 class Config
 {
     public Dictionary<string, Dictionary<string, string>> Environments { get; set; } = new();
@@ -466,11 +419,6 @@ class Config
 
     public List<string> GetAppFolders(string db, string? appFilter, string scriptsRoot)
     {
-        // Returns list of full app folders under scriptsRoot that should apply to this db.
-        // Filter rules:
-        //   - If appFilter is set, ONLY that app folder is considered.
-        //   - FAIL-CLOSED: an app NOT listed in Routing applies to NO database.
-        //     (prevents accidental application of e.g. legacy/ or any new folder everywhere)
         var root = scriptsRoot;
         var folders = new List<string>();
 
@@ -480,7 +428,6 @@ class Config
             if (appFilter != null && !string.Equals(appName, appFilter, StringComparison.OrdinalIgnoreCase))
                 continue;
 
-            // Fail-closed: unlisted app -> applies nowhere.
             if (!Routing.Contains(appName, StringComparer.OrdinalIgnoreCase))
                 continue;
 

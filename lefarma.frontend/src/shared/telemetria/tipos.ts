@@ -1,9 +1,3 @@
-/**
- * Contrato de eventos de telemetría. Debe coincidir con
- * `Features/Telemetria/Ingesta/SobreTelemetriaDto.cs` y con la sección
- * «Contrato de eventos» del ADR 00001.
- */
-
 export type TipoEvento = 'error' | 'clic' | 'mapa_calor' | 'visita';
 
 export type TipoError =
@@ -17,7 +11,6 @@ export type TipoError =
 interface EventoBase {
   tipo: TipoEvento;
   ocurridoEn: string;
-  /** Ruta de la pantalla donde ocurrió, sin query string. */
   ruta: string;
 }
 

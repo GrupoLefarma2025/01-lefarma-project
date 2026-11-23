@@ -16,7 +16,6 @@ import {
 const BLUE = '#00B0F0';
 const CBOX = '#41719C';
 const BLACK = '#000000';
-// ponytail: gray bands behind the permiso checkbox rows copied from the printed form.
 const GRAY = '#EDEDED';
 const BORDER = `1px solid ${BLACK}`;
 
@@ -25,9 +24,6 @@ const PRINT_EXACT: React.CSSProperties = {
   WebkitPrintColorAdjust: 'exact',
 };
 
-// ponytail: fontSize lives on the FormCopy wrapper (not only on #...-print) so the global
-// print rule `#solicitud-personal-pdf-print { font-size:10pt !important }` can't inflate the
-// body text — that inflation is what pushed the 2 copies onto a 2nd sheet.
 const BODY = 8;
 
 const s: Record<string, React.CSSProperties> = {
@@ -49,14 +45,6 @@ const s: Record<string, React.CSSProperties> = {
   bold: { fontWeight: 700 },
 };
 
-// splitFecha/normalize ahora viven en incidenciaFormato.ts (splitFechaISO, normalize) y se
-// comparten con el generador de texto.
-
-// ponytail: checkbox selection by tipoSolicitudNombre is best-effort keyword match
-// (tipo labels are DB-driven, not confirmable against these form strings). Falsy if no match.
-// ponytail: shaded=false for the Justificación rows (white in the printed form);
-// only the Permiso rows carry the gray band (zebra). spaced=true adds the vertical
-// gap between the Justificación rows that the printed form shows.
 function Checkbox({
   checked,
   label,
@@ -76,8 +64,6 @@ function Checkbox({
         gap: 4,
         background: shaded ? GRAY : 'transparent',
         padding: '0 3px',
-        // ponytail: 9px gap on the (white) Justificación rows is what makes the spacing visible
-        // at print-preview zoom; 1px gives the thin white seam between the Permiso gray bands.
         marginBottom: spaced ? 9 : 1,
         ...PRINT_EXACT,
       }}
@@ -111,8 +97,6 @@ const gridCell: React.CSSProperties = {
   padding: '0 2px',
 };
 
-// DÍA/MES/AÑO grid; `filas` = total value rows; `fillRow` (1-based) = the only value row that
-// carries the date — the row aligned with the checked option. 0 / out of range => all empty.
 function FechaGrid({
   titulo,
   fecha,
@@ -158,9 +142,6 @@ function FechaGrid({
   );
 }
 
-// INCIDENCIA_OPCIONES / PERMISO_OPCIONES / NOTES / indicesIncidencia viven en
-// incidenciaFormato.ts (compartidos con el generador de texto).
-
 type Solicitud = Props['solicitud'];
 
 function FormCopy({
@@ -179,9 +160,6 @@ function FormCopy({
   const fechaInc = solicitud.fechaInicio;
   const tipoNorm = normalize(solicitud.tipoSolicitudNombre);
 
-  // Index (0-based) of the checked option in each group; -1 if none. Drives both the tick and
-  // the grid row the date lands on (so the date sits "enfrente" of its option, not always row 1).
-  // Reposición grid rows map to the two "con reposición" options (idx 1 and 3).
   const { idxJust, idxPerm, fillRepos } = indicesIncidencia(solicitud.tipoSolicitudNombre);
 
   const sigCell: React.CSSProperties = {
@@ -207,10 +185,9 @@ function FormCopy({
   const colLeft: React.CSSProperties = { width: '38%', paddingRight: 6, boxSizing: 'border-box' };
 
   return (
-    // fontSize here shields the body text from the global print 10pt !important rule.
     <div style={{ fontSize: BODY, breakInside: 'avoid' }}>
       <div style={s.form}>
-        {/* HEADER — sin divisor vertical entre logo y título (como el original) */}
+        {}
         <div style={{ ...s.row, display: 'flex', alignItems: 'center' }}>
           <div style={{ width: 130, padding: '3px 4px', display: 'flex', alignItems: 'center' }}>
             <img src={logoImage} alt="Grupo Lefarma" style={{ width: 92, height: 26, objectFit: 'contain' }} />
@@ -234,7 +211,7 @@ function FormCopy({
           </div>
         </div>
 
-        {/* DATOS */}
+        {}
         <div style={s.rowFlex}>
           <div style={{ ...s.cell, ...s.vDiv, flex: 1 }}>
             <span style={s.bold}>Empresa:</span> {empresa}
@@ -250,7 +227,7 @@ function FormCopy({
           </div>
         </div>
 
-        {/* NOMBRE */}
+        {}
         <div style={s.rowFlex}>
           <div style={{ ...s.cell, ...s.vDiv, width: '24%', textAlign: 'center' }}>
             <span style={s.bold}>NOMBRE:</span>
@@ -258,9 +235,9 @@ function FormCopy({
           <div style={{ ...s.cell, flex: 1 }}>{nombre}</div>
         </div>
 
-        {/* BLOQUE CENTRAL — una sola celda, SIN líneas internas (como el original) */}
+        {}
         <div style={{ ...s.row, padding: '3px 5px' }}>
-          {/* Banda 1: Justificación + Fecha de incidencia */}
+          {}
           <div style={{ display: 'flex' }}>
             <div style={colLeft}>
               <div style={s.bold}>Justificación de Incidencia:</div>
@@ -284,7 +261,7 @@ function FormCopy({
             </div>
           </div>
 
-          {/* Banda 2: Permiso + Fecha de aplicación + Reposición + Lugar */}
+          {}
           <div style={{ display: 'flex', marginTop: 3 }}>
             <div style={colLeft}>
               <div style={s.bold}>Solicitud de Permiso:</div>
@@ -319,7 +296,7 @@ function FormCopy({
             </div>
           </div>
 
-          {/* Banda 3: Consideraciones */}
+          {}
           <div style={{ marginTop: 3 }}>
             <span style={s.bold}>Consideraciones:</span>
             <div style={{ fontSize: 6.5, lineHeight: 1.2 }}>
@@ -330,13 +307,13 @@ function FormCopy({
           </div>
         </div>
 
-        {/* DESCRIPCIÓN / MOTIVO */}
+        {}
         <div style={{ ...s.row, padding: '1px 5px' }}>
           <span style={s.bold}>Descripción / Motivo&nbsp; / Incidencia o Permiso:</span>
           <div style={{ minHeight: 26, padding: '1px 0', textAlign: 'justify' }}>{solicitud.motivo ?? ''}</div>
         </div>
 
-        {/* FIRMAS — una caja por firmante del flujo aprobado (SOLICITA + cada AUTORIZA firmado) */}
+        {}
         <div style={{ borderTop: BORDER }}>
           <div style={{ borderBottom: BORDER, textAlign: 'center', fontSize: 7, fontWeight: 700, padding: '1px 0' }}>
             FIRMAS DE AUTORIZACIÓN
@@ -373,7 +350,7 @@ function FormCopy({
         </div>
       </div>
 
-      {/* FOOTER (fuera del borde, como el formato) */}
+      {}
       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 5, padding: '1px 2px' }}>
         <span>LEF-RHU-FOR-007</span>
         <span>Versión: 01</span>
@@ -391,17 +368,15 @@ export function IncidenciaPDF({
   firmaDirector = false,
   marcadorVisible = false,
 }: Props) {
-  // Firmantes del flujo aprobado: solicitante + cada paso firmado en orden de workflow.
   const firmantes = useMemo(
     () => firmantesDelFlujo(pasosWorkflow, historial, firmaDirector),
     [pasosWorkflow, historial, firmaDirector]
   );
 
-  // El formato físico lleva 2 copias idénticas por hoja (original + empleado).
   return (
     <div id="solicitud-personal-pdf-print" style={s.page}>
       <FormCopy solicitud={solicitud} firmantes={firmantes} marcadorVisible={marcadorVisible} />
-      {/* ponytail: inter-copy cut gap (40px ≈ 10.6mm); max visible value that keeps both copies on one A4 even with default print margins. */}
+      {}
       <div style={{ height: 40 }} />
       <FormCopy solicitud={solicitud} firmantes={firmantes} marcadorVisible={marcadorVisible} />
     </div>

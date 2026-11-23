@@ -1,5 +1,3 @@
-// ─── Comprobante / Factura types ─────────────────────────────────────────────
-
 export interface ComprobanteConceptoResponse {
   idConcepto: number;
   numeroConcepto: number;
@@ -35,8 +33,6 @@ export interface ComprobanteResponse {
   conceptos: ComprobanteConceptoResponse[];
 }
 
-// ─── CFDI Preview ─────────────────────────────────────────────────────────────
-
 export interface CfdiConceptoPreviewDto {
   numero: number;
   claveProdServ?: string | null;
@@ -70,15 +66,12 @@ export interface CfdiPreviewResponse {
   totalRetenciones: number;
   total: number;
   conceptos: CfdiConceptoPreviewDto[];
-  // Validación SAT
   satContactado?: boolean | null;
-  satEstado?: string | null;       // "Vigente" | "Cancelado" | "No Encontrado"
+  satEstado?: string | null;       
   satCodigoEstatus?: string | null;
   satCancelacion?: string | null;
   satPermitirAvanzar?: boolean | null;
 }
-
-// ─── Partidas pendientes ───────────────────────────────────────────────────────
 
 export interface PartidaPendienteResponse {
   idPartida: number;
@@ -94,8 +87,6 @@ export interface PartidaPendienteResponse {
   importePendiente: number;
   estadoFacturacion: number;
 }
-
-// ─── Facturación por partida ──────────────────────────────────────────────────
 
 export interface ComprobanteAsignacionResponse {
   idAsignacion: number;
@@ -115,8 +106,6 @@ export interface PartidaFacturacionResponse {
   importeFacturado: number;
   asignaciones: ComprobanteAsignacionResponse[];
 }
-
-// ─── Requests ─────────────────────────────────────────────────────────────────
 
 export interface SubirComprobanteRequest {
   idOrden: number;

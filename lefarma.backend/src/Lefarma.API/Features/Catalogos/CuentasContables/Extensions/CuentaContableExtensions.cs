@@ -15,7 +15,6 @@ namespace Lefarma.API.Features.Catalogos.CuentasContables.Extensions
                 DescripcionNormalizada = entity.DescripcionNormalizada,
                 Nivel1 = entity.Nivel1,
                 Nivel2 = entity.Nivel2,
-                //EmpresaPrefijo = entity.EmpresaPrefijo,
                 IdEmpresa = entity.IdEmpresa,
                 EmpresaNombre = entity.Empresa?.Nombre,
                 CentroCostoId = entity.CentroCostoId,

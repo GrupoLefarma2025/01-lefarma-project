@@ -16,12 +16,6 @@ using Microsoft.Extensions.Options;
 
 namespace Lefarma.UnitTests.Features.Viaticos;
 
-/// <summary>
-/// Regresion de seguridad de T8: las capturas PNG de viaticos NO pueden ser
-/// anonimas. Se levanta el Program.cs COMPLETO (WebApplicationFactory) para
-/// ejercitar las registrations de archivos estaticos reales, el guard de
-/// alias y el endpoint <c>[Authorize]</c>.
-/// </summary>
 public class CapturasEndpointSecurityTests : IClassFixture<CapturasEndpointSecurityTests.Factory>
 {
     public const string NombreEsquema = "CapturasTest";
@@ -90,9 +84,6 @@ public class CapturasEndpointSecurityTests : IClassFixture<CapturasEndpointSecur
         using var cliente = ClienteAutenticado();
         var secreto = _factory.SecretNombre!;
 
-        // Intento HTTP: si el path llegara al endpoint con "..", el resolver lo
-        // rechaza; si Kestrel lo normaliza antes, no hay ruta. En ningun caso
-        // puede salir el contenido del archivo "secreto".
         using var respuesta = await cliente.GetAsync($"/api/viaticos/capturas/..%2F{secreto}");
 
         respuesta.StatusCode.Should().NotBe(HttpStatusCode.OK);
@@ -167,11 +158,7 @@ public class CapturasEndpointSecurityTests : IClassFixture<CapturasEndpointSecur
         return new CapturasController(servicio, contexto, NullLogger<CapturasController>.Instance);
     }
 
-    // ------------------------------------------------------------------ //
-    //                          Fixture / auth                            //
-    // ------------------------------------------------------------------ //
-
-    public sealed class Factory : WebApplicationFactory<Program>
+public sealed class Factory : WebApplicationFactory<Program>
     {
         public const string PngNombre = "captura-seguridad.png";
         public static readonly byte[] Png = { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 1, 2, 3, 4, 5, 6 };
@@ -180,12 +167,10 @@ public class CapturasEndpointSecurityTests : IClassFixture<CapturasEndpointSecur
         private bool _archivosListos;
         private string _webRoot = "";
 
-        /// <summary>Nombre del archivo "secreto" que vive FUERA de capturas.</summary>
         public string? SecretNombre { get; private set; }
 
         public string CapturasDir => Path.Combine(_webRoot, "media", "capturas-viaticos");
 
-        /// <summary>Crea el PNG de prueba y el archivo trampa, una sola vez.</summary>
         public void AsegurarArchivos()
         {
             if (_archivosListos) return;
@@ -201,8 +186,6 @@ public class CapturasEndpointSecurityTests : IClassFixture<CapturasEndpointSecur
 
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
-            // Production usa appsettings.json (ArchivosSettings:BasePath relativo)
-            // y evita C:\archivos de appsettings.Development.json.
             builder.UseEnvironment(Environments.Production);
             builder.ConfigureServices(services =>
             {
@@ -216,10 +199,10 @@ public class CapturasEndpointSecurityTests : IClassFixture<CapturasEndpointSecur
         {
             if (_archivosListos)
             {
-                try { File.Delete(Path.Combine(CapturasDir, PngNombre)); } catch { /* best effort */ }
+                try { File.Delete(Path.Combine(CapturasDir, PngNombre)); } catch { }
                 if (SecretNombre is not null)
                 {
-                    try { File.Delete(Path.Combine(_webRoot, "media", SecretNombre)); } catch { /* best effort */ }
+                    try { File.Delete(Path.Combine(_webRoot, "media", SecretNombre)); } catch { }
                 }
             }
 
@@ -227,10 +210,6 @@ public class CapturasEndpointSecurityTests : IClassFixture<CapturasEndpointSecur
         }
     }
 
-    /// <summary>
-    /// Handler de pruebas: sin <c>X-Test-UserId</c> devuelve NoResult (=> 401);
-    /// con la cabecera emite un claim de identidad (=> 200).
-    /// </summary>
     public sealed class TestAuthHandler : AuthenticationHandler<AuthenticationSchemeOptions>
     {
         public TestAuthHandler(

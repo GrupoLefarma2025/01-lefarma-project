@@ -4,11 +4,6 @@ import { cn } from '@/lib/utils';
 
 export type ModoTransporteViaje = 'propio' | 'solicitado';
 
-/**
- * Cómo se traslada la persona. Los dos modos se distinguen por color en toda
- * la aplicación: verde para el carro propio y azul para la solicitud de
- * transporte, para no confundirlos al revisar una tabla o un detalle.
- */
 const ESTILO: Record<ModoTransporteViaje, { texto: string; clase: string; Icono: typeof Car }> = {
   propio: {
     texto: 'Carro propio',

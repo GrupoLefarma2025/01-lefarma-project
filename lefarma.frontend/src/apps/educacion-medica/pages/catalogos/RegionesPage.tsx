@@ -146,7 +146,6 @@ export default function RegionesPage() {
   const [saving, setSaving] = useState(false);
   const [estadosSeleccionados, setEstadosSeleccionados] = useState<number[]>([]);
 
-  // Regiones por gerencia: IMSS y Descentralizado mantienen su propio catálogo.
   const [gerencias, setGerencias] = useState<TipoGerencia[]>([]);
   const gerenciaParam = numericParam(searchParams.get('gerencia'));
   const idTipoGerencia = gerencias.some((g) => g.idTipoGerencia === gerenciaParam)
@@ -173,7 +172,6 @@ export default function RegionesPage() {
     [gerencias, idTipoGerencia]
   );
 
-  // El mapa usa el catálogo completo de regiones (ambas gerencias).
   const regionesMapa = mapaRegionesTodas.length > 0 ? mapaRegionesTodas : regiones;
 
   const mapaHospitalesFiltrados = useMemo(
@@ -257,11 +255,9 @@ export default function RegionesPage() {
         setConteoPorGerencia(conteos);
       }
     } catch {
-      // Los conteos son informativos; no bloquean la página.
     }
   }, [setConteoPorGerencia]);
 
-  // Catálogo de gerencias: solo IMSS y Descentralizado participan de la logística.
   useEffect(() => {
     let cancelado = false;
     (async () => {
@@ -285,7 +281,6 @@ export default function RegionesPage() {
     };
   }, [fetchConteos]);
 
-  // Carga de regiones + catálogo de estados de la gerencia activa.
   useEffect(() => {
     if (idTipoGerencia == null) return;
     let cancelado = false;
@@ -465,7 +460,6 @@ export default function RegionesPage() {
     try {
       const response = await educacionMedicaApi.regiones.previewAplicarMapeo(gerenciaMapeoParam());
       if (response.data.success) {
-        // Normaliza: un backend aún sin el pase GPS no envía los campos nuevos.
         const data: Partial<AplicarMapeoResponse> | undefined = response.data.data;
         setPreviewMapeo({
           detalles: data?.detalles ?? [],

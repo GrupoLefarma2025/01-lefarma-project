@@ -10,12 +10,10 @@ export interface UsuarioDetalle {
   puesto?: string;
   numeroEmpleado?: string;
   firmaPath?: string;
-  /** Puntero a la firma cifrada vigente del sistema RH (solo ella define "tener firma"). */
   firmaPathCifrada?: string;
   firmaSubidas?: number;
   firmaCambioHabilitado?: boolean;
   firmaCambioSolicitado?: boolean;
-  /** Hay una firma con INE esperando aprobación de RH. */
   firmaEnComprobacion?: boolean;
   fechaSolicitudCambioFirma?: string;
   telefonoOficina?: string;
@@ -50,9 +48,7 @@ export interface Usuario {
   esRobot: boolean;
   fechaCreacion: string;
   ultimoLogin?: string;
-  /** Puesto oficial del empleado, desde Asistencias.dbo.vwEmpleados. */
   puestoEmpleado?: string | null;
-  /** Área (departamento) oficial del empleado, desde Asistencias.dbo.vwEmpleados. */
   areaEmpleado?: string | null;
   roles: Rol[];
   permisosDirectos: Permiso[];

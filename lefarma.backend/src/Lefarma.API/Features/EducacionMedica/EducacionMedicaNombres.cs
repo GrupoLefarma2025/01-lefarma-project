@@ -4,10 +4,8 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Lefarma.API.Features.EducacionMedica;
 
-/// <summary>Resolución de nombres de catálogos Asokam usados por los DTOs de Educación Médica.</summary>
 internal static class EducacionMedicaNombres
 {
-    /// <summary>Código de estado (codigoEstado) -> nombre (genEstadosCat). Conserva el código si no existe.</summary>
     public static async Task<Dictionary<string, string>> ResolverEstadosAsync(
         AsokamDbContext asokam, IEnumerable<string?> codigos, CancellationToken ct)
     {
@@ -38,7 +36,6 @@ internal static class EducacionMedicaNombres
                 ct);
     }
 
-    /// <summary>Id de producto (taller_recursos.id_producto) -> nombre visible del catálogo Asokam.</summary>
     public static async Task<Dictionary<int, string>> ResolverProductosAsync(
         AsokamDbContext asokam, IEnumerable<string?> idsProducto, CancellationToken ct)
     {
@@ -64,7 +61,6 @@ internal static class EducacionMedicaNombres
                 ct);
     }
 
-    /// <summary>Resuelve estados y productos de un conjunto de talleres en un solo paso.</summary>
     public static async Task<(Dictionary<string, string> Estados, Dictionary<int, string> Productos)> ResolverParaTalleresAsync(
         AsokamDbContext asokam, IEnumerable<Taller> talleres, CancellationToken ct)
     {

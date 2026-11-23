@@ -9,10 +9,6 @@ import { PageLoader } from '@/components/ui/page-loader';
 import BlockedPage from '@/pages/auth/BlockedPage';
 import NotFound from '@/pages/NotFound';
 
-/**
- * Nombre visible de cada app en su login (esquina inferior derecha, junto a
- * la versión). Si un appKey no está en el mapa, el login no muestra nombre.
- */
 const APP_LOGIN_NAMES: Record<string, string> = {
   cxp: 'Cuentas por Pagar',
   rh: 'Recursos Humanos',
@@ -20,17 +16,6 @@ const APP_LOGIN_NAMES: Record<string, string> = {
   viaticos: 'Viáticos',
 };
 
-/**
- * Resolvedor de índice de subárbol consciente de auth. Lógica idéntica para
- * cada app: usuarios autenticados aterrizan en `dashboard`; usuarios no
- * autenticados son redirigidos al login del subárbol con el destino deseado
- * preservado vía `?return=` (spec app-routing: "preserving the return URL").
- *
- * Excepción CxP (requiresUbicacion): el login de CxP tiene un 3er paso de
- * ubicación (empresa/sucursal/área). Un usuario autenticado que entra a /cxp
- * sin ubicación persistida (p.ej. desde el hub u otra app) es enviado a
- * `select-empresa`; si ya la seleccionó, entra directo al dashboard.
- */
 function AppSubtreeIndex({
   loginPath,
   requiresUbicacion,
@@ -56,85 +41,21 @@ function AppSubtreeIndex({
   return <Navigate to={`${loginPath}?return=${encodeURIComponent(from)}`} replace />;
 }
 
-/**
- * Configuración para la fábrica genérica de rutas de app. Cada app (CxP, RH,
- * apps futuras) provee sus rutas de página y extras opcionales; la fábrica
- * maneja TODA la infraestructura (resolvedor de índice, wrapper de login,
- * wrapper protegido, MainLayout, bloqueado, NotFound).
- */
 export interface AppRoutesConfig {
-  /** Identificador estable, ej. 'cxp' | 'rh'. Deriva los paths por defecto. */
   appKey: string;
-  /** Root mantiene un índice específico de app; el subárbol usa el resolvedor consciente de auth. */
   variant: 'root' | 'subtree';
-  /** Sobrescribe el path de login por defecto (por defecto `/{appKey}/login`). */
   loginPath?: string;
-  /**
-   * Contenido del paso 3 inyectado por la app consumidora (ej. selección de
-   * empresa/sucursal/área de CxP). Su PRESENCIA equivale al antiguo
-   * `requireContextSelection: true`: el login ejecuta el flujo de 3 pasos.
-   * Si se omite (RH, Educación Médica), el login es de 2 pasos y autentica
-   * al instante tras las credenciales.
-   *
-   * El booleano `requireContextSelection` fue reemplazado por este slot: la
-   * app ya no declara "quiero 3 pasos" sino que provee el contenido del paso
-   * 3, y `MultiStepLogin` deriva el flujo de su presencia.
-   *
-   * El slot es responsable de su propio estado/formulario y de finalizar la
-   * sesión escribiendo `isAuthenticated` en el authStore (típicamente vía
-   * `loginStepThree`). `MultiStepLogin` observa ese flag y ejecuta el
-   * redirect; el slot NO debe navegar por sí mismo.
-   */
   step3?: ReactNode;
-  /** Etiqueta del 3er punto del indicador de progreso. Default: 'Contexto'. */
   step3Label?: string;
-  /** Descripción bajo el indicador cuando se muestra el paso 3. */
   step3Description?: string;
-  /** Subtítulo bajo el logo en el login (ej. "Sistema de Gestión de Recursos Humanos"). */
   loginSubtitle?: string;
-  /**
-   * Elemento índice del variant root. CxP pasa <LandingRoute/> (landing Hero);
-   * las apps sin landing por defecto redirigen al path de login.
-   */
   rootIndexElement?: ReactElement;
-  /**
-   * Rutas protegidas FUERA de <MainLayout> (dentro de <ProtectedRoute>).
-   * CxP usa esto para `select-empresa`.
-   */
   preLayoutRoutes?: ReactNode;
-  /** Rutas de páginas DENTRO de <MainLayout> — el grueso de las páginas de cada app. */
   routes: ReactNode;
-  /**
-   * Elemento layout que envuelve las rutas de páginas protegidas. Cada app pasa
-   * su propio <MainLayout> configurado con items de sidebar y branding
-   * específicos de la app. Debe renderizar un <Outlet/> para las rutas hijas.
-   */
   layout: ReactElement;
-  /**
-   * Rutas públicas fuera de los wrappers estándar (ej. handoff-login,
-   * ayuda pública). React Router v6+ usa matching basado en ranking, así que
-   * la ubicación entre wrappers no afecta la resolución de rutas.
-   */
   extraRoutes?: ReactNode;
 }
 
-/**
- * Fábrica genérica de rutas de app — la única fuente de verdad para el
- * scaffold estándar de subárbol. Reemplaza la anterior duplicación por-app
- * CxpRoutes/RhRoutes (PageLoader, SubtreeIndex, resolvedLoginPath, lógica de
- * variant, publicOnlyRoute, protectedRoute — todos idénticos entre apps).
- *
- * Cada módulo de app llama a esta fábrica con sus rutas de página; la fábrica
- * produce el Fragment de elementos <Route> que el shell inlinea vía el
- * patrón de llamada de función `{createAppRoutes({...})}` (requerido porque
- * createRoutesFromChildren de React Router rechaza hijos componentes
- * no-<Route> — ver el descubrimiento del invariante RR7).
- *
- * Todos los paths de rutas son RELATIVOS (sin slash inicial) para que el
- * módulo sirva tanto para montajes root como subárbol. Bajo el basename raíz
- * `/`, `dashboard` resuelve a `/dashboard`; dentro de <Route path="cxp">
- * resuelve a `/cxp/dashboard`.
- */
 export function createAppRoutes(config: AppRoutesConfig): ReactNode {
   const {
     appKey,

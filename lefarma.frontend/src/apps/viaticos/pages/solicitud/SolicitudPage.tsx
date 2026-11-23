@@ -56,7 +56,6 @@ const PASOS = [
 
 type PasoId = (typeof PASOS)[number]['id'];
 
-/** Opción del combo que habilita capturar una gerencia fuera del catálogo. */
 const OPCION_GERENCIA_OTRA = 'Otras';
 
 const PULSO_AGREGAR_CSS = `
@@ -68,7 +67,6 @@ const PULSO_AGREGAR_CSS = `
 @media (prefers-reduced-motion: reduce) { .agregar-pulso { animation: none; } }
 `;
 
-/** Momento actual en hora local con el formato de los pickers (yyyy-MM-ddTHH:mm). */
 function ahoraLocal(): string {
   const d = new Date();
   const dos = (n: number) => String(n).padStart(2, '0');
@@ -89,7 +87,6 @@ function nuevoDestino(): DestinoV2 {
   };
 }
 
-/** Indicador visible SOLO en modo de desarrollo con fixtures explícitos. */
 function IndicadorDatosPrueba() {
   return (
     <p data-testid="indicador-datos-prueba" className="rounded border border-dashed px-2 py-1 text-xs text-muted-foreground">
@@ -98,7 +95,6 @@ function IndicadorDatosPrueba() {
   );
 }
 
-/** Pestaña del destino: nombre propio; si no, municipio/estado o el nombre del punto. */
 function etiquetaDestino(destino: DestinoV2): string {
   const personalizada = destino.etiqueta?.trim();
   if (personalizada) return personalizada;
@@ -109,7 +105,6 @@ function etiquetaDestino(destino: DestinoV2): string {
   );
   return partes.length > 0 ? partes.join(', ') : punto.nombre;
 }
-
 
 function minutosDeHora(hora: string): number | null {
   const [h, m] = hora.split(':').map(Number);
@@ -122,11 +117,6 @@ interface ComidaCalculo {
   monto: number;
 }
 
-/**
- * Comida por día del viaje: día completo salvo que el primer día empiece
- * después de mediodía, el último termine antes de las 14:00 o el viaje de un
- * solo día dure menos de 6 horas. Se cuentan todos los días del rango.
- */
 function calcularComidas(
   rango: { inicio: string | null; fin: string | null },
   origen: OrigenV2,
@@ -180,13 +170,10 @@ export function SolicitudPage() {
   const idSesion = useAuthStore((s) => s.user?.id);
 
   const [paso, setPaso] = useState<PasoId>(1);
-  // Paso más lejano alcanzado: al volver atrás, lo visitado se sigue viendo
-  // hecho y se puede saltar adelante de nuevo sin revalidar todo.
   const [maxPaso, setMaxPaso] = useState<PasoId>(1);
   useEffect(() => {
     setMaxPaso((m) => (paso > m ? paso : m));
   }, [paso]);
-  // Cada cambio de paso (Siguiente, Atrás o stepper) regresa al inicio del wizard.
   const inicioPasoRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
     const scroller = inicioPasoRef.current?.closest('main');
@@ -198,11 +185,6 @@ export function SolicitudPage() {
   }, [paso]);
 
   const [persona, setPersona] = useState<PasoPersonaV2>({ modo: 'mia', empleadoId: null, nombre: '', motivo: '' });
-  /**
-   * Gerencia con la que se clasifica la solicitud (Descentralizado / IMSS /
-   * IMSS Bienestar) y con la que el concentrado agrupa. Arranca con la última
-   * que registró el usuario; `otra` habilita el texto libre.
-   */
   const [gerencia, setGerencia] = useState('');
   const [gerenciaOtra, setGerenciaOtra] = useState('');
   const gerenciaEfectiva = (gerencia === OPCION_GERENCIA_OTRA ? gerenciaOtra : gerencia).trim();
@@ -212,8 +194,6 @@ export function SolicitudPage() {
   const [indiceActual, setIndiceActual] = useState(0);
   const [pulsarAgregar, setPulsarAgregar] = useState(false);
   const [configViaticos, setConfigViaticos] = useState<ConfigViaticos>(leerConfigViaticos);
-  // La configuración de comidas/horario se edita en /viaticos/configuracion;
-  // si cambia en otra pestaña, se refleja aquí y se invalidan los tramos.
   useEffect(() => {
     const alCambiarConfig = (evento: StorageEvent) => {
       if (evento.key !== CONFIG_VIATICOS_STORAGE_KEY) return;
@@ -230,7 +210,6 @@ export function SolicitudPage() {
     window.addEventListener('storage', alCambiarConfig);
     return () => window.removeEventListener('storage', alCambiarConfig);
   }, [configViaticos.horaEntrada, configViaticos.horaSalida]);
-  // Pestaña en edición (doble clic) y borrador del nombre propio.
   const [renombrando, setRenombrando] = useState<number | null>(null);
   const [textoRenombre, setTextoRenombre] = useState('');
   const cancelarRenombreRef = useRef(false);
@@ -239,8 +218,6 @@ export function SolicitudPage() {
   const [solicitudEditando, setSolicitudEditando] = useState<{ id: number; folio: string | null } | null>(null);
   const [cargandoBorrador, setCargandoBorrador] = useState(false);
 
-  // Edición de un borrador: /viaticos/solicitud/:id hidrata el wizard desde el
-  // snapshot guardado. Solo se permite si sigue en borrador y es del usuario.
   useEffect(() => {
     const id = Number(idParam);
     if (!Number.isFinite(id) || id <= 0) return;
@@ -273,14 +250,8 @@ export function SolicitudPage() {
         setDestinos(datos.destinos);
         setRetorno(datos.retorno);
         setIndiceActual(0);
-        // Editando un borrador todos los pasos quedan alcanzables: el viajero
-        // puede saltar a cualquiera a corregir lo que necesite, no solo a los
-        // que ya visitó en esta sesión.
         setMaxPaso(PASOS.length as PasoId);
         setSolicitudEditando({ id: res.data.data.id_solicitud, folio: res.data.data.folio ?? null });
-        // La gerencia guardada manda sobre la sugerencia del perfil; el valor
-        // por defecto del servidor ("Sin asignar") no se muestra como si fuera
-        // una clasificación real.
         const guardada = res.data.data.gerencia?.trim() ?? '';
         if (guardada !== '' && guardada !== GERENCIA_SIN_ASIGNAR) setGerencia(guardada);
       } catch (falla: unknown) {
@@ -293,8 +264,6 @@ export function SolicitudPage() {
     return () => { cancelado = true; };
   }, [idParam, navigate]);
 
-  // Gerencia precargada: la última que el usuario registró en una solicitud
-  // propia. Si el borrador en edición ya trajo una, esa manda.
   useEffect(() => {
     let cancelado = false;
     void (async () => {
@@ -306,7 +275,6 @@ export function SolicitudPage() {
           setGerencia((actual) => actual || sugerida);
         }
       } catch {
-        // Sin sugerencia el combo arranca vacío; no bloquea el wizard.
       }
     })();
     return () => { cancelado = true; };
@@ -320,8 +288,6 @@ export function SolicitudPage() {
     return lista;
   }, [gerencia]);
 
-  // Alto real de la barra de pasos (sticky): la barra de búsqueda del mapa se
-  // pega justo debajo en vez de encimársele.
   const navRef = useRef<HTMLElement | null>(null);
   const [altoNav, setAltoNav] = useState(56);
   useEffect(() => {
@@ -337,14 +303,12 @@ export function SolicitudPage() {
   const [cargandoEmp, setCargandoEmp] = useState(false);
   const [errorEmp, setErrorEmp] = useState('');
 
-  // "Para mí" toma el nombre de la sesión; no se vuelve a pedir.
   useEffect(() => {
     if (persona.modo === 'mia' && nombreSesion && !persona.nombre) {
       setPersona((p) => ({ ...p, nombre: nombreSesion }));
     }
   }, [nombreSesion, persona.modo, persona.nombre]);
 
-  // Empleados solo cuando hacen falta (para alguien más o compartir viaje).
   const necesitaEmpleados = persona.modo === 'otra' || transporte.compartir;
   const empleadosEnVuelo = useRef(false);
   useEffect(() => {
@@ -395,7 +359,6 @@ export function SolicitudPage() {
     );
   }
 
-  /** Cambiar algo aguas arriba invalida las cotizaciones de ese tramo en adelante. */
   function marcarRecalculo(desdeIndice: number) {
     setDestinos((actual) =>
       actual.map((d, i) => (i >= desdeIndice ? { ...d, cotizacion: d.cotizacion ? { ...d.cotizacion, necesitaRecalculo: true } : null } : d)),
@@ -410,7 +373,6 @@ export function SolicitudPage() {
 
   const destinoActual = destinos[indiceActual];
 
-  /** Un destino está listo con punto, llegada y salida explícita. */
   function destinoCompleto(d: DestinoV2): boolean {
     if (!d.punto || !d.debeEstarFecha || !d.debeEstarHora || !d.saleFecha || !d.saleHora) return false;
     const llegada = `${d.debeEstarFecha}T${d.debeEstarHora}`;
@@ -420,7 +382,6 @@ export function SolicitudPage() {
 
   const puedeAvanzar = destinos.length > 0 && destinos.every(destinoCompleto);
 
-  // Pulso breve del tab Agregar cuando ya se puede agregar otro destino.
   useEffect(() => {
     if (paso !== 5 || !puedeAvanzar) return;
     setPulsarAgregar(true);
@@ -434,7 +395,6 @@ export function SolicitudPage() {
     setIndiceActual(destinos.length);
   }
 
-  /** Doble clic en una pestaña: edita su nombre propio sin invalidar la cotización. */
   function abrirRenombre(indice: number) {
     const destino = destinos[indice];
     if (!destino) return;
@@ -450,7 +410,6 @@ export function SolicitudPage() {
   }
 
   function confirmarRenombre(indice: number) {
-    // El blur que dispara Escape no debe guardar: lo cancela el ref.
     if (cancelarRenombreRef.current) {
       cancelarRenombreRef.current = false;
       return;
@@ -461,11 +420,6 @@ export function SolicitudPage() {
     setTextoRenombre('');
   }
 
-  // ---- validaciones por paso ----
-  /**
-   * Motivo visible sobre «Siguiente» cuando el paso 4 no puede avanzar. La
-   * fecha de salida es opcional (el motor la calcula); el punto de salida no.
-   */
   function motivoPaso4(): string | null {
     if (paso !== 4) return null;
     const punto = origen.punto;
@@ -485,14 +439,11 @@ export function SolicitudPage() {
   function pasoValido(id: PasoId): boolean {
     if (id === 1) {
       if (persona.modo === 'otra' && persona.empleadoId === null) return false;
-      // La gerencia es opcional: solo agrupa el concentrado; sin ella el
-      // servidor la guarda como "Sin asignar" y el paso avanza igual.
       return persona.nombre.trim() !== '';
     }
     if (id === 2) return persona.motivo.trim() !== '';
     if (id === 3) return true;
     if (id === 4) {
-      // La salida del origen no puede quedar en el pasado (mismo límite que el picker).
       if (origen.fechaSalida && origen.horaSalida && `${origen.fechaSalida}T${origen.horaSalida}` < ahoraLocal()) return false;
       const { request } = adaptarTramoACostosRuta({
         nombreViajero: persona.nombre || 'viajero',
@@ -604,7 +555,7 @@ export function SolicitudPage() {
               : 'Solicitud de viáticos'}
           </CardTitle>
         </CardHeader>
-        {/* Identidad de quien solicita: visible arriba del wizard en todos los pasos. */}
+        {}
         <div className="border-b px-6 pb-4">
           <p className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border border-primary/30 bg-primary/10 px-3 py-2 text-sm shadow-[0_2px_10px_rgba(15,23,42,0.10)]">
             <UserRound className="h-4 w-4 shrink-0 text-primary" aria-hidden />
@@ -634,7 +585,7 @@ export function SolicitudPage() {
             />
           </nav>
 
-          {/* `key={paso}`: cada paso monta fresco y corre la entrada una vez. */}
+          {}
           <div key={paso} className="wizard-paso">
           {paso === 1 ? (
             <section data-testid="paso-1" className="space-y-4">
@@ -821,7 +772,7 @@ export function SolicitudPage() {
                   placeholder="Elige fecha y hora de salida"
                 />
               </div>
-              {/* Mapa compartido con la búsqueda flotando dentro: refleja y permite fijar el punto de salida. */}
+              {}
               <div className="relative">
                 <MapaPunto
                   punto={origen.punto}
@@ -837,8 +788,6 @@ export function SolicitudPage() {
                       punto: { nombre: o.punto?.nombre?.trim() || 'Punto seleccionado en mapa', latitud, longitud },
                     }));
                     marcarRecalculo(0);
-                    // Completa estado/municipio con geocodificación inversa; solo
-                    // aplica si el pin no se movió mientras respondía.
                     void geocodificarReversa(latitud, longitud).then((resuelto) => {
                       if (!resuelto) return;
                       setOrigen((o) =>
@@ -866,8 +815,6 @@ export function SolicitudPage() {
                   }}
                 />
                 <PuntoMapaPicker flotante ocultarMapa value={origen.punto} onChange={(punto) => {
-                  // La geocodificación inversa solo cambia el nombre/estado: si
-                  // las coordenadas no se movieron, no hay nada que recalcular.
                   const mismoPunto = origen.punto?.latitud === punto?.latitud && origen.punto?.longitud === punto?.longitud;
                   setOrigen((o) => ({ ...o, punto }));
                   if (!mismoPunto) marcarRecalculo(0);
@@ -1047,7 +994,7 @@ export function SolicitudPage() {
             <TooltipProvider delayDuration={150}>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  {/* El botón deshabilitado no recibe hover; el envoltorio sí. */}
+                  {}
                   <span tabIndex={0} className="inline-flex cursor-not-allowed">
                     <Button type="button" disabled onClick={() => setPaso((p) => (p + 1) as PasoId)} className="active:scale-[0.97]">
                       Siguiente
@@ -1124,8 +1071,6 @@ function DestinoEditor(props: {
       <PuntoMapaPicker
         value={destino.punto}
         onChange={(punto) => {
-          // La geocodificación inversa solo cambia el nombre/estado: si las
-          // coordenadas no se movieron, no se invalida la cotización.
           const mismoPunto = destino.punto?.latitud === punto?.latitud && destino.punto?.longitud === punto?.longitud;
           props.onCambiar({ punto }, !mismoPunto);
         }}

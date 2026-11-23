@@ -13,7 +13,6 @@ namespace Lefarma.API.Features.Catalogos;
 [Route("api/catalogos/[controller]")]
 [ApiController]
 [EndpointGroupName("Catalogos")]
-//[HasPermission(Permissions.Catalogos.View)]
 public class SucursalesController : ControllerBase
 {
     private readonly ISucursalService _sucursalService;
@@ -57,7 +56,6 @@ public class SucursalesController : ControllerBase
     }
 
     [HttpPost]
-//    [HasPermission(Permissions.Catalogos.Manage)]
     [SwaggerOperation(Summary = "Crear nueva sucursal", Description = "Crea una sucursal con los datos proporcionados")]
     public async Task<IActionResult> Create(
         [SwaggerRequestBody(Description = "Datos de la sucursal a crear", Required = true)] CreateSucursalRequest request)
@@ -76,7 +74,6 @@ public class SucursalesController : ControllerBase
     }
 
     [HttpPut("{id}")]
-//    [HasPermission(Permissions.Catalogos.Manage)]
     [SwaggerOperation(Summary = "Actualizar sucursal", Description = "Actualiza los datos de una sucursal existente")]
     public async Task<IActionResult> Update(
         [SwaggerParameter(Description = "Identificador de la sucursal a actualizar", Required = true)] int id,

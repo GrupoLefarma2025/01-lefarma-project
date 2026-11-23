@@ -15,10 +15,6 @@ namespace Lefarma.API.Features.Config.Workflows.Notification
             _service = service;
         }
 
-        /// <summary>
-        /// Procesa los recordatorios pendientes. Puede ser llamado por un administrador desde la UI
-        /// o por SQL Server Agent a través de un stored procedure.
-        /// </summary>
         [HttpPost("ejecutar")]
         [AllowAnonymous]
         public async Task<IActionResult> Ejecutar(CancellationToken ct)

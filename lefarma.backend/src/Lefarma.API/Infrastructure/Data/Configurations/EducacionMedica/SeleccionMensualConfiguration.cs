@@ -26,7 +26,6 @@ public class SeleccionMensualConfiguration : IEntityTypeConfiguration<SeleccionM
         builder.Property(e => e.IdUsuarioCreacion).HasColumnName("id_usuario_creacion");
         builder.Property(e => e.IdUsuarioModificacion).HasColumnName("id_usuario_modificacion");
 
-        // Workflow (ADR-00006)
         builder.Property(e => e.IdWorkflow).HasColumnName("id_workflow");
         builder.Property(e => e.IdPasoActual).HasColumnName("id_paso_actual");
         builder.Property(e => e.IdEstado).HasColumnName("id_estado");

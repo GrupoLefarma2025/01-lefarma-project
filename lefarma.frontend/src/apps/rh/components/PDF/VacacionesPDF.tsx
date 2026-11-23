@@ -4,7 +4,6 @@ import { FirmaMarcador, firmantesDelFlujo, type FirmanteFlow } from './Solicitud
 import { FirmaImg } from '@/components/common/FirmaImg';
 import logoImage from '@/assets/logo.png';
 
-// Split an ISO date into DÍA/MES/AÑO without JS-Date timezone drift.
 function splitFecha(fecha?: string | null) {
   if (!fecha) return { d: '', m: '', y: '' };
   const mt = /^(\d{4})-(\d{2})-(\d{2})/.exec(fecha);
@@ -30,9 +29,6 @@ function fmtShort(fecha?: string | null) {
 
 const BLACK = '#000';
 
-// ponytail: fontSize is left to inherit (10pt) on body text because the global print rule
-// forces #solicitud-personal-pdf-print { font-size:10pt !important }; only the small
-// sub-labels set an explicit size to override that inheritance.
 const s: Record<string, React.CSSProperties> = {
   page: {
     fontFamily: "'Arial', sans-serif",
@@ -64,8 +60,6 @@ const fillLine: React.CSSProperties = {
   display: 'inline-block',
   textAlign: 'center',
   padding: '0 6px',
-  // El texto va levantado sobre la línea: sin este padding-bottom queda pegado a ella
-  // al capturar el PDF (html2canvas).
   paddingBottom: '2px',
   minHeight: '1.3em',
   whiteSpace: 'normal',
@@ -101,7 +95,6 @@ export function VacacionesPDF({
   pasosWorkflow = [],
   firmaDirector = false,
 }: Props) {
-  // Firmantes del flujo aprobado: solicitante + cada paso firmado en orden de workflow.
   const firmantes = useMemo(
     () => firmantesDelFlujo(pasosWorkflow, historial, firmaDirector),
     [pasosWorkflow, historial, firmaDirector]
@@ -125,8 +118,6 @@ export function VacacionesPDF({
   const reg = splitFecha(solicitud.fechaRegreso);
   const regMes = reg.m ? MONTHS[parseInt(reg.m, 10) - 1] ?? '' : '';
 
-  // ponytail: plain function returning JSX (not a nested component) to satisfy
-  // react-hooks/static-components — a nested component remounts every render.
   const firma = (f?: FirmanteFlow) => (
     <>
       {f?.pendienteFirma ? (
@@ -140,7 +131,7 @@ export function VacacionesPDF({
 
   return (
     <div id="solicitud-personal-pdf-print" style={s.page}>
-      {/* ── ENCABEZADO: logo + tabla de control ── */}
+      {}
       <div style={s.headerRow}>
         <img
           src={logoImage}
@@ -172,16 +163,16 @@ export function VacacionesPDF({
         </table>
       </div>
 
-      {/* ── CUERPO DEL FORMATO ── */}
+      {}
       <div style={s.box}>
-        {/* EMPRESA */}
+        {}
         <div style={{ display: 'flex', alignItems: 'flex-end' }}>
           <div style={{ width: '40%' }} />
           <span style={{ whiteSpace: 'nowrap' }}>EMPRESA:&nbsp;</span>
           <span style={fillLine}>{empresa}</span>
         </div>
 
-        {/* DE / PARA */}
+        {}
         <div style={{ display: 'flex', gap: 24, marginTop: 16 }}>
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
             <div style={{ display: 'flex', alignItems: 'flex-end' }}>
@@ -199,7 +190,7 @@ export function VacacionesPDF({
           </div>
         </div>
 
-        {/* ÁREA / FECHA DE ELABORACIÓN */}
+        {}
         <div style={{ display: 'flex', gap: 24, marginTop: 12 }}>
           <div style={{ flex: 1, display: 'flex', alignItems: 'flex-end' }}>
             <span style={{ whiteSpace: 'nowrap' }}>ÁREA:&nbsp;</span>
@@ -218,7 +209,7 @@ export function VacacionesPDF({
           </div>
         </div>
 
-        {/* PÁRRAFO DE SOLICITUD */}
+        {}
         <div style={{ marginTop: 28, lineHeight: 1.7 }}>
           <div>
             Por medio de la presente, solicito a usted se me otorguen vacaciones, por{' '}
@@ -236,13 +227,13 @@ export function VacacionesPDF({
           </div>
         </div>
 
-        {/* FECHA DE REGRESO */}
+        {}
         <div style={{ textAlign: 'right', marginTop: 65 }}>
           La fecha a presentarse a trabajar será el día <span style={blank(28)}>{reg.d}</span> de{' '}
           <span style={blank(80)}>{regMes}</span> del 20<span style={blank(28)}>{reg.y.slice(-2)}</span>
         </div>
 
-        {/* FIRMAS — una caja por firmante del flujo aprobado (SOLICITA + cada AUTORIZA firmado) */}
+        {}
         <div style={{ borderTop: `1px solid ${BLACK}`, marginTop: 24 }}>
           <div
             style={{

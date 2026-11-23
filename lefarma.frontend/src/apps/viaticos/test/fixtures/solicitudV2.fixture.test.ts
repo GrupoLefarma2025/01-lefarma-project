@@ -5,7 +5,6 @@ const NOMBRES_REALES_PROHIBIDOS = ['CESAR', 'JUAN PABLO', 'SANTIAGO', 'ANGEL REM
 
 describe('fixtures de la solicitud (solo desarrollo)', () => {
   it('están apagados salvo bandera explícita de desarrollo', () => {
-    // Sin VITE_VIATICOS_FIXTURES=1 nunca hay autofill en el formulario normal.
     expect(VIATICOS_FIXTURES_ACTIVOS).toBe(false);
   });
 

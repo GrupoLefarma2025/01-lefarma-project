@@ -46,11 +46,9 @@ public class IncidenciasChecadoController : ControllerBase
             });
         }
 
-        // Si el empleado no checa, nunca tendrá incidencias: se evita la consulta.
         var checaResult = await _service.TieneChecaDeshabilitadaAsync(idUsuario, cancellationToken);
         if (checaResult.IsError)
         {
-            // Reutiliza el mapeo estándar de errores (el callback no se ejecuta en error).
             return checaResult.ToActionResult(this, _ => StatusCode(StatusCodes.Status500InternalServerError));
         }
 

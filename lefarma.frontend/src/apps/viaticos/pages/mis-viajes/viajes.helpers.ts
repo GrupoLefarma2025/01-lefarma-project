@@ -15,11 +15,6 @@ function comoObjeto(v: unknown): Record<string, unknown> | null {
   return typeof v === 'object' && v !== null ? (v as Record<string, unknown>) : null;
 }
 
-/**
- * Lee el snapshot `datos` con tolerancia: el asistente nuevo guarda
- * `solicitud-v2`, el flujo anterior guardó otras formas. Lo desconocido cae a
- * «sin clasificar» en vez de inventar un destino o un tipo.
- */
 export function leerDatosViaje(datos: unknown): ResumenViaje {
   const base: ResumenViaje = {
     destino: null,
@@ -53,7 +48,7 @@ export function leerDatosViaje(datos: unknown): ResumenViaje {
     if (typeof fuente.directorioId === 'number' && base.beneficiarioId === null) base.beneficiarioId = fuente.directorioId;
     if (typeof fuente.nombre === 'string' && fuente.nombre.trim() !== '') base.beneficiarioNombre = fuente.nombre.trim();
     if (typeof fuente.nombreCompleto === 'string' && !base.beneficiarioNombre) base.beneficiarioNombre = fuente.nombreCompleto.trim();
-    if ((fuente.modo === 'mia' || d.modoNombre === 'mi') && base.beneficiarioId === null) base.beneficiarioId = -1; // la persona solicitante
+    if ((fuente.modo === 'mia' || d.modoNombre === 'mi') && base.beneficiarioId === null) base.beneficiarioId = -1; 
   }
   const personas = Array.isArray(d.personas) ? d.personas : [];
   if (!base.beneficiarioNombre && personas.length > 0) {
@@ -76,10 +71,6 @@ export interface Distintivo {
   texto: string;
 }
 
-/**
- * Crear para otra persona NO es compartir: los distintivos de autoría y los
- * de participación viajan por separado y pueden traslaparse.
- */
 export function clasificarRelacion(
   solicitud: Pick<Solicitud, 'id_usuario_solicitante'>,
   resumen: ResumenViaje,
@@ -104,8 +95,6 @@ export function clasificarRelacion(
   return distintivos;
 }
 
-// ---- filtros de periodo (semántica provisional, siempre visible) ----
-
 export type FiltroPeriodo = 'dia' | 'semana' | 'quincena' | 'mes' | 'anio' | 'personalizado' | 'todo';
 
 export const ETIQUETA_PERIODO: Record<FiltroPeriodo, string> = {
@@ -122,10 +111,6 @@ function isoFecha(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-/**
- * Rango visible del filtro. Provisional: filtra por FECHA DE CREACIÓN hasta
- * que el negocio defina la fecha del viaje que manda.
- */
 export function rangoDelFiltro(periodo: FiltroPeriodo, referencia: Date, desde = '', hasta = ''): { inicio: string; fin: string } | null {
   if (periodo === 'todo') return null;
   if (periodo === 'personalizado') {
@@ -149,7 +134,6 @@ export function rangoDelFiltro(periodo: FiltroPeriodo, referencia: Date, desde =
     const y = referencia.getFullYear();
     return { inicio: `${y}-01-01`, fin: `${y}-12-31` };
   }
-  // Quincena provisional: día 1–15 o 16–fin de mes.
   const y = referencia.getFullYear();
   const m = String(referencia.getMonth() + 1).padStart(2, '0');
   if (referencia.getDate() <= 15) return { inicio: `${y}-${m}-01`, fin: `${y}-${m}-15` };
@@ -162,8 +146,6 @@ export function enRango(fechaCreacion: string, rango: { inicio: string; fin: str
   const dia = fechaCreacion.slice(0, 10);
   return dia >= rango.inicio && dia <= rango.fin;
 }
-
-// ---- presentación de filas (tabla de viajes, compartida con Autorizaciones) ----
 
 export interface FilaViaje {
   solicitud: Solicitud;
@@ -185,7 +167,6 @@ export function nombreCreadorDe(solicitud: Solicitud, miId?: number, miNombre?: 
   return `Usuario #${idCreador}`;
 }
 
-/** Fecha larga al estilo de la bandeja de CxP: "23 de octubre de 2026". */
 export function fechaLarga(fecha: string): string {
   if (!fecha) return '—';
   const d = new Date(fecha);
@@ -194,7 +175,6 @@ export function fechaLarga(fecha: string): string {
     : d.toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric' });
 }
 
-/** Mismo lenguaje de color por estado que la bandeja de órdenes de CxP. */
 export const COLOR_POR_ESTADO: Record<string, string> = {
   borrador: '#64748b',
   enviada: '#2563eb',
@@ -211,7 +191,6 @@ function objetoPlano(v: unknown): Record<string, unknown> | null {
   return typeof v === 'object' && v !== null && !Array.isArray(v) ? (v as Record<string, unknown>) : null;
 }
 
-/** Personas del viaje: la persona viajera + acompañantes. */
 export function personasInvolucradas(solicitud: Solicitud): number {
   const datos = objetoPlano(solicitud.datos);
   const transporte = objetoPlano(datos?.transporte);
@@ -229,7 +208,6 @@ export function tipoTransporte(solicitud: Solicitud): string {
   return modoTransporte(solicitud) === 'propio' ? 'Carro propio' : 'Solicitud de transporte';
 }
 
-/** Costo conocido del viaje: total del snapshot o comidas + extras + opciones elegidas. */
 export function costoViaje(solicitud: Solicitud): number | null {
   const datos = objetoPlano(solicitud.datos);
   const totalSnapshot = Number(datos?.total);
@@ -254,10 +232,6 @@ export function mxn(n: number): string {
   return n.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
 }
 
-/**
- * Opciones recalculadas por el revisor, presentadas como opciones de la
- * solicitud. Los ids son sintéticos y negativos: no existen en el servidor.
- */
 export function opcionesDePropuesta(opciones: OpcionCotizacion[]): SolicitudOpcion[] {
   return opciones.map((opcion, indice) => ({
     id_opcion: -(indice + 1),

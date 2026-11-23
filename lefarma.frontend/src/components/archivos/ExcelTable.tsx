@@ -1,6 +1,3 @@
-﻿// lefarma.frontend/src/components/archivos/ExcelTable.tsx
-
-
 interface ExcelTableProps {
   data: Record<string, unknown>[];
   maxRows?: number;

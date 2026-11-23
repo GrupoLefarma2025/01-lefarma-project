@@ -45,34 +45,26 @@ public class ArchivoService : IArchivoService
         int? usuarioId = null,
         CancellationToken cancellationToken = default)
     {
-        // El nombre visible lo envía el cliente (también el API externo): se descarta cualquier
-        // ruta y los caracteres de control, que romperían la cabecera de descarga.
         var nombreOriginal = new string(Path.GetFileName(fileName).Where(c => !char.IsControl(c)).ToArray()).Trim();
 
-        // Validar extensión
         var extension = Path.GetExtension(nombreOriginal).ToLowerInvariant();
         if (!_settings.ExtensionesPermitidas.Contains(extension))
             return CommonErrors.Validation("ContentType", "El tipo de archivo no está permitido");
 
-        // Validar tamaño
         if (fileStream.Length > _settings.TamanoMaximoMB * 1024 * 1024)
             return CommonErrors.Validation("FileTooLarge", "El archivo excede el tamaño máximo permitido");
 
-        // Generar nombre físico único
         var nombreFisico = $"{Guid.NewGuid()}{extension}";
         
-        // Crear directorio si no existe
         var directorioCompleto = Path.Combine(_settings.BasePath, request.Carpeta);
         Directory.CreateDirectory(directorioCompleto);
 
-        // Guardar archivo
         var rutaCompleta = Path.Combine(directorioCompleto, nombreFisico);
         using (var fs = new FileStream(rutaCompleta, FileMode.Create))
         {
             await fileStream.CopyToAsync(fs, cancellationToken);
         }
 
-        // Crear entidad
         var archivo = new Archivo
         {
             EntidadTipo = request.EntidadTipo,
@@ -105,18 +97,14 @@ public class ArchivoService : IArchivoService
         int? usuarioId = null,
         CancellationToken cancellationToken = default)
     {
-        // Obtener archivo anterior
         var archivoAnterior = await _repository.GetByIdAsync(id, cancellationToken);
         if (archivoAnterior == null)
             return CommonErrors.NotFound("Archivo");
 
-        // Inactivar el archivo anterior y conservarlo en la carpeta privada de históricos.
-        // La entidad está en seguimiento, así que el repositorio persiste FechaEdicion en el mismo guardado.
         archivoAnterior.FechaEdicion = DateTime.UtcNow;
         var eliminacion = MoverAHistorico(archivoAnterior, MotivoReemplazo, usuarioId);
         await _repository.DeleteAsync(archivoAnterior.Id, eliminacion, cancellationToken);
 
-        // Subir nuevo archivo
         var nuevoRequest = new SubirArchivoRequest
         {
             EntidadTipo = archivoAnterior.EntidadTipo,
@@ -149,7 +137,6 @@ public class ArchivoService : IArchivoService
 
         var archivosList = archivos.ToList();
 
-        // Bitácora de los inactivos (el historial muestra quién y cuándo los eliminó).
         var idsInactivos = archivosList.Where(a => !a.Activo).Select(a => a.Id).ToList();
         var eliminaciones = idsInactivos.Count > 0
             ? (await _repository.GetEliminacionesAsync(idsInactivos, cancellationToken))
@@ -157,7 +144,6 @@ public class ArchivoService : IArchivoService
                 .ToDictionary(g => g.Key, g => g.First())
             : new Dictionary<int, ArchivoEliminado>();
 
-        // Batch-fetch user names (subida y eliminación)
         var userIds = archivosList
             .Where(a => a.UsuarioId.HasValue)
             .Select(a => a.UsuarioId!.Value)
@@ -215,7 +201,6 @@ public class ArchivoService : IArchivoService
         if (!File.Exists(rutaOriginal))
             return CommonErrors.NotFound("Archivo");
 
-        // Devolver el archivo original directamente
         var stream = new FileStream(rutaOriginal, FileMode.Open, FileAccess.Read);
         return (stream, archivo.NombreOriginal, archivo.TipoMime);
     }
@@ -229,8 +214,6 @@ public class ArchivoService : IArchivoService
         if (archivo == null)
             return CommonErrors.NotFound("Archivo");
 
-        // Se captura antes del borrado lógico: después la entidad queda inactiva
-        // y fuera de seguimiento al terminar la petición.
         var evento = new ArchivoEliminadoEvento(
             archivo.Id,
             archivo.EntidadTipo,
@@ -245,7 +228,6 @@ public class ArchivoService : IArchivoService
             usuarioId,
             DateTime.Now);
 
-        // Conservar el binario en la carpeta privada y registrar la bitácora.
         var eliminacion = MoverAHistorico(archivo, MotivoEliminacion, usuarioId);
 
         await _repository.DeleteAsync(id, eliminacion, cancellationToken);
@@ -254,7 +236,6 @@ public class ArchivoService : IArchivoService
             "Archivo eliminado (soft delete): {Id} por usuario {UsuarioId}; histórico: {Ruta}",
             id, usuarioId, eliminacion.RutaHistorica ?? "sin binario");
 
-        // Aviso por correo fuera del request: no debe retrasar ni tumbar el borrado.
         ArchivoEliminacionDispatch.Enviar(_scopeFactory, evento);
 
         return true;
@@ -265,11 +246,6 @@ public class ArchivoService : IArchivoService
         bool soloActivos = true, CancellationToken ct = default)
         => await _repository.GetCountAsync(entidadTipo, entidadId, carpeta, soloActivos, ct);
 
-    /// <summary>
-    /// Mueve el binario a la carpeta privada de históricos (fuera de wwwroot)
-    /// y arma el registro de bitácora. Si el archivo físico ya no existe,
-    /// deja el registro con hash y ruta nulos.
-    /// </summary>
     private ArchivoEliminado MoverAHistorico(Archivo archivo, string motivo, int? usuarioId)
     {
         var fechaBaja = DateTime.UtcNow;
@@ -332,11 +308,6 @@ public class ArchivoService : IArchivoService
         }
     }
 
-    /// <summary>
-    /// Ruta física del binario: los archivos activos viven en BasePath; los
-    /// eliminados, en la carpeta privada que registra la bitácora. Los borrados
-    /// anteriores a la bitácora siguen resueltos por el nombre `_inactivo`.
-    /// </summary>
     private async Task<string> ResolverRutaAsync(Archivo archivo, CancellationToken cancellationToken)
     {
         if (!archivo.Activo)

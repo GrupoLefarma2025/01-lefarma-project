@@ -20,17 +20,10 @@ export interface Props {
   solicitud: SolicitudPersonalResponse;
   historial?: HistorialWorkflowItemResponse[];
   pasosWorkflow?: WorkflowPasoFlowResponse[];
-  /** Render del PDF que se envía al director: agrega la caja de firma "#firmad". */
   firmaDirector?: boolean;
-  /** En el preview del modal el #firmad se ve (como OC); en el portal de captura va transparente. */
   marcadorVisible?: boolean;
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-// Endpoint autenticado de la firma de un evento de la bitácora. El servidor
-// resuelve la firma capturada en el evento o, en documentos anteriores a la
-// captura, la firma vigente actual del firmante (fallback).
 function buildFirmasMap(historial: HistorialWorkflowItemResponse[]) {
   const ultimoEventoPorUsuario = new Map<number, number>();
   for (const h of historial) {
@@ -45,7 +38,6 @@ function buildFirmasMap(historial: HistorialWorkflowItemResponse[]) {
   return map;
 }
 
-// Endpoint de la firma de un usuario según su último evento en el historial.
 export function firmaEndpointDeUsuario(
   historial: HistorialWorkflowItemResponse[],
   idUsuario: number,
@@ -57,15 +49,10 @@ export interface FirmanteFlow {
   nombre: string;
   url?: string;
   esSolicitante: boolean;
-  /** Etiqueta de la caja (SOLICITA/AUTORIZA/ELABORA); si falta, se deduce de esSolicitante. */
   rol?: string;
-  /** Caja pendiente: la firma la estampa el sistema externo al reemplazar "#firmad". */
   pendienteFirma?: boolean;
 }
 
-// Firmantes según el flujo aprobado: primero el solicitante (paso esInicio) y después cada
-// paso ya firmado en orden de workflow (autorizadores → RH / Director General según el flujo).
-// Sin roles fijos: cada caja del PDF muestra SOLICITA/AUTORIZA + nombre + firma del firmante real.
 export function firmantesDelFlujo(
   pasosWorkflow: WorkflowPasoFlowResponse[] = [],
   historial: HistorialWorkflowItemResponse[] = [],
@@ -78,7 +65,6 @@ export function firmantesDelFlujo(
     porPaso.set(h.idPaso, arr);
   }
   const firmas = buildFirmasMap(historial);
-  // Una misma persona puede firmar varios pasos del flujo: una sola caja por nombre.
   const vistos = new Set<string>();
   const firmantes: FirmanteFlow[] = pasosWorkflow
     .filter((p) => p.activo)
@@ -99,9 +85,6 @@ export function firmantesDelFlujo(
       ];
     });
 
-  // Caja pendiente de Dirección Corporativa: solo en el render que se envía al director
-  // (firmaDirector). El director firma en el sistema externo, que reemplaza el texto
-  // "#firmad" por su firma (misma mecánica que el envío concentrado de OC).
   if (firmaDirector) {
     firmantes.push({
       nombre: 'Dirección Corporativa',
@@ -113,8 +96,6 @@ export function firmantesDelFlujo(
 
   return firmantes;
 }
-
-// ─── Styles ───────────────────────────────────────────────────────────────────
 
 const HEADER_BG = '#1a3a5c';
 const ROW_LABEL = '#2c5f8a';
@@ -269,8 +250,6 @@ const s: Record<string, React.CSSProperties> = {
   },
 };
 
-// ─── Logo ─────────────────────────────────────────────────────────────────────
-
 const Logo: React.FC = () => (
   <div style={s.logoBox}>
     <img
@@ -281,9 +260,6 @@ const Logo: React.FC = () => (
   </div>
 );
 
-// ─── Legacy Formatted Fallback ────────────────────────────────────────────────
-
-// ponytail: legacy formatted fallback = crash-proof safety net. Renders any category without a dedicated component, including unknown/future DB types. Do NOT remove even once all current categories are covered — a new DB type must keep working with zero code change.
 function LegacyFormattedPDF({
   solicitud,
   historial = [],
@@ -321,8 +297,6 @@ function LegacyFormattedPDF({
     })
     .filter((p) => p.tieneEvento);
 
-  // Fila pendiente de Dirección Corporativa: solo en el render que se envía al director
-  // (firmaDirector); la firma la estampa el sistema externo (#firmad).
   if (firmaDirector) {
     flujoPasos.push({
       idPaso: -1,
@@ -341,7 +315,7 @@ function LegacyFormattedPDF({
 
   return (
     <div id="solicitud-personal-pdf-print" style={s.page}>
-      {/* ── HEADER ── */}
+      {}
       <div style={s.headerRow}>
         <Logo />
         <div style={s.docTitle}>SOLICITUD DE PERSONAL</div>
@@ -357,7 +331,7 @@ function LegacyFormattedPDF({
         </div>
       </div>
 
-      {/* ── DATOS DEL SOLICITANTE ── */}
+      {}
       <div style={s.sectionHeader}>Datos del solicitante</div>
       <table style={s.table}>
         <tbody>
@@ -392,7 +366,7 @@ function LegacyFormattedPDF({
         </tbody>
       </table>
 
-      {/* ── DATOS DE LA SOLICITUD ── */}
+      {}
       <div style={{ ...s.sectionHeader, marginTop: 6 }}>Datos de la solicitud</div>
       <table style={s.table}>
         <tbody>
@@ -451,7 +425,7 @@ function LegacyFormattedPDF({
         </tbody>
       </table>
 
-      {/* ── DETALLE DE DÍAS ── */}
+      {}
       {solicitud.detalle && solicitud.detalle.length > 0 && (
         <>
           <div style={{ ...s.sectionHeader, marginTop: 6 }}>Detalle de días</div>
@@ -474,7 +448,7 @@ function LegacyFormattedPDF({
         </>
       )}
 
-      {/* ── FLUJO DE AUTORIZACIÓN ── */}
+      {}
       {flujoPasos.length > 0 && (
         <table style={s.firmasTable}>
           <thead>
@@ -522,18 +496,8 @@ function LegacyFormattedPDF({
   );
 }
 
-// ─── Marcador de firma del director (#firmad) ─────────────────────────────────
-// El PDF que se envía al director lleva "#firmad" en su caja de autorización; el
-// sistema externo (PyMuPDF) reemplaza ese texto por la firma del director.
-// generarPdfSolicitud agrega el mismo texto en la capa de texto del PDF (invisible),
-// porque la captura es una imagen rasterizada sin texto.
-
 export function FirmaMarcador({ style, visible }: { style?: React.CSSProperties; visible?: boolean }) {
   return (
-    // Transparente por defecto: en la captura por imagen (html2canvas) el sistema externo
-    // redacta el "#firmad" de la capa de texto y estampa la firma encima, pero NO toca las
-    // imágenes — si el marcador se viera en la captura, quedaría horneado en la imagen.
-    // En el preview del modal (marcadorVisible) sí se ve, como en el concentrado de OC.
     <span
       data-firmad
       style={{
@@ -549,8 +513,6 @@ export function FirmaMarcador({ style, visible }: { style?: React.CSSProperties;
   );
 }
 
-// ─── Dispatcher ───────────────────────────────────────────────────────────────
-
 export function SolicitudPersonalPDF(props: Props) {
   switch (getCategoriaNombre(props.solicitud.categoria)) {
     case 'Incidencia':
@@ -564,7 +526,6 @@ export function SolicitudPersonalPDF(props: Props) {
     case 'Incapacidad':
       return <IncapacidadPDF {...props} />;
     default:
-      // Safety net: any unknown or future category (e.g. a new DB type with no component yet) renders the legacy format instead of crashing.
       return <LegacyFormattedPDF {...props} />;
   }
 }

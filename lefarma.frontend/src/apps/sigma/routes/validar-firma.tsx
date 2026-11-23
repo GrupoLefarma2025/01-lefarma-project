@@ -37,7 +37,6 @@ export default function ValidarFirma() {
     if (e.target.files && e.target.files[0]) {
       const selectedFile = e.target.files[0];
 
-      // Validar que sea un PDF
       if (selectedFile.type !== "application/pdf") {
         alert("Solo se permiten archivos PDF");
         e.target.value = "";
@@ -45,13 +44,10 @@ export default function ValidarFirma() {
       }
 
       setFile(selectedFile);
-      // Limpiar resultado previo
       setValidationResult(null);
     }
   };
 
-  // Llama al servicio de firmas y guarda el resultado. Lanza error si la
-  // respuesta no es un veredicto (documento inexistente, sin autorizar, etc.).
   const verificarDocumento = async (
     id: string,
     archivo: File | Blob,
@@ -94,8 +90,6 @@ export default function ValidarFirma() {
     }
   };
 
-  // Valida automáticamente el documento del enlace: descarga el PDF autorizado
-  // y lo compara contra el hash registrado.
   const validarDesdeEnlace = async (id: string) => {
     setValidating(true);
     setValidationResult(null);
@@ -125,7 +119,6 @@ export default function ValidarFirma() {
 
     setDocumentId(idFromUrl);
 
-    // Evita revalidar el mismo documento (por ejemplo en doble render de dev)
     if (autoValidatedId.current === idFromUrl) return;
     autoValidatedId.current = idFromUrl;
 

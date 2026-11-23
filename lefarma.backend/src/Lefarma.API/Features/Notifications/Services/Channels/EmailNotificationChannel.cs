@@ -10,18 +10,12 @@ using System.Net.Security;
 using System.Security.Cryptography.X509Certificates;
 
 namespace Lefarma.API.Features.Notifications.Services.Channels;
-/// <summary>
-/// Email notification channel implementation using MailKit.
-/// Supports HTML templates, multiple recipients, CC/BCC, and SMTP authentication.
-/// Handles SSL certificate validation and different connection modes (SSL/TLS/STARTTLS).
-/// </summary>
 public class EmailNotificationChannel : INotificationChannel
 {
     private readonly EmailSettings _settings;
     private readonly ITemplateService _templateService;
     private readonly ILogger<EmailNotificationChannel> _logger;
 
-    /// <inheritdoc/>
     public string ChannelType => "email";
 
     public EmailNotificationChannel(
@@ -34,7 +28,6 @@ public class EmailNotificationChannel : INotificationChannel
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
-    /// <inheritdoc/>
     public async Task<ChannelResult> SendAsync(NotificationMessage message, CancellationToken ct = default)
     {
         _logger.LogInformation("Sending email notification to {Recipients}", message.Recipients);
@@ -48,7 +41,6 @@ public class EmailNotificationChannel : INotificationChannel
 
         try
         {
-            // Validate configuration
             if (string.IsNullOrWhiteSpace(_settings.SmtpServer))
             {
                 _logger.LogError("SMTP server is not configured");
@@ -63,7 +55,6 @@ public class EmailNotificationChannel : INotificationChannel
                 return result;
             }
 
-            // Parse recipients
             var recipients = ParseRecipients(message.Recipients);
             if (recipients.Count == 0)
             {
@@ -72,23 +63,19 @@ public class EmailNotificationChannel : INotificationChannel
                 return result;
             }
 
-            // Create email message
             var emailMessage = new MimeMessage();
 
-            // Revisa si se envia un nombre de remitente personalizado en los datos del canal, si no, usa el nombre de remitente configurado
             var fromName = message.Data != null && message.Data.TryGetValue("fromName", out var fromNameObj)
                 && fromNameObj?.ToString() is { Length: > 0 } overrideName
                 ? overrideName
                 : _settings.FromName;
             emailMessage.From.Add(new MailboxAddress(fromName, _settings.FromEmail));
 
-            // Add recipients
             foreach (var recipient in recipients)
             {
                 emailMessage.To.Add(new MailboxAddress(string.Empty, recipient));
             }
 
-            // Add CC if provided in channel data
             if (message.Data != null && message.Data.TryGetValue("cc", out var ccObj))
             {
                 var ccRecipients = ParseRecipients(ccObj.ToString() ?? string.Empty);
@@ -98,7 +85,6 @@ public class EmailNotificationChannel : INotificationChannel
                 }
             }
 
-            // Add BCC if provided in channel data
             if (message.Data != null && message.Data.TryGetValue("bcc", out var bccObj))
             {
                 var bccRecipients = ParseRecipients(bccObj.ToString() ?? string.Empty);
@@ -108,19 +94,15 @@ public class EmailNotificationChannel : INotificationChannel
                 }
             }
 
-            // Set subject
             emailMessage.Subject = message.Title;
 
-            // Build email body
             var bodyBuilder = new BodyBuilder();
 
-            // Check if we should use a template
             string htmlBody;
             if (message.Data != null &&
                 message.Data.TryGetValue("templateId", out var templateIdObj) &&
                 !string.IsNullOrWhiteSpace(templateIdObj?.ToString()))
             {
-                // Render template
                 var templateId = templateIdObj.ToString()!;
                 var templateData = message.Data.TryGetValue("templateData", out var dataObj)
                     ? dataObj as Dictionary<string, object> ?? new Dictionary<string, object>()
@@ -131,25 +113,20 @@ public class EmailNotificationChannel : INotificationChannel
             }
             else
             {
-                // Use message body as-is (assuming HTML)
                 htmlBody = message.Body;
             }
 
             bodyBuilder.HtmlBody = htmlBody;
 
-            // Add plain text version if provided
             if (message.Data != null && message.Data.TryGetValue("plainText", out var plainTextObj))
             {
                 bodyBuilder.TextBody = plainTextObj.ToString();
             }
             else
             {
-                // Generate basic plain text from HTML
                 bodyBuilder.TextBody = StripHtml(htmlBody);
             }
 
-            // Adjuntos opcionales (extensión aditiva del módulo Documentos/SIGMA):
-            // Data["attachments"] acepta NotificationAttachment, rutas de archivo o una lista de ambos.
             if (message.Data != null && message.Data.TryGetValue("attachments", out var attachmentsObj))
             {
                 AdjuntarArchivos(bodyBuilder, attachmentsObj);
@@ -157,23 +134,17 @@ public class EmailNotificationChannel : INotificationChannel
 
             emailMessage.Body = bodyBuilder.ToMessageBody();
 
-            // Send email via SMTP
             using var client = new SmtpClient();
             client.Timeout = _settings.Timeout;
 
-            // IMPORTANT: SSL certificate validation callback
-            // This allows self-signed certificates (common in corporate SMTP servers)
-            // Set this BEFORE connecting
             client.ServerCertificateValidationCallback = (sender, certificate, chain, sslPolicyErrors) =>
             {
-                // If explicitly configured to accept all certificates (for dev/internal servers)
                 if (_settings.AcceptInvalidCertificates)
                 {
                     _logger.LogWarning("Accepting potentially invalid SSL certificate (AcceptInvalidCertificates=true)");
                     return true;
                 }
 
-                // Default behavior: require valid certificates
                 if (sslPolicyErrors == SslPolicyErrors.None)
                 {
                     return true;
@@ -187,10 +158,6 @@ public class EmailNotificationChannel : INotificationChannel
             {
                 _logger.LogInformation("Connecting to SMTP server: {Server}:{Port} (SSL: {UseSsl})", _settings.SmtpServer, _settings.SmtpPort, _settings.UseSsl);
 
-                // Auto-detect SSL mode based on port and UseSsl setting
-                // Port 465 = SSL implicit (SslOnConnect)
-                // Port 587 = STARTTLS (StartTls)
-                // Port 25 = No encryption by default
                 SecureSocketOptions secureSocketOptions;
 
                 if (!_settings.UseSsl)
@@ -205,7 +172,6 @@ public class EmailNotificationChannel : INotificationChannel
                 }
                 else
                 {
-                    // Default for port 587 and other TLS ports
                     secureSocketOptions = SecureSocketOptions.StartTls;
                     _logger.LogDebug("Using STARTTLS (port {Port})", _settings.SmtpPort);
                 }
@@ -213,7 +179,6 @@ public class EmailNotificationChannel : INotificationChannel
                 await client.ConnectAsync(_settings.SmtpServer, _settings.SmtpPort, secureSocketOptions, ct);
                 _logger.LogInformation("Successfully connected to SMTP server");
 
-                // Authenticate if credentials provided
                 if (!string.IsNullOrWhiteSpace(_settings.SmtpUser) && !string.IsNullOrWhiteSpace(_settings.SmtpPassword))
                 {
                     _logger.LogInformation("Authenticating to SMTP server as: {User}", _settings.SmtpUser);
@@ -225,16 +190,13 @@ public class EmailNotificationChannel : INotificationChannel
                     _logger.LogWarning("No SMTP credentials provided, attempting anonymous send");
                 }
 
-                // Send message
                 _logger.LogDebug("Sending email message");
                 var smtpResponse = await client.SendAsync(emailMessage, ct);
 
                 _logger.LogInformation("Email sent successfully. Server response: {Response}", smtpResponse);
 
-                // Disconnect
                 await client.DisconnectAsync(true, ct);
 
-                // Mark all recipients as successfully sent
                 result.SentRecipients = recipients;
                 result.Success = true;
                 result.Message = "Email sent successfully";
@@ -303,7 +265,6 @@ public class EmailNotificationChannel : INotificationChannel
         }
     }
 
-    /// <inheritdoc/>
     public Task<bool> ValidateRecipientsAsync(string recipients, CancellationToken ct = default)
     {
         try
@@ -315,7 +276,6 @@ public class EmailNotificationChannel : INotificationChannel
                 return Task.FromResult(false);
             }
 
-            // Basic email validation using MailKit's parser
             foreach (var email in emailList)
             {
                 try
@@ -340,9 +300,6 @@ public class EmailNotificationChannel : INotificationChannel
         }
     }
 
-    /// <summary>
-    /// Parses semicolon-separated recipients string into a list of email addresses.
-    /// </summary>
     private static List<string> ParseRecipients(string recipients)
     {
         if (string.IsNullOrWhiteSpace(recipients))
@@ -358,10 +315,6 @@ public class EmailNotificationChannel : INotificationChannel
             .ToList();
     }
 
-    /// <summary>
-    /// Strips HTML tags from a string to generate plain text.
-    /// Simple implementation for fallback plain text generation.
-    /// </summary>
     private static string StripHtml(string html)
     {
         if (string.IsNullOrWhiteSpace(html))
@@ -369,24 +322,16 @@ public class EmailNotificationChannel : INotificationChannel
             return string.Empty;
         }
 
-        // Remove HTML tags
         var plainText = System.Text.RegularExpressions.Regex.Replace(html, "<[^>]*>", string.Empty);
 
-        // Decode HTML entities
         plainText = System.Net.WebUtility.HtmlDecode(plainText);
 
-        // Clean up whitespace
         var lines = plainText.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
         plainText = string.Join(Environment.NewLine, lines.Select(line => line.Trim()));
 
         return plainText.Trim();
     }
 
-    /// <summary>
-    /// Adjunta los archivos indicados en <c>Data["attachments"]</c>. Acepta una instancia de
-    /// <see cref="NotificationAttachment"/>, una ruta de archivo o una lista de ambos.
-    /// Extensión aditiva: los llamadores existentes no envían esta clave y no cambian.
-    /// </summary>
     private void AdjuntarArchivos(BodyBuilder bodyBuilder, object? valor)
     {
         switch (valor)
@@ -460,5 +405,4 @@ public class EmailNotificationChannel : INotificationChannel
     }
 }
 
-/// <summary>Adjunto genérico del canal de correo (contenido en memoria).</summary>
 public sealed record NotificationAttachment(string FileName, byte[] Content, string? ContentType = "application/pdf");

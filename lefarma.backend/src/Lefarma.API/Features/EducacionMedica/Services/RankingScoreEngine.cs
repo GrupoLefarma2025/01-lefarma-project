@@ -5,31 +5,20 @@ public class HospitalCandidato
     public int IdHospital { get; set; }
     public decimal? AnestesiasTotales { get; set; }
     public int? NumeroQuirofanos { get; set; }
-    public int? MesesDesdeUltimaSeleccion { get; set; } // null = nunca seleccionado
+    public int? MesesDesdeUltimaSeleccion { get; set; } 
     public double? Latitud { get; set; }
     public double? Longitud { get; set; }
     public bool? EsZonaMetropolitana { get; set; }
 
-    /// <summary>
-    /// Cobertura efectiva: nunca estuvo en seleccion, estuvo sin taller realizado
-    /// (pendiente de entrega), o ya tuvo un taller Realizado. Dato categorico;
-    /// siempre disponible (default: Nunca).
-    /// </summary>
     public CoberturaTallerEstado EstadoCoberturaTaller { get; set; } = CoberturaTallerEstado.Nunca;
 }
 
-/// <summary>
-/// Estado de cobertura del hospital respecto a selecciones anteriores y talleres.
-/// </summary>
 public enum CoberturaTallerEstado
 {
-    /// <summary>Nunca estuvo en una seleccion mensual anterior (misma gerencia).</summary>
     Nunca = 0,
 
-    /// <summary>Estuvo en seleccion anterior pero sin taller con estado Realizado.</summary>
     Pendiente = 1,
 
-    /// <summary>Tiene al menos un taller con estado Realizado.</summary>
     Realizado = 2,
 }
 
@@ -42,8 +31,6 @@ public class RankingConfig
     public decimal PesoCoberturaTaller { get; set; }
     public double RadioAgrupabilidadKm { get; set; } = 50;
 
-    // Scores de recencia (configurables via parametros_json del factor;
-    // defaults decididos con el negocio, ver ADR-00005)
     public decimal ScoreRecenciaNunca { get; set; } = 100m;
     public decimal ScoreRecenciaReciente { get; set; } = 10m;
     public List<RecenciaTramo> TramosRecencia { get; set; } =
@@ -53,17 +40,11 @@ public class RankingConfig
         new() { MesesMin = 3, Score = 40 },
     ];
 
-    // Scores de cobertura de taller (configurables via parametros_json)
     public decimal ScoreCoberturaNunca { get; set; } = 100m;
     public decimal ScoreCoberturaPendiente { get; set; } = 90m;
     public decimal ScoreCoberturaRealizado { get; set; } = 10m;
 }
 
-/// <summary>
-/// Tramo de recencia: hospitales con meses desde la ultima seleccion >= MesesMin
-/// reciben Score. Los tramos se evaluan de mayor a menor MesesMin y gana el
-/// primero que aplique.
-/// </summary>
 public class RecenciaTramo
 {
     public int MesesMin { get; set; }
@@ -75,8 +56,8 @@ public class FactorResult
     public required string Clave { get; set; }
     public decimal? ValorCrudo { get; set; }
     public decimal ScoreFactor { get; set; }
-    public decimal PesoConfigurado { get; set; } // porcentaje 0-100
-    public decimal PesoEfectivo { get; set; }    // porcentaje 0-100
+    public decimal PesoConfigurado { get; set; } 
+    public decimal PesoEfectivo { get; set; }    
     public decimal PuntosAportados { get; set; }
     public bool DatoDisponible { get; set; }
     public bool Aplicado { get; set; }
@@ -115,7 +96,6 @@ public static class RankingScoreEngine
             return new RankingResult { Hospitales = [], PesosEfectivos = [], CantidadCandidatos = 0 };
         }
 
-        // 1) Calcular factores
         var anestesiasScores = CalcularPercentil(
             candidatos,
             c => c.AnestesiasTotales,
@@ -136,7 +116,6 @@ public static class RankingScoreEngine
             c => c.IdHospital,
             c => (Score: CalcularCoberturaTaller(c.EstadoCoberturaTaller, config), DatoDisponible: true));
 
-        // 2) Pesos efectivos
         var pesosConfig = new Dictionary<string, decimal>
         {
             ["anestesias_totales"] = config.PesoAnestesias,
@@ -146,13 +125,11 @@ public static class RankingScoreEngine
             ["cobertura_taller"] = config.PesoCoberturaTaller,
         };
 
-        // Detectar factores sin variabilidad
         var sinVariabilidad = DetectarSinVariabilidad(
             anestesiasScores, quirofanosScores, recenciaScores, agrupabilidadScores, coberturaScores);
 
         var pesosEfectivos = CalcularPesosEfectivos(pesosConfig, sinVariabilidad);
 
-        // 3) Componer HospitalScore
         var hospitales = new List<HospitalScore>();
         foreach (var c in candidatos)
         {
@@ -183,7 +160,6 @@ public static class RankingScoreEngine
             });
         }
 
-        // 4) Ordenar determinísticamente y asignar posición
         var ordenados = hospitales
             .OrderByDescending(h => h.ScoreTotal)
             .ThenBy(h => h.IdHospital)
@@ -250,7 +226,6 @@ public static class RankingScoreEngine
             .OrderBy(x => x.Valor)
             .ToList();
 
-        // Asignar ranking promedio para empates (1-indexado)
         var grupos = ordenados
             .GroupBy(x => x.Valor)
             .Select(g => new { Valor = g.Key, Hospitales = g.ToList() })
@@ -293,11 +268,6 @@ public static class RankingScoreEngine
         return config.ScoreRecenciaReciente;
     }
 
-    /// <summary>
-    /// Scores del factor cobertura_taller: prioriza cobertura pendiente y hospitales
-    /// nunca seleccionados; penaliza los que ya recibieron taller. Scores por defecto
-    /// decididos con el negocio, configurables via parametros_json del factor.
-    /// </summary>
     private static decimal CalcularCoberturaTaller(CoberturaTallerEstado estado, RankingConfig config) => estado switch
     {
         CoberturaTallerEstado.Nunca => config.ScoreCoberturaNunca,
@@ -325,14 +295,12 @@ public static class RankingScoreEngine
             }
 
             bool? clasificacion = c.EsZonaMetropolitana;
-            // Sin clasificación → se comporta como foráneo (criterio conservador de ADR-00004)
             bool esForaneo = clasificacion != true;
 
             var vecinos = conCoordenadas
                 .Where(v => v.IdHospital != c.IdHospital)
                 .Where(v =>
                 {
-                    // Vecino compatible: misma clasificación (foráneo vs local)
                     bool vecinoForaneo = v.EsZonaMetropolitana != true;
                     return vecinoForaneo == esForaneo;
                 })
@@ -356,7 +324,6 @@ public static class RankingScoreEngine
             }
             else
             {
-                // Local: percentil del conteo de vecinos compatibles
                 var todosVecinosLocales = conCoordenadas
                     .Where(v => v.EsZonaMetropolitana == true && v.IdHospital != c.IdHospital)
                     .Select(v => conCoordenadas.Count(otro =>
@@ -443,7 +410,6 @@ public static class RankingScoreEngine
 
         if (aplicables.Count == 0)
         {
-            // Todos constantes: mantener pesos configurados redondeados
             return pesosConfig.ToDictionary(kv => kv.Key, kv => Math.Round(kv.Value, 2));
         }
 
@@ -476,7 +442,6 @@ public static class RankingScoreEngine
             efectivos[kv.Key] = normalizado + adicional;
         }
 
-        // Redondear y ajustar residuo al mayor entre factores activos
         var redondeados = efectivos.ToDictionary(kv => kv.Key, kv => Math.Round(kv.Value, 2));
         var sumaActivos = redondeados.Values.Sum(v => v);
         var residuo = 100m - sumaActivos;
@@ -495,7 +460,6 @@ public static class RankingScoreEngine
             }
         }
 
-        // Asegurar que factores sin peso o constantes queden exactamente en 0
         foreach (var kv in pesosConfig.Where(kv => kv.Value == 0 || constantes.ContainsKey(kv.Key)))
         {
             redondeados[kv.Key] = 0m;

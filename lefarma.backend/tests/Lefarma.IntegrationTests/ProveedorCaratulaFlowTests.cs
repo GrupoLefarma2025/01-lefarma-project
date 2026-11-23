@@ -13,11 +13,6 @@ using ErrorOr;
 
 namespace Lefarma.IntegrationTests;
 
-/// <summary>
-/// Pruebas de integración (EF Core InMemory) del flujo de carátula por cuenta:
-/// enrutamiento por estatus, staging para autorizados, promover al autorizar,
-/// y rechazar sin tocar la cuenta live.
-/// </summary>
 public class ProveedorCaratulaFlowTests
 {
     private const string TwoBullets = "••";
@@ -29,7 +24,6 @@ public class ProveedorCaratulaFlowTests
             .Options;
         var db = new ApplicationDbContext(options);
         var repo = new ProveedorRepository(db);
-        // RegimenFiscalRepository real (sólo se toca en Create/Update validation; nunca en el flujo de carátula).
         var regimenRepo = new RegimenFiscalRepository(db);
         var logger = NullLogger<ProveedorService>.Instance;
         var config = new ConfigurationBuilder().Build();
@@ -39,12 +33,6 @@ public class ProveedorCaratulaFlowTests
         return (db, service);
     }
 
-    /// <summary>
-    /// Crea un proveedor en el DbContext InMemory y devuelve los IDs generados (IdProveedor + IdCuenta),
-    /// para que cada test use las claves reales que EF asignó (InMemory puede reasignar claves explícitas).
-    /// Seedea además los catálogos referenciados (RegimenFiscal, FormaPago, Banco) para que los
-    /// Include/ThenInclude del repo resuelvan correctamente en InMemory.
-    /// </summary>
     private static (int idProveedor, int idCuen) SeedProveedor(ApplicationDbContext db, int estatus, bool conCaratulaExistente)
     {
         db.RegimenesFiscales.Add(new RegimenFiscal { IdRegimenFiscal = 1, Clave = "601", Descripcion = "Régimen 1", TipoPersona = "F", Activo = true });
@@ -87,11 +75,7 @@ public class ProveedorCaratulaFlowTests
         return (proveedor.IdProveedor, proveedor.CuentasFormaPago.First().IdCuenta);
     }
 
-    // ---------------------------------------------------------------------
-    // Prospecto (Nuevo) → escritura directa
-    // ---------------------------------------------------------------------
-
-    [Fact]
+[Fact]
     public async Task SubirCaratulaCuenta_Nuevo_EscribeDirecto_SinStaging()
     {
         var (db, service) = BuildService("nuevo-direct");
@@ -105,17 +89,12 @@ public class ProveedorCaratulaFlowTests
         var cuenta = await db.ProveedoresFormasPagoCuentas.SingleAsync(c => c.IdCuenta == idCuen);
         cuenta.CaratulaPath.Should().Be("caratulas/cuentas/new.pdf");
 
-        // Sin staging, sin cambio de estatus
         db.StagingProveedores.Should().BeEmpty();
         var proveedor = await db.Proveedores.SingleAsync(p => p.IdProveedor == idProv);
         proveedor.Estatus.Should().Be(EstatusProveedor.Nuevo);
     }
 
-    // ---------------------------------------------------------------------
-    // Autorizado (Aprobado) → staging; live intacto; diff == 1
-    // ---------------------------------------------------------------------
-
-    [Fact]
+[Fact]
     public async Task SubirCaratulaCuenta_Aprobado_VaAStaging_CuentaLiveIntacta_DiffLongitudUno()
     {
         var (db, service) = BuildService("aprobado-stage");
@@ -125,27 +104,20 @@ public class ProveedorCaratulaFlowTests
 
         result.IsError.Should().BeFalse();
 
-        // Estatus → EditadoPendiente
         var proveedor = await db.Proveedores.SingleAsync(p => p.IdProveedor == idProv);
         proveedor.Estatus.Should().Be(EstatusProveedor.EditadoPendiente);
 
-        // Staging creado; cuenta LIVE intacta (sigue con old.pdf)
         db.StagingProveedores.Should().ContainSingle();
         var cuentaLive = await db.ProveedoresFormasPagoCuentas.SingleAsync(c => c.IdCuenta == idCuen);
         cuentaLive.CaratulaPath.Should().Be("old.pdf", "la cuenta live no se toca durante staging");
 
-        // Diff == 1 (sólo la carátula)
         var staging = await service.GetStagingByProveedorIdAsync(idProv);
         staging.IsError.Should().BeFalse();
         staging.Value.Diferencias.Should().ContainSingle();
         staging.Value.Diferencias[0].Label.Should().Be($"Carátula cuenta {TwoBullets}1234 actualizada");
     }
 
-    // ---------------------------------------------------------------------
-    // Aprobado → staging → AutorizarEdicion → promover carátula a live
-    // ---------------------------------------------------------------------
-
-    [Fact]
+[Fact]
     public async Task AutorizarEdicion_PromueveCaratulaStagingALive()
     {
         var (db, service) = BuildService("aprobado-approve");
@@ -164,11 +136,7 @@ public class ProveedorCaratulaFlowTests
         db.StagingProveedores.Should().BeEmpty();
     }
 
-    // ---------------------------------------------------------------------
-    // Aprobado → staging → RechazarEdicion → cuenta live intacta + estatus Aprobado
-    // ---------------------------------------------------------------------
-
-    [Fact]
+[Fact]
     public async Task RechazarEdicion_CuentaLiveQuedaIntacta()
     {
         var (db, service) = BuildService("aprobado-reject");
@@ -179,7 +147,6 @@ public class ProveedorCaratulaFlowTests
 
         rechazar.IsError.Should().BeFalse();
 
-        // La cuenta live sigue SIN carátula (nunca se tocó durante staging)
         var cuenta = await db.ProveedoresFormasPagoCuentas.SingleAsync(c => c.IdCuenta == idCuen);
         cuenta.CaratulaPath.Should().BeNull("el rechazo descarta el staging sin tocar la cuenta live");
 
@@ -188,11 +155,7 @@ public class ProveedorCaratulaFlowTests
         db.StagingProveedores.Should().BeEmpty();
     }
 
-    // ---------------------------------------------------------------------
-    // Cuenta inexistente → NotFound
-    // ---------------------------------------------------------------------
-
-    [Fact]
+[Fact]
     public async Task SubirCaratulaCuenta_CuentaInexistente_DevuelveNotFound()
     {
         var (db, service) = BuildService("cuenta-missing");

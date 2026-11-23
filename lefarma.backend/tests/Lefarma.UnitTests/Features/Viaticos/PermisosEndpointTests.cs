@@ -4,11 +4,6 @@ using System.Text.Encodings.Web;
 using FluentAssertions;
 using Lefarma.API.Shared.Authorization;
 using Lefarma.API.Shared.Constants;
-// WebHostBuilder y TestServer(IWebHostBuilder) estan marcados obsoletos en
-// .NET 8+ (ASPDEPR004/ASPDEPR008). El reemplazo moderno recomendado
-// (WebApplicationFactory<TEntryPoint> con WebApplicationBuilder) requiere un
-// entry point publico valido, lo cual obligaria a importar la app completa
-// y sus DBs. Aqui preferimos un pipeline in-memory sin tocar Program.cs.
 #pragma warning disable ASPDEPR004
 #pragma warning disable ASPDEPR008
 using Microsoft.AspNetCore.Authentication;
@@ -24,16 +19,6 @@ using Microsoft.Extensions.Options;
 
 namespace Lefarma.UnitTests.Features.Viaticos;
 
-/// <summary>
-/// Smoke test HTTP del helper <see cref="ClaimsPrincipalExtensions.TienePermiso"/>
-/// + <see cref="ClaimsPrincipalExtensions.GetUserId"/> levantando una mini
-/// aplicacion ASP.NET Core en memoria (<see cref="TestServer"/>).
-///
-/// El endpoint de prueba devuelve 200 con el claim correspondiente y 403 sin
-/// el. Las cabeceras <c>X-Test-UserId</c> y <c>X-Test-Permissions</c> (CSV)
-/// inyectan los claims via un <see cref="AuthenticationHandler{TOptions}"/>
-/// propio, sin necesidad de JWT real.
-/// </summary>
 public class PermisosEndpointTests
 {
     [Fact]
@@ -73,7 +58,6 @@ public class PermisosEndpointTests
     {
         using var servidor = CrearServidor();
         using var cliente = servidor.CreateClient();
-        // sin X-Test-Permissions => TestAuthHandler devuelve NoResult => [Authorize] => 401
 
         using var respuesta = await cliente.GetAsync(
             "/permisos-test/ping?permiso=" + Permissions.Viaticos.Autorizar);
@@ -130,17 +114,7 @@ public class PermisosEndpointTests
         return new TestServer(builder);
     }
 
-    // ------------------------------------------------------------------ //
-    //                       Tipos de la mini-app                          //
-    // ------------------------------------------------------------------ //
-
-    /// <summary>
-    /// Handler de autenticacion de pruebas. Lee <c>X-Test-UserId</c> y
-    /// <c>X-Test-Permissions</c> (CSV) para emitir los claims sin necesidad
-    /// de JWT real. Si ninguna cabecera esta presente devuelve <c>NoResult</c>,
-    /// lo que el atributo <c>[Authorize]</c> traduce en 401.
-    /// </summary>
-    public sealed class TestAuthHandler : AuthenticationHandler<AuthenticationSchemeOptions>
+public sealed class TestAuthHandler : AuthenticationHandler<AuthenticationSchemeOptions>
     {
         public const string NombreEsquema = "Test";
 

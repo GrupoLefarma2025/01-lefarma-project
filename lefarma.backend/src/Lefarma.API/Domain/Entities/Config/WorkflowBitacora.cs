@@ -8,11 +8,10 @@ public class WorkflowBitacora
         public int IdAccion { get; set; }
         public int IdUsuario { get; set; }
         public string? Comentario { get; set; }
-        public string? DatosSnapshot { get; set; } // JSON del estado de la OC
+        public string? DatosSnapshot { get; set; } 
 
         public DateTime FechaEvento { get; set; }
 
-        // soportan otros tipos de entidades además de ordenes de compra
         public string TipoEntidad { get; set; } = null!;
         public int IdEntidad { get; set; }
 

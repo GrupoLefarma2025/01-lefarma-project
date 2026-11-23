@@ -157,8 +157,6 @@ function tieneIncidenciaReal(incidencia: IncidenciaChecadoResponse) {
   return (incidencia.incidenciasCalculadas ?? []).length > 0;
 }
 
-// Un día puede tener varias incidencias (ej. retardo + omisión): se muestran
-// todas separadas por " | " tanto en el badge como en su tooltip (title).
 function getIncidenciaLabel(incidencia: IncidenciaChecadoResponse): string | undefined {
   const nombres = (incidencia.incidenciasCalculadas ?? []).map((i) => i.nombre);
   return nombres.length > 0 ? nombres.join(' | ') : undefined;
@@ -575,10 +573,6 @@ function DetalleModal({
   );
 }
 
-/**
- * `lg` es el punto donde el dashboard pone el calendario a la altura de la
- * ventana. Fuera de ese punto las filas crecen con su contenido.
- */
 function useEsEscritorio() {
   const [esEscritorio, setEsEscritorio] = useState(() =>
     typeof window !== 'undefined' && typeof window.matchMedia === 'function'
@@ -597,11 +591,6 @@ function useEsEscritorio() {
   return esEscritorio;
 }
 
-/**
- * Cuántos eventos caben por día cuando el calendario se ajusta al alto de la
- * ventana. Se recalcula al cambiar el tamaño de la ventana o el zoom del
- * navegador para que ninguna celda recorte sus eventos.
- */
 function useEventosVisibles(
   gridRef: React.RefObject<HTMLDivElement | null>,
   filas: number,
@@ -616,7 +605,6 @@ function useEventosVisibles(
 
     const observador = new ResizeObserver(() => {
       const altoFila = (grid.clientHeight - Math.max(0, filas - 1)) / Math.max(1, filas);
-      // 8px de relleno + 22px del número de día; cada evento compacto mide ~15px.
       setVisibles(Math.max(1, Math.floor((altoFila - 30) / 15)));
     });
     observador.observe(grid);
@@ -840,7 +828,6 @@ export function MiCalendario({ onSolicitudGuardada }: { onSolicitudGuardada?: ()
 
                   const cupo = esEscritorio ? eventosVisibles : 3;
                   const hayOcultos = items.length > cupo;
-                  // En escritorio se reserva un renglón para el botón "+N más".
                   const mostrar =
                     hayOcultos && esEscritorio
                       ? Math.max(0, cupo - 1)

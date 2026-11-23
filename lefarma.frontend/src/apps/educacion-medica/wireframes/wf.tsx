@@ -1,12 +1,5 @@
 import type { ReactNode } from 'react';
 
-/**
- * Primitivas compartidas de wireframes LO-FI para Educación Médica.
- *
- * TODO(wireframe): componentes solo visuales, sin datos reales ni interacción.
- * Se eliminarán cuando el módulo se implemente con componentes reales.
- */
-
 export function WfPage({
   title,
   subtitle,

@@ -20,9 +20,6 @@ public class GeocodificarController : ControllerBase
         _cache = cache;
     }
 
-    // Anónimo: el selector de mapa consulta con fetch simple (sin Bearer) y
-    // solo expone datos públicos de OSM; el upstream queda acotado por el
-    // rate-limit de 1 req/s y el cache de 6 h del servicio.
     [HttpGet("geocodificar")]
     [AllowAnonymous]
     [SwaggerOperation(
@@ -78,8 +75,6 @@ public class GeocodificarController : ControllerBase
         }
     }
 
-    // Igual que la búsqueda: fetch simple sin Bearer. La lista blanca de hosts,
-    // la validación por salto y el tope de redirecciones viven en el servicio.
     [HttpGet("resolver-liga")]
     [AllowAnonymous]
     [SwaggerOperation(

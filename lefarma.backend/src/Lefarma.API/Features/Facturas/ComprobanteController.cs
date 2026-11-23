@@ -46,9 +46,6 @@ public class ComprobanteController : ControllerBase
         return true;
     }
 
-    /// <summary>
-    /// Parsea un XML CFDI y devuelve los datos extraídos sin guardar nada.
-    /// </summary>
     [HttpPost("parsear-xml")]
     [RequestSizeLimit(5_000_000)]
     [Consumes("multipart/form-data")]
@@ -70,9 +67,6 @@ public class ComprobanteController : ControllerBase
         }));
     }
 
-    /// <summary>
-    /// Sube un comprobante (CFDI o simple) con sus archivos.
-    /// </summary>
     [HttpPost]
     [RequestSizeLimit(50_000_000)]
     [Consumes("multipart/form-data")]
@@ -83,7 +77,6 @@ public class ComprobanteController : ControllerBase
         IFormFile? archivo,
         CancellationToken ct)
     {
-        // Leer XML a string en el controller para evitar problemas con el stream del request
         string? xmlContent = null;
         if (xmlFile != null && xmlFile.Length > 0)
         {
@@ -91,7 +84,6 @@ public class ComprobanteController : ControllerBase
             xmlContent = await sr.ReadToEndAsync(ct);
         }
 
-        // Leer archivo adicional a MemoryStream
         MemoryStream? archivoStream = null;
         if (archivo != null && archivo.Length > 0)
         {
@@ -115,9 +107,6 @@ public class ComprobanteController : ControllerBase
         }));
     }
 
-    /// <summary>
-    /// Obtiene un comprobante por ID con sus conceptos.
-    /// </summary>
     [HttpGet("{id:int}")]
     [SwaggerOperation(Summary = "Obtener comprobante por ID")]
     public async Task<IActionResult> GetById(int id, CancellationToken ct)
@@ -129,9 +118,6 @@ public class ComprobanteController : ControllerBase
         }));
     }
 
-    /// <summary>
-    /// Lista los conceptos de un comprobante CFDI.
-    /// </summary>
     [HttpGet("{id:int}/conceptos")]
     [SwaggerOperation(Summary = "Obtener conceptos del comprobante")]
     public async Task<IActionResult> GetConceptos(int id, CancellationToken ct)
@@ -143,9 +129,6 @@ public class ComprobanteController : ControllerBase
         }));
     }
 
-    /// <summary>
-    /// Lista las partidas de una orden que aún tienen facturación pendiente.
-    /// </summary>
     [HttpGet("partidas-pendientes")]
     [SwaggerOperation(Summary = "Partidas pendientes de facturación de una orden")]
     public async Task<IActionResult> GetPartidasPendientes([FromQuery] int idOrden, [FromQuery] string categoria = "gasto", CancellationToken ct = default)
@@ -157,9 +140,6 @@ public class ComprobanteController : ControllerBase
         }));
     }
 
-    /// <summary>
-    /// Asigna conceptos del comprobante a partidas de órdenes de compra.
-    /// </summary>
     [HttpPost("{id:int}/asignar-partidas")]
     [SwaggerOperation(Summary = "Asignar conceptos a partidas de OC",
         Description = "Relaciona conceptos del comprobante con partidas, valida cantidades e importes, y actualiza el estado de facturación.")]
@@ -176,9 +156,6 @@ public class ComprobanteController : ControllerBase
         }));
     }
 
-    /// <summary>
-    /// Obtiene el estado de facturación de una partida con sus comprobantes aplicados.
-    /// </summary>
     [HttpGet("partidas/{idPartida:int}/facturacion")]
     [SwaggerOperation(Summary = "Detalle de facturación de una partida")]
     public async Task<IActionResult> GetFacturacionPartida(int idPartida, CancellationToken ct)
@@ -190,9 +167,6 @@ public class ComprobanteController : ControllerBase
         }));
     }
 
-    /// <summary>
-    /// Elimina un comprobante y revierte únicamente sus asignaciones.
-    /// </summary>
     [HttpDelete("{id:int}")]
     [SwaggerOperation(Summary = "Eliminar comprobante", Description = "Elimina un comprobante, revierte sus asignaciones a partidas y desactiva sus archivos relacionados sin afectar los demás comprobantes.")]
     public async Task<IActionResult> Eliminar(int id, CancellationToken ct)
@@ -205,9 +179,6 @@ public class ComprobanteController : ControllerBase
         }));
     }
 
-    /// <summary>
-    /// Elimina una asignación parcial de gasto y conserva el comprobante y sus demás asignaciones.
-    /// </summary>
     [HttpDelete("asignaciones/{idAsignacion:int}")]
     [SwaggerOperation(Summary = "Eliminar asignación parcial de gasto", Description = "Revierte únicamente el importe y la cantidad aplicados a una partida. Si el comprobante queda sin asignaciones, se marca como cancelado.")]
     public async Task<IActionResult> EliminarAsignacion(int idAsignacion, CancellationToken ct)
@@ -221,9 +192,6 @@ public class ComprobanteController : ControllerBase
         }));
     }
 
-    /// <summary>
-    /// Elimina todos los comprobantes de una categoría para una orden y revierte sus asignaciones.
-    /// </summary>
     [HttpDelete("orden/{idOrden:int}")]
     [SwaggerOperation(Summary = "Eliminar comprobantes por orden", Description = "Elimina todos los comprobantes de gasto o pago para una orden, revierte asignaciones a partidas y desactiva archivos relacionados.")]
     public async Task<IActionResult> EliminarPorOrden(int idOrden, [FromQuery] string categoria, CancellationToken ct)
@@ -239,9 +207,6 @@ public class ComprobanteController : ControllerBase
         }));
     }
 
-    /// <summary>
-    /// Obtiene el historial de comprobantes (gasto o pago) de una orden, incluyendo los cancelados.
-    /// </summary>
     [HttpGet("historial-comprobantes")]
     [SwaggerOperation(Summary = "Historial de comprobantes de una orden")]
     public async Task<IActionResult> GetHistorialComprobantes(

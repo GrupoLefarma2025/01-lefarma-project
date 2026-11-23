@@ -5,14 +5,11 @@ import type { CostosRutaLugarInput, CostosRutaOpciones, CostosRutaRequest, Punto
 export interface DestinationForm {
   id: number;
   hospitalId: number | null;
-  /** Punto manual en mapa; si existe, tiene prioridad sobre `hospitalId`. */
   punto?: PuntoSeleccion | null;
-  /** Modo de captura del destino: catálogo de hospitales o punto en mapa. */
   destinoModo?: 'catalogo' | 'mapa';
   date: string;
   start?: string;
   end?: string;
-  /** Llegada opcional al destino; si se omite, el backend la deriva. */
   llegadaFecha?: string;
   llegadaHora?: string;
   sourceHospital?: string;
@@ -22,18 +19,14 @@ export interface DestinationForm {
 export interface PersonForm {
   id: number;
   name: string;
-  /** `mi` = captura para el usuario en sesión; `otro` = empleado elegido del directorio. */
   modoNombre: 'mi' | 'otro';
-  /** Empleado seleccionado cuando `modoNombre` es `otro` (solo UI). */
   directorioId: number | null;
   ownCar: boolean;
   fuel: 'magna' | 'premium';
   start: string;
   end: string;
   originId: number | null;
-  /** Origen manual en mapa; si existe, tiene prioridad sobre `originId`. */
   origenPunto: PuntoSeleccion | null;
-  /** Modo de captura del origen: catálogo de sucursales o punto en mapa. */
   origenModo: 'catalogo' | 'mapa';
   departureDate: string;
   departureTime: string;

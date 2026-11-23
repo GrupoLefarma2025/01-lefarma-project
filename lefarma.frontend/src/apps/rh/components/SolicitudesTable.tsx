@@ -23,12 +23,7 @@ import { getCategoriaNombre } from '@/types/solicitudPersonal.types';
 
 interface SolicitudesTableProps {
   data: SolicitudPersonalResponse[];
-  /** Nombre histórico del flag de carga; sigue funcionando por compatibilidad. */
   loading?: boolean;
-  /**
-   * Muestra el skeleton de filas (mismas columnas de la tabla) mientras llegan
-   * las solicitudes. Es opcional: sin él, la tabla se comporta como siempre.
-   */
   loader?: boolean;
   title?: string;
   subtitle?: string;
@@ -56,11 +51,6 @@ interface SolicitudesTableProps {
   onPaginationChange?: (state: PaginationState) => void;
 }
 
-/**
- * Columnas con embudo de filtro visible por defecto. TanStack sólo puede
- * ordenar y filtrar por columna si la columna expone un valor (`accessorKey` o
- * `accessorFn`); por eso cada columna de datos lo declara más abajo.
- */
 const COLUMNAS_FILTRABLES = [
   'folio',
   'tipoSolicitudNombre',
@@ -137,7 +127,6 @@ export function SolicitudesTable({
   paginationState,
   onPaginationChange,
 }: SolicitudesTableProps) {
-  // `loader` es el nombre preferido; `loading` se conserva por compatibilidad.
   const isLoading = loader ?? loading;
 
   const columns: ColumnDef<SolicitudPersonalResponse>[] = useMemo(
@@ -200,20 +189,9 @@ export function SolicitudesTable({
         accessorFn: (s) => s.creadorNombre ?? '',
         cell: ({ row }) => <span className="text-xs">{row.original.creadorNombre ?? '—'}</span>,
       },
-      /* {
-        id: 'motivo',
-        header: 'Motivo',
-        cell: ({ row }) => (
-          <span className="line-clamp-2 max-w-[260px] text-xs text-muted-foreground" title={row.original.motivo ?? ''}>
-            {row.original.motivo || '-'}
-          </span>
-        ),
-      }, */
       {
         id: 'estado',
         header: 'Estado',
-        // El embudo filtra por el nombre legible del estado y la flecha ordena
-        // por el orden del workflow (idEstado), no alfabéticamente.
         accessorFn: (s) => s.estadoNombre ?? getEstadoInfo(s).nombre,
         sortingFn: (a, b) =>
           (a.original.idEstado ?? Number.MAX_SAFE_INTEGER) -
@@ -241,7 +219,7 @@ export function SolicitudesTable({
         cell: ({ row }) => {
           const s = row.original;
           const puedeEditarFila =
-            showEditar && s.estadoNombre === 'CREADA'; //&& esDelMesActual(s.fechaCreacion);
+            showEditar && s.estadoNombre === 'CREADA'; 
           return (
             <div className="flex items-center gap-1">
               <Button size="sm" variant="outline" onClick={() => onDetalle(s)}>
@@ -325,9 +303,6 @@ export function SolicitudesTable({
         showRefreshButton={Boolean(onRefresh)}
         onRefresh={onRefresh}
         filterConfig={{
-          // v2: la configuración guardada de la versión anterior sólo marcaba
-          // «folio» en el buscador y no coincidiría con los embudos de esta
-          // tabla. El id nuevo parte de la configuración curada.
           tableId: 'rh-solicitudes-personal-v2',
           searchableColumns: COLUMNAS_FILTRABLES,
           defaultSearchColumns: COLUMNAS_FILTRABLES,

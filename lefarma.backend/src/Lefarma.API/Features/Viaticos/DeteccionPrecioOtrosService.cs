@@ -7,12 +7,6 @@ using Microsoft.Extensions.Options;
 
 namespace Lefarma.API.Features.Viaticos;
 
-/// <summary>
-/// Detección para opciones que no son vuelos. Autobús: ClickBus/Primera Plus.
-/// Hotel: Google Hotels. Mismo orden que vuelos: Playwright y, si falla o no
-/// hay tarjetas, Firecrawl. La captura es obligatoria; sin evidencia no se
-/// aplica el precio.
-/// </summary>
 public interface IDeteccionPrecioOtrosService
 {
     Task<DeteccionPrecioResult> DetectarAsync(
@@ -117,10 +111,6 @@ public sealed class DeteccionPrecioOtrosService : IDeteccionPrecioOtrosService
         };
     }
 
-    /// <summary>
-    /// Reemplaza la captura de resultados por la tarjeta del autobús u hotel
-    /// elegido. Si el recorte falla, deja la captura original.
-    /// </summary>
     private async Task<DeteccionPrecioResult> ConCapturaDeOpcionAsync(
         DeteccionPrecioResult resultado,
         string tipo,
@@ -187,9 +177,6 @@ public sealed class DeteccionPrecioOtrosService : IDeteccionPrecioOtrosService
 
     private static DeteccionPrecioResult Elegir(ResultadoFuente fuente, string tipo)
     {
-        // El parser de autobuses ya devuelve solo las opciones que llegan a
-        // tiempo (si hay deadline) y ordenadas por precio. El de hoteles solo
-        // devuelve coincidencias del hotel cotizado.
         var elegido = fuente.Opciones
             .OrderBy(o => o.Precio)
             .ThenBy(o => o.DuracionMin ?? int.MaxValue)
@@ -235,8 +222,6 @@ public sealed class DeteccionPrecioOtrosService : IDeteccionPrecioOtrosService
             return ResultadoFuente.Fallo("no está disponible detectar-pagina.mjs");
 
         var query = ExtraerFechasDeUrl(url);
-        // Google Hotels responde 500 al buscar un hotel concreto por nombre;
-        // el listado de la ciudad sí renderiza y contiene la tarjeta del hotel.
         var urlPlaywright = tipo == "hotel" ? UrlsHoteles.ParaListado(url) : url;
         var input = JsonSerializer.Serialize(new
         {

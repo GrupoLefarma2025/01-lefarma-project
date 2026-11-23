@@ -1,7 +1,4 @@
 namespace Lefarma.API.Features.Profile.DTOs;
-/// <summary>
-/// Response con información del perfil del usuario autenticado
-/// </summary>
 public record ProfileResponse
 {
     public int IdUsuario { get; init; }
@@ -13,33 +10,18 @@ public record ProfileResponse
     public DateTime? UltimoLogin { get; init; }
     public DateTime FechaCreacion { get; init; }
 
-    // Roles y permisos del usuario
     public List<string> Roles { get; init; } = [];
     public List<string> Permissions { get; init; } = [];
 
-    // Detalle de la empresa seleccionada (para saber si puede ver/seleccionar otras)
     public bool PuedeSeleccionarEmpresas { get; init; }
 
-    /// <summary>
-    /// Área (departamento) del empleado según Asistencias.dbo.vwEmpleados.
-    /// Es la fuente que muestra la UI; el área del catálogo CxP se conserva
-    /// solo como respaldo y para la operación de las órdenes.
-    /// </summary>
     public string? AreaEmpleado { get; init; }
 
-    /// <summary>
-    /// Puesto del empleado según Asistencias.dbo.vwEmpleados. Sustituye a
-    /// app.Usuarios.Puesto, que en producción está en 'Sin asignar'.
-    /// </summary>
     public string? PuestoEmpleado { get; init; }
 
-    // Detalles del usuario
     public UsuarioDetalleData? Detalle { get; init; }
 }
 
-/// <summary>
-/// Datos de detalle del usuario
-/// </summary>
 public record UsuarioDetalleData
 {
     public int IdEmpresa { get; init; }
@@ -49,12 +31,10 @@ public record UsuarioDetalleData
     public string? Puesto { get; init; }
     public string? NumeroEmpleado { get; init; }
     public string? FirmaPath { get; init; }
-    /// <summary>Puntero a la firma cifrada vigente del sistema RH (solo ella define "tener firma").</summary>
     public string? FirmaPathCifrada { get; init; }
     public int FirmaSubidas { get; init; }
     public bool FirmaCambioHabilitado { get; init; }
     public bool FirmaCambioSolicitado { get; init; }
-    /// <summary>Hay una firma con INE esperando aprobación de RH.</summary>
     public bool FirmaEnComprobacion { get; init; }
     public DateTime? FechaSolicitudCambioFirma { get; init; }
     public string? TelefonoOficina { get; init; }
@@ -77,20 +57,14 @@ public record UsuarioDetalleData
     public string? DashboardInicio { get; init; }
 }
 
-/// <summary>
-/// Request para actualizar el perfil del usuario autenticado
-/// </summary>
 public record UpdateProfileRequest
 {
-    // Datos básicos del usuario
     public string? NombreCompleto { get; init; }
     public string? Correo { get; init; }
 
-    // Datos de detalle editables
     public int? IdCentroCosto { get; init; }
     public string? Puesto { get; init; }
     public string? NumeroEmpleado { get; init; }
-    // FirmaPath fue removido: la firma solo cambia vía POST /profile/firma.
     public string? TelefonoOficina { get; init; }
     public string? Extension { get; init; }
     public string? Celular { get; init; }

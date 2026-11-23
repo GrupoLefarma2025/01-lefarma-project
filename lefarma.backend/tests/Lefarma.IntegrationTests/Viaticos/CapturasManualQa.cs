@@ -9,19 +9,6 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Lefarma.Tests.Viaticos;
 
-/// <summary>
-/// QA MANUAL de T8 (capturas de viaticos). NO es una prueba de regresion:
-/// arranca Chromium via node y sale a internet, por lo que es lenta y
-/// dependiente de red. Existe para dejar evidencia reproducible del flujo
-/// completo HTTP -> NodeCapturasScriptRunner -> captura-viaticos.mjs ->
-/// copia del PNG a wwwroot/media/capturas-viaticos.
-///
-/// Se ejecuta a mano:
-///   dotnet test tests/Lefarma.IntegrationTests/Lefarma.IntegrationTests.csproj
-///     --filter FullyQualifiedName~CapturasManualQa
-/// Imprime la respuesta literal del POST y verifica con Test-Path que el PNG
-/// existe en disco.
-/// </summary>
 public sealed class CapturasManualQa : IClassFixture<CapturasManualQa.CapturasQaFixture>
 {
     public const string NombreEsquema = "CapturasQa";
@@ -61,10 +48,6 @@ public sealed class CapturasManualQa : IClassFixture<CapturasManualQa.CapturasQa
         }
     }
 
-    /// <summary>
-    /// Fixture con <c>CapturasSettings:HardTimeoutSeconds=2</c> para forzar el
-    /// camino de kill del arbol de procesos sin esperar los 120s por defecto.
-    /// </summary>
     public sealed class TimeoutQaFixture : WebApplicationFactory<Program>
     {
         protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -123,7 +106,6 @@ public sealed class CapturasManualQa : IClassFixture<CapturasManualQa.CapturasQa
 
             if (!ok) continue;
 
-            // Test-Path equivalente: el PNG debe existir bajo el WebRoot real.
             var wwwroot = _factory.Services
                 .GetRequiredService<IWebHostEnvironment>().WebRootPath;
             var ruta = Path.Combine(wwwroot, "media",
@@ -136,11 +118,6 @@ public sealed class CapturasManualQa : IClassFixture<CapturasManualQa.CapturasQa
         }
     }
 
-    /// <summary>
-    /// QA del camino de timeout: con HardTimeoutSeconds=2 el runner debe matar
-    /// el ARBOL de procesos (node + chromium) y responder 200 con ok=false, sin
-    /// 500 y sin dejar procesos huerfanos de ms-playwright.
-    /// </summary>
     [Fact]
     public async Task Script_colgado_por_timeout_responde_200_sin_dejar_huerfanos()
     {
@@ -153,7 +130,6 @@ public sealed class CapturasManualQa : IClassFixture<CapturasManualQa.CapturasQa
         {
             urls = new object[]
             {
-                // httpbin.org/delay/60 se queda colgado 60s >> 2s de timeout.
                 new { url = "https://httpbin.org/delay/60", nombre = "qa-hang" },
             },
         });
@@ -168,8 +144,6 @@ public sealed class CapturasManualQa : IClassFixture<CapturasManualQa.CapturasQa
         Console.WriteLine("===QA_HANG_OK=== " + item.GetProperty("ok").GetBoolean());
         Console.WriteLine("===QA_HANG_ERROR=== " + item.GetProperty("error").GetString());
 
-        // El runner mata el arbol de forma sincrona antes de responder, pero
-        // Windows tarda unos ms en soltar los handles: damos margen corto.
         var despues = -1;
         for (var i = 0; i < 20 && despues != antes; i++)
         {
@@ -180,15 +154,8 @@ public sealed class CapturasManualQa : IClassFixture<CapturasManualQa.CapturasQa
         Assert.Equal(antes, despues);
     }
 
-    /// <summary>
-    /// Cuenta procesos reales de Playwright/Chromium. Se excluyen a proposito
-    /// powershell.exe y bash.exe: el comando de deteccion en si mismo lleva
-    /// 'ms-playwright' en su linea de comandos y se contaria a si mismo.
-    /// </summary>
     private static int CountProcesosPlaywright()
     {
-        // .NET no expone CommandLine en System.Diagnostics.Process (solo en
-        // WMI/CIM), por eso se delega a PowerShell + Get-CimInstance.
         var psi = new System.Diagnostics.ProcessStartInfo
         {
             FileName = "powershell",
@@ -199,8 +166,6 @@ public sealed class CapturasManualQa : IClassFixture<CapturasManualQa.CapturasQa
         };
         psi.ArgumentList.Add("-NoProfile");
         psi.ArgumentList.Add("-Command");
-        // Se excluyen a proposito powershell/bash/conhost: el propio comando de
-        // deteccion lleva 'ms-playwright' en su linea de comandos.
         psi.ArgumentList.Add(
             "@(Get-CimInstance Win32_Process | Where-Object { " +
             "$_.CommandLine -match 'ms-playwright' -and " +

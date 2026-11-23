@@ -12,10 +12,6 @@ using Microsoft.EntityFrameworkCore.Storage;
 
 namespace Lefarma.API.Features.Configuracion;
 
-/// <summary>
-/// Servicio principal del módulo Configuración: CRUD de variables globales,
-/// bitácora inmutable, restauración de versiones y sincronización con frontend.
-/// </summary>
 public sealed class ConfiguracionService : IConfiguracionService
 {
     private static readonly JsonSerializerOptions SnapshotJsonOptions = new()
@@ -24,7 +20,6 @@ public sealed class ConfiguracionService : IConfiguracionService
         Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
     };
 
-    /// <summary>Clave con módulo: modulo.namespace.clave (cada segmento inicia con minúscula).</summary>
     private static readonly Regex ClaveConModuloRegex = new(
         @"^[a-z][a-zA-Z0-9_]*(\.[a-z][a-zA-Z0-9_]*){2}$",
         RegexOptions.Compiled | RegexOptions.CultureInvariant);
@@ -46,9 +41,7 @@ public sealed class ConfiguracionService : IConfiguracionService
         _logger = logger;
     }
 
-    // ---------------------------------------------------------------- listado
-
-    public async Task<ErrorOr<List<ConfigVariableResponse>>> ListarAsync(
+public async Task<ErrorOr<List<ConfigVariableResponse>>> ListarAsync(
         ConfiguracionFiltros filtros,
         CancellationToken ct = default)
     {
@@ -123,9 +116,7 @@ public sealed class ConfiguracionService : IConfiguracionService
             : Mapear(entidad);
     }
 
-    // ------------------------------------------------------------------ crear
-
-    public async Task<ErrorOr<ConfigVariableResponse>> CrearAsync(
+public async Task<ErrorOr<ConfigVariableResponse>> CrearAsync(
         CreateConfigVariableRequest request,
         int? idUsuario,
         CancellationToken ct = default)
@@ -306,9 +297,7 @@ public sealed class ConfiguracionService : IConfiguracionService
         return Mapear(entidad);
     }
 
-    // ------------------------------------------------------------- actualizar
-
-    public async Task<ErrorOr<ConfigVariableResponse>> ActualizarAsync(
+public async Task<ErrorOr<ConfigVariableResponse>> ActualizarAsync(
         long id,
         UpdateConfigVariableRequest request,
         int? idUsuario,
@@ -426,9 +415,7 @@ public sealed class ConfiguracionService : IConfiguracionService
         return Mapear(entidad);
     }
 
-    // -------------------------------------------------- activar / desactivar
-
-    public Task<ErrorOr<ConfigVariableResponse>> DesactivarAsync(
+public Task<ErrorOr<ConfigVariableResponse>> DesactivarAsync(
         long id,
         CambiarEstadoVariableRequest request,
         int? idUsuario,
@@ -509,9 +496,7 @@ public sealed class ConfiguracionService : IConfiguracionService
         return Mapear(entidad);
     }
 
-    // --------------------------------------------------------------- historial
-
-    public async Task<ErrorOr<List<BitacoraResumenResponse>>> ObtenerHistorialAsync(
+public async Task<ErrorOr<List<BitacoraResumenResponse>>> ObtenerHistorialAsync(
         long id,
         CancellationToken ct = default)
     {
@@ -568,9 +553,7 @@ public sealed class ConfiguracionService : IConfiguracionService
         };
     }
 
-    // ------------------------------------------------------------- restauración
-
-    public async Task<ErrorOr<ConfigVariableResponse>> RestaurarAsync(
+public async Task<ErrorOr<ConfigVariableResponse>> RestaurarAsync(
         long id,
         RestaurarVariableRequest request,
         int? idUsuario,
@@ -692,9 +675,7 @@ public sealed class ConfiguracionService : IConfiguracionService
         return Mapear(entidad);
     }
 
-    // ------------------------------------------------------ frontend (sync)
-
-    public async Task<ErrorOr<FrontendSyncResponse>> ConsultarFrontendAsync(
+public async Task<ErrorOr<FrontendSyncResponse>> ConsultarFrontendAsync(
         FrontendConsultarRequest request,
         CancellationToken ct = default)
     {
@@ -824,9 +805,7 @@ public sealed class ConfiguracionService : IConfiguracionService
         return respuesta;
     }
 
-    // ---------------------------------------------------------------- helpers
-
-    private async Task<long> ObtenerRevisionActualAsync(CancellationToken ct)
+private async Task<long> ObtenerRevisionActualAsync(CancellationToken ct)
         => await _context.ConfigVariablesBitacora
                .AsNoTracking()
                .MaxAsync(b => (long?)b.IdBitacora, ct) ?? 0;
@@ -918,7 +897,6 @@ public sealed class ConfiguracionService : IConfiguracionService
 
     private async Task<IDbContextTransaction?> IniciarTransaccionAsync(CancellationToken ct)
     {
-        // El proveedor InMemory (pruebas) no soporta transacciones; en SQL Server siempre se usa.
         return _context.Database.IsRelational()
             ? await _context.Database.BeginTransactionAsync(ct)
             : null;
@@ -953,7 +931,6 @@ public sealed class ConfiguracionService : IConfiguracionService
         }
         catch (Exception ex)
         {
-            // Un fallo al notificar nunca debe tumbar la mutación ya confirmada.
             _logger.LogWarning(ex,
                 "No se pudo emitir el evento SSE configuracion.changed (revisión {Revision}).",
                 revision);

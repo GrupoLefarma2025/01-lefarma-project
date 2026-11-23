@@ -4,13 +4,8 @@ using Lefarma.API.Shared.Errors;
 
 namespace Lefarma.API.Features.Configuracion;
 
-/// <summary>
-/// Reglas de negocio puras del módulo Configuración (sin dependencias de base de datos),
-/// para poder probarlas de forma aislada.
-/// </summary>
 public static class ConfiguracionReglas
 {
-    /// <summary>Una variable debe estar disponible al menos en un destino.</summary>
     public static bool TieneDestino(
         bool disponibleBackend,
         bool disponibleFrontend,
@@ -18,10 +13,6 @@ public static class ConfiguracionReglas
         bool disponibleIntegraciones)
         => disponibleBackend || disponibleFrontend || disponibleSql || disponibleIntegraciones;
 
-    /// <summary>
-    /// Rechaza cualquier intento de cambiar la clave o el tipo de dato de una variable existente.
-    /// Los valores nulos o vacíos significan "no enviado" (no se valida).
-    /// </summary>
     public static ErrorOr<Success> ValidarInmutables(
         string claveActual,
         string tipoDatoActual,
@@ -53,10 +44,6 @@ public static class ConfiguracionReglas
         return Result.Success;
     }
 
-    /// <summary>
-    /// Extrae de un snapshot de bitácora únicamente los campos restaurables:
-    /// nombre, descripción, valor, esquema y disponibilidades.
-    /// </summary>
     public static ErrorOr<ConfiguracionValoresRestaurables> ExtraerRestaurables(string? datosNuevosJson)
     {
         if (string.IsNullOrWhiteSpace(datosNuevosJson))

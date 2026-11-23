@@ -23,7 +23,6 @@ interface TallerAjustesModalProps {
   taller: Taller | null;
 }
 
-/** Historial de ajustes post-cierre del taller (ajustes_post_cierre; ADR-00010). */
 export function TallerAjustesModal({ open, onClose, taller }: TallerAjustesModalProps) {
   const [ajustes, setAjustes] = useState<AjustePostCierre[]>([]);
   const [loading, setLoading] = useState(false);

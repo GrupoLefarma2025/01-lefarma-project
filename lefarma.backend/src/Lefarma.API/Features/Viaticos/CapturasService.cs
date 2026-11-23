@@ -9,71 +9,25 @@ using Microsoft.Extensions.Options;
 
 namespace Lefarma.API.Features.Viaticos;
 
-/// <summary>
-/// Configuracion de capturas de viaticos (T8 del plan costos-ruta-demo).
-/// Vive en appsettings bajo la seccion <c>CapturasSettings</c>.
-/// </summary>
 public class CapturasSettings
 {
-    /// <summary>
-    /// Lista blanca de dominios permitidos. Opcional: vacia por defecto, el
-    /// servicio NO exige pertenencia, pero el esquema y los dominios
-    /// prohibidos (<see cref="CapturasService.HardBannedDomains"/>) se
-    /// validan igual. Con al menos un dominio poblado, el backend rechaza con
-    /// 400 cualquier URL fuera de la lista antes de invocar el script.
-    /// </summary>
     public List<string> WhitelistDomains { get; set; } = new();
 
-    /// <summary>
-    /// Ruta absoluta al script captura-viaticos.mjs. Si esta vacia se calcula
-    /// como <c>../../../lefarma.frontend/scripts/captura-viaticos.mjs</c>
-    /// relativo al ContentRoot de la API.
-    /// </summary>
     public string ScriptPath { get; set; } = "";
 
-    /// <summary>
-    /// Timeout duro del proceso (nodo + cromo) en segundos. Al expirar se mata
-    /// el arbol completo para que no queden Chromium/Node huerfanos. Por
-    /// defecto 120s; las pruebas lo acortan.
-    /// </summary>
     public int HardTimeoutSeconds { get; set; } = 120;
 
-    /// <summary>
-    /// Carpeta fisica donde se publican los PNG (capturas del script y capturas
-    /// adjuntadas desde fuera). Vacia = <c>wwwroot/media/capturas-viaticos</c>.
-    /// Si es relativa se resuelve contra el ContentRoot de la API; si es
-    /// absoluta se usa tal cual (por ejemplo una unidad de red).
-    /// </summary>
     public string OutputPath { get; set; } = "";
 
-    /// <summary>
-    /// Motor de captura: <c>script</c> (Playwright directo con
-    /// captura-viaticos.mjs, comportamiento historico) o <c>agente</c> (el
-    /// servicio externo <c>viaticos-capturas</c> corre OpenCode + Playwright MCP
-    /// dentro de su contenedor y devuelve el PNG; sirve para sitios con busqueda
-    /// dinamica donde el deep link no alcanza).
-    /// </summary>
     public string Modo { get; set; } = "script";
 
-    /// <summary>
-    /// URL base del servicio <c>viaticos-capturas</c> cuando <see cref="Modo"/>
-    /// es <c>agente</c> (por ejemplo <c>https://capturas.app.grupolefarma.com.mx</c>).
-    /// </summary>
     public string ServicioAgenteUrl { get; set; } = "";
 
-    /// <summary>API key (<c>x-api-key</c>) del servicio externo en modo agente.</summary>
     public string ServicioAgenteApiKey { get; set; } = "";
 
-    /// <summary>Timeout del servicio externo en modo agente (segundos).</summary>
     public int AgenteTimeoutSeconds { get; set; } = 300;
 }
 
-/// <summary>
-/// Resultado del servicio de capturas. <see cref="Outcome"/> decide si el
-/// controller responde 200 o 400. NUNCA devuelve 500 por problemas del script:
-/// el resultado siempre trae un <see cref="Results"/> con <c>ok=false</c> y
-/// <c>error</c> descriptivo cuando algo sale mal dentro del script.
-/// </summary>
 public class CapturaServiceResult
 {
     public CapturaOutcome Outcome { get; init; } = CapturaOutcome.Ok;
@@ -83,25 +37,16 @@ public class CapturaServiceResult
 
 public enum CapturaOutcome
 {
-    Ok,             // 200 con Results (cada item puede ser ok=false)
-    TooMany,        // 400 mas de 10 URLs
-    DomainBlocked,  // 400 URL fuera de la lista blanca o en HardBannedDomains
-    BadRequest,     // 400 cuerpo invalido
+    Ok,             
+    TooMany,        
+    DomainBlocked,  
+    BadRequest,     
 }
 
-/// <summary>
-/// Servicio que envuelve el script de Playwright y normaliza su salida.
-/// Stateless salvo por las rutas resueltas en el constructor (Singleton).
-/// </summary>
 public class CapturasService
 {
     public const int MaxUrls = 10;
 
-    /// <summary>
-    /// Nombre de archivo legible para una captura: folio, opción, destino y
-    /// línea. El script lo vuelve a sanear; aquí se limita a 80 caracteres para
-    /// no chocar con el límite de ruta de Windows.
-    /// </summary>
     public static string NombreSugerido(
         string? folio,
         int idSolicitud,
@@ -137,7 +82,6 @@ public class CapturasService
         return nombre.Length <= 80 ? nombre : nombre[..80];
     }
 
-    /// <summary>Destino guardado en <c>datos_json</c> de la opción (campo "a").</summary>
     public static string? DestinoDeDatos(string? datosJson)
     {
         if (string.IsNullOrWhiteSpace(datosJson)) return null;
@@ -156,24 +100,12 @@ public class CapturasService
         }
     }
 
-    /// <summary>
-    /// Dominios PROHIBIDOS por plan. Se aplican SIEMPRE, tenga o no lista
-    /// blanca poblada: si el operador los incluye explicito en
-    /// <see cref="CapturasSettings.WhitelistDomains"/>, el servicio los rechaza
-    /// igual. Regla de negocio: no se hace scraping a OTAs grandes
-    /// (booking.com, expedia.com) por terminos de servicio y por el plan
-    /// de la demo.
-    /// </summary>
     public static readonly HashSet<string> HardBannedDomains = new(StringComparer.OrdinalIgnoreCase)
     {
         "booking.com",
         "expedia.com",
     };
 
-    /// <summary>
-    /// Sufijos de host que nunca son un destino legitimo de una captura y que
-    /// suelen apuntar a la intranet donde vive el servidor.
-    /// </summary>
     private static readonly string[] InternalHostSuffixes =
     {
         ".localhost",
@@ -190,7 +122,6 @@ public class CapturasService
     private readonly string _scriptPath;
     private readonly string _publicRoot;
     private readonly string _targetCapturasDir;
-    /// <summary>Carpeta publica (relativa a la raiz de capturas) que viaja en los DTO.</summary>
     public const string CarpetaPublica = "capturas-viaticos";
 
     public CapturasService(
@@ -209,8 +140,6 @@ public class CapturasService
         string frontendRoot;
         if (!string.IsNullOrWhiteSpace(_settings.ScriptPath))
         {
-            // Si el operador fija ScriptPath, derivamos el frontend root
-            // como su abuelo: <root>/scripts/captura-viaticos.mjs.
             var scriptsDir = Path.GetDirectoryName(_settings.ScriptPath)!;
             frontendRoot = Path.GetFullPath(Path.Combine(scriptsDir, ".."));
             _scriptPath = _settings.ScriptPath;
@@ -220,23 +149,11 @@ public class CapturasService
             frontendRoot = ResolveFrontendRoot();
             _scriptPath = Path.Combine(frontendRoot, "scripts", "captura-viaticos.mjs");
         }
-        // captura-viaticos.mjs devuelve `archivo` RELATIVO a public/
-        // (p.ej. "capturas/viaticos/foo.png"), por eso guardamos la raiz
-        // public/ y no el directorio de capturas: volver a anadir
-        // "capturas/viaticos" duplicaria el segmento y el PNG no se
-        // encontraria en disco.
         _publicRoot = Path.Combine(frontendRoot, "public");
         _targetCapturasDir = ResolverDirectorioCapturas(env, _settings);
         Directory.CreateDirectory(_targetCapturasDir);
     }
 
-    /// <summary>
-    /// Carpeta fisica de los PNG. Manda <see cref="CapturasSettings.OutputPath"/>
-    /// cuando esta poblado; si no, el default historico
-    /// <c>wwwroot/media/capturas-viaticos</c>. La ruta publica que viaja en los
-    /// DTO sigue siendo <see cref="CarpetaPublica"/>, sin importar la carpeta
-    /// fisica, para que el GET autenticado siga resolviendo igual.
-    /// </summary>
     public static string ResolverDirectorioCapturas(IWebHostEnvironment env, CapturasSettings settings)
     {
         var configurada = settings.OutputPath?.Trim();
@@ -251,10 +168,8 @@ public class CapturasService
         return Path.GetFullPath(Path.Combine(env.WebRootPath, "media", CarpetaPublica));
     }
 
-    /// <summary>Carpeta fisica donde viven los PNG (para el controller).</summary>
     public string DirectorioCapturas => _targetCapturasDir;
 
-    /// <summary>Solo valida (cantidad, esquema, dominios prohibidos, destinos internos, whitelist). Sin I/O.</summary>
     public CapturaServiceResult Validate(IReadOnlyList<CapturaItem> items)
     {
         if (items.Count > MaxUrls)
@@ -266,12 +181,6 @@ public class CapturasService
             };
         }
 
-        // El esquema http/https, los dominios prohibidos y los destinos internos se
-        // validan SIEMPRE, incluso con lista blanca vacia (configuracion por
-        // defecto): de lo contrario file:, data: o http://169.254.169.254/
-        // llegarian al script y el servidor devolveria su contenido como PNG.
-        // La lista blanca sigue siendo opcional: solo se exige pertenencia si
-        // el operador la poblo.
         var exigirWhitelist = _settings.WhitelistDomains.Count > 0;
 
         foreach (var item in items)
@@ -336,17 +245,11 @@ public class CapturasService
         var validation = Validate(items);
         if (validation.Outcome != CapturaOutcome.Ok) return validation;
 
-        // Caso degenerado: lista vacia -> respuesta vacia sin tocar el script.
         if (items.Count == 0)
         {
             return new CapturaServiceResult { Outcome = CapturaOutcome.Ok, Results = new() };
         }
 
-        // Modo agente: el servicio externo (viaticos-capturas) corre OpenCode +
-        // Playwright MCP dentro de su contenedor y devuelve el PNG ya renderizado.
-        // Si una URL falla con el agente, se reintenta con el script local.
-        // `forzarScript` se usa en la captura masiva de una solicitud: el script
-        // local tarda segundos por URL y no depende de un agente externo lento.
         if (!forzarScript
             && string.Equals(_settings.Modo, "agente", StringComparison.OrdinalIgnoreCase))
         {
@@ -356,21 +259,12 @@ public class CapturasService
         return await CapturarConScriptAsync(items, ct);
     }
 
-    /// <summary>
-    /// Captura una sola opción con el script local y devuelve su resultado. La
-    /// usan la detección (para reemplazar la página completa por la tarjeta
-    /// elegida) y la captura manual por opción.
-    /// </summary>
     public async Task<CapturaResultDto?> CapturarOpcionAsync(CapturaItem item, CancellationToken ct)
     {
         var resultado = await CapturarAsync(new[] { item }, ct, forzarScript: true);
         return resultado.Results.FirstOrDefault();
     }
 
-    /// <summary>
-    /// Captura con el script local de Playwright (captura-viaticos.mjs). Se usa
-    /// en <c>Modo=script</c> y como fallback cuando el agente no logra una URL.
-    /// </summary>
     private async Task<CapturaServiceResult> CapturarConScriptAsync(
         IReadOnlyList<CapturaItem> items, CancellationToken ct)
     {
@@ -405,7 +299,6 @@ public class CapturasService
 
         var run = await _runner.RunAsync(_scriptPath, inputJson, _settings.HardTimeoutSeconds, ct);
 
-        // 1) Salida vacia o sin parsear -> ok:false por item, sin throw.
         if (string.IsNullOrWhiteSpace(run.Stdout))
         {
             return new CapturaServiceResult
@@ -463,16 +356,10 @@ public class CapturasService
             };
         }
 
-        // 2) Cada PNG exitoso se copia a wwwroot/media/capturas-viaticos y la
-        //    ruta del DTO se reescribe para que el frontend lo sirva desde
-        //    /api/media/capturas-viaticos/<nombre>.png.
         foreach (var r in parsed)
         {
             if (!r.Ok || string.IsNullOrWhiteSpace(r.Archivo)) continue;
 
-            // _publicRoot ya se calculo en el ctor (a partir del ScriptPath
-            // o del ContentRootPath), no recomputamos a mano para que las pruebas
-            // con tempdir funcionen igual que produccion.
             var src = Path.GetFullPath(Path.Combine(_publicRoot,
                 r.Archivo.Replace('/', Path.DirectorySeparatorChar)));
             if (!src.StartsWith(_publicRoot + Path.DirectorySeparatorChar, StringComparison.Ordinal))
@@ -510,10 +397,6 @@ public class CapturasService
         return new CapturaServiceResult { Outcome = CapturaOutcome.Ok, Results = parsed };
     }
 
-    /// <summary>
-    /// Modo agente con fallback: primero intenta el agente y, si alguna URL
-    /// quedo sin captura, la reintenta con el script local de Playwright.
-    /// </summary>
     private async Task<CapturaServiceResult> CapturarConAgenteConFallbackAsync(
         IReadOnlyList<CapturaItem> items, CancellationToken ct)
     {
@@ -561,20 +444,9 @@ public class CapturasService
         return agente;
     }
 
-    /// <summary>
-    /// Busca la informacion del viaje (transportista, horarios, precio) y toma
-    /// la captura en una sola corrida del agente. Si el agente no esta
-    /// disponible o falla, se conserva la captura por script y los datos van en
-    /// <c>null</c>: el endpoint siempre responde, nunca 500 por el agente.
-    /// </summary>
     public Task<BusquedaCapturaResult> BuscarAsync(CapturaItem item, CancellationToken ct)
         => BuscarAsync(item, null, ct);
 
-    /// <summary>
-    /// Igual que <see cref="BuscarAsync(CapturaItem, CancellationToken)"/> pero
-    /// con el contexto de la ruta (origen, destino y fecha) para que el agente
-    /// llene el buscador del sitio y capture los RESULTADOS, no la portada.
-    /// </summary>
     public async Task<BusquedaCapturaResult> BuscarAsync(
         CapturaItem item, string? contexto, CancellationToken ct)
     {
@@ -635,10 +507,6 @@ public class CapturasService
     private static string TextoCorto(string texto, int maximo = 300)
         => texto.Length <= maximo ? texto : texto[..maximo];
 
-    /// <summary>
-    /// Llama a POST /v1/agentico/buscar del servicio externo, descarga el PNG y
-    /// devuelve tambien los datos estructurados del viaje y el modelo usado.
-    /// </summary>
     private async Task<BusquedaCapturaResult> BuscarConAgenteAsync(
         CapturaItem item, string? contexto, CancellationToken ct)
     {
@@ -731,12 +599,6 @@ public class CapturasService
         };
     }
 
-    /// <summary>
-    /// Modo agente: pide la captura al servicio externo <c>viaticos-capturas</c>
-    /// (POST /v1/agentico/capturar), descarga el PNG desde GET /c/{archivo} y lo
-    /// publica en la carpeta de capturas con el mismo shape de salida que el
-    /// modo script. Los errores por URL se devuelven como ok=false, nunca 500.
-    /// </summary>
     private async Task<CapturaServiceResult> CapturarConAgenteAsync(
         IReadOnlyList<CapturaItem> items, CancellationToken ct)
     {
@@ -867,8 +729,6 @@ public class CapturasService
 
     private string ResolveFrontendRoot()
     {
-        // API root tipico: .../lefarma.backend/src/Lefarma.API
-        // Frontend:         .../lefarma.frontend
         var apiRoot = _env.ContentRootPath;
         var direct = Path.GetFullPath(Path.Combine(apiRoot, "..", "..", "..", "lefarma.frontend"));
         if (Directory.Exists(direct)) return direct;
@@ -883,25 +743,11 @@ public class CapturasService
         return h;
     }
 
-    /// <summary>
-    /// Dominios que el plan prohíbe scrapear (p. ej. Booking/Expedia). La
-    /// detección de precios usa la misma lista que las capturas para no abrir
-    /// por otra vía lo que el producto decidió no consultar.
-    /// </summary>
     public static bool EsDominioProhibido(string host) =>
         HardBannedDomains.Contains(NormalizeHost(host));
 
-    /// <summary>
-    /// Bloquea destinos de intranet: loopback, link-local (incluye el host de
-    /// metadata 169.254.169.254), rangos privados RFC1918, CGNAT, IPv6 loopback,
-    /// ULA y link-local, y los sufijos <c>localhost</c>/<c>.local</c>/
-    /// <c>.internal</c>. Un host que no parsea como IP no se resuelve por DNS
-    /// (el backend no introduce resolucion): solo se rechazan los sufijos
-    /// conocidos. Misma regla que el script captura-viaticos.mjs.
-    /// </summary>
     private static bool IsInternalDestination(string host)
     {
-        // Uri.Host devuelve los IPv6 entre corchetes: [::1] -> ::1.
         host = host.Trim('[', ']');
         if (host.Length == 0) return true;
         if (host == "localhost") return true;
@@ -911,7 +757,7 @@ public class CapturasService
         }
 
         if (!IPAddress.TryParse(host, out var ip))
-            return false; // nombre de dominio sin resolver: no se hace DNS
+            return false; 
 
         if (IPAddress.IsLoopback(ip)) return true;
         if (ip.IsIPv4MappedToIPv6) return IsInternalDestination(ip.MapToIPv4().ToString());
@@ -919,19 +765,19 @@ public class CapturasService
         if (ip.AddressFamily == AddressFamily.InterNetwork)
         {
             var b = ip.GetAddressBytes();
-            if (b[0] == 0) return true;                          // 0.0.0.0/8
-            if (b[0] == 10) return true;                         // 10.0.0.0/8
-            if (b[0] == 127) return true;                        // 127.0.0.0/8
-            if (b[0] == 169 && b[1] == 254) return true;         // 169.254.0.0/16 link-local
-            if (b[0] == 172 && b[1] >= 16 && b[1] <= 31) return true;   // 172.16.0.0/12
-            if (b[0] == 192 && b[1] == 168) return true;         // 192.168.0.0/16
-            if (b[0] == 100 && b[1] >= 64 && b[1] <= 127) return true;  // 100.64.0.0/10 CGNAT
+            if (b[0] == 0) return true;                          
+            if (b[0] == 10) return true;                         
+            if (b[0] == 127) return true;                        
+            if (b[0] == 169 && b[1] == 254) return true;         
+            if (b[0] == 172 && b[1] >= 16 && b[1] <= 31) return true;   
+            if (b[0] == 192 && b[1] == 168) return true;         
+            if (b[0] == 100 && b[1] >= 64 && b[1] <= 127) return true;  
             return false;
         }
 
-        return ip.IsIPv6LinkLocal          // fe80::/10
-            || ip.IsIPv6UniqueLocal    // fc00::/7
-            || ip.IsIPv6SiteLocal;     // fec0::/10
+        return ip.IsIPv6LinkLocal          
+            || ip.IsIPv6UniqueLocal    
+            || ip.IsIPv6SiteLocal;     
     }
 
     private bool IsInWhitelist(string host)
@@ -958,10 +804,6 @@ public class CapturasService
         => string.IsNullOrEmpty(s) ? "" : (s.Length <= max ? s : s.Substring(0, max));
 }
 
-// -----------------------------------------------------------------------------
-//  Script runner: abstrae Process para que las pruebas inyecten un fake.
-// -----------------------------------------------------------------------------
-
 public record CapturaScriptRun(string Stdout, string Stderr, bool KilledByTimeout);
 
 public interface ICapturasScriptRunner
@@ -969,12 +811,6 @@ public interface ICapturasScriptRunner
     Task<CapturaScriptRun> RunAsync(string scriptPath, string inputJson, int hardTimeoutSeconds, CancellationToken ct);
 }
 
-/// <summary>
-/// Implementación real: invoca <c>node</c> sobre el script y mata el árbol
-/// de procesos (node + chromium) al expirar el timeout duro. Esto es
-/// crítico: si no, una captura colgada deja chrome.exe huerfano y zombis
-/// en el servidor.
-/// </summary>
 public sealed class NodeCapturasScriptRunner : ICapturasScriptRunner
 {
     private readonly ILogger<NodeCapturasScriptRunner> _logger;

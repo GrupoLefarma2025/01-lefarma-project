@@ -13,11 +13,6 @@ namespace Lefarma.API.Features.Config.Workflows;
 
 public static class WorkflowFirmaHelper
 {
-    /// <summary>
-    /// Valida que el usuario puede ejecutar acciones en el paso actual.
-    /// - Si es paso inicial y es el creador: siempre puede
-    /// - Si hay participantes explícitos: debe estar en la lista (por usuario, por rol, o ser jefe inmediato)
-    /// </summary>
     public static async Task<ErrorOr<Success>> ValidarParticipanteAsync(
         WorkflowPaso pasoActual,
         int idWorkflow,
@@ -29,25 +24,20 @@ public static class WorkflowFirmaHelper
         int? idUsuarioSolicitante = null,
         CancellationToken ct = default)
     {
-        // Paso inicial: el creador siempre puede ejecutar acciones (es quien envía)
         if (pasoActual.EsInicio && idUsuario == idUsuarioCreador)
             return Result.Success;
 
-        // Si es el creador y la acción es CANCELAR, permitir aunque no sea participante
         if (idUsuario == idUsuarioCreador && codigoAccion == "CANCELAR")
             return Result.Success;
 
-        // Si el paso tiene participantes explícitos, validar
         var participantesActivos = pasoActual.Participantes?.Where(p => p.Activo).ToList() ?? new();
         if (participantesActivos.Count == 0)
-            return Result.Success; // Sin participantes = sin restricción
+            return Result.Success; 
 
-        // Verificar por usuario directo
         var esParticipante = participantesActivos.Any(p => p.IdUsuario == idUsuario);
         if (esParticipante)
             return Result.Success;
 
-        // Verificar por rol del usuario
         var rolesUsuario = await asokamContext.UsuariosRoles
             .Where(ur => ur.IdUsuario == idUsuario
                       && (ur.FechaExpiracion == null || ur.FechaExpiracion > DateTime.Now))
@@ -57,7 +47,6 @@ public static class WorkflowFirmaHelper
         if (participantesActivos.Any(p => p.IdRol.HasValue && rolesUsuario.Contains(p.IdRol.Value)))
             return Result.Success;
 
-        // Verificar si alguno de los participantes requiere jefe inmediato (por nivel)
         foreach (var p in participantesActivos.Where(p => p.RequiereJefeInmediato))
         {
             var idUsuarioBase = idUsuarioSolicitante ?? idUsuarioCreador;
@@ -70,10 +59,6 @@ public static class WorkflowFirmaHelper
         return Error.Validation("Autorizacion", "No eres participante de este paso del workflow.");
     }
 
-    /// <summary>
-    /// Resuelve la notificación a disparar para (idAccion, idPasoDestino).
-    /// Prioridad: match exacto por (idAccion, idPasoDestino) > match por (idAccion, idPasoDestino=null).
-    /// </summary>
     public static WorkflowNotificacion? ResolverNotificacion(
         Workflow workflow,
         int idAccion,
@@ -95,10 +80,6 @@ public static class WorkflowFirmaHelper
                 .FirstOrDefault();
     }
 
-    /// <summary>
-    /// Despacha la notificación de forma asíncrona (fire-and-forget).
-    /// Crea su propio scope porque el DbContext del request HTTP ya terminó.
-    /// </summary>
     public static void DispatchNotificacionFireAndForget(
         IServiceScopeFactory scopeFactory,
         WorkflowNotificacion? notificacion,
@@ -135,7 +116,6 @@ public static class WorkflowFirmaHelper
             }
             catch
             {
-                // Log silencioso; la firma ya se ejecutó
             }
         });
     }

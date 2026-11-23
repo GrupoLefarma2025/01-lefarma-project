@@ -14,10 +14,6 @@ import { MapaCalorTab } from './components/MapaCalorTab';
 import { ResumenTab } from './components/ResumenTab';
 import { OPCIONES_RANGO, fechaCorta, rangoDeDias } from './utils';
 
-/**
- * Contenido del panel de observabilidad, sin encabezado de página.
- * Se usa tanto en `/telemetria` como dentro de una pestaña de Configuración.
- */
 export function TelemetriaPanel() {
   const [dias, setDias] = useState(7);
   const rango = useMemo(() => rangoDeDias(dias), [dias]);

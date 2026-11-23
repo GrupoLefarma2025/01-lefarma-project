@@ -43,24 +43,6 @@ import HelpView from '@/pages/help/HelpView';
 import HelpEditor from '@/pages/help/HelpEditor';
 import UsuariosList from '@/pages/admin/Usuarios/UsuariosList';
 
-/**
- * Tabla de rutas CxP — delega TODA la infraestructura (resolvedor de índice,
- * wrapper de login, wrapper protegido, MainLayout, bloqueado, NotFound) a la
- * fábrica genérica `createAppRoutes`. Este módulo solo declara las rutas de
- * páginas específicas de CxP y los extras que no encajan en el patrón
- * estándar (handoff-login, select-empresa, ayuda pública).
- *
- * Contrato de invocación (sin cambios): createRoutesFromChildren de React
- * Router aplana los hijos de Fragment pero rechaza elementos componentes
- * no-<Route>, por lo que este módulo DEBE invocarse como llamada de función —
- * `{CxpRoutes({ variant, loginPath })}` — NO como JSX `<CxpRoutes/>`.
- *
- * CxP es la ÚNICA app que usa el login de 3 pasos (selección de contexto
- * empresa/sucursal/area). Inyecta esa selección como el slot `step3` de
- * `<MultiStepLogin>` (flujo de 3 pasos); RH y Educación Médica omiten el slot
- * (flujo de 2 pasos). El antiguo booleano `requireContextSelection` fue
- * reemplazado por la presencia del slot en la fábrica genérica.
- */
 export function CxpRoutes({ variant, loginPath }: SubtreeRoutesProps) {
   const resolvedBlockedPath = variant === 'root' ? undefined : '/cxp/bloqueado';
 
@@ -96,7 +78,7 @@ export function CxpRoutes({ variant, loginPath }: SubtreeRoutesProps) {
         <Route path="seguridad/roles" element={<RolesList />} />
         <Route path="seguridad/permisos" element={<PermisosList />} />
 
-        {/* Catalogos */}
+        {}
         <Route
           path="catalogos/empresas"
           element={
@@ -195,7 +177,7 @@ export function CxpRoutes({ variant, loginPath }: SubtreeRoutesProps) {
           }
         />
 
-        {/* Workflows */}
+        {}
         <Route
           path="workflows"
           element={
@@ -206,7 +188,7 @@ export function CxpRoutes({ variant, loginPath }: SubtreeRoutesProps) {
         />
         <Route path="workflows/:id/diagram" element={<WorkflowDiagram />} />
 
-        {/* Solo CxP usa la tarjeta legacy (firma_path); el resto mantiene FirmaUploadCard por defecto. */}
+        {}
         <Route path="configuracion" element={<ConfiguracionGeneral firmaCard={<CxpFirmaLegacyCard />} />} />
         <Route path="ordenes/editar/:id" element={<CrearOrdenCompra />} />
         <Route path="ordenes/crear" element={<CrearOrdenCompra />} />

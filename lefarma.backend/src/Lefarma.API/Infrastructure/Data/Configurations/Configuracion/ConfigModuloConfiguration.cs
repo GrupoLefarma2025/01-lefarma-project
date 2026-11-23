@@ -23,9 +23,7 @@ public class ConfigModuloConfiguration : IEntityTypeConfiguration<ConfigModulo>
         builder.Property(m => m.IdUsuarioCreacion).HasColumnName("id_usuario_creacion");
         builder.Property(m => m.IdUsuarioModificacion).HasColumnName("id_usuario_modificacion");
 
-        // row_version (ROWVERSION) lo administra SQL Server y no se mapea en EF.
-
-        builder.HasIndex(m => m.Clave)
+builder.HasIndex(m => m.Clave)
             .IsUnique()
             .HasDatabaseName("UQ_config_modulos_clave");
     }

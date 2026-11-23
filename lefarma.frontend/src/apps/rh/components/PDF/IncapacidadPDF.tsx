@@ -14,9 +14,6 @@ const PRINT_EXACT: React.CSSProperties = {
   WebkitPrintColorAdjust: 'exact',
 };
 
-// ponytail: fontSize lives on the FormCopy wrapper (not only on #...-print) so the global
-// print rule `#solicitud-personal-pdf-print { font-size:10pt !important }` can't inflate the
-// body text — that inflation is what pushes the 2 copies onto a 2nd sheet.
 const BODY = 9;
 
 const MESES = [
@@ -24,7 +21,6 @@ const MESES = [
   'JULIO', 'AGOSTO', 'SEPTIEMBRE', 'OCTUBRE', 'NOVIEMBRE', 'DICIEMBRE',
 ];
 
-// Split an ISO date into day / month-name / 2-digit-year without JS-Date timezone drift.
 function splitFecha(fecha?: string | null) {
   if (!fecha) return { d: '', mNombre: '', yy: '' };
   const mt = /^(\d{4})-(\d{2})-(\d{2})/.exec(fecha);
@@ -40,14 +36,12 @@ function stripAccents(text: string) {
   return text.normalize('NFD').replace(/[̀-ͯ]/g, '');
 }
 
-// ponytail: keyword heuristic for incapacity type; map to a dedicated field if the backend
-// ever stores it (today SolicitudPersonalResponse has no incapacity-specific field).
 function incapacidadTypeIndex(motivo?: string | null, tipoNombre?: string | null): number {
   const text = stripAccents(`${motivo ?? ''} ${tipoNombre ?? ''}`.toLowerCase());
   if (/maternidad|embarazo|parto|gestac|prenatal|puerperio/.test(text)) return 2;
   if (/riesgo|accident|laboral/.test(text)) return 1;
   if (/prolong|prorrog|extension|recaida|reinciden|otro/.test(text)) return 3;
-  return 0; // enfermedad general (most common)
+  return 0; 
 }
 
 const INCAPACIDAD_OPCIONES = [
@@ -72,7 +66,6 @@ const s: Record<string, React.CSSProperties> = {
   bold: { fontWeight: 700 },
 };
 
-// A fill-in blank: value sits on a short underline; empty still shows the line (like the form).
 const Blank: React.FC<{ children?: React.ReactNode; w?: number }> = ({ children, w = 30 }) => (
   <span
     style={{
@@ -139,15 +132,14 @@ function FormCopy({
   const sigLabel: React.CSSProperties = { ...s.bold, fontSize: 8 };
 
   return (
-    // fontSize here shields the body text from the global print 10pt !important rule.
     <div style={{ fontSize: BODY, breakInside: 'avoid' }}>
       <div style={s.form}>
-        {/* HEADER */}
+        {}
         <div style={{ display: 'flex', alignItems: 'center', padding: '8px 10px' }}>
           <div style={{ width: 150 }}>
             <img src={logoImage} alt="Grupo Lefarma" style={{ width: 130, height: 46, objectFit: 'contain' }} />
           </div>
-          {/* ponytail: title text — no physical incapacidad form exists; mirror the permiso header */}
+          {}
           <div style={{ flex: 1, textAlign: 'center', ...s.bold, fontSize: 15, letterSpacing: 1 }}>
             AVISO DE INCAPACIDAD
           </div>
@@ -159,7 +151,7 @@ function FormCopy({
           </div>
         </div>
 
-        {/* FIELDS */}
+        {}
         <div style={{ padding: '2px 10px 4px' }}>
           <div style={fieldRow}>
             <span style={fieldLabel}>NOMBRE:</span>
@@ -173,23 +165,23 @@ function FormCopy({
             <span style={fieldLabel}>MOTIVO / DIAGNÓSTICO:</span>
             <span style={line}>{solicitud.motivo ?? ''}</span>
           </div>
-          {/* ponytail: no observations field on SolicitudPersonalResponse; line rendered empty */}
+          {}
           <div style={fieldRow}>
             <span style={fieldLabel}>OBSERVACIONES:</span>
             <span style={line} />
           </div>
-          {/* ponytail: IMSS folio not on the response type; blank until backend exposes it */}
+          {}
           <div style={fieldRow}>
             <span style={fieldLabel}>FOLIO DE INCAPACIDAD (IMSS):</span>
             <span style={line} />
           </div>
-          {/* ponytail: doctor / institution not on the response type; blank until backend exposes it */}
+          {}
           <div style={fieldRow}>
             <span style={fieldLabel}>MÉDICO / INSTITUCIÓN:</span>
             <span style={line} />
           </div>
 
-          {/* DÍAS */}
+          {}
           <div style={{ marginTop: 6, marginBottom: 8 }}>
             <span style={s.bold}>No DE DÍAS DE INCAPACIDAD:</span>{' '}
             <Blank w={26}>{solicitud.diasSolicitados ?? ''}</Blank> DEL <Blank w={26}>{ini.d}</Blank> DE{' '}
@@ -198,7 +190,7 @@ function FormCopy({
           </div>
         </div>
 
-        {/* TIPO DE INCAPACIDAD — bordered 4-cell box + labels to the right */}
+        {}
         <div style={{ borderTop: BORDER, padding: '10px 10px' }}>
           <table style={{ borderCollapse: 'collapse' }}>
             <tbody>
@@ -233,7 +225,7 @@ function FormCopy({
           </table>
         </div>
 
-        {/* FIRMAS — una caja por firmante del flujo (SOLICITA + AUTORIZA), flujo dinámico */}
+        {}
         <div style={{ display: 'flex', flexWrap: 'wrap' }}>
           {firmantes.map((f, i) => (
             <div
@@ -247,7 +239,7 @@ function FormCopy({
             >
               <div style={sigCell}>
                 <div style={sigInner}>
-                  {/* Firma encima de una línea continua (la línea es elemento propio, no un border del contenedor). */}
+                  {}
                   <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', alignItems: 'center' }}>
                     {sigImg(f)}
                     <div style={{ width: '100%', borderTop: BORDER }} />
@@ -270,8 +262,6 @@ export function IncapacidadPDF({
   pasosWorkflow = [],
   firmaDirector = false,
 }: Props) {
-  // Firmantes del flujo aprobado + el empleado cuando RH crea la solicitud por él:
-  // el empleado va primero como SOLICITA y quien firmó el paso inicial queda como ELABORA.
   const firmantes = useMemo(() => {
     const flow = firmantesDelFlujo(pasosWorkflow, historial, firmaDirector);
     const { idUsuarioSolicitante, solicitanteNombre } = solicitud;
@@ -291,11 +281,10 @@ export function IncapacidadPDF({
 
   const typeIdx = incapacidadTypeIndex(solicitud.motivo, solicitud.tipoSolicitudNombre);
 
-  // El formato físico lleva 2 copias idénticas por hoja (original + empleado).
   return (
     <div id="solicitud-personal-pdf-print" style={s.page}>
       <FormCopy solicitud={solicitud} typeIdx={typeIdx} firmantes={firmantes} />
-      {/* ponytail: inter-copy cut gap (40px ≈ 10.6mm); keeps both copies on one A4 with default print margins. */}
+      {}
       <div style={{ height: 40 }} />
       <FormCopy solicitud={solicitud} typeIdx={typeIdx} firmantes={firmantes} />
     </div>

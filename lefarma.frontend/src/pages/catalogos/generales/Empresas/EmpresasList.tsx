@@ -28,14 +28,12 @@ import { usePageTitle } from '@/hooks/usePageTitle';
 import { toApiError } from '@/utils/errors';
 import { PermissionElement } from '@/components/permissions/PermissionElement';
 
-// Función de utilidad para normalizar texto (quitar acentos y convertir a minúsculas)
 const normalizeText = (text: string): string => {
   return text
-    .normalize('NFD') // Descomponer caracteres acentuados
-    .replace(/[\u0300-\u036f]/g, '') // Quitar marcas diacríticas
+    .normalize('NFD') 
+    .replace(/[\u0300-\u036f]/g, '') 
     .toLowerCase();
 };
-
 
 const empresaSchema = z.object({
   nombre: z.string().min(3, 'El nombre debe tener al menos 3 caracteres'),
@@ -68,7 +66,7 @@ export default function EmpresasList() {
   const [loading, setLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [search, setSearch] = useState('');
-  const [, forceUpdate] = useState({}); // Forzar re-render cuando se necesita
+  const [, forceUpdate] = useState({}); 
   const [isEditing, setIsEditing] = useState(false);
 
   const [modalStates, setModalStates] = useState({
@@ -106,8 +104,7 @@ export default function EmpresasList() {
     },
   });
 
-
-  const fetchEmpresas = async () => {
+const fetchEmpresas = async () => {
     try {
       setLoading(true);
       const response = await API.get<ApiResponse<Empresa[]>>(`/catalogos/Empresas`);
@@ -189,8 +186,7 @@ export default function EmpresasList() {
     }
   };
 
-
-  const handleDelete = async (id: number) => {
+const handleDelete = async (id: number) => {
     if (!confirm('Estas seguro de eliminar esta empresa?')) return;
     try {
       const response = await API.delete<ApiResponse<void>>(`/catalogos/Empresas/${id}`);
@@ -205,11 +201,10 @@ export default function EmpresasList() {
   };
 
   const filteredEmpresas = useMemo(() => {
-    // Leer columnas de búsqueda desde localStorage
     const getSearchColumns = () => {
       try {
         const stored = localStorage.getItem('table-configs');
-        if (!stored) return ['nombre']; // Por defecto
+        if (!stored) return ['nombre']; 
         const parsed = JSON.parse(stored);
         const empresasConfig = parsed.find((c: any) => c.tableId === 'empresas');
         return empresasConfig?.searchColumns || ['nombre'];
@@ -226,7 +221,6 @@ export default function EmpresasList() {
     }
 
     return empresas.filter((e) => {
-      // Mapear IDs de columnas a las propiedades reales del objeto
       const columnToValue: Record<string, string> = {
         'nombre': e.nombre,
         'razonSocial': e.razonSocial || '',
@@ -235,13 +229,12 @@ export default function EmpresasList() {
         'activo': e.activo ? 'Activo' : 'Inactivo',
       };
 
-      // Verificar si alguna columna seleccionada coincide (búsqueda insensible a acentos)
       return searchColumns.some((columnId: string) => {
         const value = columnToValue[columnId];
         return value && normalizeText(value).includes(searchNormalized);
       });
     });
-  }, [empresas, search, forceUpdate]); // forceUpdate asegura re-leer al cambiar localStorage
+  }, [empresas, search, forceUpdate]); 
 
   const columns: ColumnDef<Empresa>[] = [
     {

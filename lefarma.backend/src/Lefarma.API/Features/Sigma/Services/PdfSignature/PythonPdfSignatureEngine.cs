@@ -5,11 +5,6 @@ using Microsoft.Extensions.Options;
 
 namespace Lefarma.API.Features.Sigma.Services.PdfSignature;
 
-/// <summary>
-/// Motor original: ejecuta <c>scripts/pdf_signature_replacer.py</c> (PyMuPDF + pyodbc)
-/// tal como lo hacía <see cref="SigmaPdfSignatureRunner"/> antes de la migración. Se
-/// conserva como respaldo y para comparar resultados con <c>Sigma:PdfSignature:Motor</c>.
-/// </summary>
 public sealed class PythonPdfSignatureEngine
 {
     private const string MarcadorSinPalabra = "ERROR_KEYWORD_NOT_FOUND";
@@ -35,11 +30,6 @@ public sealed class PythonPdfSignatureEngine
         _logger = logger;
     }
 
-    /// <summary>
-    /// Procesa un documento de <c>app.Documentos</c>. Con <paramref name="soloEscanear"/>
-    /// sólo comprueba que exista el texto de firma; sin él estampa la firma y guarda el
-    /// binario autorizado.
-    /// </summary>
     public async Task<SigmaPdfSignatureResult> EjecutarAsync(
         Guid idDocumento,
         bool soloEscanear,
@@ -79,8 +69,6 @@ public sealed class PythonPdfSignatureEngine
             CreateNoWindow = true
         };
 
-        // Las credenciales van por variables de entorno para que la contraseña no
-        // quede expuesta en la línea de comandos del proceso.
         info.Environment["SIGMA_PDF_DB_SERVER"] = conexion.DataSource;
         info.Environment["SIGMA_PDF_DB_USER"] = conexion.UserID;
         info.Environment["SIGMA_PDF_DB_PASSWORD"] = conexion.Password;

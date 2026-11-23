@@ -18,9 +18,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
 namespace Lefarma.API.Features.Profile;
-/// <summary>
-/// Implementación del servicio de perfil de usuario
-/// </summary>
 public class ProfileService : BaseService, IProfileService
 {
     private readonly AsokamDbContext _asokamContext;
@@ -67,20 +64,14 @@ public class ProfileService : BaseService, IProfileService
 
             var detalle = await EnsureUsuarioDetalleAsync(userId, cancellationToken);
 
-            // Área y puesto visibles se toman de Asistencias.dbo.vwEmpleados:
-            // app.Usuarios.Puesto está en 'Sin asignar' y el área del catálogo
-            // CxP no refleja el departamento real del empleado.
             var (areaEmpleado, puestoEmpleado) = await ResolverAreaYPuestoEmpleadoAsync(
                 userId, detalle.Puesto, cancellationToken);
 
-            // Estado de firma del sistema RH: solo cuenta firma_path_cifrada.
-            // El usuario legacy se trata como nuevo (0 subidas; el backfill 027 no aplica).
             var firmaControl = FirmaControl.Parse(detalle.FirmaControlJson);
             var firmaSubidasEfectivas = string.IsNullOrEmpty(detalle.FirmaPathCifrada)
                 ? 0
                 : Math.Max(firmaControl.Subidas, 1);
 
-            // Obtener roles activos del usuario
             var roles = await _asokamContext.UsuariosRoles
                 .Include(ur => ur.Rol)
                 .Where(ur => ur.IdUsuario == userId && ur.Rol.EsActivo)
@@ -88,7 +79,6 @@ public class ProfileService : BaseService, IProfileService
                 .Select(ur => ur.Rol.NombreRol)
                 .ToListAsync(cancellationToken);
 
-            // Permisos via cache compartido (5 min) — misma fuente que PermissionHandler
             var permisos = (await _permissionService.GetPermissionsAsync(userId)).ToList();
             var puedeSeleccionarEmpresas = permisos.Contains(Permissions.OrdenesCompra.CambiarEmpresa);
 
@@ -174,7 +164,6 @@ public class ProfileService : BaseService, IProfileService
 
             var detalle = await EnsureUsuarioDetalleAsync(userId, cancellationToken);
 
-            // Actualizar campos de detalle (solo los que vienen en el request)
             if (request.IdCentroCosto.HasValue)
                 detalle.IdCentroCosto = request.IdCentroCosto.Value;
 
@@ -184,10 +173,7 @@ public class ProfileService : BaseService, IProfileService
             if (!string.IsNullOrWhiteSpace(request.NumeroEmpleado))
                 detalle.NumeroEmpleado = request.NumeroEmpleado;
 
-            // FirmaPath ya NO se actualiza aquí: la firma solo cambia vía POST /profile/firma,
-            // que aplica la regla de un solo cambio con habilitación RH.
-
-            if (!string.IsNullOrWhiteSpace(request.TelefonoOficina))
+if (!string.IsNullOrWhiteSpace(request.TelefonoOficina))
                 detalle.TelefonoOficina = request.TelefonoOficina;
 
             if (!string.IsNullOrWhiteSpace(request.Extension))
@@ -199,7 +185,6 @@ public class ProfileService : BaseService, IProfileService
             if (!string.IsNullOrWhiteSpace(request.TelegramChat))
                 detalle.TelegramChat = request.TelegramChat;
 
-            // Actualizar configuración de notificaciones
             if (request.NotificarEmail.HasValue)
                 detalle.NotificarEmail = request.NotificarEmail.Value;
 
@@ -227,14 +212,12 @@ public class ProfileService : BaseService, IProfileService
             if (request.NotificarVencimientos.HasValue)
                 detalle.NotificarVencimientos = request.NotificarVencimientos.Value;
 
-            // Actualizar delegación
             if (request.IdUsuarioDelegado.HasValue)
                 detalle.IdUsuarioDelegado = request.IdUsuarioDelegado.Value;
 
             if (request.DelegacionHasta.HasValue)
                 detalle.DelegacionHasta = request.DelegacionHasta.Value;
 
-            // Actualizar configuración de interfaz
             if (!string.IsNullOrWhiteSpace(request.AvatarUrl))
                 detalle.AvatarUrl = request.AvatarUrl;
 
@@ -251,7 +234,6 @@ public class ProfileService : BaseService, IProfileService
 
             EnrichWideEvent(action: "UpdateProfile", entityId: userId, nombre: usuario.NombreCompleto);
 
-            // Retornar perfil actualizado
             return await GetProfileAsync(userId, cancellationToken);
         }
         catch (Exception ex)
@@ -320,9 +302,6 @@ public class ProfileService : BaseService, IProfileService
 
             var detalle = await EnsureUsuarioDetalleAsync(userId, cancellationToken);
 
-            // Toda firma (primera o cambio habilitado) pasa por comprobación de RH:
-            // se guarda como PENDIENTE y la vigente no cambia hasta la aprobación.
-            // El usuario legacy (sin firma_path_cifrada) puede remitir libremente.
             var control = FirmaControl.Parse(detalle.FirmaControlJson);
             var subidasEfectivas = string.IsNullOrEmpty(detalle.FirmaPathCifrada)
                 ? 0
@@ -338,8 +317,6 @@ public class ProfileService : BaseService, IProfileService
 
             var timestamp = DateTime.Now.ToString("yyyyMMddHHmmss");
 
-            // Firma candidata e INE: carpeta privada, cifradas en reposo (AES-256-GCM).
-            // El nombre lógico (sin .enc) es la referencia estable de la versión en el historial JSON.
             var firmaFileName = $"{userId}_{timestamp}{extension}";
             var ineFileName = $"{userId}_{timestamp}{ineExtension}";
             await using (var firmaStream = file.OpenReadStream())
@@ -352,8 +329,6 @@ public class ProfileService : BaseService, IProfileService
             var firmaLogical = $"firmas/{firmaFileName}";
             var ineLogical = $"ine/{ineFileName}";
 
-            // La remisión consume la habilitación RH (estado derivado del historial).
-            // FirmaPathCifrada no se toca: la vigente cambia solo al aprobar.
             control.AgregarRemision(userId, DateTime.Now, firmaLogical, ineLogical);
             detalle.FirmaControlJson = control.Serialize();
             detalle.FechaModificacion = DateTime.Now;
@@ -361,7 +336,6 @@ public class ProfileService : BaseService, IProfileService
 
             EnrichWideEvent(action: "UploadSignature", entityId: userId, nombre: firmaFileName);
 
-            // Avisar a RH que hay una firma en comprobación (no debe romper la remisión si falla).
             await NotificarRemisionRhAsync(userId, cancellationToken);
 
             return firmaLogical;
@@ -383,7 +357,6 @@ public class ProfileService : BaseService, IProfileService
             if (detalle == null || string.IsNullOrEmpty(detalle.FirmaPathCifrada))
                 return CommonErrors.NotFound("Firma");
 
-            // Eliminar también cuenta como cambio: requiere habilitación RH si ya registró firma.
             var control = FirmaControl.Parse(detalle.FirmaControlJson);
 
             if (control.EnComprobacion)
@@ -395,8 +368,6 @@ public class ProfileService : BaseService, IProfileService
                 return CommonErrors.Validation("Firma.CambioBloqueado",
                     "Tu firma ya fue registrada. Solicita a Recursos Humanos que habilite un cambio.");
 
-            // Solo se anula el puntero: el archivo autorizado se conserva porque los
-            // documentos firmados con él deben poder reimprimirse (decisión de retención).
             control.AgregarEliminacion(userId, DateTime.Now);
             detalle.FirmaControlJson = control.Serialize();
 
@@ -444,8 +415,6 @@ public class ProfileService : BaseService, IProfileService
 
             var detalle = await EnsureUsuarioDetalleAsync(userId, cancellationToken);
 
-            // Reemplazo libre legacy: borra el archivo anterior de firma_path (si existe).
-            // Solo se toca la columna firma_path; firma_control y firma_path_cifrada no se usan aquí.
             if (!string.IsNullOrEmpty(detalle.FirmaPath))
             {
                 var oldPhysicalPath = Path.Combine(
@@ -538,7 +507,6 @@ public class ProfileService : BaseService, IProfileService
 
             EnrichWideEvent(action: "SolicitarCambioFirma", entityId: userId);
 
-            // La notificación a RH no debe romper la solicitud si falla.
             await NotificarSolicitudRhAsync(userId, cancellationToken);
 
             return true;
@@ -550,9 +518,6 @@ public class ProfileService : BaseService, IProfileService
         }
     }
 
-    /// <summary>
-    /// Notifica (in-app + correo) a los usuarios con permiso de habilitar cambios de firma.
-    /// </summary>
     private async Task NotificarSolicitudRhAsync(int userId, CancellationToken cancellationToken)
     {
         try
@@ -593,10 +558,6 @@ public class ProfileService : BaseService, IProfileService
         }
     }
 
-    /// <summary>
-    /// Notifica (in-app + correo) a los usuarios con permiso de habilitar cambios de firma
-    /// que hay una firma con INE esperando comprobación.
-    /// </summary>
     private async Task NotificarRemisionRhAsync(int userId, CancellationToken cancellationToken)
     {
         try
@@ -637,10 +598,6 @@ public class ProfileService : BaseService, IProfileService
         }
     }
 
-    /// <summary>
-    /// Resuelve los usuarios que tienen un permiso, por rol o de forma directa
-    /// (misma semántica que UserPermissionService: roles activos y permisos concedidos no expirados).
-    /// </summary>
     private async Task<List<int>> GetUsuariosConPermisoAsync(string codigoPermiso, int excluirIdUsuario, CancellationToken cancellationToken)
     {
         var now = DateTime.Now;
@@ -674,18 +631,11 @@ public class ProfileService : BaseService, IProfileService
             .ToList();
     }
 
-    /// <summary>
-    /// Resuelve área (departamento) y puesto desde Asistencias.dbo.vwEmpleados.
-    /// Best-effort: un timeout o una caída de Asistencias devuelve el respaldo
-    /// sin tumbar el perfil (la app debe abrir aunque Asistencias no responda).
-    /// </summary>
     private async Task<(string? Area, string? Puesto)> ResolverAreaYPuestoEmpleadoAsync(
         int userId,
         string? puestoRespaldo,
         CancellationToken cancellationToken)
     {
-        // app.Usuarios/detalle.Puesto suele venir con el valor por defecto 'Sin asignar';
-        // ese texto nunca debe mostrarse como puesto del usuario.
         var respaldo = puestoRespaldo.PuestoVisible();
 
         try

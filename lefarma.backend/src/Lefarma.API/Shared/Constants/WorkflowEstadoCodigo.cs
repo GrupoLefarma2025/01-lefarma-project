@@ -1,9 +1,5 @@
 namespace Lefarma.API.Shared.Constants;
 
-/// <summary>
-/// Códigos de estado de workflow usados en toda la aplicación.
-/// Los IDs numéricos varían por ambiente, pero estos códigos son fijos.
-/// </summary>
 public static class WorkflowEstadoCodigo
 {
     public const string CREADA = "CREADA";

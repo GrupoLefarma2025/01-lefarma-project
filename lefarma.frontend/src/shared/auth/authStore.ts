@@ -19,14 +19,10 @@ import {
   stopPermissionsPolling,
 } from '@/utils/permissions';
 
-
 const LEGACY_TOKEN_KEY = 'token';
 
 const PROFILE_LOAD_ERROR = 'No se pudo cargar tu perfil. Puedes seleccionar empresa y sucursal manualmente.';
 
-// Single área resolver (REQ-001):
-// detalle.idArea (>0, ∈ empresa areas) → única área of empresa → null.
-// Never picks the first área when multiple exist, never prompts the user.
 function resolveAreaFrom(
   detalle: { idEmpresa: number; idSucursal: number; idArea: number | null } | null,
   areas: Area[],
@@ -48,7 +44,6 @@ function resolveAreaFrom(
   return null;
 }
 
-// ponytail: in-flight dedup so concurrent fetchProfileSignature calls share one /profile request
 let profileInflight: Promise<void> | null = null;
 
 export const useAuthStore = create<AuthState>()((set, get) => ({
@@ -77,8 +72,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
   usuarioDetalle: null,
   profileError: null,
 
-
-  loginStepOne: async (username: string) => {
+loginStepOne: async (username: string) => {
     set({ isLoading: true });
     try {
       const response = await authService.loginStepOne(username);
@@ -127,18 +121,11 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
 
       sessionStorage.removeItem('loginFlow');
 
-      // Sincronizar el perfil de display consumido por el layout / header del shell.
       useConfigStore.getState().updatePerfil({
         nombre: response.user.nombre || '',
         correo: response.user.correo || '',
       });
 
-      // Login global de 2 pasos (ej. `/login`): finaliza la sesión justo
-      // después de las credenciales. Los datos de contexto del paso 3
-      // (empresas/sucursales/areas) NO se cargan intencionalmente para que
-      // el flujo global nunca entre en estado de contexto parcial — el
-      // contexto es propiedad de la lógica por-app (spec base-app:
-      // "No Global Context Assumption").
       if (options?.requireContextSelection === false) {
         set({
           user: response.user,
@@ -153,21 +140,16 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
         });
         void refreshPermissions();
         startPermissionsPolling();
-        // El encabezado muestra área/puesto del empleado desde /profile; en el
-        // flujo de 2 pasos no hay paso 3 que lo dispare. Sin bloqueo: si el
-        // perfil falla, el encabezado simplemente omite esos datos.
         void get().fetchProfileSignature();
         return;
       }
 
-      // Cargar empresas y sucursales para el paso 3
       const [empresas, sucursales, areas] = await Promise.all([
         authService.getEmpresas(),
         authService.getSucursales(),
         authService.getAreas(),
       ]);
 
-      // Obtener perfil para saber si puede seleccionar empresas y su empresa asignada
       let puedeSeleccionar = false;
       let usuarioDetalle: { idEmpresa: number; idSucursal: number; idArea: number | null } | null = null;
       let profileError: string | null = null;
@@ -182,26 +164,21 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
           };
         }
       } catch {
-        // fallo de red / profile caído: no bloquear el paso 3, dejar selección manual
         puedeSeleccionar = true;
         profileError = PROFILE_LOAD_ERROR;
       }
 
-      // Sincronizar con configStore
       useConfigStore.getState().updatePerfil({
         nombre: response.user.nombre || '',
         correo: response.user.correo || '',
       });
 
-      // Si no puede seleccionar empresas, auto-seleccionar la unica que tiene y saltar al dashboard
       if (!puedeSeleccionar && empresas.length === 1) {
         const unicaEmpresa = empresas[0];
         const sucursalesDeEmpresa = sucursales.filter(
           (s) => String(s.idEmpresa) === String(unicaEmpresa.idEmpresa)
         );
 
-        // Usar la sucursal del detalle si existe y pertenece a la empresa,
-        // si no, usar la primera sucursal disponible de esa empresa
         const detalleSucursalId = usuarioDetalle?.idSucursal ?? 0;
         const sucursalDelDetalle = detalleSucursalId > 0
           ? sucursalesDeEmpresa.find((s) => String(s.idSucursal) === String(detalleSucursalId))
@@ -214,8 +191,6 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
           authService.setSucursal(unicaSucursal);
         }
 
-        // REQ-001: área resuelta por detalle → única de la empresa → null (nunca la primera).
-        // Se usa el helper puro con los locales porque el store aún no tiene catalogs aquí.
         const areaResuelta = resolveAreaFrom(usuarioDetalle, areas, unicaEmpresa.idEmpresa);
         authService.setArea(areaResuelta);
 
@@ -244,7 +219,6 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
         return;
       }
 
-      // Si puede seleccionar, mostrar pantalla de seleccion
       set({
         user: response.user,
         token: response.accessToken,
@@ -269,10 +243,6 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
   },
 
   loginStepThree: async (empresaId: string, sucursalId: string, areaId?: string) => {
-    // isLoading ahora refleja el patrón de loginStepOne/Two: se activa al
-    // inicio y se desactiva tanto en la ruta de éxito como en cualquier throw.
-    // Evita el doble-submit del botón del paso 3 y habilita el feedback
-    // "Procesando…" del slot (que lee isLoading del store).
     set({ isLoading: true });
     try {
       const { empresas, sucursales, areas } = get();
@@ -287,9 +257,6 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       authService.setEmpresa(empresa);
       authService.setSucursal(sucursal);
 
-      // REQ-001/002: sin areaId explícito el resolver es la única fuente del área;
-      // setArea se llama SIEMPRE (null elimina la key 'area' — un área vieja
-      // nunca sobrevive). Con areaId explícito manda el área elegida.
       let selectedArea: Area | null = null;
       if (areaId) {
         selectedArea = areas.find((a) => String(a.idArea) === String(areaId)) || null;
@@ -298,10 +265,6 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       }
       authService.setArea(selectedArea);
 
-      // isAuthenticated se escribe de forma síncrona aquí; isLoading:false va
-      // en el mismo set para que el botón se rehabilite apenas se confirma la
-      // sesión (coincide con el patrón de loginStepTwo). fetchProfileSignature
-      // traga sus propios errores, por lo que no rompe este flujo.
       set({
         empresa,
         sucursal,
@@ -370,9 +333,6 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       usuarioDetalle: null,
     });
 
-    // SIGMA tiene su propia pantalla de acceso dentro del módulo (/SIGMA), así
-    // que al cerrar sesión desde allí se vuelve a esa entrada y no al login
-    // global de Lefarma. El resto de la aplicación conserva /login.
     const pathname = window.location.pathname;
     const isSigmaPath = /^\/sigma(?:\/|$)/i.test(pathname);
     if (isSigmaPath) {
@@ -394,14 +354,10 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     set({ sucursal });
   },
 
-  // REQ-006: context switch re-resolves the área for the new empresa (detalle
-  // área kept when it belongs to it, única-área fallback, else null) and ALWAYS
-  // persists it — null removes the stale localStorage key.
   changeEmpresaSucursal: async (empresa: Empresa, sucursal: Sucursal) => {
     authService.setEmpresa(empresa);
     authService.setSucursal(sucursal);
 
-    // Catalog may be empty here (cleared after login commit / initialize)
     if (get().areas.length === 0) {
       const areas = await authService.getAreas();
       set({ areas });
@@ -555,13 +511,11 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
         correo: user.correo || '',
       });
 
-      // REQ-005: profile load feeds resolveArea/SelectEmpresaSucursal (fire-and-forget)
       void get().loadProfile();
       get().fetchProfileSignature();
       void refreshPermissions();
       startPermissionsPolling();
     } else {
-      // Sin datos de auth
       set({
         isAuthenticated: false,
       });

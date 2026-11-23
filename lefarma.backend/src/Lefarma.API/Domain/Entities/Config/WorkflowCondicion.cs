@@ -3,8 +3,8 @@ public class WorkflowCondicion
     {
         public int IdCondicion { get; set; }
         public int IdAccion { get; set; }
-        public string CampoEvaluacion { get; set; } = null!; // Propiedad de OrdenCompra (ej: 'Total', 'RequierePagoAnticipado')
-        public string Operador { get; set; } = null!;         // '>', '<', '=', 'true', 'false'
+        public string CampoEvaluacion { get; set; } = null!; 
+        public string Operador { get; set; } = null!;         
         public string ValorComparacion { get; set; } = null!;
         public int IdPasoSiCumple { get; set; }
         public bool Activo { get; set; } = true;

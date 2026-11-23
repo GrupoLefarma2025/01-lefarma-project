@@ -3,11 +3,6 @@ using Lefarma.API.Shared.Extensions;
 
 namespace Lefarma.UnitTests.Shared;
 
-/// <summary>
-/// El puesto que se muestra (encabezado, listado de usuarios y PDFs) sale de
-/// Asistencias.dbo.vwEmpleados. app.Usuarios.Puesto tiene como valor por defecto
-/// 'Sin asignar' y ese texto nunca debe llegar a la interfaz.
-/// </summary>
 public class PuestoVisibleTests
 {
     [Theory]

@@ -25,12 +25,10 @@ export interface PrecioRealDialogProps {
   onOpenChange: (abierto: boolean) => void;
   solicitudId: number;
   opcion: SolicitudOpcion;
-  /** Datos que el agente extrajo de la página, si ya se buscó. */
   datosAgente?: DatosViaje | null;
   onGuardado: (solicitud: Solicitud) => void;
 }
 
-/** Fuente legible a partir del enlace de compra (kayak.com.mx, etc.). */
 function fuenteDeUrl(url: string | null): string {
   if (!url) return 'Captura manual';
   try {
@@ -40,11 +38,6 @@ function fuenteDeUrl(url: string | null): string {
   }
 }
 
-/**
- * Convierte una opción estimada en cotizada. Exige precio real, fuente, URL y
- * captura: es la evidencia que después revisa el autorizador. El estimado del
- * motor se conserva como `precio_estimado` y se muestra como referencia.
- */
 export function PrecioRealDialog({
   abierto,
   onOpenChange,
@@ -85,7 +78,6 @@ export function PrecioRealDialog({
   const lineaValida = linea.trim() !== '' && !/estimad/i.test(linea);
   const fuenteValida = fuente.trim() !== '' && !/estimad/i.test(fuente);
   const urlValida = /^https?:\/\//i.test(urlCompra.trim());
-  // El backend solo acepta capturas del sistema (capturas-viaticos/...).
   const capturaValida =
     typeof rutaCaptura === 'string' && rutaCaptura.startsWith('capturas-viaticos/');
   const puedeGuardar =

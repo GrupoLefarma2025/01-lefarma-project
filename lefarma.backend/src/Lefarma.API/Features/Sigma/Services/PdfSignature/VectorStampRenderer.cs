@@ -6,10 +6,6 @@ using PdfSharp.Pdf.IO;
 
 namespace Lefarma.API.Features.Sigma.Services.PdfSignature;
 
-/// <summary>
-/// Camino vectorial: sólo se usa cuando el PDF no se aplana. Dibuja la firma y el
-/// texto sobre la página existente, en las coordenadas del contenido del PDF.
-/// </summary>
 public sealed class VectorStampRenderer : IPdfStampRenderer
 {
     private static readonly object CandadoFuente = new();
@@ -48,7 +44,6 @@ public sealed class VectorStampRenderer : IPdfStampRenderer
                 .Select(c => StampGeometry.ContenidoADibujo(c.Caja, altoContenido))
                 .ToList();
 
-            // Primero todas las cubiertas y después firmas y textos, igual que el script.
             foreach (var caja in cajas)
             {
                 grafico.DrawRectangle(
@@ -95,7 +90,6 @@ public sealed class VectorStampRenderer : IPdfStampRenderer
 
     private static void ConfigurarFuentes()
     {
-        // Las fuentes base-14 no incluyen acentos; en Windows se usan las instaladas.
         lock (CandadoFuente)
         {
             GlobalFontSettings.UseWindowsFontsUnderWindows = true;

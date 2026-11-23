@@ -1,9 +1,5 @@
 namespace Lefarma.API.Domain.Entities.Telemetria;
 
-/// <summary>
-/// Rejilla de posiciones del puntero de una vista de página. <see cref="Celdas"/>
-/// guarda un entero de 32 bits por celda (columnas * filas), en little-endian.
-/// </summary>
 public class MapaCalorTelemetria
 {
     public long IdMapa { get; set; }

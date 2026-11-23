@@ -49,12 +49,9 @@ public class ArchivoExternoController : ControllerBase
         return int.TryParse(userIdHeader, out var uid) ? uid : 0;
     }
 
-    /// <summary>
-    /// Sube un nuevo archivo al sistema desde un cliente externo.
-    /// </summary>
     [HttpPost("upload")]
     [AllowAnonymous]
-    [RequestSizeLimit(50_000_000)] // 50MB
+    [RequestSizeLimit(50_000_000)] 
     [Consumes("multipart/form-data")]
     [SwaggerOperation(Summary = "Subir archivo desde sistema externo", Description = "Requiere X-API-Key y X-User-Id en headers.")]
     public async Task<IActionResult> Upload(

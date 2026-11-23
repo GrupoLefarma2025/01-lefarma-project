@@ -14,10 +14,6 @@ public interface IEquipoPareoRepository
         int idUsuario,
         CancellationToken cancellationToken = default);
 
-    /// <summary>
-    /// true si ya existe un equipo ACTIVO con esa región fija (opcionalmente
-    /// excluyendo un equipo, p. ej. al reasignar la región del mismo equipo).
-    /// </summary>
     Task<bool> ExisteActivoConRegionAsync(
         int idRegion,
         int? excluirIdEquipo,

@@ -10,7 +10,6 @@ vi.mock('@/shared/api/apiClient', () => ({ API: { get: api.get, post: vi.fn() } 
 beforeEach(() => {
   api.get.mockReset();
   api.get.mockResolvedValue({ data: new Blob(['png'], { type: 'image/png' }) });
-  // jsdom no implementa createObjectURL/revokeObjectURL.
   (URL as unknown as Record<string, unknown>).createObjectURL = vi.fn(() => 'blob:captura-tabla');
   (URL as unknown as Record<string, unknown>).revokeObjectURL = vi.fn();
 });
@@ -65,7 +64,6 @@ const hotel = (over: Partial<CostosRutaHotel> = {}): CostosRutaHotel => ({
   ...over,
 });
 
-/** Localiza la fila por su celda de transportista: los botones y enlaces repiten el nombre. */
 const fila = (transportista: string) => {
   const celda = screen.getByText(transportista, { selector: 'div' });
   return celda.closest('tr') as HTMLElement;
@@ -91,11 +89,9 @@ describe('TablaOpciones', () => {
       />,
     );
 
-    // La columna Fuente ya no existe en la tabla de opciones de transporte.
     expect(screen.queryByRole('columnheader', { name: 'Fuente' })).not.toBeInTheDocument();
     expect(screen.queryByText('volaris.com')).not.toBeInTheDocument();
     expect(screen.queryByText('seed renta')).not.toBeInTheDocument();
-    // El total del renglón va solo en el badge: sin la leyenda redundante.
     expect(screen.queryByText(/precio del grupo/i)).not.toBeInTheDocument();
     expect(within(fila('Renta SUV')).getByText('$1967–$2203 MXN total')).toBeInTheDocument();
   });
@@ -111,21 +107,17 @@ describe('TablaOpciones', () => {
       />,
     );
 
-    // La captura interna llega por fetch autenticado + object URL (no por <img src> directo).
     await waitFor(() => expect(screen.getAllByRole('link')).toHaveLength(2));
     const enlaces = screen.getAllByRole('link');
-    // Solo los 2 enlaces de compra; las capturas ya no son <a target="_blank">.
     expect(enlaces).toHaveLength(2);
     for (const enlace of enlaces) {
       expect(enlace.getAttribute('href')).toBeTruthy();
       expect(enlace.getAttribute('target')).toBe('_blank');
       expect(enlace.getAttribute('rel')).toBe('noreferrer');
     }
-    // Cada miniatura es un botón que abre el visor modal.
     expect(screen.getAllByRole('button', { name: /Ver captura completa/ })).toHaveLength(2);
 
     expect(api.get).toHaveBeenCalledWith('/viaticos/capturas/b.png', { responseType: 'blob' });
-    // La externa se pinta directo; la interna, por el object URL autenticado.
     expect(fila('Volaris').querySelector('img')?.getAttribute('src')).toBe('https://ejemplo.test/cap-a.png');
     expect(fila('Viva Aerobus').querySelector('img')?.getAttribute('src')).toBe('blob:captura-tabla');
   });
@@ -158,17 +150,13 @@ describe('TablaOpciones', () => {
 
     const boton = screen.getByRole('button', { name: /comprar sin url/i });
     expect(boton).toBeDisabled();
-    // Nunca un enlace roto ni un href vacio.
     expect(screen.queryByRole('link')).not.toBeInTheDocument();
-    // El motivo queda disponible como tooltip accesible del boton deshabilitado.
     expect(screen.getByText(/no trae URL de compra/i)).toBeInTheDocument();
   });
 
   it('ofrece volver a buscar la captura del viaje, sin imagen rota, cuando no hay ruta_captura', () => {
     render(<TablaOpciones titulo="Tramo 1" ofertas={[oferta({ id: 'sin-cap', linea: 'ETN' })]} />);
 
-    // Sin captura la celda no es un texto muerto: el boton pide al agente
-    // buscar el viaje en el sitio y capturar la pagina de resultados.
     expect(
       screen.getByRole('button', { name: /volver a buscar la captura de ETN/i }),
     ).toBeInTheDocument();
@@ -184,7 +172,6 @@ describe('TablaOpciones', () => {
           oferta({ id: 'avion', linea: 'Volaris', modo: 'avion' }),
           oferta({ id: 'taxi', linea: 'Uber', modo: 'uber' }),
           oferta({ id: 'publico', linea: 'Transporte público (Camión urbano)', modo: 'publico' }),
-          // Cálculos guardados antes del cambio de nombre.
           oferta({ id: 'legacy', linea: 'Transporte público (Metro)', modo: 'metro' }),
         ]}
       />,
@@ -192,9 +179,7 @@ describe('TablaOpciones', () => {
 
     expect(within(fila('ETN')).getByText('Bus')).toBeInTheDocument();
     expect(within(fila('Volaris')).getByText('Avión')).toBeInTheDocument();
-    // Uber es taxi para el viajero: mismo badge.
     expect(within(fila('Uber')).getByText('Taxi')).toBeInTheDocument();
-    // El camión urbano no es metro: el modo es transporte público.
     const publico = fila('Transporte público (Camión urbano)');
     expect(within(publico).getByText('Público')).toBeInTheDocument();
     expect(within(publico).queryByText('metro')).not.toBeInTheDocument();
@@ -220,13 +205,10 @@ describe('TablaOpciones', () => {
       />,
     );
 
-    // La columna declara qué suma el total.
     expect(screen.getByRole('button', { name: /qué incluye el tiempo total/i })).toBeInTheDocument();
 
-    // Bus: 10h 13m de viaje + 30 min antes + 20 min de taxi = 11h 03m.
     const etn = fila('ETN');
     expect(within(etn).getByText('11h 03m')).toBeInTheDocument();
-    // El desglose vive en una mini tabla concepto → minutos, sin frases largas.
     expect(within(etn).getByRole('table')).toBeInTheDocument();
     expect(within(etn).getByText('Viaje')).toBeInTheDocument();
     expect(within(etn).getByText('10 h 13 min')).toBeInTheDocument();
@@ -236,7 +218,6 @@ describe('TablaOpciones', () => {
     expect(within(etn).getByText('20 min')).toBeInTheDocument();
     expect(within(etn).queryByText('Maletas')).not.toBeInTheDocument();
 
-    // Avión: 1h 08m de viaje + 2 h antes + 30 min de maletas + 40 min de taxi.
     const vuelo = fila('Volaris');
     expect(within(vuelo).getByText('4h 18m')).toBeInTheDocument();
     expect(within(vuelo).getByText('1 h 8 min')).toBeInTheDocument();
@@ -257,12 +238,10 @@ describe('TablaOpciones', () => {
     );
 
     const etn = fila('ETN');
-    // La fecha va en letra y la hora en 12 h con AM/PM.
     expect(within(etn).getByText('23 de octubre')).toBeInTheDocument();
     expect(within(etn).getByText('10:30 PM')).toBeInTheDocument();
     expect(within(etn).getByText('24 de octubre')).toBeInTheDocument();
     expect(within(etn).getByText('2:03 AM')).toBeInTheDocument();
-    // Ya no queda el texto crudo "dd/MM HH:mm" en las celdas.
     expect(within(etn).queryByText('23/10 22:30')).not.toBeInTheDocument();
   });
 
@@ -271,9 +250,7 @@ describe('TablaOpciones', () => {
       <TablaOpciones
         titulo="Tramo 1"
         ofertas={[
-          // Sale antes de la hora declarada, pero llega muy antes del límite.
           oferta({ id: 'antes', linea: 'VivaAerobus', aTiempo: false, llegaTarde: false, noTomable: true }),
-          // Llega después del límite: ese sí es "Tarde".
           oferta({
             id: 'tarde',
             linea: 'ADO',
@@ -289,7 +266,6 @@ describe('TablaOpciones', () => {
 
     const viva = fila('VivaAerobus');
     expect(within(viva).getByText('Sale antes')).toBeInTheDocument();
-    // Salir antes no es llegar tarde: nunca ambos badges por el mismo motivo.
     expect(within(viva).queryByText('Tarde')).not.toBeInTheDocument();
 
     const ado = fila('ADO');
@@ -348,7 +324,6 @@ describe('TablaOpciones', () => {
     );
 
     const viva = fila('VivaAerobus');
-    // Los dos taxis se listan siempre; el desconocido no se inventa como 0.
     expect(within(viva).getByText('Taxi punto → terminal')).toBeInTheDocument();
     expect(within(viva).getByText('32 min')).toBeInTheDocument();
     expect(within(viva).getByText('Taxi terminal → punto')).toBeInTheDocument();

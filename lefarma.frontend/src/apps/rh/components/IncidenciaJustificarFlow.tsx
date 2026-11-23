@@ -21,11 +21,6 @@ interface IncidenciaJustificarFlowProps {
   onSaved?: () => void;
 }
 
-/**
- * Flujo compartido "ver incidencia → justificar incidencia":
- * abre el detalle de la incidencia y encadena el formulario de creación
- * de solicitud con la incidencia preseleccionada.
- */
 export function IncidenciaJustificarFlow({
   incidencia,
   onClose,

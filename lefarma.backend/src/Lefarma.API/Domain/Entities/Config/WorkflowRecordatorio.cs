@@ -7,7 +7,7 @@ namespace Lefarma.API.Domain.Entities.Config
         public int? IdPaso { get; set; }
         public string Nombre { get; set; } = string.Empty;
         public bool Activo { get; set; } = true;
-        public string TipoTrigger { get; set; } = "horario"; // horario|recurrente|fecha_especifica
+        public string TipoTrigger { get; set; } = "horario"; 
         public TimeOnly? HoraEnvio { get; set; }
         public string? DiasSemana { get; set; }
         public int? IntervaloHoras { get; set; }

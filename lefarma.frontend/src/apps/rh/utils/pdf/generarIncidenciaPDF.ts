@@ -30,7 +30,6 @@ import {
   type FirmaDibujo,
 } from './pdfDoc';
 
-/** LEF-RHU-FOR-007: hoja carta vertical (formato físico). El generador usa ESTA config. */
 export const PAGINA_INCIDENCIA: ConfigPagina = { format: 'letter', orientation: 'portrait' };
 
 const MARGEN_X = 4;
@@ -40,7 +39,6 @@ const GAP_COPIAS = 6;
 const ALTO_FILA = 4.5;
 
 export interface OpcionesGenerar {
-  /** Inyectable en pruebas; por defecto descarga la firma autenticada como data URL. */
   loadFirma?: (endpoint: string) => Promise<string | null>;
 }
 
@@ -50,7 +48,6 @@ interface DatosCopia {
   logo: string | null;
 }
 
-/** Fila de opción con casilla; `shaded` pinta la banda gris (filas impares de Permiso). */
 function dibujarOpcion(
   doc: jsPDF,
   x: number,
@@ -70,7 +67,6 @@ function dibujarOpcion(
   return y + alto + (spaced ? 2.2 : 0);
 }
 
-/** Rejilla DÍA/MES/AÑO; la fecha solo se escribe en la fila `fillRow` (1-based). */
 function dibujarFechaGrid(
   doc: jsPDF,
   x: number,
@@ -108,7 +104,6 @@ function dibujarFechaGrid(
   return y + alto;
 }
 
-/** Dibuja una copia completa del formato y devuelve su altura total (incluye pie). */
 async function dibujarCopia(
   doc: jsPDF,
   x: number,
@@ -120,12 +115,10 @@ async function dibujarCopia(
   const { idxJust, idxPerm, fillRepos } = indicesIncidencia(solicitud.tipoSolicitudNombre);
   let y = y0;
 
-  // ── ENCABEZADO (logo + título, sin divisor vertical) ──
   if (logo) {
     try {
       doc.addImage(logo, 'PNG', x + 1, y + 0.5, 25, 7);
     } catch {
-      // logo ilegible: el encabezado queda solo con el título
     }
   }
   texto(doc, 'FORMATO DE INCIDENCIAS Y PERMISOS', x + w - 3, y + 5.5, {
@@ -137,7 +130,6 @@ async function dibujarCopia(
   linea(doc, x, y + 9, x + w, y + 9);
   y += 9;
 
-  // ── DATOS (Empresa | Area | Puesto | Fecha) ──
   const cw4 = w / 4;
   caja(doc, x, y, w, ALTO_FILA);
   for (let i = 1; i < 4; i++) linea(doc, x + i * cw4, y, x + i * cw4, y + ALTO_FILA);
@@ -159,7 +151,6 @@ async function dibujarCopia(
   linea(doc, x, y + ALTO_FILA, x + w, y + ALTO_FILA);
   y += ALTO_FILA;
 
-  // ── NOMBRE ──
   const wNomLabel = w * 0.24;
   caja(doc, x, y, w, ALTO_FILA);
   linea(doc, x + wNomLabel, y, x + wNomLabel, y + ALTO_FILA);
@@ -176,12 +167,10 @@ async function dibujarCopia(
   linea(doc, x, y + ALTO_FILA, x + w, y + ALTO_FILA);
   y += ALTO_FILA;
 
-  // ── BLOQUE CENTRAL (sin líneas internas, como el formato) ──
   const cw38 = w * 0.38;
   const cw24 = w * 0.24;
   const bloqueY = y;
 
-  // Banda 1: Justificación de Incidencia | Fecha de incidencia
   let yB = bloqueY + 2;
   texto(doc, 'Justificación de Incidencia:', x + 2, yB + 2.5, { size: 5.5, bold: true });
   let yChk = yB + 4.5;
@@ -195,7 +184,6 @@ async function dibujarCopia(
   const finBanda1Der = dibujarFechaGrid(doc, gridX, yB + 3, gridW, 3, solicitud.fechaInicio, idxJust >= 0 ? idxJust + 1 : 0);
   y = Math.max(finBanda1Izq, finBanda1Der) + 1;
 
-  // Banda 2: Solicitud de Permiso | Fecha de aplicación | Reposición / Lugar de comisión
   yB = y;
   texto(doc, 'Solicitud de Permiso:', x + 2, yB + 2.5, { size: 5.5, bold: true });
   yChk = yB + 4.5;
@@ -230,7 +218,6 @@ async function dibujarCopia(
   const finBanda2Der = finRepos + 8;
   y = Math.max(finBanda2Izq, finMedio, finBanda2Der) + 1;
 
-  // Banda 3: Consideraciones
   yB = y;
   texto(doc, 'Consideraciones:', x + 2, yB + 2.5, { size: 5.5, bold: true });
   let yNota = yB + 4.5;
@@ -246,7 +233,6 @@ async function dibujarCopia(
   y = yNota + 1;
   linea(doc, x, y, x + w, y);
 
-  // ── DESCRIPCIÓN / MOTIVO ──
   texto(doc, 'Descripción / Motivo  / Incidencia o Permiso:', x + 2, y + 3, { size: 5.5, bold: true });
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(5);
@@ -259,14 +245,12 @@ async function dibujarCopia(
   y = Math.max(yMotivo, y + 11);
   linea(doc, x, y, x + w, y);
 
-  // ── FIRMAS ──
   texto(doc, 'FIRMAS DE AUTORIZACIÓN', x + w / 2, y + 2.8, { size: 5, bold: true, align: 'center' });
   linea(doc, x, y + 3.8, x + w, y + 3.8);
   y += 3.8;
   const altoFirma = firmantes.length > 4 ? 9 : 11.5;
   y = await dibujarFirmas(doc, x, y, w, firmantes, { altoFirma });
 
-  // ── BORDE EXTERIOR + PIE ──
   caja(doc, x, y0, w, y - y0);
   const pieY = y + 2.6;
   texto(doc, 'LEF-RHU-FOR-007', x + 1, pieY, { size: 4 });
@@ -276,7 +260,6 @@ async function dibujarCopia(
   return pieY + 1.5 - y0;
 }
 
-/** Construye el documento (exportado para pruebas: página, texto y nº de #firmad). */
 export async function generarIncidenciaDoc(
   solicitud: SolicitudPersonalResponse,
   historial: HistorialWorkflowItemResponse[] = [],
@@ -302,7 +285,6 @@ export async function generarIncidenciaDoc(
     logo,
   };
 
-  // El formato físico lleva 2 copias idénticas por hoja (original + empleado).
   const alto = await dibujarCopia(doc, MARGEN_X, Y_INICIAL, ANCHO_UTIL, datos);
   await dibujarCopia(doc, MARGEN_X, Y_INICIAL + alto + GAP_COPIAS, ANCHO_UTIL, datos);
   return doc;

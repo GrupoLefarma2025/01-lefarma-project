@@ -4,13 +4,10 @@ namespace Lefarma.API.Features.EducacionMedica;
 
 public interface ITalleresService
 {
-    /// <summary>Equipo del usuario, su matriz individual del periodo y los talleres capturados.</summary>
     Task<MisTalleresResponse> GetMisTalleresAsync(int idUsuario, string? periodo, CancellationToken ct = default);
 
-    /// <summary>Captura un taller (FOR-005); hace get-or-create de la matriz individual y de la general.</summary>
     Task<TallerDto> CrearAsync(CrearTallerRequest request, int idUsuario, CancellationToken ct = default);
 
-    /// <summary>Talleres activos ligados a una visita de ruta (ADR-00015/00016).</summary>
     Task<List<TallerDto>> GetByVisitaAsync(
         int idRutaVisita,
         int idUsuario,
@@ -20,14 +17,12 @@ public interface ITalleresService
     Task<TallerDto> ActualizarAsync(int idTaller, ActualizarTallerRequest request, int idUsuario, CancellationToken ct = default);
     Task EliminarAsync(int idTaller, int idUsuario, CancellationToken ct = default);
 
-    /// <summary>Crea la solicitud de cambio del equipo (candado puesto / fuera de captura; ADR-00010).</summary>
     Task<TallerSolicitudCambioDto> CrearSolicitudCambioAsync(
         int idTaller,
         CrearSolicitudCambioRequest request,
         int idUsuario,
         CancellationToken ct = default);
 
-    /// <summary>Resuelve la solicitud (CEM): aprobar aplica el ajuste; rechazar solo registra motivo.</summary>
     Task<TallerSolicitudCambioDto> ResolverSolicitudCambioAsync(
         int idSolicitud,
         ResolverSolicitudCambioRequest request,

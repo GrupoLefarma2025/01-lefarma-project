@@ -12,7 +12,6 @@ namespace Lefarma.API.Features.Catalogos;
 [Route("api/catalogos/[controller]")]
 [ApiController]
 [EndpointGroupName("Catalogos")]
-// [HasPermission(Permissions.Catalogos.View)]
 public class RegimenesFiscalesController : ControllerBase
 {
     private readonly IRegimenFiscalService _regimenFiscalService;
@@ -56,7 +55,6 @@ public class RegimenesFiscalesController : ControllerBase
     }
 
     [HttpPost]
-//    [HasPermission(Permissions.Catalogos.Manage)]
     [SwaggerOperation(Summary = "Crear nuevo régimen fiscal", Description = "Crea un régimen fiscal con los datos proporcionados")]
     public async Task<IActionResult> Create(
         [SwaggerRequestBody(Description = "Datos del régimen fiscal a crear", Required = true)] CreateRegimenFiscalRequest request)
@@ -75,7 +73,6 @@ public class RegimenesFiscalesController : ControllerBase
     }
 
     [HttpPut("{id}")]
-//    [HasPermission(Permissions.Catalogos.Manage)]
     [SwaggerOperation(Summary = "Actualizar régimen fiscal", Description = "Actualiza los datos de un régimen fiscal existente")]
     public async Task<IActionResult> Update(
         [SwaggerParameter(Description = "Identificador del régimen fiscal a actualizar", Required = true)] int id,
@@ -92,7 +89,6 @@ public class RegimenesFiscalesController : ControllerBase
     }
 
     [HttpDelete("{id}")]
-//    [HasPermission(Permissions.Catalogos.Manage)]
     [SwaggerOperation(Summary = "Eliminar régimen fiscal", Description = "Elimina un régimen fiscal por su identificador")]
     public async Task<IActionResult> Delete(
         [SwaggerParameter(Description = "Identificador del régimen fiscal a eliminar", Required = true)] int id)

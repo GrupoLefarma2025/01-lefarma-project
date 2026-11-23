@@ -3,11 +3,6 @@ using Lefarma.API.Domain.Firmas;
 
 namespace Lefarma.UnitTests;
 
-/// <summary>
-/// Pruebas puras (sin DB) de la regla de control de cambios de firma:
-/// solo la subida inicial es libre; reemplazos requieren habilitación RH (un solo uso).
-/// El consumo de la habilitación es implícito (ver FirmaControlTests).
-/// </summary>
 public class FirmaCambioPolicyTests
 {
     [Fact]

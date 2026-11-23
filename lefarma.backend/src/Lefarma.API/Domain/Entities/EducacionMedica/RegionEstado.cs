@@ -1,9 +1,5 @@
 namespace Lefarma.API.Domain.Entities.EducacionMedica;
 
-/// <summary>
-/// Mapeo editable estado -> región (educacion_medica.regiones_estados).
-/// codigo_estado es FK lógica -> Asokam.genEstadosCat (mismo servidor).
-/// </summary>
 public class RegionEstado
 {
     public int IdRegionEstado { get; set; }

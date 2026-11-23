@@ -164,7 +164,6 @@ public class IncidenciasChecadoNotificacionService : BaseService, IIncidenciasCh
                     }
                 }
 
-                // Determinar destinatarios
                 var itemPorEmpleado = request.EmpleadosDestinatarios?.FirstOrDefault(e => e.Nomina == nomina);
 
                 var destinatarios = new List<int>();
@@ -172,13 +171,11 @@ public class IncidenciasChecadoNotificacionService : BaseService, IIncidenciasCh
 
                 if (itemPorEmpleado != null)
                 {
-                    // Usar configuración por empleado
                     destinatarios.AddRange(itemPorEmpleado.SelectedUserIds);
                     copiarAUsuario = itemPorEmpleado.CopiarAUsuarioIncidencia;
                 }
                 else
                 {
-                    // Usar configuración general
                     if (request.SelectedUserIds != null)
                         destinatarios.AddRange(request.SelectedUserIds);
                     copiarAUsuario = request.CopiarAUsuarioIncidencia;
@@ -279,7 +276,6 @@ public class IncidenciasChecadoNotificacionService : BaseService, IIncidenciasCh
 
             await _applicationDbContext.SaveChangesAsync(cancellationToken);
 
-            // Guardar defaults por empleado si se envió configuración individual
             if (idUsuarioEnviador.HasValue && request.EmpleadosDestinatarios != null)
             {
                 foreach (var item in request.EmpleadosDestinatarios)
@@ -302,7 +298,6 @@ public class IncidenciasChecadoNotificacionService : BaseService, IIncidenciasCh
                     }
                 }
             }
-            // Si no se envió configuración individual, guardar configuración general   
             else if (idUsuarioEnviador.HasValue && request.SelectedUserIds != null && request.SelectedUserIds.Count > 0)
             {
                 try
@@ -541,8 +536,6 @@ public class IncidenciasChecadoNotificacionService : BaseService, IIncidenciasCh
         string reglasDescuento,
         string tablaHtml)
     {
-        // Los descuentos se cuentan por día (igual que el tope): un día sin checadas
-        // (omisión de entrada y salida) es un solo descuento/justificante.
         var diasConDescuento = items.Count(i => i.IncidenciasCalculadas.Any(c => c.GeneraDescuento));
         var diasJustificados = items.Count(i => i.Justificada
             && i.CubiertaPorSolicitudIncidencia

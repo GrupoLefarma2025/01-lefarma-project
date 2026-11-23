@@ -12,7 +12,6 @@ export interface MainLayoutProps {
   brandTitle: string;
   brandPath: string;
   configPath?: string;
-  /** Muestra el contexto de empresa/sucursal/área en el encabezado (CxP=true, RH=false). */
   showContext?: boolean;
 }
 
@@ -41,8 +40,7 @@ export const MainLayout = ({ items, brandTitle, brandPath, configPath, showConte
           onOpenHelp={openHelp}
         />
         <main className="flex-1 overflow-y-auto p-6">
-          {/* Si una pantalla revienta, el módulo se queda vacío y al cambiar de
-              ruta se reintenta solo: el menú sigue disponible para seguir. */}
+          {}
           <ErrorBoundary resetKey={pathname}>
             <Outlet />
           </ErrorBoundary>

@@ -4,9 +4,6 @@ import { useConnectionStore } from '@/shared/connection/connectionStore';
 
 const state = () => useConnectionStore.getState();
 
-// Simula que el aviso de "sin conexión" lleva un rato en pantalla. El caso real
-// que motivó estas pruebas: el servidor vuelve y la petición que llega primero
-// no es el sondeo de /health, así que el aviso se quedaba pegado.
 const marcarDesconectado = () => {
   state().stopHealthCheck();
   useConnectionStore.setState({
@@ -21,8 +18,6 @@ describe('puente entre las respuestas de la API y el aviso de conexión', () => 
   beforeEach(marcarDesconectado);
 
   it('una respuesta correcta quita el aviso aunque no sea el sondeo', () => {
-    // Se invoca el interceptor de respuestas registrado por apiClient, que es
-    // justo el que ve cualquier pantalla que carga datos con éxito.
     const responseInterceptor = (
       apiClient.interceptors.response as unknown as {
         handlers: Array<{ fulfilled: (response: unknown) => unknown }>;

@@ -132,7 +132,6 @@ public class WorkflowService : BaseService, IWorkflowService
                         .Select(r => new { r.IdRol, r.NombreRol })
                         .ToDictionaryAsync(r => r.IdRol, r => r.NombreRol)
                     : new Dictionary<int, string>();
-                // Puesto oficial del participante para títulos/etiquetas del flujo.
                 var puestosUsuarios = await ResolverPuestosUsuariosAsync(idsUsuarios);
 
                 var response = workflows.Select(w => new WorkflowFlowResponse
@@ -194,11 +193,6 @@ public class WorkflowService : BaseService, IWorkflowService
             }
         }
 
-        /// <summary>
-        /// Puesto oficial de los participantes con usuario, tomado de Asistencias.dbo.vwEmpleados
-        /// (la columna Puesto de app.Usuarios está en «Sin asignar»). Si Asistencias no responde,
-        /// el flujo se devuelve sin puestos en lugar de romper la pantalla.
-        /// </summary>
         private async Task<Dictionary<int, string?>> ResolverPuestosUsuariosAsync(List<int> idsUsuarios)
         {
             if (idsUsuarios.Count == 0) return new Dictionary<int, string?>();
@@ -262,7 +256,6 @@ public class WorkflowService : BaseService, IWorkflowService
             }
         }
 
-        // Scope types y mappings 
         public async Task<ErrorOr<IEnumerable<WorkflowScopeTypeResponse>>> GetScopeTypesAsync()
         {
             try
@@ -296,7 +289,7 @@ public class WorkflowService : BaseService, IWorkflowService
             try
             {
                 var q = _context.WorkflowMappings
-                    .Include(m => m.ScopeType) // <-- Faltaba este
+                    .Include(m => m.ScopeType) 
                     .Include(m => m.Workflow)
                     .AsQueryable();
                 if (!string.IsNullOrEmpty(codigoProceso)) q = q.Where(m => m.CodigoProceso == codigoProceso);
@@ -308,31 +301,26 @@ public class WorkflowService : BaseService, IWorkflowService
                             .ThenByDescending(m => m.FechaCreacion)
                             .ToListAsync();
 
-                // Cargamos  los catálogos para resolver los nombres de ScopeId
                 var empresas = await _context.Empresas.ToDictionaryAsync(e => e.IdEmpresa, e => e.Nombre);
                 var sucursales = await _context.Sucursales.ToDictionaryAsync(s => s.IdSucursal, s => s.Nombre);
                 var areas = await _context.Areas.ToDictionaryAsync(a => a.IdArea, a => a.Nombre);
                 var usuarios = await _asokamContext.Usuarios.ToDictionaryAsync(u => u.IdUsuario, u => u.NombreCompleto);
-                //var tiposGasto = await _context.TipoGasto.ToDictionaryAsync(t => t.IdTipoGasto, t => t.Nombre);
                 var proveedores = await _context.Proveedores.ToDictionaryAsync(p => p.IdProveedor, p => p.RazonSocial);
                 var tiposSolicitud = await _context.TiposSolicitud.ToDictionaryAsync(t => t.IdTipoSolicitud, t => t.Nombre);
 
-
-                var result = rawList.Select(m => new WorkflowMappingResponse
+var result = rawList.Select(m => new WorkflowMappingResponse
                     {
                         IdMapping = m.IdMapping,
                         CodigoProceso = m.CodigoProceso,
                         IdScopeType = m.IdScopeType,
                         ScopeId = m.ScopeId,
                         ScopeTypeNombre = m.ScopeType.Nombre,
-                        // Lógica para resolver el nombre del destino
                         ScopeNombre = m.ScopeType.Codigo.ToUpper() switch
                         {
                             "USUARIO" => m.ScopeId.HasValue && usuarios.TryGetValue(m.ScopeId.Value, out var n) ? n : "N/A",
                             "EMPRESA" => m.ScopeId.HasValue && empresas.TryGetValue(m.ScopeId.Value, out var n) ? n : "N/A",
                             "SUCURSAL" => m.ScopeId.HasValue && sucursales.TryGetValue(m.ScopeId.Value, out var n) ? n : "N/A",
                             "AREA" => m.ScopeId.HasValue && areas.TryGetValue(m.ScopeId.Value, out var n) ? n : "N/A",
-                            //"TIPO_GASTO" => m.ScopeId.HasValue && tiposGasto.TryGetValue(m.ScopeId.Value, out var n) ? n : "N/A",
                             "PROVEEDOR" => m.ScopeId.HasValue && proveedores.TryGetValue(m.ScopeId.Value, out var n) ? n : "N/A",
                             "CATEGORIA" => m.ScopeId.HasValue && Enum.IsDefined(typeof(CategoriaSolicitud), m.ScopeId.Value) ? ((CategoriaSolicitud)m.ScopeId.Value).ToString() : "N/A",
                             "TIPO_SOLICITUD" => m.ScopeId.HasValue && tiposSolicitud.TryGetValue(m.ScopeId.Value, out var n) ? n : "N/A",
@@ -481,11 +469,6 @@ public class WorkflowService : BaseService, IWorkflowService
         {
             try
             {
-                //if (await _repo.ExistsAsync(w => w.CodigoProceso == request.CodigoProceso.ToUpper()))
-                //{
-                //    EnrichWideEvent("Create", nombre: request.CodigoProceso, duplicate: true);
-                //    return CommonErrors.AlreadyExists("workflow", "codigo_proceso", request.CodigoProceso);
-                //}
 
                 var entity = new Workflow
                 {
@@ -613,7 +596,6 @@ public class WorkflowService : BaseService, IWorkflowService
                         return CommonErrors.Conflict("paso", "No se puede inactivar el paso porque hay condiciones activas que lo usan como destino.");
                 }
 
-                // Actualizar propiedades del paso
                 paso.NombrePaso = request.NombrePaso;
                 paso.Orden = request.Orden;
                 paso.IdEstado = request.IdEstado;
@@ -781,9 +763,6 @@ public class WorkflowService : BaseService, IWorkflowService
             }
         }
 
-        // ============================================================================
-        // ACCIONES
-        // ============================================================================
         public async Task<ErrorOr<WorkflowAccionResponse>> CreateAccionAsync(int idWorkflow, int idPaso, CreateAccionRequest request)
         {
             try
@@ -987,10 +966,6 @@ public class WorkflowService : BaseService, IWorkflowService
             "comprobante_pago"
         };
 
-        /// <summary>
-        /// Valida la combinación handler + campo: el handler de comprobante OC solo admite
-        /// comprobante_gasto/comprobante_pago; el handler genérico Archivo no los admite.
-        /// </summary>
         private async Task<ErrorOr<Success>> ValidarHandlerYCampoAsync(string handlerKey, int? idWorkflowCampo)
         {
             var key = handlerKey.Trim();
@@ -1035,10 +1010,6 @@ public class WorkflowService : BaseService, IWorkflowService
                 { "tipoGerencia" }
         };
 
-        /// <summary>
-        /// Valida el JSON de configuración del handler: llaves permitidas en "aplica" según el
-        /// proceso, listas de ids positivos y que los ids existan en sus catálogos.
-        /// </summary>
         private async Task<ErrorOr<Success>> ValidarConfiguracionHandlerAsync(
             string? configuracionJson, string? codigoProceso)
         {
@@ -1346,9 +1317,6 @@ public class WorkflowService : BaseService, IWorkflowService
             }
         }
 
-        // ============================================================================
-        // CONDICIONES
-        // ============================================================================
         public async Task<ErrorOr<CondicionResponse>> CreateCondicionAsync(int idWorkflow, int idAccion, CreateCondicionRequest request)
         {
             try
@@ -1404,7 +1372,6 @@ public class WorkflowService : BaseService, IWorkflowService
         {
             try
             {
-                // Buscar condicion directamente por ID
                 var condicion = await _context.WorkflowCondiciones
                     .Include(c => c.Accion).ThenInclude(a => a.PasoOrigen)
                     .FirstOrDefaultAsync(c => c.IdCondicion == idCondicion);
@@ -1415,7 +1382,6 @@ public class WorkflowService : BaseService, IWorkflowService
                 if (condicion.Accion?.PasoOrigen?.IdWorkflow != idWorkflow)
                     return CommonErrors.Validation("Workflow", "La condición no pertenece al workflow indicado.");
 
-                // Si cambia de accion, validar la nueva
                 if (request.IdAccion != condicion.IdAccion)
                 {
                     var nuevaAccion = await _context.WorkflowAcciones
@@ -1495,8 +1461,6 @@ public class WorkflowService : BaseService, IWorkflowService
             }
         }
 
-        // PARTICIPANTES
-        // ============================================================================
         public async Task<ErrorOr<ParticipanteResponse>> CreateParticipanteAsync(int idWorkflow, int idPaso, CreateParticipanteRequest request)
         {
             try
@@ -1658,9 +1622,6 @@ public class WorkflowService : BaseService, IWorkflowService
             }
         }
 
-        // ============================================================================
-        // NOTIFICACIONES
-        // ============================================================================
         public async Task<ErrorOr<NotificacionResponse>> CreateNotificacionAsync(int idWorkflow, int idAccion, CreateNotificacionRequest request)
         {
             try
@@ -1802,7 +1763,6 @@ public class WorkflowService : BaseService, IWorkflowService
                 notificacion.IncluirPartidas = request.IncluirPartidas;
                 notificacion.Activo = request.Activo;
 
-                // Upsert canales
                 var codigosEnRequest = request.Canales.Select(c => c.CodigoCanal).ToHashSet();
                 var canalesAEliminar = notificacion.Canales
                     .Where(c => !codigosEnRequest.Contains(c.CodigoCanal))
@@ -2359,11 +2319,7 @@ public class WorkflowService : BaseService, IWorkflowService
             }
         }
 
-        // ============================================================================
-        // Recordatorios
-        // ============================================================================
-
-        private static WorkflowRecordatorioResponse ToRecordatorioResponse(Domain.Entities.Config.WorkflowRecordatorio r) => new()
+private static WorkflowRecordatorioResponse ToRecordatorioResponse(Domain.Entities.Config.WorkflowRecordatorio r) => new()
         {
             IdRecordatorio = r.IdRecordatorio,
             IdWorkflow = r.IdWorkflow,
@@ -2496,7 +2452,6 @@ public class WorkflowService : BaseService, IWorkflowService
                 recordatorio.EnviarWhatsapp = request.EnviarWhatsapp;
                 recordatorio.EnviarTelegram = request.EnviarTelegram;
 
-                // Upsert canales: eliminar los que ya no vienen, actualizar o insertar los nuevos
                 var codigosEnRequest = request.Canales.Select(c => c.CodigoCanal).ToHashSet();
                 var canalesAEliminar = recordatorio.Canales
                     .Where(c => !codigosEnRequest.Contains(c.CodigoCanal))

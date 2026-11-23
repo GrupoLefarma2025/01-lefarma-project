@@ -7,10 +7,6 @@ using Microsoft.Extensions.Caching.Memory;
 
 namespace Lefarma.API.Features.Configuracion;
 
-/// <summary>
-/// Caché de variables de configuración para consumo del backend.
-/// Solo expone variables activas y disponibles para backend.
-/// </summary>
 public class ConfiguracionRuntimeService : IConfiguracionRuntimeService
 {
     private const string PrefijoCache = "configuracion:variable:";

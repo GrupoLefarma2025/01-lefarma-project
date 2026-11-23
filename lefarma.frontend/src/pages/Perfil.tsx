@@ -16,7 +16,7 @@ export default function Perfil() {
       <FirmaUploadCard />
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Información Personal */}
+        {}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -44,7 +44,7 @@ export default function Perfil() {
           </CardContent>
         </Card>
 
-        {/* Ubicación */}
+        {}
         {(empresa || sucursal) && (
         <Card>
           <CardHeader>

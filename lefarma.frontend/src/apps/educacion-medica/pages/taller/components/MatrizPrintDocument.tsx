@@ -305,10 +305,7 @@ interface MatrizPrintDocumentProps {
   documento: MatrizDocumento | null;
 }
 
-/** Vista de impresión de la Matriz (layout FOR-005): general o individual. */
 export function MatrizPrintDocument({ open, onOpenChange, documento }: MatrizPrintDocumentProps) {
-  // El FOR-005 tiene 19 columnas en la tabla principal: se imprime en A4 horizontal
-  // (body.print-matriz activa la página nombrada @page landscape de index_educacion_medica.css).
   const imprimir = () => {
     document.body.classList.add('print-matriz');
     const limpiar = () => {
@@ -346,7 +343,7 @@ export function MatrizPrintDocument({ open, onOpenChange, documento }: MatrizPri
         )}
       </Modal>
 
-      {/* Copia exclusiva para impresión: flujo normal de página, sin las animaciones del diálogo */}
+      {}
       {documento &&
         createPortal(
           <div id="matriz-print" className="hidden print:block">

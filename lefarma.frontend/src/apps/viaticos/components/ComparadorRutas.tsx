@@ -7,7 +7,6 @@ import { importeFormateado } from '../types/aprobaciones.types';
 import type { SolicitudOpcion } from '../types/solicitud.types';
 import { BoletoViajeDialog } from './BoletoViajeDialog';
 
-/** Resultado de comparar una opción del viajero contra la versión propuesta. */
 export type EstadoComparacion =
   | 'subio'
   | 'bajo'
@@ -17,15 +16,10 @@ export type EstadoComparacion =
   | 'sin-dato';
 
 export interface FilaComparacionRuta {
-  /** Clave estable de la fila (tramo o identidad de la opción). */
   clave: string;
-  /** Opción de la cotización original; `null` si la versión es nueva. */
   original: SolicitudOpcion | null;
-  /** Opción de la versión propuesta; `null` si ya no está disponible. */
   propuesta: SolicitudOpcion | null;
-  /** `propuesta - original`; `null` cuando falta alguno de los dos precios. */
   diferencia: number | null;
-  /** Variación porcentual; `null` cuando falta precio o el original es cero. */
   porcentaje: number | null;
   estado: EstadoComparacion;
 }
@@ -48,11 +42,6 @@ const CLASE_ESTADO: Record<EstadoComparacion, string> = {
   'sin-dato': 'border-border text-muted-foreground',
 };
 
-/**
- * La comparación es de la ruta que paga el viaje: si las opciones traen la
- * marca de elegida se comparan solo esas; si no (fixtures viejos o versiones
- * sin marcar) se comparan todas para no esconder información.
- */
 export function opcionesParaComparar(opciones: SolicitudOpcion[]): SolicitudOpcion[] {
   return opciones.some((opcion) => opcion.fue_elegida)
     ? opciones.filter((opcion) => opcion.fue_elegida)
@@ -64,7 +53,6 @@ function claveTramo(opcion: SolicitudOpcion): string | null {
   return typeof tramo === 'number' && Number.isFinite(tramo) ? `tramo:${tramo}` : null;
 }
 
-/** Identidad de respaldo cuando la opción no dice a qué tramo pertenece. */
 function claveIdentidad(opcion: SolicitudOpcion): string {
   return `opcion:${opcion.tipo}|${opcion.linea}|${opcion.url_compra ?? ''}`;
 }
@@ -78,11 +66,6 @@ function porcentajeDe(diferencia: number | null, original: number | null): numbe
   return (diferencia / original) * 100;
 }
 
-/**
- * Empareja la cotización original con la propuesta: primero por `datos.tramo`
- * y, cuando no hay tramo (o no coincide), por tipo/línea/url. Lo que sobra en
- * la propuesta es "Nueva"; lo que sobra en la original es "Ya no disponible".
- */
 export function compararOpcionesRuta(
   originales: SolicitudOpcion[],
   propuestas: SolicitudOpcion[],
@@ -98,8 +81,7 @@ export function compararOpcionesRuta(
     let candidata =
       tramoOriginal === null
         ? undefined
-        : // Dentro del tramo se prefiere el mismo tipo (vuelo con vuelo) para
-          // no emparejar, por ejemplo, un hotel con un taxi.
+        : 
           candidatas.find(
             (item) =>
               !item.usado &&
@@ -152,7 +134,6 @@ export function compararOpcionesRuta(
   return filas;
 }
 
-/** Suma de las filas comparadas, o `null` si falta cualquier precio. */
 function totalDeFilas(filas: FilaComparacionRuta[], lado: 'original' | 'propuesta'): number | null {
   const presentes = filas
     .map((fila) => fila[lado])
@@ -192,11 +173,6 @@ function etiquetaDe(fila: FilaComparacionRuta): { titulo: string; detalle: strin
   return { titulo: base.linea || 'Opción sin nombre', detalle };
 }
 
-/**
- * Comparador presentacional de la cotización original del viajero contra la
- * versión propuesta. No consulta servicios: recibe las dos listas y, si se
- * conocen, los totales. Todo lo que falta se muestra como "Sin dato".
- */
 export function ComparadorRutas({
   opcionesOriginales,
   opcionesPropuestas,
@@ -206,11 +182,8 @@ export function ComparadorRutas({
 }: {
   opcionesOriginales: SolicitudOpcion[];
   opcionesPropuestas: SolicitudOpcion[];
-  /** Total conocido de la cotización original; `null` = sin dato. */
   totalOriginal?: number | null;
-  /** Total conocido de la versión propuesta; `null` = sin dato. */
   totalPropuesto?: number | null;
-  /** Moneda de los totales; `null` usa MXN. */
   moneda?: string | null;
 }) {
   const [boletoAbierto, setBoletoAbierto] = useState(false);

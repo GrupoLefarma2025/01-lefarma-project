@@ -2,16 +2,9 @@ import { useEffect, useState } from 'react';
 import { fetchFirmaObjectUrl } from '@/services/firmas.service';
 
 interface FirmaImgProps extends React.ImgHTMLAttributes<HTMLImageElement> {
-  /** Endpoint autenticado de la firma (p.ej. firmasEndpoints.firmaEvento(id)). */
   endpoint?: string | null;
 }
 
-/**
- * Imagen de firma servida por endpoint autenticado: descarga el blob con el
- * token de la sesión y lo pinta como object URL. Mientras carga deja un
- * marcador [data-firma-loading] para que la impresión pueda esperarla
- * (waitForPrintImages).
- */
 export function FirmaImg({ endpoint, alt = 'Firma', style, ...imgProps }: FirmaImgProps) {
   const [loaded, setLoaded] = useState<{ endpoint: string; url: string | null } | null>(null);
 

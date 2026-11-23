@@ -198,7 +198,7 @@ public class WorkflowEngineAutoSkipTests
         var resultado = await engine.EjecutarAccionAsync(CrearCtx());
 
         resultado.Exitoso.Should().BeTrue();
-        resultado.NuevoIdPaso.Should().Be(30); // saltó el paso 20
+        resultado.NuevoIdPaso.Should().Be(30); 
 
         var omision = app.WorkflowBitacoras.Local
             .FirstOrDefault(b => b.Comentario != null && b.Comentario.Contains("omitido"));
@@ -237,7 +237,7 @@ public class WorkflowEngineAutoSkipTests
         var resultado = await engine.EjecutarAccionAsync(CrearCtx());
 
         resultado.Exitoso.Should().BeTrue();
-        resultado.NuevoIdPaso.Should().Be(20); // se detiene en el paso del gerente
+        resultado.NuevoIdPaso.Should().Be(20); 
     }
 
     [Fact]
@@ -251,7 +251,7 @@ public class WorkflowEngineAutoSkipTests
         var resultado = await engine.EjecutarAccionAsync(CrearCtx());
 
         resultado.Exitoso.Should().BeTrue();
-        resultado.NuevoIdPaso.Should().Be(20); // el participante directo 99 conserva el paso
+        resultado.NuevoIdPaso.Should().Be(20); 
     }
 
     [Fact]
@@ -314,7 +314,7 @@ public class WorkflowEngineAutoSkipTests
         var resultado = await engine.EjecutarAccionAsync(ctx);
 
         resultado.Exitoso.Should().BeTrue();
-        resultado.NuevoIdPaso.Should().Be(40); // salta el nivel 2 excluido y se detiene en el nivel 3
+        resultado.NuevoIdPaso.Should().Be(40); 
 
         var omision = app.WorkflowBitacoras.Local
             .FirstOrDefault(b => b.Comentario != null && b.Comentario.Contains("omitido"));

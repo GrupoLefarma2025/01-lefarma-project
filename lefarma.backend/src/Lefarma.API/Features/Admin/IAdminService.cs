@@ -4,13 +4,11 @@ using Lefarma.API.Features.Admin.DTOs;
 namespace Lefarma.API.Features.Admin;
 public interface IAdminService
 {
-    // Usuarios
     Task<ErrorOr<IEnumerable<UsuarioResponse>>> GetAllUsuariosAsync();
     Task<ErrorOr<UsuarioResponse>> GetUsuarioByIdAsync(int id);
     Task<ErrorOr<UsuarioResponse>> CreateUsuarioAsync(CreateUsuarioRequest request);
     Task<ErrorOr<UsuarioResponse>> UpdateUsuarioAsync(int id, UpdateUsuarioRequest request);
 
-    // Roles
     Task<ErrorOr<IEnumerable<RolResponse>>> GetAllRolesAsync();
     Task<ErrorOr<RolResponse>> GetRolByIdAsync(int id);
     Task<ErrorOr<RolConUsuariosResponse>> GetRolWithUsuariosAsync(int id);
@@ -19,7 +17,6 @@ public interface IAdminService
     Task<ErrorOr<bool>> UpdateRolUsuariosAsync(int id, AsignarUsuariosRequest request);
     Task<ErrorOr<bool>> DeleteRolAsync(int id);
 
-    // Permisos
     Task<ErrorOr<IEnumerable<PermisoResponse>>> GetAllPermisosAsync();
     Task<ErrorOr<PermisoResponse>> GetPermisoByIdAsync(int id);
     Task<ErrorOr<PermisoConRolesYUsuariosResponse>> GetPermisoConRelacionesAsync(int id);

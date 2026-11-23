@@ -45,15 +45,10 @@ export const ICONOS_TIPO: Record<TipoDatoConfig, AnimatedIcon> = {
 };
 
 export interface TonoVisual {
-  /** Tarjeta normal. */
   tarjeta: string;
-  /** Tarjeta seleccionada. */
   seleccionada: string;
-  /** Contenedor del icono. */
   icono: string;
-  /** Contenedor del icono cuando la tarjeta está seleccionada. */
   iconoSeleccionado: string;
-  /** Etiqueta pequeña de tipo. */
   chip: string;
 }
 

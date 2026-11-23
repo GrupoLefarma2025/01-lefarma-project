@@ -4,13 +4,6 @@ using Lefarma.API.Features.OrdenesCompra.Captura;
 
 namespace Lefarma.UnitTests;
 
-/// <summary>
-/// The 'Puesto' shown in OC PDFs must come from Asistencias.dbo.vwEmpleados because
-/// app.Usuarios.Puesto defaults to 'Sin asignar'. Match key: full email,
-/// app.Usuarios.Correo == vwEmpleados.correo, compared case-insensitively.
-/// Evidence row: user 25 'Adriana Arredondo Ortiz' (Correo '1a41@asokam.mx') maps to
-/// vwEmpleados id 26 with puesto 'AUXILIAR DE COMPRAS'.
-/// </summary>
 public class PuestoAsistenciasTests
 {
     private static OrdenCompraService.UsuarioInfo NewInfo(string? correo) =>

@@ -32,7 +32,6 @@ public class RutaVisitaDto
     public TimeOnly? HoraSalida { get; set; }
     public TimeOnly? HoraLlegada { get; set; }
     public bool EsForanea { get; set; }
-    /// <summary>1 = visita extraordinaria (ADR-00011): hospital del catálogo fuera de la selección.</summary>
     public bool EsExtraordinaria { get; set; }
     public int? IdRegion { get; set; }
     public string? NombreRegion { get; set; }
@@ -41,20 +40,13 @@ public class RutaVisitaDto
     public decimal? Latitud { get; set; }
     public decimal? Longitud { get; set; }
 
-    /// <summary>Aviso de intervención humana (p. ej. alta manual de hospital sin región/equipo asignado).</summary>
     public string? Aviso { get; set; }
 
-    /// <summary>Avisos no bloqueantes del modo ajuste (p. ej. capacidad 3/día o 8/semana excedida).</summary>
     public List<string> Avisos { get; set; } = [];
 }
 
 public class GenerarRutasRequest
 {
-    /// <summary>
-    /// Criterio de empaque del draft: "ciudad" (bloques por localidad, no fragmenta
-    /// ciudades entre días) o "centroide" (orden clásico por distancia al centroide
-    /// regional, llena los días al máximo aunque mezcle ciudades). Default: "ciudad".
-    /// </summary>
     public string? Estrategia { get; set; }
 }
 
@@ -75,7 +67,6 @@ public class MoverVisitaRequest
     [Range(1, int.MaxValue, ErrorMessage = "El orden debe ser mayor a cero.")]
     public int Orden { get; set; }
 
-    /// <summary>Motivo del ajuste post-cierre (obligatorio cuando la versión está Cerrada; ADR-00010).</summary>
     [MaxLength(500)]
     public string? Motivo { get; set; }
 }
@@ -86,7 +77,6 @@ public class AgregarVisitaRequest
     [Range(1, int.MaxValue, ErrorMessage = "El hospital seleccionado es obligatorio.")]
     public int IdSeleccionHospital { get; set; }
 
-    /// <summary>Tipo de visita (taller, informativa, captación de queja, otro).</summary>
     public int? IdTipoVisita { get; set; }
 
     [Required(ErrorMessage = "La fecha de visita es obligatoria.")]
@@ -95,18 +85,14 @@ public class AgregarVisitaRequest
     [Range(1, int.MaxValue, ErrorMessage = "El orden debe ser mayor a cero.")]
     public int Orden { get; set; }
 
-    /// <summary>Motivo del ajuste post-cierre (obligatorio cuando la versión está Cerrada; ADR-00010).</summary>
     [MaxLength(500)]
     public string? Motivo { get; set; }
 }
 
-/// <summary>Edición de horas de una visita (normal en Creada; ajuste auditado en Cerrada; ADR-00010).</summary>
 public class AsignarEjecutivoVisitaRequest
 {
-    /// <summary>Ejecutivo de la visita; null = heredar del hospital/región.</summary>
     public int? IdEjecutivo { get; set; }
 
-    /// <summary>Motivo obligatorio cuando la ruta está Cerrada (ajuste auditado; ADR-00010).</summary>
     [MaxLength(500)]
     public string? Motivo { get; set; }
 }
@@ -116,12 +102,10 @@ public class EditarHorasVisitaRequest
     public TimeOnly? HoraSalida { get; set; }
     public TimeOnly? HoraLlegada { get; set; }
 
-    /// <summary>Motivo del ajuste post-cierre (obligatorio cuando la versión está Cerrada).</summary>
     [MaxLength(500)]
     public string? Motivo { get; set; }
 }
 
-/// <summary>Alta de visita extraordinaria: hospital del catálogo (FOR-002) fuera de la selección (ADR-00011).</summary>
 public class VisitaExtraordinariaRequest
 {
     [Required(ErrorMessage = "El equipo es obligatorio.")]
@@ -144,10 +128,6 @@ public class VisitaExtraordinariaRequest
     public string Motivo { get; set; } = string.Empty;
 }
 
-/// <summary>
-/// Hospital elegible para la captura asistida (ADR-00011): hospitales de la selección del
-/// equipo con ruta Cerrada, con snapshots para el buscador.
-/// </summary>
 public class HospitalElegibleDto
 {
     public int IdSeleccionHospital { get; set; }
@@ -177,9 +157,7 @@ public class AsignacionDto
     public int? IdSeleccionHospital { get; set; }
     public DateOnly FechaVisita { get; set; }
     public int Orden { get; set; }
-    /// <summary>Hora de salida planeada de la visita (ADR-00013: agenda personal).</summary>
     public TimeOnly? HoraSalida { get; set; }
-    /// <summary>Hora de llegada planeada de la visita (ADR-00013: agenda personal).</summary>
     public TimeOnly? HoraLlegada { get; set; }
     public int? IdHospital { get; set; }
     public string? NombreHospital { get; set; }
@@ -187,9 +165,7 @@ public class AsignacionDto
     public string? EntidadFederativa { get; set; }
     public string? CiudadMunicipio { get; set; }
     public string? Institucion { get; set; }
-    /// <summary>1 = visita extraordinaria: hospital del catálogo fuera de la selección (ADR-00011).</summary>
     public bool EsExtraordinaria { get; set; }
-    /// <summary>Ubicación del hospital (snapshot de la selección; respaldo del catálogo Asokam).</summary>
     public decimal? Latitud { get; set; }
     public decimal? Longitud { get; set; }
     public string? Calle { get; set; }

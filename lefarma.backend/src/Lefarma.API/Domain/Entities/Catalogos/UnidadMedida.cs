@@ -12,7 +12,6 @@ public class UnidadMedida
         public DateTime FechaCreacion { get; set; }
         public DateTime? FechaModificacion { get; set; }
 
-        // Navigation properties
         public virtual Medida? Medida { get; set; }
     }
 }

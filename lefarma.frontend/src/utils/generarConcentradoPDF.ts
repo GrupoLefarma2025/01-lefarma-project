@@ -13,8 +13,6 @@ export const AGRUPACION_LABELS: Record<AgrupacionKey, string> = {
   proveedor: 'Proveedor',
 };
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-
 function fmtMoney(n: number) {
   return n.toLocaleString('es-MX', {
     style: 'currency',
@@ -43,9 +41,6 @@ function getMes(d: string) {
   }
 }
 
-/** Folio + partida cell as 3 intentional lines so autoTable never breaks numbers mid-token:
- *  'OC-2026' / '00171' / '- 1'. Falls back to the whole folio when it has fewer than 3
- *  dash-separated segments. All '-' characters are preserved. */
 function folioPartidaCell(folio: string, numeroPartida: number): string {
   const parts = folio.split('-');
   if (parts.length >= 3) {
@@ -151,7 +146,6 @@ function agruparRows(rows: OrdenRow[]): Array<{ grupo: string; rows: OrdenRow[];
     }));
 }
 
-// One flat row per partida (modo detalle con 2+ órdenes)
 interface PartidaRow {
   idOrden: number;
   folio: string;
@@ -241,8 +235,6 @@ function agruparPartidas(rows: PartidaRow[]): Array<{
     });
 }
 
-// ─── PDF Generation ──────────────────────────────────────────────────────────
-
 async function loadImageAsBase64(url: string): Promise<string> {
   const response = await fetch(url);
   const blob = await response.blob();
@@ -258,13 +250,9 @@ interface GenerarPdfOptions {
   ordenes: OrdenCompraResponse[];
   agrupacion: AgrupacionKey;
   generadoPor?: string;
-  /** Firma del GAF — rol Autorizó */
   firmaAutorizo?: string;
-  /** Firma del revisor (usuario 44) — rol Revisó */
   firmaReviso?: string;
-  /** Nombre completo del revisor (usuario 44) para la etiqueta */
   nombreReviso?: string;
-  /** Nombre completo del autorizador (GAF, usuario 41) para la etiqueta */
   nombreAutorizo?: string;
 }
 
@@ -298,40 +286,31 @@ export async function generarConcentradoPDF(options: GenerarPdfOptions): Promise
   });
 
   const EVEN_BG = '#f0f5fb';
-  // Separador sutil entre bloques de orden (modo detalle por partida)
   const ORDER_TINT = '#f7fafd';
   const ORDER_SUBTOTAL_BG = '#e6effb';
   const pageW = doc.internal.pageSize.width;
 
-  // ── HEADER ──
-  // Load logo
   const logoBase64 = await loadImageAsBase64(logoImage);
   
-  // Header background
   doc.setFillColor(WHITE);
   doc.rect(0, 0, pageW, 22, 'F');
   
-  // Logo
   doc.addImage(logoBase64, 'PNG', 10, 4, 28, 12);
   
-  // Title
   doc.setTextColor(DARK);
   doc.setFontSize(13);
   doc.setFont('helvetica', 'bold');
   doc.text('CONCENTRADO DE ÓRDENES DE COMPRA', 42, 10);
   
-  // Subtitle
   doc.setFontSize(8);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor('#555');
   doc.text(`Pendientes de Aprobación — Dirección Corporativa · Agrupado por: ${AGRUPACION_LABELS[agrupacion]}`, 42, 15);
 
-  // Separator line
   doc.setDrawColor(DARK);
   doc.setLineWidth(0.5);
   doc.line(10, 18, pageW - 10, 18);
 
-  // Meta info (right side)
   doc.setFontSize(7);
   doc.setTextColor('#444');
   doc.text(`Fecha: ${fechaStr}`, pageW - 10, 8, { align: 'right' });
@@ -342,15 +321,12 @@ export async function generarConcentradoPDF(options: GenerarPdfOptions): Promise
 
   let startY = 24;
 
-  // ── TABLE COLUMNS ──
   const colHeaders = [
     'Folio', 'F. Elab.', 'Solicitante', 'F. Límite Pago', 'Mes', 'Sucursal',
     'Cant.', 'U. Med.', 'Proveedor', 'Descripción', 'P. Unitario', 'Subtotal',
     'Descuento', 'Impuesto', 'Otros Imp.', 'Retenc.', 'Importe Total', 'Forma Pago'
   ];
 
-  // Width tweaks (pass 2): Folio ÷2, F. Límite Pago ×0.7, Mes ×0.7, U. Med. ×0.7, F. Elab. ×0.9
-  // Pass 3: Solicitante −15% (20→17) and Sucursal −10% (18→16.2) to free horizontal space.
   const colStyles = [
     { cellWidth: 10.4 },  { cellWidth: 10.8 }, { cellWidth: 17 }, { cellWidth: 11.8 },
     { cellWidth: 8.4 }, { cellWidth: 16.2 }, { cellWidth: 10 }, { cellWidth: 9.8 },
@@ -360,10 +336,6 @@ export async function generarConcentradoPDF(options: GenerarPdfOptions): Promise
     { cellWidth: 16.6 }
   ];
 
-  // Scale-to-page: shrink every column by the same factor so the table fits exactly the
-  // printable width of the current paper (Letter landscape 279mm − 10mm margins per side
-  // = 259mm; A4 landscape would give 277mm). Derived from the live page size so the table
-  // always fits whatever format jsPDF uses. Without this, right-side columns get cut off.
   const PRINTABLE_WIDTH_MM = pageW - 20;
   const totalConfiguredWidth = colStyles.reduce((sum, c) => sum + c.cellWidth, 0);
   const fitFactor = PRINTABLE_WIDTH_MM / totalConfiguredWidth;
@@ -371,12 +343,10 @@ export async function generarConcentradoPDF(options: GenerarPdfOptions): Promise
     c.cellWidth = Math.round(c.cellWidth * fitFactor * 100) / 100;
   }
 
-  // ── GROUPS ──
   for (let gi = 0; gi < grupos.length; gi++) {
     const { grupo, subtotal } = grupos[gi];
     const pg = detallePartidas ? gruposPartidas[gi] : null;
 
-    // Group header
     doc.setFillColor(DARK);
     doc.rect(10, startY - 4, pageW - 20, 6, 'F');
     doc.setTextColor(WHITE);
@@ -388,7 +358,6 @@ export async function generarConcentradoPDF(options: GenerarPdfOptions): Promise
     const body: any[] = [];
 
     if (detallePartidas && pg) {
-      // Una fila por partida, agrupadas por orden
       pg.ordenes.forEach((orden, oi) => {
         const tinted = oi % 2 === 1;
         orden.partidas.forEach((r, i) => {
@@ -415,7 +384,6 @@ export async function generarConcentradoPDF(options: GenerarPdfOptions): Promise
           ];
           body.push(tinted ? cells.map((c) => ({ content: c, styles: { fillColor: ORDER_TINT } })) : cells);
         });
-        // Subtotal por orden — separador sutil entre órdenes
         body.push([
           { content: `Subtotal — Orden ${orden.folio}`, colSpan: 16, styles: { fontStyle: 'bold', fillColor: ORDER_SUBTOTAL_BG } },
           { content: fmtMoney(orden.subtotal), colSpan: 2, styles: { fontStyle: 'bold', fillColor: ORDER_SUBTOTAL_BG, halign: 'right' } }
@@ -447,14 +415,11 @@ export async function generarConcentradoPDF(options: GenerarPdfOptions): Promise
       });
     }
 
-    // Subtotal row (grupo)
     body.push([
       { content: `Subtotal — ${grupo}`, colSpan: 16, styles: { fontStyle: 'bold', fillColor: '#d9e8f8' } },
       { content: fmtMoney(subtotal), colSpan: 2, styles: { fontStyle: 'bold', fillColor: '#d9e8f8', halign: 'right' } }
     ]);
 
-  // Excel-style: numeric body columns right-aligned (headers keep current alignment)
-  // 6: Cant. · 10: P. Unitario · 11: Subtotal · 12: Descuento · 13: Impuesto · 14: Otros Imp. · 15: Retenciones · 16: Importe Total
   const RIGHT_ALIGNED_COLS = new Set([6, 10, 11, 12, 13, 14, 15, 16]);
 
   autoTable(doc, {
@@ -487,7 +452,6 @@ export async function generarConcentradoPDF(options: GenerarPdfOptions): Promise
       ),
       margin: { left: 10, right: 10 },
       didDrawPage: (data) => {
-        // Re-draw header on new pages
         if (data.pageNumber > 1) {
           doc.setFillColor(DARK);
           doc.rect(0, 0, doc.internal.pageSize.width, 12, 'F');
@@ -502,7 +466,6 @@ export async function generarConcentradoPDF(options: GenerarPdfOptions): Promise
     startY = (doc as any).lastAutoTable.finalY + 6;
   }
 
-  // ── GRAND TOTAL ──
   doc.setFillColor(DARK);
   doc.rect(pageW - 90, startY, 40, 6, 'F');
   doc.setTextColor(WHITE);
@@ -532,7 +495,6 @@ export async function generarConcentradoPDF(options: GenerarPdfOptions): Promise
 
   startY += 12;
 
-  // ── FIRMAS ──
   if (startY > doc.internal.pageSize.height - 40) {
     doc.addPage();
     startY = 20;
@@ -546,13 +508,11 @@ export async function generarConcentradoPDF(options: GenerarPdfOptions): Promise
   doc.text('Autorizaciones', 12, startY);
   startY += 8;
 
-  // Firrmas: Revisó | Autorizó (GAF) | Visto Bueno
   const boxW = (pageW - 40) / 3;
   const gap = 10;
   drawFirmaBox(doc, 10, startY, boxW, nombreReviso ? `Revisó — ${nombreReviso}` : 'Revisó', firmaReviso);
   drawFirmaBox(doc, 10 + (boxW + gap), startY, boxW, nombreAutorizo ? `Autorizó — ${nombreAutorizo}` : 'Autorizó', firmaAutorizo);
 
-  // Visto Bueno
   const vx = 10 + 2 * (boxW + gap);
   doc.setDrawColor('#a0b8d0');
   doc.setLineWidth(0.3);
@@ -571,7 +531,6 @@ export async function generarConcentradoPDF(options: GenerarPdfOptions): Promise
 
   startY += 30;
 
-  // ── FOOTER ──
   doc.setDrawColor('#ccc');
   doc.setLineWidth(0.2);
   doc.line(10, doc.internal.pageSize.height - 10, pageW - 10, doc.internal.pageSize.height - 10);
@@ -586,7 +545,6 @@ export async function generarConcentradoPDF(options: GenerarPdfOptions): Promise
   return doc.output('blob');
 }
 
-/** Caja de firma con imagen (draws 'sin firma' si no hay imagen). Declaración hoisted. */
 function drawFirmaBox(doc: jsPDF, x: number, y: number, w: number, label: string, imgSrc?: string) {
   doc.setDrawColor('#a0b8d0');
   doc.setLineWidth(0.3);
@@ -601,7 +559,6 @@ function drawFirmaBox(doc: jsPDF, x: number, y: number, w: number, label: string
 
   if (imgSrc) {
     try {
-      // Add signature image if available
       doc.addImage(imgSrc, 'PNG', x + w / 2 - 20, y + 8, 40, 12);
     } catch {
       doc.setTextColor(DARK);

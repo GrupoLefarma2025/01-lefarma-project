@@ -113,7 +113,7 @@ export function ParticipanteEditModal({ workflow, participante, roles, usuarios,
       }
     >
       <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Paso */}
+        {}
         <div className="space-y-2">
           <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             Paso del Workflow *
@@ -148,7 +148,7 @@ export function ParticipanteEditModal({ workflow, participante, roles, usuarios,
           </p>
         </div>
 
-        {/* Tipo de Asignación */}
+        {}
         <div className="space-y-2">
           <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             Tipo de Asignación *
@@ -182,7 +182,7 @@ export function ParticipanteEditModal({ workflow, participante, roles, usuarios,
           </p>
         </div>
 
-        {/* Asignación según tipo */}
+        {}
         {tipoAsignacionUI !== 'jefe' && (
           <>
             {tipoAsignacionUI === 'rol' ? (
@@ -263,7 +263,7 @@ export function ParticipanteEditModal({ workflow, participante, roles, usuarios,
           </>
         )}
 
-        {/* Activo */}
+        {}
         <div className="flex items-center gap-3 p-3 rounded-lg border border-border bg-muted/30">
           <Checkbox
             id="participante-activo"
@@ -280,7 +280,7 @@ export function ParticipanteEditModal({ workflow, participante, roles, usuarios,
           </div>
         </div>
 
-        {/* Info Box */}
+        {}
         <div className="p-4 rounded-lg border border-blue-500/30 bg-blue-500/10 text-blue-700 dark:text-blue-300">
           <div className="flex items-start gap-2">
             <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />

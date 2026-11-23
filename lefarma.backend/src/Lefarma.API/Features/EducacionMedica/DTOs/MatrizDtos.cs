@@ -3,7 +3,6 @@ using Lefarma.API.Features.Config.Workflows.DTOs;
 
 namespace Lefarma.API.Features.EducacionMedica.DTOs;
 
-/// <summary>Resumen de una matriz general (lista por gerencia/mes).</summary>
 public class MatrizGeneralResumenDto
 {
     public int IdMatrizGeneral { get; set; }
@@ -23,7 +22,6 @@ public class MatrizGeneralResumenDto
     public decimal CostoTotal { get; set; }
 }
 
-/// <summary>Detalle de la matriz general: talleres con recursos, totales y acciones del workflow.</summary>
 public class MatrizTalleresDetalleDto : MatrizGeneralResumenDto
 {
     public bool EsEditable { get; set; }
@@ -49,7 +47,6 @@ public class MatrizAjustePostCierreDto
     public DateTime FechaAjuste { get; set; }
 }
 
-/// <summary>Panel "Matrices por equipo" de la concentración (estado de cada matriz individual).</summary>
 public class ConcentracionEquipoDto
 {
     public int IdMatrizIndividual { get; set; }
@@ -62,7 +59,6 @@ public class ConcentracionEquipoDto
     public int TotalTalleres { get; set; }
 }
 
-/// <summary>Recurso con costo capturado por el AEM en el paso de costos.</summary>
 public class GuardarCostoRecursoRequest
 {
     [Required(ErrorMessage = "El tipo de recurso es obligatorio.")]
@@ -88,13 +84,11 @@ public class GuardarCostoRecursoRequest
     public string? Observaciones { get; set; }
 }
 
-/// <summary>Reemplazo del conjunto de recursos/costos de un taller (paso del AEM).</summary>
 public class ActualizarCostosTallerRequest
 {
     public List<GuardarCostoRecursoRequest> Recursos { get; set; } = [];
 }
 
-/// <summary>Documento imprimible de la matriz (layout FOR-005).</summary>
 public class MatrizDocumentoDto
 {
     public string Titulo { get; set; } = string.Empty;
@@ -117,7 +111,6 @@ public class MatrizDocumentoFirmaDto
     public DateTime Fecha { get; set; }
 }
 
-/// <summary>Revisión previa al envío de la matriz: cobertura de talleres y avisos no bloqueantes.</summary>
 public class MatrizRevisionDto
 {
     public int IdMatrizGeneral { get; set; }

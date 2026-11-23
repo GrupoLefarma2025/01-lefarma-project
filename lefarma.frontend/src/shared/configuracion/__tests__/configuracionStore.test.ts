@@ -47,10 +47,8 @@ describe('configuracionStore.applyChanges', () => {
       revision: 3,
     });
 
-    // Respuesta vieja (revisión global menor): se ignora completa.
     expect(store.applyChanges(snapshot(2, [variable('tema', 'light', 2)]))).toBe(false);
 
-    // Misma revisión global pero revisión de clave menor: no pisa el valor.
     expect(store.applyChanges(snapshot(3, [variable('tema', 'light', 1)]))).toBe(false);
 
     state = useConfiguracionStore.getState();
@@ -108,7 +106,6 @@ describe('configuracionStore.applyChanges', () => {
       const store = useConfiguracionStore.getState();
       store.applyChanges(snapshot(1, [variable('a', 'A', 1)]));
 
-      // Debounce: todavía no escribió.
       expect(localStorage.getItem(CONFIGURACION_STORAGE_KEY)).toBeNull();
 
       vi.advanceTimersByTime(500);
@@ -131,7 +128,6 @@ describe('configuracionStore.applyChanges', () => {
         store.applyChanges(snapshot(2, [variable('a', 'B', 2)]));
         expect(() => flushConfiguracionPersistence()).not.toThrow();
 
-        // El estado en memoria se conserva aunque falle el almacenamiento.
         expect(useConfiguracionStore.getState().variables.a.valor).toBe('B');
       } finally {
         spy.mockRestore();

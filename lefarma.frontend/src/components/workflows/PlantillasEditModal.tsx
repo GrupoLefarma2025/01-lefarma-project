@@ -46,10 +46,8 @@ interface PlantillasEditModalProps {
   listadoRowHtmlPlaceholder?: string;
   listadoRowHtmlExample?: string;
   bodyVars?: string[];
-  /** Nombre de variable (p. ej. '{{Partidas}}') — cuando se establece, muestra un toggle por canal que inserta/elimina la variable de la plantilla del cuerpo */
   tablaVarName?: string;
   tipoNotificacion?: string;
-  /** Textos por defecto al crear un canal nuevo. Default: CANAL_DEFAULTS (orientado a recordatorios de OC). */
   canalDefaults?: Record<string, { asunto: string; cuerpo: string }>;
   onChange: (canales: WorkflowNotificacionCanal[]) => void;
 }
@@ -147,7 +145,7 @@ export function PlantillasEditModal({
     <div className="rounded-lg border border-border p-4 space-y-3">
       <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Plantillas por canal</p>
 
-      {/* Tabs */}
+      {}
       <div className="flex gap-1 border-b border-border">
         {canalesActivos.map(c => (
           <button
@@ -169,7 +167,7 @@ export function PlantillasEditModal({
         const data = getCanalData(c.codigo);
         return (
           <div key={c.codigo} className={tabActivo === c.codigo ? 'space-y-2' : 'hidden'}>
-            {/* Botón cargar plantilla */}
+            {}
             <div className="relative">
               <button
                 type="button"

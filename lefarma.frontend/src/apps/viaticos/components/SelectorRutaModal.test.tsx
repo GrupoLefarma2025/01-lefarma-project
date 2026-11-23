@@ -10,8 +10,6 @@ const geo = vi.hoisted(() => ({
   setView: vi.fn(),
 }));
 
-// jsdom no renderiza Leaflet: se sustituyen las primitivas por nodos planos,
-// pero se registran las posiciones de la polylinea y los manejadores de clic.
 vi.mock('react-leaflet', async () => {
   const React = await import('react');
   const mapa = { setView: geo.setView, flyTo: vi.fn() };
@@ -20,7 +18,6 @@ vi.mock('react-leaflet', async () => {
       React.createElement('div', { 'data-testid': 'mapa', className }, children),
     TileLayer: () => null,
     ZoomControl: () => null,
-    // El icono es HTML (L.divIcon): se inyecta para poder leer el número del badge.
     Marker: ({ icon }: { icon?: { html?: string } }) =>
       React.createElement('div', {
         'data-testid': 'marcador',
@@ -37,8 +34,6 @@ vi.mock('react-leaflet', async () => {
     }) => {
       React.useEffect(() => {
         if (handlers?.click) geo.clics.push(handlers.click);
-        // El mock registra el primer handler a propósito; no debe re-registrar
-        // en cada render (los tests leen geo.clics).
         // eslint-disable-next-line react-hooks/exhaustive-deps
       }, []);
       return mapa;
@@ -55,17 +50,14 @@ const punto = (nombre: string, latitud: number, longitud: number): PuntoSeleccio
 
 const TRES = [punto('Origen', 19.1, -99.1), punto('Taller', 19.2, -99.2), punto('Cliente', 19.3, -99.3)];
 
-/** Últimas posiciones entregadas a la polylinea. */
 const posicionesPolylinea = (): [number, number][] => geo.polylinea.mock.calls.at(-1)![0];
 
-/** Solo los marcadores de la secuencia: llevan el número 1..N como texto. */
 const numerosMarcador = (): string[] =>
   screen
     .getAllByTestId('marcador')
     .map((el) => el.textContent?.trim() ?? '')
     .filter((texto) => /^\d+$/.test(texto));
 
-/** El mapa de la ruta es el primero que se monta; su manejador de clic va primero. */
 const clicEnMapa = (lat: number, lng: number) => {
   const manejador = geo.clics[0];
   expect(manejador).toBeTypeOf('function');
@@ -112,8 +104,6 @@ describe('SelectorRutaModal', () => {
   it('el contenedor de leaflet de la ruta recibe altura propia (no queda en 0)', async () => {
     montar();
     await waitFor(() => expect(geo.polylinea).toHaveBeenCalled());
-    // Leaflet mide el div .leaflet-container que renderiza MapContainer: si la
-    // altura vive solo en el wrapper exterior, el mapa se mide en 0 de alto.
     const seccion = screen.getByText('Ruta en el mapa').closest('section')!;
     const contenedor = seccion.querySelector('[data-testid="mapa"]')!;
     expect(contenedor.className).toMatch(/\bh-(?:\d+|\[[^\]]+\])/);
@@ -124,7 +114,6 @@ describe('SelectorRutaModal', () => {
     await waitFor(() => expect(geo.polylinea).toHaveBeenCalled());
     clicEnMapa(19.5, -99.5);
     await waitFor(() => expect(posicionesPolylinea()).toHaveLength(2));
-    // El punto 1 sigue ahí: la secuencia grew, no se sobrescribió.
     expect(posicionesPolylinea()).toEqual([
       [19.1, -99.1],
       [19.5, -99.5],
@@ -137,7 +126,7 @@ describe('SelectorRutaModal', () => {
   it('ignora un clic fuera de México', async () => {
     montar({ puntos: [punto('Origen', 19.1, -99.1)] });
     await waitFor(() => expect(geo.polylinea).toHaveBeenCalled());
-    clicEnMapa(29.76, -95.37); // Houston
+    clicEnMapa(29.76, -95.37); 
     expect(posicionesPolylinea()).toHaveLength(1);
     expect(screen.queryByTestId('punto-1')).not.toBeInTheDocument();
   });
@@ -217,7 +206,6 @@ describe('SelectorRutaModal', () => {
     fireEvent.change(screen.getByLabelText('Nombre del punto 2'), { target: { value: 'Taller centro' } });
     fireEvent.click(screen.getByRole('button', { name: 'Guardar punto 2' }));
     expect(screen.getByTestId('punto-1')).toHaveTextContent('Taller centro');
-    // Reordenar conserva los nombres editados.
     fireEvent.click(screen.getByRole('button', { name: 'Subir punto 2' }));
     expect(screen.getByTestId('punto-0')).toHaveTextContent('Taller centro');
   });

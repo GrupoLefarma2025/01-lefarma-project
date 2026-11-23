@@ -4,18 +4,10 @@ import { Loader2 } from 'lucide-react';
 import { authService } from '@/shared/auth/authService';
 import { useAuthStore } from '@/shared/auth/authStore';
 
-/**
- * Landing SSO headless. Lee ?token=<handoff>&page=<ruta> de la URL,
- * intercambia el token de handoff de un solo uso por una sesión y redirige.
- * URL: /cxp/handoff-login?token=XXX&page=/cxp/ordenes/autorizaciones
- */
 export default function HandoffLogin() {
   const [params] = useSearchParams();
   const navigate = useNavigate();
   const [error, setError] = useState('');
-  // El token de handoff es de un solo uso. React StrictMode monta los efectos dos
-  // veces en desarrollo, lo que consumiría el token dos veces (la segunda llamada
-  // falla). Esto lo protege.
   const ran = useRef(false);
 
   useEffect(() => {
@@ -33,8 +25,7 @@ export default function HandoffLogin() {
     (async () => {
       try {
         await authService.exchangeHandoff(token);
-        useAuthStore.getState().initialize(); // inicia sesión desde los tokens almacenados
-        // Sin página -> seleccionar empresa/sucursal (front2 no tiene ninguno, dominio distinto = diferente localStorage)
+        useAuthStore.getState().initialize(); 
         navigate(page || '/cxp/select-empresa', { replace: true });
       } catch {
         setError('El enlace de acceso es invalido o expiro. Inicia sesion normalmente.');

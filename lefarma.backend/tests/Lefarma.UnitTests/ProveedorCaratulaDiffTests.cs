@@ -5,20 +5,11 @@ using Lefarma.API.Features.Catalogos.Proveedores.DTOs;
 
 namespace Lefarma.UnitTests;
 
-/// <summary>
-/// Pruebas puras (sin DB) de la lógica de diff de carátula por cuenta y del enrutamiento
-/// por estatus. Cubre los escenarios de spec.md (labels exactos con ••{last4}) y el
-/// invariante "standalone authorized upload → diff length == 1".
-/// </summary>
 public class ProveedorCaratulaDiffTests
 {
-    private const string TwoBullets = "••"; // dos U+2022 literales
+    private const string TwoBullets = "••"; 
 
-    // ---------------------------------------------------------------------
-    // Helpers de construcción de entidades (sólo los campos que GenerarDiff lee)
-    // ---------------------------------------------------------------------
-
-    private static Proveedor NewProveedor(int id, int estatus, string razon = "FARMACIA SA") => new()
+private static Proveedor NewProveedor(int id, int estatus, string razon = "FARMACIA SA") => new()
     {
         IdProveedor = id,
         RazonSocial = razon,
@@ -93,14 +84,9 @@ public class ProveedorCaratulaDiffTests
         CaratulaPath = caratula
     };
 
-    // ---------------------------------------------------------------------
-    // GenerarDiff — labels exactos de carátula
-    // ---------------------------------------------------------------------
-
-    [Fact]
+[Fact]
     public void GenerarDiff_CaratulaActualizada_ContieneLabelExactoConUltimos4()
     {
-        // Cuenta con CLABE terminada en 1234, carátula reemplazada
         var p = NewProveedor(1, EstatusProveedor.Aprobado);
         p.CuentasFormaPago.Add(Cuenta(10, clabe: "0321800000000001234", numeroCuenta: null, caratula: "old.pdf"));
 
@@ -116,7 +102,6 @@ public class ProveedorCaratulaDiffTests
     [Fact]
     public void GenerarDiff_CaratulaAgregadaEnCuentaExistente_ContieneLabelAgregada()
     {
-        // Cuenta existente que NO tenía carátula y ahora sí → "agregada"
         var p = NewProveedor(1, EstatusProveedor.Aprobado);
         p.CuentasFormaPago.Add(Cuenta(10, clabe: null, numeroCuenta: "000000001234", caratula: null));
 
@@ -147,7 +132,6 @@ public class ProveedorCaratulaDiffTests
     [Fact]
     public void GenerarDiff_CuentaNuevaConCaratula_ContieneLabelAgregada()
     {
-        // Cuenta NUEVA (sin IdCuenta en staging) que trae carátula → "agregada"
         var p = NewProveedor(1, EstatusProveedor.Aprobado);
 
         var s = StagingCloneOf(p);
@@ -166,7 +150,7 @@ public class ProveedorCaratulaDiffTests
         p.CuentasFormaPago.Add(Cuenta(10, clabe: null, numeroCuenta: "1234", caratula: "old.pdf"));
 
         var s = StagingCloneOf(p);
-        s.RazonSocial = "FARMACIA SA DE CV"; // cambio adicional
+        s.RazonSocial = "FARMACIA SA DE CV"; 
         s.CuentasFormaPago.Add(StagingCuenta(10, clabe: null, numeroCuenta: "1234", caratula: "new.pdf"));
 
         var diffs = ProveedorService.GenerarDiff(p, s);
@@ -176,21 +160,13 @@ public class ProveedorCaratulaDiffTests
         diffs.Should().Contain(d => d.Label == $"Carátula cuenta {TwoBullets}1234 actualizada");
     }
 
-    /// <summary>
-    /// Invariante clave del diseño §4.3 / riesgo #6: una subida standalone a un proveedor
-    /// autorizado debe producir un diff de longitud EXACTAMENTE 1 (sólo la carátula).
-    /// StagearCaratulaAsync clona todo el estado live a staging; aquí simulamos ese clon
-    /// y verificamos que GenerarDiff lo reduce a una sola entrada de carátula.
-    /// </summary>
     [Fact]
     public void GenerarDiff_StandaloneAuthorizedUploadClone_DiffLengthEsUno()
     {
-        // Live: 2 cuentas, sólo la cuenta objetivo tiene carátula vieja
         var p = NewProveedor(1, EstatusProveedor.Aprobado);
         p.CuentasFormaPago.Add(Cuenta(10, clabe: null, numeroCuenta: "1234", caratula: "old.pdf"));
         p.CuentasFormaPago.Add(Cuenta(20, clabe: null, numeroCuenta: "5678", caratula: null));
 
-        // Staging = clon idéntico del live, EXCEPTO la cuenta objetivo cuya caratula cambia
         var s = StagingCloneOf(p);
         s.CuentasFormaPago.Add(StagingCuenta(10, clabe: null, numeroCuenta: "1234", caratula: "new.pdf"));
         s.CuentasFormaPago.Add(StagingCuenta(20, clabe: null, numeroCuenta: "5678", caratula: null));
@@ -215,26 +191,18 @@ public class ProveedorCaratulaDiffTests
         diffs.Should().BeEmpty();
     }
 
-    // ---------------------------------------------------------------------
-    // Ultimos4 — preferencia CLABE > NumeroCuenta > "????"
-    // ---------------------------------------------------------------------
-
-    [Theory]
-    [InlineData("0321800000000001234", null, "1234")]            // CLABE preferida
-    [InlineData(null, "000000001234", "1234")]                    // fallback a número de cuenta
-    [InlineData("  ", "1234", "1234")]                            // CLABE en blanco → cuenta
-    [InlineData(null, null, "????")]                              // sin nada → ????
-    [InlineData(null, "12", "12")]                                // menos de 4 → tal cual
+[Theory]
+    [InlineData("0321800000000001234", null, "1234")]            
+    [InlineData(null, "000000001234", "1234")]                    
+    [InlineData("  ", "1234", "1234")]                            
+    [InlineData(null, null, "????")]                              
+    [InlineData(null, "12", "12")]                                
     public void Ultimos4_DerivaCorrectamente(string? clabe, string? cuenta, string esperado)
     {
         ProveedorService.Ultimos4(clabe, cuenta).Should().Be(esperado);
     }
 
-    // ---------------------------------------------------------------------
-    // DeterminarRutaCaratula — tabla de decisión estatus (binding rules #2/#6)
-    // ---------------------------------------------------------------------
-
-    [Theory]
+[Theory]
     [InlineData(EstatusProveedor.Nuevo, ProveedorService.RutaCaratula.Directo)]
     [InlineData(EstatusProveedor.Rechazado, ProveedorService.RutaCaratula.Directo)]
     [InlineData(EstatusProveedor.Aprobado, ProveedorService.RutaCaratula.Staging)]

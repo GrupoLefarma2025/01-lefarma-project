@@ -62,11 +62,6 @@ import {
 import { FiltrosSolicitudes } from './FiltrosSolicitudes';
 import { SolicitudesViajeTable } from './SolicitudesViajeTable';
 
-/**
- * Pestañas del detalle con el estado activo en color primario, igual que los
- * catálogos y workflows. El detalle es de consulta: la pestaña activa debe
- * leerse de un vistazo, no como una carpeta gris.
- */
 const tabRevisionTriggerClassName = cn(
   'gap-1.5 rounded-lg border-0 px-1.5 text-xs font-semibold leading-tight text-muted-foreground transition-colors sm:px-3 sm:text-sm',
   'whitespace-normal sm:whitespace-nowrap',
@@ -74,12 +69,10 @@ const tabRevisionTriggerClassName = cn(
   'disabled:opacity-50',
 );
 
-/** Objeto JSON seguro: descarta arrays y primitivos. */
 function comoObjeto(v: unknown): Record<string, unknown> | null {
   return typeof v === 'object' && v !== null && !Array.isArray(v) ? (v as Record<string, unknown>) : null;
 }
 
-/** Pestaña visible de la lista; viaja en la URL para poder enlazarla. */
 type Pestana = 'borradores' | 'enviadas';
 
 export function MisViajesPage({ hoy = new Date() }: { hoy?: Date }) {
@@ -109,8 +102,6 @@ export function MisViajesPage({ hoy = new Date() }: { hoy?: Date }) {
     if (!silencioso) setCargando(true);
     setError(null);
     try {
-      // `todas` solo lo concede el servidor con viaticos.ver_todos; sin el
-      // permiso la API responde 403 y se muestra el error.
       const res = await solicitudesApi.misSolicitudes(puedeVerTodas ? { todas: true } : undefined);
       if (res.data.success) setSolicitudes(res.data.data ?? []);
       else if (!silencioso) setError(res.data.message ?? 'No se pudieron cargar tus viajes.');
@@ -129,9 +120,6 @@ export function MisViajesPage({ hoy = new Date() }: { hoy?: Date }) {
     setDetalle(actualizada);
   }, []);
 
-  // Fase 2: mientras el backend busca el precio real de alguna opción, la
-  // lista se refresca sola para que el total deje de ser estimado sin que el
-  // usuario recargue ni pulse nada.
   const hayDeteccionEnCurso = useMemo(
     () =>
       solicitudes.some((s) =>
@@ -153,12 +141,10 @@ export function MisViajesPage({ hoy = new Date() }: { hoy?: Date }) {
     return () => window.clearInterval(intervalo);
   }, [hayDeteccionEnCurso, cargarSolicitudes]);
 
-  // Referencia «hoy» en hora local; el rango siempre se muestra.
   const rango = rangoDelFiltro(periodo, hoy, desde, hasta);
 
   const filas = useMemo<{ borradores: FilaViaje[]; enviadas: FilaViaje[] }>(() => {
     const base = [...solicitudes]
-      // El último creado primero (la API ya ordena; se refuerza aquí).
       .sort((a, b) =>
         b.fecha_creacion.localeCompare(a.fecha_creacion) || b.id_solicitud - a.id_solicitud,
       )
@@ -206,8 +192,6 @@ export function MisViajesPage({ hoy = new Date() }: { hoy?: Date }) {
     }
   }, [cargarSolicitudes]);
 
-  // La tabla abre el detalle con un clic en la fila y, en la última columna,
-  // muestra las acciones que permiten el estado y la propiedad de la solicitud.
   const accionesDe = useCallback(
     (fila: FilaViaje): ReactNode => {
       const solicitud = fila.solicitud;
@@ -231,8 +215,6 @@ export function MisViajesPage({ hoy = new Date() }: { hoy?: Date }) {
         </Button>
       );
 
-      // Con viaticos.ver_todos aparecen borradores de otras personas: ahí solo
-      // se consulta, no se envía, edita ni elimina.
       if (!esBorrador || !esMia) return verDetalleBoton;
 
       return (
@@ -286,8 +268,6 @@ export function MisViajesPage({ hoy = new Date() }: { hoy?: Date }) {
     [miId, procesandoId, verDetalle, eliminarBorrador, navigate],
   );
 
-  // Cuántos filtros se apartan de lo que la página muestra por defecto, para
-  // que el encabezado plegado diga de un vistazo si hay algo filtrado.
   const filtrosAplicados = [
     periodo !== 'todo',
     tipo !== 'todos',
@@ -375,8 +355,6 @@ export function MisViajesPage({ hoy = new Date() }: { hoy?: Date }) {
         }}
         onEnviado={() => {
           void cargarSolicitudes();
-          // Al enviar, la solicitud pasa a la cola de autorización: la persona
-          // la sigue viendo en la pestaña Enviadas.
           navigate('/viaticos/mis-viajes?pestana=enviadas');
         }}
       />
@@ -438,12 +416,6 @@ export function MisViajesPage({ hoy = new Date() }: { hoy?: Date }) {
   );
 }
 
-/**
- * Paradas del diagrama para la ruta calculada. Los cálculos nuevos traen la
- * cadena completa (origen, terminal, vuelo o autobús, hotel, regreso); los
- * viejos solo traen los tramos y se arma un diagrama mínimo con ellos.
- */
-/** Chips de un tramo: km, tiempos y horarios, sin repetir vacíos. */
 function chipsDeTramo(tramo: CalculoViaje['tramos'][number]): string[] {
   return [
     tramo.km != null ? `${tramo.km.toLocaleString('es-MX', { maximumFractionDigits: 1 })} km` : '',
@@ -452,7 +424,6 @@ function chipsDeTramo(tramo: CalculoViaje['tramos'][number]): string[] {
   ].filter((chip) => chip !== '');
 }
 
-/** Costo y enlace de compra guardados con la ruta o con cada tramo. */
 interface CostoRuta {
   costo: number | null;
   url_compra: string | null;
@@ -487,11 +458,6 @@ function leerCostoRuta(valor: unknown): CostoRuta {
   };
 }
 
-/**
- * `leerCalculoDesdeDatos` normaliza lo que pinta la ruta, pero no conserva el
- * costo ni el enlace de compra de cada parada. Se leen del snapshot crudo para
- * que el diagrama muestre el precio por tramo y "Ir a compra".
- */
 function leerCostosCalculo(datos: unknown, clave: 'calculo' | 'calculo_autorizado'): CostosCalculo {
   const calculo = comoObjeto(comoObjeto(datos)?.[clave]);
   if (!calculo) return { nodos: [], tramos: [] };
@@ -504,9 +470,6 @@ function leerCostosCalculo(datos: unknown, clave: 'calculo' | 'calculo_autorizad
   };
 }
 
-/** Opciones que el viajero tenía antes de autorizar. El concentrado las deja en
- * `datos.opciones_originales`; si no existen, las vigentes SON las originales.
- */
 function leerOpcionesOriginales(datos: unknown): SolicitudOpcion[] | null {
   const bruto = comoObjeto(datos)?.opciones_originales;
   if (!Array.isArray(bruto)) return null;
@@ -527,11 +490,6 @@ function leerOpcionesOriginales(datos: unknown): SolicitudOpcion[] | null {
     }));
 }
 
-/**
- * Fase de cada parada guardada. Los cálculos nuevos traen `fase`; los viejos
- * solo tienen el título "Regreso" y una parada numerada. En ese caso el regreso
- * empieza en la parada siguiente a la última visita.
- */
 function fasesDeRuta(calculo: CalculoViaje): Array<'ida' | 'regreso'> {
   const nodos = calculo.ruta?.nodos ?? [];
   if (nodos.length === 0) return [];
@@ -545,7 +503,6 @@ function fasesDeRuta(calculo: CalculoViaje): Array<'ida' | 'regreso'> {
   return nodos.map((nodo, i) => nodo.fase ?? (i >= inicio ? 'regreso' : 'ida'));
 }
 
-/** Suma el taxi elegido a la parada de su tramo (ida o regreso). */
 function enriquecerConTaxis(
   nodos: NodoRutaTimeline[],
   opciones: SolicitudOpcion[],
@@ -592,7 +549,6 @@ function enriquecerConTaxis(
   return copia;
 }
 
-/** Precio y enlace de compra del tramo como líneas del diagrama. */
 function nodosDesdeCalculo(
   calculo: CalculoViaje,
   opciones: SolicitudOpcion[] = [],
@@ -607,8 +563,6 @@ function nodosDesdeCalculo(
     );
   };
 
-  // Lo guardado en la ruta manda; si falta, se completa con la opción elegida
-  // cuyo `datos.tramo` corresponde a la parada numerada ("1. Destino").
   const costoDeTramo = (
     numero: number | null,
     guardado?: CostoRuta,
@@ -624,8 +578,6 @@ function nodosDesdeCalculo(
   if (calculo.ruta?.nodos?.length) {
     const fases = fasesDeRuta(calculo);
     const nodos = calculo.ruta.nodos.map((nodo, i) => {
-      // Los cálculos viejos no guardaron chips: se toman del tramo que
-      // corresponde a la parada numerada ("1. Destino" -> tramo 1).
       const numero = /^(\d+)\./.exec(nodo.titulo.trim());
       const numeroTramo = numero ? Number(numero[1]) : null;
       const tramo = numeroTramo !== null ? calculo.tramos[numeroTramo - 1] : undefined;
@@ -676,10 +628,6 @@ function nodosDesdeCalculo(
   return enriquecerConTaxis(nodos, opciones);
 }
 
-/**
- * Paradas y trazo del mapa para la ruta calculada. Usa la cadena guardada al
- * enviar; si el cálculo es viejo y no la trae, une las paradas con rectas.
- */
 function mapaDeCalculo(calculo: CalculoViaje | null): { puntos: PuntoMapa[]; segmentos: SegmentoMapa[] } {
   const puntos: PuntoMapa[] = (calculo?.ruta?.puntos ?? []).map((p) => ({
     lat: p.lat,
@@ -696,7 +644,6 @@ function mapaDeCalculo(calculo: CalculoViaje | null): { puntos: PuntoMapa[]; seg
   return { puntos, segmentos };
 }
 
-/** Paradas y trazo del mapa para la propuesta original del wizard. */
 function mapaDeInicial(resumen: NonNullable<ReturnType<typeof resumenDesdeDatos>>): {
   puntos: PuntoMapa[];
   segmentos: SegmentoMapa[];
@@ -731,7 +678,6 @@ function mapaDeInicial(resumen: NonNullable<ReturnType<typeof resumenDesdeDatos>
   return { puntos, segmentos };
 }
 
-/** Tarjeta de una métrica del resumen de ruta. */
 function MetricaRuta({
   icono: Icono,
   etiqueta,
@@ -756,7 +702,6 @@ function MetricaRuta({
   );
 }
 
-/** Métricas de la ruta que llenan el ancho del panel central. */
 function MetricasRuta({
   calculo,
   resumen,
@@ -806,10 +751,6 @@ function MetricasRuta({
   );
 }
 
-/**
- * La ruta en dos columnas cuando hay regreso: usa el ancho del panel central y
- * separa visualmente la ida del regreso. Sin regreso se queda en una columna.
- */
 function RutaPorFases({ nodos }: { nodos: NodoRutaTimeline[] }) {
   const ida = nodos.filter((nodo) => nodo.fase !== 'regreso');
   const regreso = nodos.filter((nodo) => nodo.fase === 'regreso');
@@ -839,7 +780,6 @@ function RutaPorFases({ nodos }: { nodos: NodoRutaTimeline[] }) {
   );
 }
 
-/** Riel del desglose cuando el revisor lo colapsa en escritorio. */
 function DesgloseColapsado({
   total,
   onAbrir,
@@ -872,12 +812,6 @@ function DesgloseColapsado({
   );
 }
 
-/**
- * Detalle del viaje. En revisión arranca con la comparación «inicial vs
- * calculada» (lo que pidió el solicitante frente a la ruta calculada o a la
- * propuesta que el revisor está evaluando); después vienen la ruta calculada,
- * el viaje inicial y la versión autorizada.
- */
 export function VistaDetalle({
   solicitud,
   acciones,
@@ -888,38 +822,20 @@ export function VistaDetalle({
   onSolicitudActualizada,
 }: {
   solicitud: Solicitud;
-  /**
-   * Acciones del revisor dentro del detalle (recalcular el viaje, editar
-   * costos, autorizar). Mis viajes no las pasa: la persona viajera solo
-   * consulta.
-   */
   acciones?: ReactNode;
-  /**
-   * Vista de revisión (autorizaciones): agrega la pestaña «Inicial vs
-   * calculada» y habilita «Ruta autorizada» desde el inicio usando la ruta
-   * original como propuesta mientras no haya recálculo.
-   */
   modoRevision?: boolean;
-  /** Pestaña activa al abrir; en revisión arranca en la comparación. */
   pestanaInicial?: 'comparar' | 'calculada' | 'inicial' | 'autorizada';
-  /** Versión recalculada que el revisor evalúa antes de autorizar. */
   propuesta?: PropuestaRuta | null;
-  /** Vuelve a calcular la ruta desde la revisión. */
   onRecalcular?: () => void;
-  /** Refresca la solicitud después de capturar un precio real. */
   onSolicitudActualizada?: (solicitud: Solicitud) => void;
 }) {
   const resumen = resumenDesdeDatos(solicitud.datos);
   const calculo = leerCalculoDesdeDatos(solicitud.datos);
-  // Solicitudes autorizadas antes de que existiera `calculo_autorizado`: la
-  // ruta calculada ES la que se autorizó. Las nuevas traen su propia versión.
   const estaAutorizada =
     solicitud.estado === 'autorizada' || solicitud.estado === 'autorizada_con_ajustes';
   const calculoAutorizado =
     leerCalculoAutorizadoDesdeDatos(solicitud.datos) ?? (estaAutorizada ? calculo : null);
 
-  // «Ruta autorizada» muestra, por prioridad: la propuesta en revisión, la
-  // versión ya autorizada o, en una revisión sin recálculo, la ruta original.
   const versionAutorizada: {
     calculo: CalculoViaje;
     opciones: SolicitudOpcion[];
@@ -947,12 +863,8 @@ export function VistaDetalle({
     ? leerCostosCalculo(solicitud.datos, versionAutorizada.claveDatos)
     : undefined;
 
-  // Cotización original del viajero: el snapshot que deja el concentrado al
-  // autorizar o, mientras no exista, las opciones vigentes.
   const snapshotOriginal = leerOpcionesOriginales(solicitud.datos);
   const opcionesOriginales = snapshotOriginal ?? solicitud.opciones;
-  // En la revisión se muestra desde el inicio (aunque todavía no haya
-  // recálculo) para que las opciones descartadas del viajero estén a la mano.
   const mostrarComparador =
     versionAutorizada !== null &&
     opcionesOriginales.length > 0 &&
@@ -965,8 +877,6 @@ export function VistaDetalle({
   const mapaCalculado = mapaDeCalculo(calculo);
   const mapaAutorizado = mapaDeCalculo(versionAutorizada?.calculo ?? null);
   const mapaInicial = resumen ? mapaDeInicial(resumen) : { puntos: [], segmentos: [] };
-  // En revisión la primera pestaña es la comparación: el revisor ya vio los
-  // cálculos en Mis viajes y lo que necesita es decidir si la ruta sirve.
   const tabPreferida = pestanaInicial ?? (modoRevision ? 'comparar' : 'calculada');
   const tabInicial =
     (tabPreferida === 'autorizada' && versionAutorizada === null) ||
@@ -1008,9 +918,6 @@ export function VistaDetalle({
   );
 
   if (!calculo) {
-    // Sin cálculo guardado: mismo marco de dos columnas, con lo que haya. El
-    // revisor ve la misma pantalla aunque la solicitud no haya pasado por los
-    // cálculos (o venga del flujo anterior).
     return (
       <div className="space-y-4">
         {barraAcciones}
@@ -1438,7 +1345,6 @@ export function VistaDetalle({
   );
 }
 
-/** Ruta calculada al enviar: kilómetros, tiempos, salida/llegada y casetas por tramo. */
 function RutaCalculada({ calculo }: { calculo: CalculoViaje }) {
   return (
     <div className="space-y-3">
@@ -1531,7 +1437,6 @@ function RutaCalculada({ calculo }: { calculo: CalculoViaje }) {
   );
 }
 
-/** Resumen corto de los datos que el agente extrajo de la pagina de compra. */
 function DatosViajeTexto({ datos }: { datos: DatosViaje | null }) {
   if (!datos) return null;
 
@@ -1566,7 +1471,6 @@ function DatosViajeTexto({ datos }: { datos: DatosViaje | null }) {
   );
 }
 
-/** Icono del tipo de opción; lo desconocido usa el boleto genérico. */
 const ICONO_TIPO: Record<string, LucideIcon> = {
   vuelo: Plane,
   avion: Plane,
@@ -1580,7 +1484,6 @@ function iconoDeTipo(tipo: string): LucideIcon {
   return ICONO_TIPO[(tipo ?? '').trim().toLowerCase()] ?? Ticket;
 }
 
-/** Importe limpio para el desglose: el badge/fuente ya indica si es estimado. */
 function precioDesglose(opcion: SolicitudOpcion): string {
   if (esOpcionCotizada(opcion) && opcion.precio !== null) {
     return importeFormateado(opcion.precio, opcion.moneda);
@@ -1589,7 +1492,6 @@ function precioDesglose(opcion: SolicitudOpcion): string {
   return referencia === null ? SIN_PRECIO : importeFormateado(referencia, opcion.moneda);
 }
 
-/** Subida manual de un PNG: icono compacto junto a boleto/enlace. */
 function BotonSubirCaptura({
   etiqueta,
   subiendo,
@@ -1644,7 +1546,6 @@ interface GrupoOpcionesRuta {
   tramo: number;
 }
 
-/** Agrupa por tramo/destino para que varios destinos no queden en una lista plana. */
 function grupoOpcionRuta(opcion: SolicitudOpcion): GrupoOpcionesRuta {
   const de = typeof opcion.datos?.de === 'string' ? opcion.datos.de : '';
   const a = typeof opcion.datos?.a === 'string' ? opcion.datos.a : '';
@@ -1686,7 +1587,6 @@ function estiloGrupoRuta(etiqueta: string): { punto: string; texto: string } {
   return { punto: 'bg-primary', texto: 'text-primary' };
 }
 
-/** Opción elegida que la detección automática puede cotizar (vuelo, autobús u hotel). */
 function esDeteccionAplicable(opcion: SolicitudOpcion): boolean {
   const tipo = (opcion.tipo ?? '').trim().toLowerCase();
   if (!opcion.fue_elegida || !opcion.url_compra) return false;
@@ -1695,10 +1595,6 @@ function esDeteccionAplicable(opcion: SolicitudOpcion): boolean {
   return !esOpcionCotizada(opcion);
 }
 
-/**
- * Tipos con una tarjeta concreta en el sitio (vuelo, autobús, hotel). Taxi y
- * renta solo tienen una página de búsqueda: para esos queda la carga manual.
- */
 function esCapturaAutomaticaAplicable(opcion: SolicitudOpcion): boolean {
   const tipo = (opcion.tipo ?? '').trim().toLowerCase();
   if (!opcion.url_compra) return false;
@@ -1707,7 +1603,6 @@ function esCapturaAutomaticaAplicable(opcion: SolicitudOpcion): boolean {
   return true;
 }
 
-/** Estado visible de la detección automática de precio de una opción. */
 function EstadoDeteccion({ opcion }: { opcion: SolicitudOpcion }) {
   if (!opcion.fue_elegida) return null;
   const estado = opcion.datos?.deteccion_estado;
@@ -1736,14 +1631,8 @@ function DetalleOpciones({
   onCerrar,
 }: {
   solicitud: Solicitud;
-  /**
-   * Opciones de la versión que se está mostrando. Sin esta prop se usan las de
-   * la solicitud, que es el comportamiento de Mis viajes.
-   */
   opcionesVista?: SolicitudOpcion[];
-  /** Refresca la solicitud después de capturar el precio real de un vuelo. */
   onSolicitudActualizada?: (solicitud: Solicitud) => void;
-  /** Colapsa el panel de desglose en escritorio. */
   onCerrar?: () => void;
 }) {
   const opciones = opcionesVista ?? solicitud.opciones;
@@ -1762,8 +1651,6 @@ function DetalleOpciones({
   const [capturaAReemplazar, setCapturaAReemplazar] = useState<SolicitudOpcion | null>(null);
   const [capturasRevision, setCapturasRevision] = useState<Record<number, number>>({});
 
-  // Capturas y datos por opción: arrancan con lo que ya trae el detalle y se
-  // refrescan con GET /evidencias al abrir y con POST /capturas.
   const [capturas, setCapturas] = useState<Record<number, string | null>>(() =>
     Object.fromEntries(opciones.map((o) => [o.id_opcion, o.ruta_captura])),
   );
@@ -1794,15 +1681,12 @@ function DetalleOpciones({
         if (vigente) aplicarEvidencias(data.data);
       })
       .catch(() => {
-        /* silencioso: sin evidencias el detalle sigue mostrando la solicitud */
       });
     return () => {
       vigente = false;
     };
   }, [aplicarEvidencias, solicitud.id_solicitud]);
 
-  // Fase 2: al guardar la cotización, el backend encola la detección. Aquí se
-  // refresca el detalle mientras haya opciones pendientes, sin clics.
   const hayDeteccionPendiente = opciones.some(
     (o) =>
       o.fue_elegida
@@ -1819,7 +1703,6 @@ function DetalleOpciones({
         const { data } = await solicitudesApi.detalle(solicitud.id_solicitud);
         if (vigente && data.success && data.data) onSolicitudActualizada(data.data);
       } catch {
-        /* el siguiente intento vuelve a consultar */
       }
       if (intentos >= 72) window.clearInterval(intervalo);
     }, 5000);
@@ -1829,7 +1712,6 @@ function DetalleOpciones({
     };
   }, [hayDeteccionPendiente, onSolicitudActualizada, solicitud.id_solicitud]);
 
-  /** Genera o reemplaza la captura de una sola opción. */
   async function generarCaptura(opcion: SolicitudOpcion, reemplazar: boolean) {
     setCapturando(opcion.id_opcion);
     try {
@@ -1870,7 +1752,6 @@ function DetalleOpciones({
     }
   }
 
-  /** Sin captura genera directo; con captura pide confirmación antes de pisarla. */
   function solicitarCaptura(opcion: SolicitudOpcion) {
     const captura = capturas[opcion.id_opcion] ?? opcion.ruta_captura;
     if (captura) {
@@ -1880,7 +1761,6 @@ function DetalleOpciones({
     void generarCaptura(opcion, false);
   }
 
-  /** Sube un PNG tomado fuera del backend y lo asocia a la opción. */
   async function subirCaptura(opcion: SolicitudOpcion, archivo: File) {
     if (archivo.type !== 'image/png' && !archivo.name.toLowerCase().endsWith('.png')) {
       toast.error('La captura debe ser un archivo PNG.');
@@ -1907,11 +1787,6 @@ function DetalleOpciones({
     }
   }
 
-  /**
-   * Detección bajo demanda: Playwright local y, si el sitio bloquea, Firecrawl.
-   * El backend elige la opción más barata que cumpla el horario y la aplica con
-   * su captura. Es el respaldo manual de la detección automática al guardar.
-   */
   async function detectarPrecio(opcion: SolicitudOpcion) {
     if (detectando !== null) return;
     setDetectando(opcion.id_opcion);
@@ -1952,7 +1827,6 @@ function DetalleOpciones({
     }
   }
 
-  /** Cámara solo cuando falta captura; reemplazar se hace desde el boleto. */
   const botonCaptura = (opcion: SolicitudOpcion) => {
     const captura = capturas[opcion.id_opcion] ?? opcion.ruta_captura;
     if (captura || !esCapturaAutomaticaAplicable(opcion)) return null;
@@ -1982,7 +1856,6 @@ function DetalleOpciones({
     );
   };
 
-  /** Botón de boleto de un renglón: abre esa opción con captura y link. */
   const botonBoleto = (opcion: SolicitudOpcion) => (
     <TooltipProvider delayDuration={150}>
       <Tooltip>
@@ -2003,7 +1876,6 @@ function DetalleOpciones({
     </TooltipProvider>
   );
 
-  /** Link de compra del renglón (sitio de la aerolínea / autobús). */
   const botonComprar = (opcion: SolicitudOpcion) => {
     if (!opcion.url_compra) return null;
     const esBusqueda =
@@ -2352,10 +2224,6 @@ function DetalleOpciones({
   );
 }
 
-/**
- * Casetas de toda la ruta en una tarjeta plegable: el total a la vista y la
- * lista de plazas solo si se pide.
- */
 function CasetasRuta({ calculo }: { calculo: CalculoViaje }) {
   const conCasetas = calculo.tramos.filter((t) => t.casetas.length > 0);
   if (conCasetas.length === 0) return null;
@@ -2387,7 +2255,6 @@ function CasetasRuta({ calculo }: { calculo: CalculoViaje }) {
   );
 }
 
-/** Fallback para solicitudes del flujo anterior (datos que no son `solicitud-v2`). */
 function DetalleViajeLegado({ solicitud }: { solicitud: Solicitud }) {
   const resumen = leerDatosViaje(solicitud.datos);
   return (

@@ -42,7 +42,6 @@ const formatDate = (date: Date | string | null | undefined) => {
   try {
     const dateObj = date instanceof Date ? date : new Date(date);
 
-    // Verificar si la fecha es válida
     if (isNaN(dateObj.getTime())) {
       return "Fecha inválida";
     }
@@ -260,7 +259,6 @@ export const createBandejaColumns = (
       const status = row.getValue("status") as DocumentStatus;
       const config = statusConfig[status];
       
-      // Clase personalizada para estado aprobado (verde)
       if (status === "approved") {
         return (
           <Badge 
@@ -277,7 +275,6 @@ export const createBandejaColumns = (
   }
   );
 
-  // Agregar columna de comentarios de atención solo si showAttentionComments es true
   if (context?.showAttentionComments) {
     baseColumns.push({
       accessorKey: "attentionComments",

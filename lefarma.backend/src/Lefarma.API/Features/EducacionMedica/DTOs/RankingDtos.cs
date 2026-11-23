@@ -15,7 +15,6 @@ public class GenerarRankingRequest
 
     public bool? ZonaMetropolitana { get; set; }
 
-    /// <summary>Filtro por región asignada al hospital (regiones_cat).</summary>
     public int? IdRegion { get; set; }
 }
 
@@ -46,8 +45,6 @@ public class RankingEjecucionDto
     public int CantidadSolicitada { get; set; }
     public int CantidadCandidatos { get; set; }
 
-    /// <summary>Hospitales ya agregados a la selección al momento de consultar la ejecución;
-    /// el default de pre-marcado es max(0, CantidadSolicitada - CantidadYaAgregados).</summary>
     public int CantidadYaAgregados { get; set; }
     public Dictionary<string, decimal> PesosEfectivos { get; set; } = [];
     public List<RankingFactorCatalogoDto> FactoresCatalogo { get; set; } = [];
@@ -55,11 +52,6 @@ public class RankingEjecucionDto
     public List<RankingHospitalItemDto> Ranking { get; set; } = [];
 }
 
-/// <summary>
-/// Nombre y descripcion legibles de un factor, desde config_ranking_factores de la
-/// configuracion usada por la ejecucion. Permite mostrar textos amigables en la UI
-/// sin depender de las claves tecnicas.
-/// </summary>
 public class RankingFactorCatalogoDto
 {
     public string Clave { get; set; } = string.Empty;

@@ -182,7 +182,7 @@ export function RecordatorioEditModal({ workflow, recordatorio, open, setOpen, o
     >
       <form id="form-recordatorio" onSubmit={handleSubmit} className="space-y-5">
 
-        {/* Identificación */}
+        {}
         <div className="grid grid-cols-2 gap-4">
           <div className="col-span-2 sm:col-span-1">
             <Label htmlFor="rec-nombre">Nombre *</Label>
@@ -208,7 +208,7 @@ export function RecordatorioEditModal({ workflow, recordatorio, open, setOpen, o
           </div>
         </div>
 
-        {/* Trigger */}
+        {}
         <div className="rounded-lg border border-border p-4 space-y-3">
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Trigger de tiempo</p>
           <div>
@@ -250,7 +250,7 @@ export function RecordatorioEditModal({ workflow, recordatorio, open, setOpen, o
           )}
         </div>
 
-        {/* Condiciones */}
+        {}
         <div className="rounded-lg border border-border p-4 space-y-3">
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Condiciones de activación</p>
           <div className="grid grid-cols-2 gap-3">
@@ -277,7 +277,7 @@ export function RecordatorioEditModal({ workflow, recordatorio, open, setOpen, o
           </div>
         </div>
 
-        {/* Destinatarios y canales */}
+        {}
         <div className="rounded-lg border border-border p-4 space-y-3">
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Destinatarios y canales</p>
           <div className="flex items-center gap-2">
@@ -319,7 +319,7 @@ export function RecordatorioEditModal({ workflow, recordatorio, open, setOpen, o
           </div>
         </div>
 
-        {/* Templates por canal */}
+        {}
         <PlantillasEditModal
           canales={formData.canales ?? []}
           enviarEmail={formData.enviarEmail}

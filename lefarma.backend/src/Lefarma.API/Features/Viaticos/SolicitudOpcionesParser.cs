@@ -3,18 +3,6 @@ using Lefarma.API.Domain.Entities.Viaticos;
 
 namespace Lefarma.API.Features.Viaticos;
 
-/// <summary>
-/// Convierte el array JSON <c>opciones</c> de una cotización en entidades
-/// <see cref="SolicitudOpcion"/>. Las mismas reglas aplican al guardar la
-/// cotización del viajero (PUT /opciones) y al autorizar una ruta nueva desde
-/// el concentrado (POST /autorizar): una sola validación, un solo contrato.
-///
-/// Devuelve el mensaje de error en lugar de lanzar: el controller lo traduce
-/// a un 400 con el índice exacto de la opción inválida.
-/// <c>url_compra</c> es opcional (ausente, null o vacía se guarda como null):
-/// hay proveedores que no exponen un enlace real de compra y la opción sigue
-/// siendo válida.
-/// </summary>
 public static class SolicitudOpcionesParser
 {
     public static (List<SolicitudOpcion> Opciones, string? Error) Parsear(
@@ -36,9 +24,6 @@ public static class SolicitudOpcionesParser
                 return ([], $"opciones[{indice}] debe ser un objeto.");
             }
 
-            // url_compra es opcional: un proveedor puede no exponer enlace real
-            // de compra y la opcion sigue siendo valida (se guarda null). Solo
-            // se rechaza un tipo que no sea texto ni null.
             string? urlCompra = null;
             if (op.TryGetProperty("url_compra", out var urlEl))
             {
@@ -77,7 +62,6 @@ public static class SolicitudOpcionesParser
             }
             else if (op.TryGetProperty("precio", out _))
             {
-                // precio con un tipo no soportado (p. ej. string) -> rechazado
                 return ([], $"opciones[{indice}].precio debe ser numérico o null.");
             }
 

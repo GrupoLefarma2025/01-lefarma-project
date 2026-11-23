@@ -99,7 +99,6 @@ interface AsistenciaPrintDocumentProps {
   documento: TallerDocumentoAsistencia | null;
 }
 
-/** Vista de impresión de la lista de asistencia (FOR-008) pre-llenada. */
 export function AsistenciaPrintDocument({
   open,
   onOpenChange,

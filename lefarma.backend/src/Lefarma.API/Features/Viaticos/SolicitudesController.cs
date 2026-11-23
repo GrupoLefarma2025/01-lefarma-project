@@ -17,60 +17,22 @@ using Swashbuckle.AspNetCore.Annotations;
 
 namespace Lefarma.API.Features.Viaticos;
 
-/// <summary>
-/// Wizard de solicitudes de viáticos. Endpoints centrados en el
-/// solicitante (crear / cotizar / consultar). Las transiciones
-/// autorizadas/ajustes viven en AprobacionesController (otro worker).
-///
-/// Reglas duras:
-///  - <c>id_usuario_solicitante</c> SIEMPRE de <c>User.GetUserId()</c>,
-///    NUNCA del body.
-///  - <c>periodo</c> SIEMPRE derivado del servidor (yyyy-MM, UTC).
-///  - <c>gerencia</c> del body si llega; si no, <see cref="GerenciaPorDefecto"/>
-///    (documentado en DoneClaim como supuesto).
-///  - PUT de cotizacion exige <c>url_compra</c> y <c>fuente</c> en cada
-///    opcion; <c>precio:null</c> solo si <c>fuente</c> contiene "estimado".
-///
-/// Transiciones que escribe este controller (ninguna otra):
-///  - <c>borrador</c> --(PUT opciones)--> <c>enviada</c>. Guardar la cotizacion
-///    ES el envio: no hay un endpoint aparte de "enviar" y, sin esta
-///    transicion, la solicitud se quedaba en <c>borrador</c> para siempre y
-///    <c>AprobacionesController</c> la rechazaba con 409, dejando la bandeja
-///    autorizable vacia. El resto de estados (<c>autorizada</c>,
-///    <c>autorizada_con_ajustes</c>, <c>rechazada</c>) los pone
-///    <c>AprobacionesController</c> y este controller no los toca.
-/// </summary>
 [ApiController]
 [Route("api/viaticos")]
 [EndpointGroupName("Viaticos")]
 [Authorize]
 public class SolicitudesController : ControllerBase
 {
-    /// <summary>
-    /// Valor por defecto de gerencia cuando el solicitante no manda una
-    /// y el backend todavía no tiene un catálogo de empleados
-    /// (siguiente incremento: leer de <c>Asokam.genEmpleadosCat</c>).
-    /// Documentado como supuesto en el DoneClaim.
-    /// </summary>
     public const string GerenciaPorDefecto = "Sin asignar";
 
-    /// <summary>Estado en el que nace toda solicitud (POST /solicitudes).</summary>
     public const string EstadoBorrador = "borrador";
 
-    /// <summary>
-    /// Estado al que pasa la solicitud al guardar sus opciones. Es el unico
-    /// estado que <c>AprobacionesController</c> acepta para autorizar o
-    /// rechazar; cualquier otro devuelve 409.
-    /// </summary>
     public const string EstadoEnviada = "enviada";
 
-    /// <summary>Sistema de origen por defecto (wizard de viáticos).</summary>
     public const string SistemaOrigenViaticos = "viaticos";
 
-    /// <summary>Sistema de origen para las solicitudes creadas desde Educación Médica.</summary>
     public const string SistemaOrigenEducacionMedica = "educacion_medica";
 
-    /// <summary>Valores aceptados en <c>sistema_origen</c>.</summary>
     private static readonly string[] SistemasOrigenValidos =
     {
         SistemaOrigenViaticos,
@@ -91,9 +53,6 @@ public class SolicitudesController : ControllerBase
         _logger = logger;
     }
 
-    // ----------------------------------------------------------------
-    // POST /api/viaticos/solicitudes
-    // ----------------------------------------------------------------
     [HttpPost("solicitudes")]
     [SwaggerOperation(
         Summary = "Crear solicitud de viáticos (borrador)",
@@ -149,9 +108,6 @@ public class SolicitudesController : ControllerBase
         var personaSnapshot = LeerPersonaDelSnapshot(request.Datos);
         var personas = await ResolverPersonasAsync(userId, personaSnapshot, ct);
 
-        // El folio se calcula ANTES del INSERT (consecutivo de la secuencia +
-        // SamAccountName del viajero), asi la fila nace con folio y no hay
-        // UPDATE posterior dependiente del IDENTITY.
         var numeroFolio = await SiguienteNumeroFolioAsync(ct);
         var samFolio = personas.SamViajero.Length > 40 ? personas.SamViajero[..40] : personas.SamViajero;
         var folio = $"VIA-{samFolio}-{numeroFolio:D4}";
@@ -176,8 +132,6 @@ public class SolicitudesController : ControllerBase
             FechaModificacion = ahora,
         };
 
-        // El evento viaja por la navegacion: EF inserta solicitud + evento en la
-        // MISMA transaccion y resuelve id_solicitud con el id generado.
         solicitud.Eventos.Add(new SolicitudEvento
         {
             Tipo = "creada",
@@ -210,9 +164,6 @@ public class SolicitudesController : ControllerBase
         });
     }
 
-    // ----------------------------------------------------------------
-    // POST /api/viaticos/solicitudes/desde-educacion-medica
-    // ----------------------------------------------------------------
     [HttpPost("solicitudes/desde-educacion-medica")]
     [SwaggerOperation(
         Summary = "Crear o reutilizar una cotización desde una ruta de Educación Médica",
@@ -268,10 +219,6 @@ public class SolicitudesController : ControllerBase
             });
         }
 
-        // La búsqueda de duplicados, el bloqueo y la inserción corren dentro de
-        // una transacción serializable en SQL Server: dos solicitudes simultáneas
-        // no pueden cotizar la misma visita. Los proveedores no relacionales
-        // (EF InMemory en las pruebas) no soportan transacciones y se omiten.
         var ruta = await _context.Rutas
             .AsNoTracking()
             .Where(r => r.IdRuta == request.IdRuta)
@@ -330,9 +277,6 @@ public class SolicitudesController : ControllerBase
             : null;
 
         var ahora = DateTime.UtcNow;
-        // La gerencia es una clasificación del concentrado. Si el cliente no
-        // la manda, se resuelve desde la versión/ruta de Educación Médica;
-        // nunca se deja caer en "Sin asignar" si la ruta ya la tiene.
         int? idTipoGerencia = null;
         if (ruta.IdRutaVersion is int idRutaVersion)
         {
@@ -358,8 +302,6 @@ public class SolicitudesController : ControllerBase
             ? gerenciaRuta
             : (!string.IsNullOrWhiteSpace(request.Gerencia) ? request.Gerencia.Trim() : GerenciaPorDefecto);
 
-        // 1) Reutilizar un borrador propio con la misma ruta y el conjunto exacto
-        // de visitas. El borrador legado (sin filas en la tabla liga) no entra.
         var borradores = await _context.Solicitudes
             .AsNoTracking()
             .Include(s => s.OrigenEmVisitas)
@@ -394,7 +336,6 @@ public class SolicitudesController : ControllerBase
             });
         }
 
-        // 2) Bloquear visitas que ya estén en una cotización activa del usuario.
         var estadosActivos = new[] { EstadoBorrador, EstadoEnviada, "autorizada", "autorizada_con_ajustes" };
         var activas = await (
             from liga in _context.SolicitudOrigenEmVisitas
@@ -437,8 +378,6 @@ public class SolicitudesController : ControllerBase
             });
         }
 
-        // 3) Crear el borrador. Las filas de la liga viajan por la navegación:
-        // EF inserta solicitud + liga en el mismo SaveChanges (atómico).
         var personaSnapshot = LeerPersonaDelSnapshot(request.Datos);
         var personas = await ResolverPersonasAsync(userId, personaSnapshot, ct);
         var numeroFolio = await SiguienteNumeroFolioAsync(ct);
@@ -518,9 +457,6 @@ public class SolicitudesController : ControllerBase
         });
     }
 
-    // ----------------------------------------------------------------
-    // GET /api/viaticos/solicitudes/por-ruta/{idRuta}
-    // ----------------------------------------------------------------
     [HttpGet("solicitudes/por-ruta/{idRuta:int}")]
     [SwaggerOperation(
         Summary = "Cotizaciones de viáticos ligadas a una ruta de Educación Médica",
@@ -603,8 +539,7 @@ public class SolicitudesController : ControllerBase
         });
     }
 
-
-    [HttpGet("solicitudes/mis")]
+[HttpGet("solicitudes/mis")]
     [SwaggerOperation(
         Summary = "Mis solicitudes de viáticos",
         Description = "Lista las solicitudes del usuario autenticado, ordenado por fecha de creación desc. " +
@@ -627,9 +562,6 @@ public class SolicitudesController : ControllerBase
             });
         }
 
-        // "Ver todas" es una capacidad, no un filtro opcional: si el cliente
-        // lo pide sin permiso se rechaza en vez de devolver la lista propia y
-        // esconder el error de configuración.
         if (todas && !User.TienePermiso(Permissions.Viaticos.VerTodos))
         {
             return StatusCode(403, new ApiResponse<object>
@@ -664,9 +596,6 @@ public class SolicitudesController : ControllerBase
         });
     }
 
-    // ----------------------------------------------------------------
-    // GET /api/viaticos/solicitudes/por-autorizar
-    // ----------------------------------------------------------------
     [HttpGet("solicitudes/por-autorizar")]
     [SwaggerOperation(
         Summary = "Solicitudes pendientes de autorizar",
@@ -712,9 +641,6 @@ public class SolicitudesController : ControllerBase
         });
     }
 
-    // ----------------------------------------------------------------
-    // GET /api/viaticos/solicitudes/gerencia-sugerida
-    // ----------------------------------------------------------------
     [HttpGet("solicitudes/gerencia-sugerida")]
     [SwaggerOperation(
         Summary = "Gerencia sugerida para el wizard",
@@ -753,9 +679,6 @@ public class SolicitudesController : ControllerBase
         });
     }
 
-    // ----------------------------------------------------------------
-    // GET /api/viaticos/solicitudes/{id}
-    // ----------------------------------------------------------------
     [HttpGet("solicitudes/{id:int}")]
     [SwaggerOperation(
         Summary = "Detalle de una solicitud",
@@ -808,9 +731,6 @@ public class SolicitudesController : ControllerBase
         });
     }
 
-    // ----------------------------------------------------------------
-    // PUT /api/viaticos/solicitudes/{id}/opciones
-    // ----------------------------------------------------------------
     [HttpPut("solicitudes/{id:int}/opciones")]
     [SwaggerOperation(
         Summary = "Persistir cotización (vuelo/hotel) y enviar la solicitud",
@@ -855,7 +775,6 @@ public class SolicitudesController : ControllerBase
             });
         }
 
-        // 1) Validar el JSON de cotización antes de tocar la BD.
         if (!request.Cotizacion.TryGetProperty("opciones", out var opcionesEl))
         {
             return BadRequest(new ApiResponse<object>
@@ -876,7 +795,6 @@ public class SolicitudesController : ControllerBase
             });
         }
 
-        // 2) Cargar la solicitud (con verificación de dueño).
         var solicitud = await _context.Solicitudes
             .Include(s => s.Opciones)
             .Include(s => s.Eventos)
@@ -896,11 +814,6 @@ public class SolicitudesController : ControllerBase
             return Forbid();
         }
 
-        // 2.1) Persistir el desglose calculado por el SERVIDOR desde las
-        // opciones: un estimado nunca se suma como precio real (ver
-        // TotalesCotizacion). El `total` completo que manda el cliente se
-        // conserva porque puede incluir conceptos del motor (gasolina,
-        // casetas, comida) que no son opciones; si no llega, se usa la suma.
         var totales = TotalesCotizacion.Calcular(nuevasOpciones);
         decimal? totalCliente = null;
         if (request.Cotizacion.ValueKind == JsonValueKind.Object
@@ -916,7 +829,6 @@ public class SolicitudesController : ControllerBase
             totales.Estimado,
             totalCliente ?? totales.Total);
 
-        // 3) Reemplazar las opciones existentes (regla de UX: la última cotización gana).
         if (solicitud.Opciones.Count > 0)
         {
             _context.SolicitudOpciones.RemoveRange(solicitud.Opciones);
@@ -926,21 +838,12 @@ public class SolicitudesController : ControllerBase
             _context.SolicitudOpciones.Add(nueva);
         }
 
-        // 4) Transición borrador -> enviada. Guardar la cotización ES el envío:
-        // es el único punto donde una solicitud entra a la bandeja autorizable,
-        // porque AprobacionesController solo acepta 'enviada' y responde 409 en
-        // cualquier otro estado. Va en el MISMO SaveChangesAsync que las
-        // opciones y la bitácora, así que las tres escrituras son atómicas:
-        // no queda una solicitud enviada sin cotización ni al revés.
-        // Una solicitud en cualquier otro estado (autorizada, rechazada, ...)
-        // conserva el suyo: aquí no se inventa ni se retrocede ningún estado.
         var hayQueEnviar = solicitud.Estado == EstadoBorrador;
         if (hayQueEnviar)
         {
             solicitud.Estado = EstadoEnviada;
         }
 
-        // 5) Bitácora
         _context.SolicitudEventos.Add(new SolicitudEvento
         {
             IdSolicitud = id,
@@ -974,11 +877,6 @@ public class SolicitudesController : ControllerBase
         solicitud.FechaModificacion = ahora;
         AplicarCalculo(solicitud, request.Calculo);
 
-        // Fase 2: las opciones que aún no tienen precio real se marcan para
-        // que el detalle muestre "buscando precio" mientras el worker las
-        // procesa. Solo se marca si la cola está registrada; en pruebas o en
-        // un host sin worker, la opción conserva su estado y el respaldo
-        // manual sigue disponible.
         var cola = HttpContext.RequestServices.GetService<IDeteccionAutomaticaQueue>();
         if (cola is not null)
         {
@@ -1000,7 +898,6 @@ public class SolicitudesController : ControllerBase
             }
         }
 
-        // Recargar con las nuevas opciones para responder con el detalle completo.
         var recargada = await _context.Solicitudes
             .Include(s => s.Opciones)
             .Include(s => s.Eventos)
@@ -1016,9 +913,6 @@ public class SolicitudesController : ControllerBase
         });
     }
 
-    // ----------------------------------------------------------------
-    // PUT /api/viaticos/solicitudes/{id}/opciones/{idOpcion}/precio
-    // ----------------------------------------------------------------
     [HttpPut("solicitudes/{id:int}/opciones/{idOpcion:int}/precio")]
     [SwaggerOperation(
         Summary = "Registrar el precio real de una opción cotizada",
@@ -1220,9 +1114,6 @@ public class SolicitudesController : ControllerBase
         });
     }
 
-    // ----------------------------------------------------------------
-    // PUT /api/viaticos/solicitudes/{id}  (solo borrador)
-    // ----------------------------------------------------------------
     [HttpPut("solicitudes/{id:int}")]
     [SwaggerOperation(
         Summary = "Actualizar un borrador de viáticos",
@@ -1294,9 +1185,6 @@ public class SolicitudesController : ControllerBase
         });
     }
 
-    // ----------------------------------------------------------------
-    // DELETE /api/viaticos/solicitudes/{id}  (soft delete, solo borrador)
-    // ----------------------------------------------------------------
     [HttpDelete("solicitudes/{id:int}")]
     [SwaggerOperation(
         Summary = "Eliminar (soft) un borrador de viáticos",
@@ -1341,9 +1229,6 @@ public class SolicitudesController : ControllerBase
         return Ok(new ApiResponse<object> { Success = true, Message = "Solicitud eliminada." });
     }
 
-    // ----------------------------------------------------------------
-    // POST /api/viaticos/solicitudes/{id}/enviar  (borrador -> enviada)
-    // ----------------------------------------------------------------
     [HttpPost("solicitudes/{id:int}/enviar")]
     [SwaggerOperation(
         Summary = "Enviar un borrador a concentrado",
@@ -1384,9 +1269,6 @@ public class SolicitudesController : ControllerBase
             IdUsuario = userId,
             FechaCreacion = ahora,
         });
-        // Nota: la regla de "una solicitud enviada por usuario y periodo" se
-        // relajo en la base de datos (script 0012) para permitir varias
-        // solicitudes enviadas; por eso aqui no se bloquea el envio.
         await _context.SaveChangesAsync(ct);
 
         var dto = MapearDto(solicitud, opciones: true, eventos: false);
@@ -1398,16 +1280,7 @@ public class SolicitudesController : ControllerBase
         });
     }
 
-    // ----------------------------------------------------------------
-    // Helpers
-    // ----------------------------------------------------------------
-
-    /// <summary>
-    /// Guarda el cálculo de la ruta (el que se hizo al enviar) dentro del
-    /// snapshot, en <c>datos.calculo</c>. Reemplaza el cálculo anterior: la
-    /// última ruta calculada es la que manda.
-    /// </summary>
-    private static void AplicarCalculo(Solicitud solicitud, JsonElement? calculo)
+private static void AplicarCalculo(Solicitud solicitud, JsonElement? calculo)
     {
         if (calculo is null || calculo.Value.ValueKind != JsonValueKind.Object) return;
         try
@@ -1454,9 +1327,6 @@ public class SolicitudesController : ControllerBase
         var totales = TotalesCotizacion.Calcular(s.Opciones);
         var totalGuardado = TotalesCotizacion.LeerDeDatos(datos).Total;
 
-        // Kayak devuelve enlaces de sesión (/book/flight) que caducan. Al leer
-        // el detalle se cambian por la búsqueda estable de la ruta y fecha; el
-        // mismo mapa corrige los enlaces anidados del snapshot (ruta y tramos).
         var enlaces = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         var opcionesDto = new List<SolicitudOpcionDto>();
         if (opciones)
@@ -1524,10 +1394,6 @@ public class SolicitudesController : ControllerBase
         };
     }
 
-    /// <summary>
-    /// Carga una solicitud activa del usuario y valida que siga en borrador.
-    /// Devuelve el error HTTP listo para retornar cuando no cumple.
-    /// </summary>
     private async Task<(Solicitud? Solicitud, IActionResult? Error)> ObtenerBorradorPropioAsync(
         int id,
         int userId,
@@ -1560,7 +1426,6 @@ public class SolicitudesController : ControllerBase
         return (solicitud, null);
     }
 
-    /// <summary>Cuenta los destinos/puntos del snapshot JSON (array `destinos`).</summary>
     private static int ContarDestinos(JsonElement datos)
     {
         if (datos.ValueKind != JsonValueKind.Object
@@ -1572,7 +1437,6 @@ public class SolicitudesController : ControllerBase
         return destinos.GetArrayLength();
     }
 
-    /// <summary>Lee `datos.total`; null si no existe o no es numérico.</summary>
     private static decimal? LeerTotalDeDatos(string datosJson)
     {
         try
@@ -1588,28 +1452,15 @@ public class SolicitudesController : ControllerBase
         }
         catch (JsonException)
         {
-            // datos_json corrupto: el resumen no debe romper.
         }
         return null;
     }
 
-    /// <summary>
-    /// Total de respaldo: suma de las opciones elegidas con precio. Se usa
-    /// cuando la cotización no persistió `datos.total` (p. ej. cotizaciones
-    /// capturadas por la API antes de ADR-00014).
-    /// </summary>
-    /// <summary>
-    /// Opción que la Fase 2 debe intentar cotizar: elegida, con URL y aún sin
-    /// precio real. Incluye vuelos estimados, autobuses estimados y hoteles de
-    /// tabulador; los precios reales (cotizado) no se vuelven a consultar.
-    /// </summary>
     private static bool EsCandidataDeteccion(SolicitudOpcion opcion) =>
         opcion.FueElegida
         && TotalesCotizacion.EsTipoDetectable(opcion.Tipo)
         && !string.IsNullOrWhiteSpace(opcion.UrlCompra)
         && !TotalesCotizacion.EsCotizada(opcion)
-        // Un hotel "de referencia" no identifica un hotel concreto: no hay
-        // tarjeta que buscar. Se deja como referencia y se captura a mano.
         && !(string.Equals(opcion.Tipo?.Trim(), "hotel", StringComparison.OrdinalIgnoreCase)
              && opcion.Linea.StartsWith("Hotel en ", StringComparison.OrdinalIgnoreCase));
 
@@ -1621,13 +1472,6 @@ public class SolicitudesController : ControllerBase
         return elegidas > 0 ? elegidas : null;
     }
 
-    /// <summary>
-    /// Siguiente consecutivo del folio del viaje. En SQL Server sale de
-    /// <c>[viaticos].[seq_folio_viaje]</c> (<c>NEXT VALUE FOR</c>, sin bloqueos),
-    /// de modo que el folio se conoce antes del INSERT y la fila nace completa.
-    /// Los proveedores no relacionales (EF InMemory en las pruebas) no tienen
-    /// secuencias: ahi se toma el siguiente numero libre del propio folio.
-    /// </summary>
     private async Task<int> SiguienteNumeroFolioAsync(CancellationToken ct)
     {
         if (!_context.Database.IsSqlServer())
@@ -1656,9 +1500,6 @@ public class SolicitudesController : ControllerBase
             await using var comando = conexion.CreateCommand();
             comando.CommandText = "SELECT NEXT VALUE FOR [viaticos].[seq_folio_viaje];";
 
-            // La cotización desde EM abre una transacción local; el comando
-            // crudo comparte la conexión del DbContext y debe enlistarse en
-            // esa transacción (si no, SqlClient lanza InvalidOperationException).
             var transaccionActual = _context.Database.CurrentTransaction;
             if (transaccionActual is not null)
             {
@@ -1677,7 +1518,6 @@ public class SolicitudesController : ControllerBase
         }
     }
 
-    /// <summary>Lee la persona del snapshot del wizard (modo, empleado y nombre).</summary>
     private static (bool EsOtra, int EmpleadoId, string? Nombre) LeerPersonaDelSnapshot(JsonElement datos)
     {
         if (datos.ValueKind != JsonValueKind.Object
@@ -1702,11 +1542,6 @@ public class SolicitudesController : ControllerBase
         return (modo == "otra", empleadoId, string.IsNullOrWhiteSpace(nombre) ? null : nombre);
     }
 
-    /// <summary>
-    /// Resuelve el nombre del solicitante y del viajero contra el directorio de
-    /// Asokam (app.Usuarios) y el SamAccountName del viajero para el folio.
-    /// Si el directorio no responde, usa el nombre del snapshot y el id.
-    /// </summary>
     private async Task<(string Solicitante, string Viajero, string SamViajero)> ResolverPersonasAsync(
         int userId,
         (bool EsOtra, int EmpleadoId, string? Nombre) persona,
@@ -1752,11 +1587,6 @@ public class SolicitudesController : ControllerBase
         return (solicitante, viajero, sam);
     }
 
-    /// <summary>
-    /// Resuelve en un solo query los nombres de los creadores de un listado
-    /// (evita N+1). Un usuario dado de baja cae al fallback "Usuario #{id}" de
-    /// <see cref="NombreDesdeDirectorio"/>.
-    /// </summary>
     private async Task<Dictionary<int, string?>> DirectorioDeCreadoresAsync(
         IEnumerable<Solicitud> filas,
         CancellationToken ct)
@@ -1779,7 +1609,6 @@ public class SolicitudesController : ControllerBase
             ? nombre.Trim()
             : $"Usuario #{idUsuario}";
 
-    /// <summary>Nombre visible del creador; cae al fallback "Usuario #{id}".</summary>
     private async Task<string> NombreCreadorAsync(int idUsuario, CancellationToken ct)
     {
         var nombre = await _asokamContext.Usuarios
@@ -1790,10 +1619,6 @@ public class SolicitudesController : ControllerBase
         return string.IsNullOrWhiteSpace(nombre) ? $"Usuario #{idUsuario}" : nombre.Trim();
     }
 
-    /// <summary>
-    /// Convierte un *_json de la BD a <see cref="JsonElement"/> sin romper el
-    /// detalle: null / vacio / JSON invalido devuelven <c>null</c>.
-    /// </summary>
     private static JsonElement? ParsearJsonTolerante(string? json)
     {
         if (string.IsNullOrWhiteSpace(json))

@@ -3,13 +3,10 @@ import { render, screen } from '@testing-library/react';
 import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { useAuthStore } from '@/shared/auth/authStore';
 
-// Hero is imported at module level by LandingRoute.tsx. Mock it so the test
-// stays focused on ProtectedRoute without pulling in the real Hero tree.
 vi.mock('@/pages/Hero', () => ({
   default: () => <div>HERO_MARK</div>,
 }));
 
-// Stray API imports inside the module graph must resolve.
 vi.mock('@/shared/api/apiClient', () => ({
   API: {
     get: vi.fn().mockResolvedValue({ data: { success: true, data: null } }),
@@ -29,23 +26,6 @@ vi.mock('@/shared/api/apiClient', () => ({
 }));
 
 import { ProtectedRoute } from '@/routes/LandingRoute';
-
-/**
- * Verify return-URL preservation for CxP subtree routes.
- *
- * The CxP subtree uses ProtectedRoute (the layout-route guard from
- * LandingRoute.tsx) for its protected routes (dashboard, catalogos/*, etc.).
- * ProtectedRoute redirects via
- * `<Navigate to={\`${unauthRedirect}?return=${encodeURIComponent(from)}\`} replace/>`.
- *
- * This test asserts the return URL is preserved so that post-login the user
- * lands on the original target, not the Login default (cxp-app spec:
- * "destination preserved"; app-routing spec: "preserving the return URL").
- *
- * The probe at the login destination renders the real router location so we can
- * assert the exact `?return=` value. Login is NOT mocked to a static div (that
- * would hide the URL probe).
- */
 
 function LoginProbe() {
   const loc = useLocation();
@@ -74,9 +54,7 @@ describe('ProtectedRoute — subtree return-URL preservation', () => {
       </MemoryRouter>
     );
 
-    // Protected surface never rendered.
     expect(screen.queryByText('PROVEEDORES_CONTENT')).not.toBeInTheDocument();
-    // Login destination received the original protected path via ?return=.
     expect(screen.getByTestId('login-probe').textContent).toBe(
       `/cxp/login?return=${encodeURIComponent('/cxp/catalogos/proveedores')}`
     );

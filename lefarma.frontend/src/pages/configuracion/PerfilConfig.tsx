@@ -169,10 +169,10 @@ export function PerfilConfig({ firmaCard }: { firmaCard?: ReactNode }) {
     <Form {...form}>
       <form onSubmit={form.handleSubmit(handleSave)} className="space-y-6">
 
-        {/* Firma Digital */}
+        {}
         {firmaCard ?? <FirmaUploadCard />}
 
-        {/* Datos del empleado: puesto y área oficiales del portal de incidencias */}
+        {}
         {(puestoEmpleado || areaEmpleado) && (
           <Card>
             <CardHeader>
@@ -199,7 +199,7 @@ export function PerfilConfig({ firmaCard }: { firmaCard?: ReactNode }) {
           </Card>
         )}
 
-        {/* Contacto */}
+        {}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -273,7 +273,7 @@ export function PerfilConfig({ firmaCard }: { firmaCard?: ReactNode }) {
           </CardContent>
         </Card>
 
-        {/* Notificaciones */}
+        {}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">

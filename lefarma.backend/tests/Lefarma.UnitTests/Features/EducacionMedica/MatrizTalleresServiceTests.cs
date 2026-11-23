@@ -31,7 +31,6 @@ public class MatrizTalleresServiceTests
     {
         var contexto = _workflow.Context;
         contexto.TiposGerencia.Add(new TipoGerencia { IdTipoGerencia = 1, Descripcion = "IMSS", Activo = true });
-        // FKs requeridas: sin los catálogos, los Includes actúan como inner join en InMemory
         contexto.RegionesCat.Add(new RegionCatalogo { IdRegion = 1, IdTipoGerencia = 1, Nombre = "Región 1", Activo = true });
         contexto.RegionesCat.Add(new RegionCatalogo { IdRegion = 2, IdTipoGerencia = 1, Nombre = "Región 2", Activo = true });
         contexto.EquiposPareo.Add(new EquipoPareo
@@ -57,7 +56,6 @@ public class MatrizTalleresServiceTests
             NullLogger<MatrizTalleresService>.Instance);
     }
 
-    /// <summary>Matriz general en Concentración con 2 talleres sin costos (equipo 1).</summary>
     private MatrizGeneral SembrarMatrizEnConcentracion(int talleresSinCostos = 2)
     {
         var contexto = _workflow.Context;
@@ -154,13 +152,11 @@ public class MatrizTalleresServiceTests
     {
         var general = SembrarMatrizEnConcentracion();
 
-        // GV envía a firma y firma
         await MoverMatrizAPasoAsync(general, "Enviar", _workflow.UsuarioGvImss);
         await MoverMatrizAPasoAsync(general, "GvImssAutorizar", _workflow.UsuarioGvImss);
         _workflow.Context.Entry(general).Reload();
         general.IdPasoActual.Should().Be(_workflow.PasosMatriz["Aem"]);
 
-        // CA no puede firmar sin costos (salvaguarda) — se prueba llegando primero a su paso
         await MoverMatrizAPasoAsync(general, "AemEnviar", _workflow.UsuarioAem);
         var servicio = CrearServicio();
         var firmarSinCostos = () => servicio.FirmarAsync(
@@ -170,12 +166,10 @@ public class MatrizTalleresServiceTests
         await firmarSinCostos.Should().ThrowAsync<InvalidOperationException>()
             .WithMessage("*no tienen costos capturados*");
 
-        // CA devuelve al paso de costos; el AEM captura y reenvía
         await MoverMatrizAPasoAsync(general, "CaDevolver", _workflow.UsuarioCa, "Faltan costos");
         await CapturarCostosDeTodosLosTalleresAsync(general);
         await MoverMatrizAPasoAsync(general, "AemEnviar", _workflow.UsuarioAem);
 
-        // CA firma y DC autoriza
         await MoverMatrizAPasoAsync(general, "CaAutorizar", _workflow.UsuarioCa);
         var detalle = await CrearServicio().FirmarAsync(
             general.IdMatrizGeneral,
@@ -189,7 +183,6 @@ public class MatrizTalleresServiceTests
         var talleres = _workflow.Context.Talleres
             .Where(t => t.IdMatrizGeneral == general.IdMatrizGeneral)
             .ToList();
-        // ADR-00008 revisión 2026-10-09: el cierre de la matriz programa los talleres automáticamente.
         talleres.Should().OnlyContain(t => t.Estado == Taller.EstadoProgramado);
 
         var historial = _workflow.Context.TalleresEstadosHistorial
@@ -198,7 +191,6 @@ public class MatrizTalleresServiceTests
         historial.Should().HaveCount(talleres.Count);
         historial.Should().OnlyContain(h => h.Origen == TallerEstadoHistorial.OrigenAutomatico);
 
-        // El documento imprimible acumula las firmas de la bitácora
         var documento = await CrearServicio().GetDocumentoAsync(general.IdMatrizGeneral);
         documento.Titulo.Should().Be("Matriz de talleres 10/2026 – IMSS");
         documento.Firmas.Should().NotBeEmpty();
@@ -322,7 +314,6 @@ public class MatrizTalleresServiceTests
         var general = SembrarMatrizEnConcentracion();
         var contexto = _workflow.Context;
 
-        // Segundo equipo con su matriz individual aún EnCaptura
         contexto.EquiposPareo.Add(new EquipoPareo { IdEquipo = 2, IdRegion = 2, IdEjecutivo = 700, IdEspecialista = 800, Activo = true });
         var individual2 = new MatrizIndividual { IdEquipo = 2, Periodo = Periodo };
         contexto.MatricesIndividuales.Add(individual2);
@@ -392,7 +383,6 @@ public class MatrizTalleresServiceTests
     {
         var general = SembrarMatrizEnConcentracion();
 
-        // Participante del paso inicial (GV IMSS) ve el ENVIAR
         var accionesGv = await _workflow.Engine.GetAccionesDisponiblesAsync(
             _workflow.WfMatriz.IdWorkflow,
             general.IdMatrizGeneral,
@@ -400,7 +390,6 @@ public class MatrizTalleresServiceTests
             CodigoProceso.EDUCACION_MEDICA_MATRIZ);
         accionesGv.Should().NotBeEmpty();
 
-        // Un ajeno (ni creador ni participante) no ve acciones
         var accionesAjeno = await _workflow.Engine.GetAccionesDisponiblesAsync(
             _workflow.WfMatriz.IdWorkflow,
             general.IdMatrizGeneral,

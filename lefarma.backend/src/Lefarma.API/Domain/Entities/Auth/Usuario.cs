@@ -14,7 +14,6 @@ public class Usuario
     public DateTime? UltimoLogin { get; set; }
     public string? MetadataJson { get; set; }
 
-    // Navigation
     public ICollection<UsuarioRol> UsuariosRoles { get; set; } = new List<UsuarioRol>();
     public ICollection<UsuarioPermiso> UsuariosPermisos { get; set; } = new List<UsuarioPermiso>();
     public ICollection<Sesion> Sesiones { get; set; } = new List<Sesion>();

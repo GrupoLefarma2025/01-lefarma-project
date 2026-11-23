@@ -29,7 +29,6 @@ const fmtPeriodo = (periodo: string) => {
   });
 };
 
-/** Accesos rápidos derivados del menú (mismos permisos, sin duplicar códigos). */
 function obtenerEnlacesRapidos(): EnlaceRapido[] {
   const enlaces: EnlaceRapido[] = [];
   for (const item of educacionMedicaMenuItems) {
@@ -50,13 +49,9 @@ function obtenerEnlacesRapidos(): EnlaceRapido[] {
   return enlaces.slice(0, 8);
 }
 
-/**
- * Dashboard de Educación Médica (ADR-00012): landing adaptativo por permisos.
- * KPIs + tarjetas + últimos talleres; cada bloque se auto-oculta sin permiso o sin datos.
- */
 export function EducacionMedicaDashboard() {
   usePageTitle('Dashboard', 'Tu resumen de Educación Médica');
-  usePermissionVersion(); // re-render cuando cambian los permisos (accesos rápidos)
+  usePermissionVersion(); 
   const { user } = useAuthStore();
   const {
     periodo,

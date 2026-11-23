@@ -1,4 +1,3 @@
-/** Normaliza texto para comparar etiquetas del formato con los nombres de tipo de la BD. */
 export function normalize(text?: string | null) {
   return (text ?? '')
     .toLowerCase()
@@ -6,7 +5,6 @@ export function normalize(text?: string | null) {
     .replace(/[̀-ͯ]/g, '');
 }
 
-/** Parte una fecha ISO en DÍA/MES/AÑO sin corrimiento de zona horaria. */
 export function splitFechaISO(fecha?: string | null): { d: string; m: string; y: string } {
   if (!fecha) return { d: '', m: '', y: '' };
   const mt = /^(\d{4})-(\d{2})-(\d{2})/.exec(fecha);
@@ -20,9 +18,6 @@ export function splitFechaISO(fecha?: string | null): { d: string; m: string; y:
   };
 }
 
-// ponytail: match() covers BOTH the printed-form label and the real DB tipo names
-// (e.g. DB "Retardo mayor a 20 minutos" must tick the form's "Retardo de mas de 20 minutos",
-// and "Retardo menor..." must tick "Retardo de menos..."). Keyword-only matching missed these.
 export const INCIDENCIA_OPCIONES: { label: string; match: (t: string) => boolean }[] = [
   { label: 'Omisión de checado entrada o salida', match: (t) => t.includes('omision') },
   {
@@ -52,7 +47,6 @@ export const NOTES = [
   'el cual requerirá aprobación de Dirección Corporativa.',
 ];
 
-/** Índices (0-based) de la opción marcada; -1 si ninguna. fillRepos: fila de la rejilla de reposición. */
 export function indicesIncidencia(tipoNombre?: string | null) {
   const t = normalize(tipoNombre);
   const idxJust = INCIDENCIA_OPCIONES.findIndex((o) => o.match(t));

@@ -6,43 +6,16 @@ import { useAuthStore } from '@/shared/auth/authStore';
 import { authService } from '@/shared/auth/authService';
 import { BaseAppRoutes } from '@/apps/baseapp/BaseAppRoutes';
 
-/**
- * Corrected shell navigation tests (nav-reorg: shell at root).
- *
- * Coverage (app-routing + base-app + cxp-app specs):
- * - Root Index Redirect: `/` → `/login` (unauth) | `/hub` (auth).
- * - Global Login Route: `/login` renders outside `RequireAuth` (reachable
- *   unauthenticated) and uses the 2-step global Login.
- * - Hub launcher: `/hub` guarded by `RequireAuth`; unauth → `/login`, auth →
- *   `Home` launcher with the enabled `cxp` entry.
- * - Profile: `/perfil` guarded + rendered inside the shell.
- * - CxP subtree mounting: `/cxp/*` resolves within the subtree; index
- *   auth+ubicación→`dashboard` (missing empresa/sucursal → select-empresa),
- *   unauth→`/cxp/login`.
- * - Cross-app SSO: authenticated hub→cxp navigation needs no re-login.
- *
- * Mock strategy: heavy leaf pages reduce to deterministic text markers,
- * `MainLayout` becomes an `<Outlet/>` passthrough, and `PermissionGuard` is
- * bypassed so route resolution is isolated from page-implementation noise.
- * The real `useAuthStore` is driven via `setState`.
- */
-
 vi.mock('@/pages/Hero', () => ({
   default: () => <div>HERO_MARK</div>,
 }));
 vi.mock('@/pages/Dashboard', () => ({
   default: () => <div>DASHBOARD_MARK</div>,
 }));
-// The CxP/RH subtree logins render via HandoffLogin → Login
-// (@/pages/auth/Login); mock it so /cxp/login resolves to a marker.
 vi.mock('@/pages/auth/Login', () => ({
   default: () => <div>LOGIN_MARK</div>,
 }));
 
-// /login (baseapp) now mounts <BaseAppLogin> → <MultiStepLogin> (the
-// refactored shell). Mock the rendered leaf so route resolution stays
-// isolated from the login implementation, matching the "heavy leaf pages
-// reduce to text markers" strategy used across this suite.
 vi.mock('@/components/baseapp/MultiStepLogin', () => ({
   MultiStepLogin: () => <div>LOGIN_MARK</div>,
 }));
@@ -62,20 +35,15 @@ vi.mock('@/pages/auth/SelectEmpresaSucursal', () => ({
   default: () => <div>SELECT_EMPRESA_MARK</div>,
 }));
 
-// MainLayout pulls in the full sidebar/header tree; reduce it to a passthrough
-// <Outlet/> so child routes still render without the layout dependencies.
 vi.mock('@/components/layout/MainLayout', async () => {
   const { Outlet } = await vi.importActual<typeof import('react-router-dom')>('react-router-dom');
   return { MainLayout: () => <Outlet /> };
 });
 
-// PermissionGuard reads permissions from localStorage; bypass it so route
-// resolution is not blocked by missing permission codes in the test session.
 vi.mock('@/components/auth/PermissionGuard', () => ({
   PermissionGuard: ({ children }: { children: ReactNode }) => <>{children}</>,
 }));
 
-// Stray API imports inside page modules must resolve; return empty payloads.
 vi.mock('@/shared/api/apiClient', () => ({
   API: {
     get: vi.fn().mockResolvedValue({ data: { success: true, data: null } }),
@@ -112,7 +80,6 @@ describe('BaseAppRoutes — corrected shell navigation (nav-reorg)', () => {
     it('unauthenticated "/" redirects to /login with no home content', () => {
       useAuthStore.setState({ isInitialized: true, isAuthenticated: false });
       renderAt('/');
-      // Lands on the global login; the launcher is NOT mounted.
       expect(screen.getByText('LOGIN_MARK')).toBeInTheDocument();
       expect(screen.queryByText('CxP')).not.toBeInTheDocument();
     });
@@ -120,8 +87,6 @@ describe('BaseAppRoutes — corrected shell navigation (nav-reorg)', () => {
     it('authenticated "/" redirects to /hub with no home content at the index', () => {
       useAuthStore.setState({ isInitialized: true, isAuthenticated: true });
       renderAt('/');
-      // Lands on the hub launcher (Home renders the CxP tile); the index
-      // itself did not render a home surface — it redirected.
       expect(screen.getByText('CxP')).toBeInTheDocument();
     });
   });
@@ -130,8 +95,6 @@ describe('BaseAppRoutes — corrected shell navigation (nav-reorg)', () => {
     it('renders Login at /login for an unauthenticated session (outside RequireAuth)', () => {
       useAuthStore.setState({ isInitialized: true, isAuthenticated: false });
       renderAt('/login');
-      // The login page is public — reachable without a session. If it were
-      // inside RequireAuth, an unauthenticated visit would bounce away.
       expect(screen.getByText('LOGIN_MARK')).toBeInTheDocument();
     });
   });
@@ -141,15 +104,12 @@ describe('BaseAppRoutes — corrected shell navigation (nav-reorg)', () => {
       useAuthStore.setState({ isInitialized: true, isAuthenticated: false });
       renderAt('/hub');
       expect(screen.getByText('LOGIN_MARK')).toBeInTheDocument();
-      // The launcher tile must not render for an unauthenticated session.
       expect(screen.queryByLabelText('CxP')).not.toBeInTheDocument();
     });
 
     it('authenticated /hub renders the launcher with the enabled CxP entry', () => {
       useAuthStore.setState({ isInitialized: true, isAuthenticated: true });
       renderAt('/hub');
-      // The CxP entry is enabled and exposes its navigation target
-      // (base-app spec: "CxP appears in the launcher").
       const cxpTile = screen.getByLabelText('CxP');
       expect(cxpTile).toBeInTheDocument();
       expect(cxpTile).toHaveAttribute('href', '/cxp/');
@@ -160,7 +120,6 @@ describe('BaseAppRoutes — corrected shell navigation (nav-reorg)', () => {
     it('authenticated /perfil renders Profile inside the shell', () => {
       useAuthStore.setState({ isInitialized: true, isAuthenticated: true });
       renderAt('/perfil');
-      // The shell Profile page renders (distinct from the CxP Perfil mock).
       expect(screen.getByRole('heading', { name: /perfil/i })).toBeInTheDocument();
     });
 
@@ -173,8 +132,6 @@ describe('BaseAppRoutes — corrected shell navigation (nav-reorg)', () => {
 
   describe('App Subtree Mounting — CxP at /cxp/ (cxp-app spec)', () => {
     it('authenticated /cxp index redirects to the Dashboard (no launcher, no prompt)', () => {
-      // Ubicación gate: empresa+sucursal seeded so the index lands on the
-      // Dashboard (same state a user has after completing step 3 of login).
       authService.setEmpresa({
         idEmpresa: 1,
         nombre: 'Empresa Test',
@@ -191,13 +148,10 @@ describe('BaseAppRoutes — corrected shell navigation (nav-reorg)', () => {
       });
       useAuthStore.setState({ isInitialized: true, isAuthenticated: true });
       renderAt('/cxp');
-      // Subtree index lands directly on the Dashboard (auth + ubicación gate).
       expect(screen.getByText('DASHBOARD_MARK')).toBeInTheDocument();
     });
 
     it('authenticated /cxp index without empresa/sucursal redirects to select-empresa', () => {
-      // Authenticated but no ubicación persisted → the CxP index must route
-      // to the empresa/sucursal selection screen instead of the Dashboard.
       useAuthStore.setState({ isInitialized: true, isAuthenticated: true });
       renderAt('/cxp');
       expect(screen.getByText('SELECT_EMPRESA_MARK')).toBeInTheDocument();
@@ -207,7 +161,6 @@ describe('BaseAppRoutes — corrected shell navigation (nav-reorg)', () => {
     it('unauthenticated /cxp index redirects to the subtree /cxp/login', () => {
       useAuthStore.setState({ isInitialized: true, isAuthenticated: false });
       renderAt('/cxp');
-      // Subtree login renders (mocked to LOGIN_MARK); the Dashboard is gated.
       expect(screen.getByText('LOGIN_MARK')).toBeInTheDocument();
       expect(screen.queryByText('DASHBOARD_MARK')).not.toBeInTheDocument();
     });
@@ -216,7 +169,6 @@ describe('BaseAppRoutes — corrected shell navigation (nav-reorg)', () => {
       useAuthStore.setState({ isInitialized: true, isAuthenticated: true });
       renderAt('/cxp/dashboard');
       expect(screen.getByText('DASHBOARD_MARK')).toBeInTheDocument();
-      // The shell brand is NOT present — the subtree keeps its own MainLayout.
       expect(screen.queryByRole('link', { name: 'Lefarma' })).not.toBeInTheDocument();
     });
 
@@ -230,12 +182,9 @@ describe('BaseAppRoutes — corrected shell navigation (nav-reorg)', () => {
 
   describe('Cross-App Single Sign-On (cxp-app spec)', () => {
     it('authenticated session reaches /cxp/dashboard from the hub with no re-login', () => {
-      // SSO contract: within the single-origin shell build, a session
-      // established at the global login is honored by the CxP subtree.
       useAuthStore.setState({ isInitialized: true, isAuthenticated: true });
       renderAt('/cxp/dashboard');
       expect(screen.getByText('DASHBOARD_MARK')).toBeInTheDocument();
-      // No login prompt — the shared session is accepted.
       expect(screen.queryByText('LOGIN_MARK')).not.toBeInTheDocument();
     });
   });

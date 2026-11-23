@@ -3,10 +3,6 @@ using Lefarma.API.Features.Sigma.Services.PdfSignature;
 
 namespace Lefarma.UnitTests.Features.Sigma.PdfSignature;
 
-/// <summary>
-/// El localizador debe encontrar el marcador donde lo dibujó PDFsharp, sin distinguir
-/// mayúsculas y devolviendo la página correcta.
-/// </summary>
 public sealed class PdfTextLocatorTests
 {
     [Fact]
@@ -57,8 +53,6 @@ public sealed class PdfTextLocatorTests
     [Fact]
     public void Buscar_ConFuenteEstandar_MideComoMuPdf()
     {
-        // Helvetica 10 pt con la línea base en 200 - 100 = 100: MuPDF lleva la caja
-        // hasta 100 + 1,075 * 10 = 110,75; la caja del glifo sola llegaría a 107,18.
         var pdf = PdfDePrueba.CrearBase14("#firmad", x: 50, yArriba: 100, tamano: 10);
 
         var coincidencias = PdfTextLocator.Buscar(pdf, "#firmad");

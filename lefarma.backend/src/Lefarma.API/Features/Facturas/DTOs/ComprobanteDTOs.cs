@@ -1,25 +1,20 @@
 namespace Lefarma.API.Features.Facturas.DTOs;
 
-// ── Requests ───────────────────────────────────────────────────────────────
-
 public record SubirComprobanteRequest(
     int IdEmpresa,
     int IdUsuario,
     int? IdOrden,
     int? IdPasoWorkflow,
-    string TipoComprobante,   // 'cfdi','ticket','nota','recibo','manual','spei','cheque','transferencia'
-    string Categoria,         // 'gasto' | 'pago'
-    decimal? TotalManual,     // requerido si no es CFDI
+    string TipoComprobante,   
+    string Categoria,         
+    decimal? TotalManual,     
     string? Notas,
     string? NombrePaso,
     string? NombreAccion,
-    // Campos exclusivos de pago
     string? ReferenciaPago,
     DateTime? FechaPago,
     decimal? MontoPago,
-    // Medio de pago (nullable, solo categoria='pago')
     int? IdMedioPago,
-    // Cuenta de pago del tesorero (nullable, solo categoria='pago')
     int? IdFormaPago,
     string? FormaPago,
     int? IdBanco,
@@ -38,8 +33,6 @@ public record AsignacionItemRequest(
     decimal ImporteAsignado,
     string? Notas
 );
-
-// ── Responses ──────────────────────────────────────────────────────────────
 
 public record ComprobanteResponse(
     int IdComprobante,

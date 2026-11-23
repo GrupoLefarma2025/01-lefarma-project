@@ -288,11 +288,7 @@ namespace Lefarma.API.Features.Dashboard
                     ? MapTipo(ac.CodigoTipoAccion)
                     : "info";
 
-                //var folio = ordenes.TryGetValue(b.IdOrden, out var oc)
-                 //   ? oc.Folio
-                  //  : $"OC-{b.IdOrden}";
-
-                return new ActividadRecienteItem
+return new ActividadRecienteItem
                 {
                     Id = b.IdEvento,
                     Usuario = usuarioNombre,

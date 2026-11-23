@@ -1,9 +1,5 @@
 namespace Lefarma.API.Features.Telemetria.Consulta;
 
-/// <summary>
-/// Respuestas de consulta del panel. Fechas en UTC, como se guardan en el
-/// almacén; el frontend las muestra en hora local.
-/// </summary>
 public sealed record ResumenTelemetria(
     int ErroresHoy,
     int ErroresPeriodo,

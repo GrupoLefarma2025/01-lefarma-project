@@ -16,15 +16,10 @@ interface ModalProps {
     size?: ModalSize;
     canClose?: boolean;
     closeOnOutsideClick?: boolean;
-    /** Si retorna false, el cierre (X, Esc, clic fuera) se cancela. */
     beforeClose?: () => boolean;
-    /** Reduce el espacio vertical del marco (encabezado, separadores y relleno). Útil con zoom alto o pantallas bajas. */
     compact?: boolean;
-    /** Mientras es true, cubre el modal con un indicador de progreso y bloquea su cierre e interacción. */
     busy?: boolean;
-    /** Texto del indicador de progreso cuando `busy` está activo. */
     busyLabel?: string;
-    /** Clases adicionales para el cuerpo (por ejemplo, para que el contenido se distribuya en todo el alto disponible). */
     bodyClassName?: string;
 }
 
@@ -44,7 +39,6 @@ export const Modal: React.FC<ModalProps> = ({
     busyLabel,
     bodyClassName,
 }) => {
-    // Estilos basados en el tamaño estándar
     const getSizeStyles = () => {
         switch (size) {
             case 'sm':

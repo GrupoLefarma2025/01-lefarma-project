@@ -14,19 +14,14 @@ import { hydrateConfigStore } from './configuracionStore';
 import { ensureMissingConfigKeys, syncNow } from './configRuntime';
 import { installLefarmaConfigConsole } from './configConsole';
 
-/** Polling de respaldo aunque SSE se vea conectado. */
 const POLL_INTERVAL_MS = 10 * 60 * 1000;
 
-/** Backoff de reintentos ante fallos de sync (sin tormenta de peticiones). */
 const RETRY_DELAYS_MS = [2000, 5000, 15000, 30000];
 
-/** Ventana de coalescing para ráfagas de eventos SSE. */
 const EVENT_COALESCE_MS = 250;
 
 export interface ConfigSyncStatus {
-  /** navigator.onLine. */
   online: boolean;
-  /** Hay un sync fallando / pendiente de reintento. */
   stale: boolean;
   lastSyncAt: number | null;
   error: string | null;
@@ -41,7 +36,6 @@ const INITIAL_STATUS: ConfigSyncStatus = {
 
 const ConfigSyncContext = createContext<ConfigSyncStatus>(INITIAL_STATUS);
 
-/** Estado opcional (online/stale) para pantallas que quieran mostrarlo. */
 export function useConfigSyncStatus(): ConfigSyncStatus {
   return useContext(ConfigSyncContext);
 }
@@ -50,12 +44,6 @@ interface ConfigSyncProviderProps {
   children: ReactNode;
 }
 
-/**
- * Runtime global de configuración de frontend.
- *
- * Vive por encima de las rutas: mantiene cache, SSE, polling y reintentos
- * mientras haya sesión autenticada. No dibuja overlays ni bloquea la UI.
- */
 export function ConfigSyncProvider({ children }: ConfigSyncProviderProps) {
   const token = useAuthStore((state) => state.token);
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
@@ -68,15 +56,11 @@ export function ConfigSyncProvider({ children }: ConfigSyncProviderProps) {
   const [lastSyncAt, setLastSyncAt] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // Idempotente: el store ya se hidrata al cargar el módulo, pero el provider
-  // garantiza la hidratación al iniciar la app.
   useEffect(() => {
     hydrateConfigStore();
     installLefarmaConfigConsole();
   }, []);
 
-  // Conexión SSE: solo con sesión. Al perderla se cierra la conexión para no
-  // dejar un EventSource autenticado huérfano.
   useEffect(() => {
     if (!hasSession) {
       sseService.disconnect();
@@ -114,9 +98,6 @@ export function ConfigSyncProvider({ children }: ConfigSyncProviderProps) {
       }
     };
 
-    // Si otro consumidor del singleton cerró la conexión, el provider la
-    // recupera en los mismos puntos donde ya resincroniza (sin duplicarla:
-    // connect es idempotente por token).
     function ensureSseConnected(): void {
       if (sseService.getState().isConnected) {
         return;
@@ -189,7 +170,6 @@ export function ConfigSyncProvider({ children }: ConfigSyncProviderProps) {
         return;
       }
 
-      // Ráfaga de eventos SSE => una sola petición.
       if (coalesceTimer) {
         return;
       }
@@ -202,7 +182,6 @@ export function ConfigSyncProvider({ children }: ConfigSyncProviderProps) {
       }, EVENT_COALESCE_MS);
     };
 
-    // Recuperación de red: no esperar al siguiente polling ni al backoff.
     const handleOnline = () => {
       setOnline(true);
       retryAttempt = 0;
@@ -256,12 +235,9 @@ export function ConfigSyncProvider({ children }: ConfigSyncProviderProps) {
     window.addEventListener('offline', handleOffline);
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
-    // Hooks que montaron antes del login: se recuperan solo sus claves, nunca
-    // el catálogo completo.
     void ensureMissingConfigKeys();
     void runSync();
 
-    // Polling SIEMPRE con sesión, aunque SSE se vea conectado.
     pollTimer = setInterval(() => {
       void runSync();
     }, POLL_INTERVAL_MS);
@@ -287,8 +263,6 @@ export function ConfigSyncProvider({ children }: ConfigSyncProviderProps) {
     };
   }, [hasSession]);
 
-  // Al perder sesión no se borra el cache (son variables globales no
-  // sensibles); el estado expuesto se neutraliza sin setState en efectos.
   const value = useMemo<ConfigSyncStatus>(
     () => ({
       online,

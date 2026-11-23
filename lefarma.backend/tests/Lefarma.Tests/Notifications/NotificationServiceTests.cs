@@ -8,10 +8,6 @@ using Lefarma.API.Domain.Entities;
 
 namespace Lefarma.Tests.Notifications;
 
-/// <summary>
-/// Unit tests for NotificationService
-/// Tests the core notification logic without external dependencies
-/// </summary>
 public class NotificationServiceTests
 {
     private readonly Mock<INotificationRepository> _mockRepository;
@@ -28,7 +24,6 @@ public class NotificationServiceTests
     [Fact]
     public async Task SendAsync_ValidRequest_ReturnsSuccessResponse()
     {
-        // Arrange
         var request = new SendNotificationRequest
         {
             Title = "Test Notification",
@@ -56,10 +51,8 @@ public class NotificationServiceTests
             .Setup(r => r.CreateAsync(It.IsAny<Notification>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(notification);
 
-        // Act
         var result = await _service.SendAsync(request);
 
-        // Assert
         Assert.NotNull(result);
         Assert.Equal(1, result.NotificationId);
         Assert.True(result.ChannelResults.ContainsKey("in-app"));
@@ -68,7 +61,6 @@ public class NotificationServiceTests
     [Fact]
     public async Task SendAsync_EmptyTitle_ThrowsArgumentException()
     {
-        // Arrange
         var request = new SendNotificationRequest
         {
             Title = "",
@@ -79,14 +71,12 @@ public class NotificationServiceTests
             }
         };
 
-        // Act & Assert
         await Assert.ThrowsAsync<ArgumentException>(() => _service.SendAsync(request));
     }
 
     [Fact]
     public async Task SendAsync_NoChannels_ThrowsArgumentException()
     {
-        // Arrange
         var request = new SendNotificationRequest
         {
             Title = "Test",
@@ -94,14 +84,12 @@ public class NotificationServiceTests
             Channels = new List<NotificationChannelRequest>()
         };
 
-        // Act & Assert
         await Assert.ThrowsAsync<ArgumentException>(() => _service.SendAsync(request));
     }
 
     [Fact]
     public async Task GetUserNotificationsAsync_ValidUserId_ReturnsNotifications()
     {
-        // Arrange
         const int userId = 21;
         var notifications = new List<UserNotification>
         {
@@ -124,10 +112,8 @@ public class NotificationServiceTests
             .Setup(r => r.GetUserNotificationsAsync(userId, It.IsAny<bool>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(notifications);
 
-        // Act
         var result = await _service.GetUserNotificationsAsync(userId, false);
 
-        // Assert
         Assert.NotNull(result);
         Assert.Single(result);
         Assert.Equal(userId, result[0].UserId);
@@ -137,7 +123,6 @@ public class NotificationServiceTests
     [Fact]
     public async Task GetUserNotificationsAsync_UnreadOnly_ReturnsOnlyUnread()
     {
-        // Arrange
         const int userId = 21;
         var notifications = new List<UserNotification>
         {
@@ -149,10 +134,8 @@ public class NotificationServiceTests
             .Setup(r => r.GetUserNotificationsAsync(userId, true, It.IsAny<CancellationToken>()))
             .ReturnsAsync(notifications.Where(n => !n.IsRead).ToList());
 
-        // Act
         var result = await _service.GetUserNotificationsAsync(userId, true);
 
-        // Assert
         Assert.NotNull(result);
         Assert.Single(result);
         Assert.All(result, n => Assert.False(n.IsRead));
@@ -161,7 +144,6 @@ public class NotificationServiceTests
     [Fact]
     public async Task MarkAsReadAsync_ValidNotificationId_CallsRepository()
     {
-        // Arrange
         const int notificationId = 1;
         const int userId = 21;
 
@@ -169,27 +151,22 @@ public class NotificationServiceTests
             .Setup(r => r.MarkAsReadAsync(notificationId, userId, It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
-        // Act
         await _service.MarkAsReadAsync(notificationId, userId);
 
-        // Assert
         _mockRepository.Verify(r => r.MarkAsReadAsync(notificationId, userId, It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
     public async Task MarkAllAsReadAsync_ValidUserId_CallsRepository()
     {
-        // Arrange
         const int userId = 21;
 
         _mockRepository
             .Setup(r => r.MarkAllAsReadAsync(userId, It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
-        // Act
         await _service.MarkAllAsReadAsync(userId);
 
-        // Assert
         _mockRepository.Verify(r => r.MarkAllAsReadAsync(userId, It.IsAny<CancellationToken>()), Times.Once);
     }
 }

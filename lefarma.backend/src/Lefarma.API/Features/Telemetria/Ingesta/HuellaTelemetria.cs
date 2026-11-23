@@ -4,10 +4,6 @@ using System.Text.RegularExpressions;
 
 namespace Lefarma.API.Features.Telemetria.Ingesta;
 
-/// <summary>
-/// Huella estable de un error: agrupa el mismo fallo aunque cambien los números de
-/// línea, los identificadores de la ruta o los argumentos del stack.
-/// </summary>
 public static partial class HuellaTelemetria
 {
     private const int Largo = 16;

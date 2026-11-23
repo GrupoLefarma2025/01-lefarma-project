@@ -1,7 +1,7 @@
 ﻿import { useState, useEffect, useMemo, useCallback, memo } from 'react';
 import { DataTable } from '@/components/ui/data-table';
 import type { ColumnDef } from '@/components/ui/data-table';
-import { Key, Plus, Pencil, Trash2, Search, Loader2, ShieldCheck, Tag, Box, Play, Users, UserCog, X, /* ChevronDown, */ /* ChevronUp, */ Shield } from 'lucide-react';
+import { Key, Plus, Pencil, Trash2, Search, Loader2, ShieldCheck, Tag, Box, Play, Users, UserCog, X, Shield } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Modal } from '@/components/ui/modal';
@@ -43,7 +43,6 @@ const permisoSchema = z.object({
 
 type PermisoFormValues = z.infer<typeof permisoSchema>;
 
-// Componente memoizado para la sección de roles
 const RolesSection = memo(({
   rolesIds,
   roles,
@@ -108,7 +107,6 @@ const RolesSection = memo(({
   </div>
 ));
 
-// Componente memoizado para la sección de usuarios
 const UsuariosSection = memo(({
   usuariosIds,
   usuarios,
@@ -262,7 +260,6 @@ export default function PermisosList() {
       usuariosIds: [],
     });
 
-    // Cargar relaciones del permiso
     try {
       const response = await API.get<ApiResponse<PermisoConRolesYUsuarios>>(`/Admin/permisos/${permiso.idPermiso}/relaciones`);
       if (response.data.success && response.data.data) {
@@ -548,7 +545,7 @@ export default function PermisosList() {
       >
         <Form {...form}>
           <form className="space-y-6 max-h-[70vh] overflow-y-auto pr-2">
-            {/* Datos básicos */}
+            {}
             <div className="grid grid-cols-1 gap-4">
               <FormField
                 control={form.control}
@@ -646,7 +643,7 @@ export default function PermisosList() {
               />
             </div>
 
-            {/* Roles Asignados */}
+            {}
             {isEditing && (
               <RolesSection
                 rolesIds={rolesIds}
@@ -656,7 +653,7 @@ export default function PermisosList() {
               />
             )}
 
-            {/* Usuarios Asignados */}
+            {}
             {isEditing && (
               <UsuariosSection
                 usuariosIds={usuariosIds}
@@ -669,7 +666,7 @@ export default function PermisosList() {
         </Form>
       </Modal>
 
-      {/* Modal para agregar roles */}
+      {}
       <Modal
         id="modal-roles"
         open={isRolesModalOpen}
@@ -709,7 +706,7 @@ export default function PermisosList() {
         </Form>
       </Modal>
 
-      {/* Modal para agregar usuarios */}
+      {}
       <Modal
         id="modal-usuarios"
         open={isUsuariosModalOpen}

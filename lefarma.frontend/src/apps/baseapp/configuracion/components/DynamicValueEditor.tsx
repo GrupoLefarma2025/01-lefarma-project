@@ -41,7 +41,6 @@ import {
 import { JsonValueEditor } from './JsonValueEditor';
 import { ICONOS_TIPO, TONOS_TIPO } from './typeVisuals';
 
-/** Fecha local de hoy en "yyyy-MM-dd", sin desfase de zona. */
 function fechaDeHoy(): string {
   const ahora = new Date();
   const pad = (numero: number) => String(numero).padStart(2, '0');
@@ -49,17 +48,13 @@ function fechaDeHoy(): string {
 }
 
 export interface DynamicValueEditorProps {
-  /** Tipo canónico o valor crudo del backend. */
   tipo: string;
   esquema: JsonSchemaNodo | null;
   valor: unknown;
   onChange: (valor: unknown) => void;
   disabled?: boolean;
-  /** 0 = raíz. Se usa para las etiquetas de anidación. */
   profundidad?: number;
-  /** El campo es obligatorio dentro de su objeto. */
   requerido?: boolean;
-  /** Activa los mensajes de error desde el intento de guardado. */
   mostrarValidacion?: boolean;
 }
 
@@ -401,10 +396,6 @@ export function DynamicValueEditor({
   );
 }
 
-/* ------------------------------------------------------------------ */
-/* Rangos (desde / hasta)                                              */
-/* ------------------------------------------------------------------ */
-
 function RangoEditor({
   tipo,
   valor,
@@ -516,10 +507,6 @@ function RangoEditor({
   );
 }
 
-/* ------------------------------------------------------------------ */
-/* Selección                                                           */
-/* ------------------------------------------------------------------ */
-
 function SeleccionEditor({
   valor,
   esquema,
@@ -584,10 +571,6 @@ function SeleccionEditor({
     </div>
   );
 }
-
-/* ------------------------------------------------------------------ */
-/* Lista                                                               */
-/* ------------------------------------------------------------------ */
 
 function ListaEditor({
   valor,
@@ -744,10 +727,6 @@ function ListaEditor({
   );
 }
 
-/* ------------------------------------------------------------------ */
-/* Objeto                                                              */
-/* ------------------------------------------------------------------ */
-
 function ObjetoEditor({
   valor,
   esquema,
@@ -903,10 +882,6 @@ function ObjetoEditor({
     </div>
   );
 }
-
-/* ------------------------------------------------------------------ */
-/* Claves adicionales (objeto dinámico)                                */
-/* ------------------------------------------------------------------ */
 
 function ClavesAdicionalesEditor({
   objeto,
@@ -1084,10 +1059,6 @@ function parsearValorLibre(texto: string): unknown {
   }
 }
 
-/* ------------------------------------------------------------------ */
-/* JSON libre                                                          */
-/* ------------------------------------------------------------------ */
-
 function JsonEditor({
   valor,
   disabled,
@@ -1127,7 +1098,6 @@ function JsonEditor({
             onChange(resultado.valor);
           } else {
             setError(resultado.error);
-            // Un JSON inválido invalida el valor para bloquear el guardado.
             onChange(undefined);
           }
         }}

@@ -5,17 +5,12 @@ using Lefarma.API.Features.Notifications.DTOs;
 using Microsoft.Extensions.Options;
 
 namespace Lefarma.API.Features.Notifications.Services.Channels;
-/// <summary>
-/// Telegram notification channel implementation using HttpClient.
-/// Supports multiple recipients, Markdown/HTML formatting, and message tracking.
-/// </summary>
 public class TelegramNotificationChannel : INotificationChannel
 {
     private readonly TelegramSettings _settings;
     private readonly HttpClient _httpClient;
     private readonly ILogger<TelegramNotificationChannel> _logger;
 
-    /// <inheritdoc/>
     public string ChannelType => "telegram";
 
     public TelegramNotificationChannel(
@@ -26,12 +21,10 @@ public class TelegramNotificationChannel : INotificationChannel
         _settings = settings?.Value ?? throw new ArgumentNullException(nameof(settings));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
-        // Create HttpClient with configured timeout
         _httpClient = httpClientFactory.CreateClient();
         _httpClient.Timeout = TimeSpan.FromMilliseconds(_settings.Timeout);
     }
 
-    /// <inheritdoc/>
     public async Task<ChannelResult> SendAsync(NotificationMessage message, CancellationToken ct = default)
     {
         _logger.LogInformation("Sending Telegram notification to {Recipients}", message.Recipients);
@@ -45,7 +38,6 @@ public class TelegramNotificationChannel : INotificationChannel
 
         try
         {
-            // Validate configuration
             if (string.IsNullOrWhiteSpace(_settings.BotToken))
             {
                 _logger.LogError("Telegram BotToken is not configured");
@@ -53,7 +45,6 @@ public class TelegramNotificationChannel : INotificationChannel
                 return result;
             }
 
-            // Parse recipients (chat IDs)
             var chatIds = ParseChatIds(message.Recipients);
             if (chatIds.Count == 0)
             {
@@ -62,14 +53,12 @@ public class TelegramNotificationChannel : INotificationChannel
                 return result;
             }
 
-            // Determine parse mode
             var parseMode = _settings.DefaultParseMode;
             if (message.Data != null && message.Data.TryGetValue("parseMode", out var parseModeObj))
             {
                 parseMode = parseModeObj?.ToString();
             }
 
-            // Send message to each chat ID
             foreach (var chatId in chatIds)
             {
                 try
@@ -86,7 +75,6 @@ public class TelegramNotificationChannel : INotificationChannel
                         _logger.LogDebug("Telegram message sent successfully to chat {ChatId}, message_id: {MessageId}",
                             chatId, messageId);
 
-                        // Store the message_id from the first successful recipient
                         if (string.IsNullOrWhiteSpace(result.ExternalId))
                         {
                             result.ExternalId = messageId.ToString();
@@ -105,7 +93,6 @@ public class TelegramNotificationChannel : INotificationChannel
                 }
             }
 
-            // Determine overall success
             result.Success = result.SentRecipients.Count > 0;
             result.Message = result.Success
                 ? $"Telegram messages sent to {result.SentRecipients.Count} recipient(s)"
@@ -124,7 +111,6 @@ public class TelegramNotificationChannel : INotificationChannel
         }
     }
 
-    /// <inheritdoc/>
     public Task<bool> ValidateRecipientsAsync(string recipients, CancellationToken ct = default)
     {
         try
@@ -136,13 +122,8 @@ public class TelegramNotificationChannel : INotificationChannel
                 return Task.FromResult(false);
             }
 
-            // Validate that each chat ID is a valid number or username
             foreach (var chatId in chatIds)
             {
-                // Chat ID can be:
-                // 1. Numeric string (e.g., "123456789")
-                // 2. Username (e.g., "@username")
-                // 3. Channel username (e.g., "@channelname")
 
                 if (!IsValidChatId(chatId))
                 {
@@ -158,14 +139,6 @@ public class TelegramNotificationChannel : INotificationChannel
         }
     }
 
-    /// <summary>
-    /// Sends a message to a specific Telegram chat.
-    /// </summary>
-    /// <param name="chatId">Target chat ID (numeric or username)</param>
-    /// <param name="text">Message text</param>
-    /// <param name="parseMode">Optional parse mode (Markdown, MarkdownV2, HTML)</param>
-    /// <param name="ct">Cancellation token</param>
-    /// <returns>Message ID if successful, null otherwise</returns>
     private async Task<long?> SendMessageAsync(
         string chatId,
         string text,
@@ -174,28 +147,23 @@ public class TelegramNotificationChannel : INotificationChannel
     {
         var apiUrl = $"{_settings.ApiUrl}{_settings.BotToken}/sendMessage";
 
-        // Build request payload
         var payload = new Dictionary<string, object>
         {
             ["chat_id"] = chatId,
             ["text"] = text
         };
 
-        // Add parse_mode if specified
         if (!string.IsNullOrWhiteSpace(parseMode))
         {
             payload["parse_mode"] = parseMode;
         }
 
-        // Disable link preview by default (can be overridden in channel data)
         var disableWebPagePreview = true;
         payload["disable_web_page_preview"] = disableWebPagePreview;
 
-        // Serialize payload
         var jsonPayload = JsonSerializer.Serialize(payload);
         var content = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
 
-        // Send request
         var response = await _httpClient.PostAsync(apiUrl, content, ct);
 
         if (!response.IsSuccessStatusCode)
@@ -206,7 +174,6 @@ public class TelegramNotificationChannel : INotificationChannel
             return null;
         }
 
-        // Parse response
         var responseContent = await response.Content.ReadAsStringAsync(ct);
         var telegramResponse = JsonSerializer.Deserialize<TelegramResponse>(responseContent);
 
@@ -219,9 +186,6 @@ public class TelegramNotificationChannel : INotificationChannel
         return null;
     }
 
-    /// <summary>
-    /// Parses semicolon-separated recipients string into a list of chat IDs.
-    /// </summary>
     private static List<string> ParseChatIds(string recipients)
     {
         if (string.IsNullOrWhiteSpace(recipients))
@@ -237,9 +201,6 @@ public class TelegramNotificationChannel : INotificationChannel
             .ToList();
     }
 
-    /// <summary>
-    /// Validates if a chat ID is in a valid format.
-    /// </summary>
     private static bool IsValidChatId(string chatId)
     {
         if (string.IsNullOrWhiteSpace(chatId))
@@ -247,14 +208,11 @@ public class TelegramNotificationChannel : INotificationChannel
             return false;
         }
 
-        // Check if it's a username (starts with @)
         if (chatId.StartsWith("@"))
         {
-            // Username must be at least 2 characters after @
             return chatId.Length >= 2;
         }
 
-        // Check if it's a numeric chat ID
         if (long.TryParse(chatId, out _))
         {
             return true;
@@ -263,9 +221,6 @@ public class TelegramNotificationChannel : INotificationChannel
         return false;
     }
 
-    /// <summary>
-    /// Telegram API response structure.
-    /// </summary>
     private class TelegramResponse
     {
         public bool Ok { get; set; }
@@ -274,9 +229,6 @@ public class TelegramNotificationChannel : INotificationChannel
         public string? Description { get; set; }
     }
 
-    /// <summary>
-    /// Telegram message result structure.
-    /// </summary>
     private class TelegramMessageResult
     {
         public long MessageId { get; set; }

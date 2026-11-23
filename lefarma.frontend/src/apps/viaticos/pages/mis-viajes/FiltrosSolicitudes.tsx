@@ -13,17 +13,10 @@ export interface FiltrosSolicitudesProps {
   hasta: string;
   onHasta: (hasta: string) => void;
   rango: { inicio: string; fin: string } | null;
-  /** Cuántos filtros se apartan del valor por defecto (lo muestra el encabezado). */
   filtrosAplicados: number;
-  /** Prefijo de los `id` del formulario; dos pantallas no comparten ids. */
   idPrefijo?: string;
 }
 
-/**
- * Bloque plegable de filtros de las listas de viajes. Lo comparten Mis viajes
- * y Autorizaciones: mismo periodo, tipo de viaje y rango, misma lectura del
- * rango visible.
- */
 export function FiltrosSolicitudes({
   periodo,
   onPeriodo,

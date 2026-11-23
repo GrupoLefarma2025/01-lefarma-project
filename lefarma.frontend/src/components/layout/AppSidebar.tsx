@@ -41,24 +41,18 @@ function hasPermission(permission?: Parameters<typeof checkPermission>[0]): bool
 }
 
 export interface AppSidebarProps {
-  /** Elementos del menú de navegación de esta aplicación. */
   items: SidebarMenuItemConfig[];
-  /** Texto de marca mostrado en el encabezado del sidebar (p. ej. "Grupo Lefarma CxP"). */
   brandTitle: string;
-  /** Destino del enlace del logo del encabezado (p. ej. "/cxp/dashboard"). */
   brandPath: string;
-  /** Enlace opcional de configuración de usuario en el pie (p. ej. "/cxp/configuracion"). */
   configPath?: string;
-  /** Abre el manual de ayuda del módulo, si está registrado en el menú. */
   onOpenHelp?: () => void;
 }
 
 export function AppSidebar({ items, brandTitle, brandPath, configPath, onOpenHelp }: AppSidebarProps) {
-  usePermissionVersion(); // subscribe — re-render when permissions change
+  usePermissionVersion(); 
   const { user, logout, hasFirma, hasFirmaLegacy } = useAuthStore();
   const { state, isMobile, setOpenMobile } = useSidebar();
   const isCollapsed = state === 'collapsed';
-  // Solo CxP cuenta la firma legacy para el aviso; otras apps no cambian.
   const esCxp = brandPath.startsWith('/cxp');
   const sinFirma = esCxp
     ? hasFirma === false && hasFirmaLegacy === false

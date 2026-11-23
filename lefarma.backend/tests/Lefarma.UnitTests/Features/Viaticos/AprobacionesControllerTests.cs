@@ -22,26 +22,8 @@ using Moq;
 
 namespace Lefarma.UnitTests.Features.Viaticos;
 
-/// <summary>
-/// Tests HTTP del <see cref="AprobacionesController"/> (bandeja, autorizar,
-/// rechazar, ajustar) levantando una mini aplicacion ASP.NET Core en memoria
-/// con <see cref="TestServer"/>, <c>ApplicationDbContext</c> sobre EF InMemory
-/// y el <c>TestAuthHandler</c> compartido de
-/// <see cref="PermisosEndpointTests"/> (<c>X-Test-UserId</c> /
-/// <c>X-Test-Permissions</c>).
-///
-/// Endpoints cubiertos:
-///   - GET  /api/viaticos/solicitudes            (bandeja)
-///   - POST /api/viaticos/solicitudes/{id}/autorizar
-///   - POST /api/viaticos/solicitudes/{id}/rechazar
-///   - POST /api/viaticos/solicitudes/{id}/ajustes
-///
-/// Cada test crea su propia base InMemory (nombre con GUID) y siembra datos
-/// propios: no hay dependencia del orden de ejecucion ni de estado compartido.
-/// </summary>
 public class AprobacionesControllerTests
 {
-    // ---------------- GET /api/viaticos/solicitudes ----------------
 
     [Fact]
     public async Task Bandeja_SinPermisoAutorizar_Retorna403()
@@ -53,8 +35,6 @@ public class AprobacionesControllerTests
 
         using var cliente = ctx.Servidor.CreateClient();
         cliente.DefaultRequestHeaders.Add("X-Test-UserId", yoId.ToString());
-        // Solicitar (y ver_todos) no bastan: la bandeja es la pantalla de
-        // autorizacion y exige viaticos.autorizar.
         cliente.DefaultRequestHeaders.Add("X-Test-Permissions",
             string.Join(",", Permissions.Viaticos.Solicitar, Permissions.Viaticos.VerTodos));
 
@@ -88,9 +68,7 @@ public class AprobacionesControllerTests
             new[] { propia, ajenaA, ajenaB });
     }
 
-    // ---------------- GET /api/viaticos/solicitudes: destino y directorio ----------------
-
-    [Fact]
+[Fact]
     public async Task Bandeja_SinGerenciaPropia_UsaLaUltimaDelViajero()
     {
         using var ctx = new TestContext();
@@ -98,14 +76,12 @@ public class AprobacionesControllerTests
         const int solicitanteId = 8201;
         const int viajeroId = 8202;
 
-        // El viajero ya tenia una solicitud clasificada; la nueva nace "Sin asignar".
         ctx.SembrarSolicitud(viajeroId, "autorizada", """{"total":100}""", gerencia: "IMSS Bienestar");
         var sinGerencia = ctx.SembrarSolicitud(
             solicitanteId,
             "enviada",
             $$"""{"persona":{"modo":"otra","empleadoId":{{viajeroId}},"nombre":"Viajero"},"total":200}""",
             gerencia: SolicitudesController.GerenciaPorDefecto);
-        // Una solicitud que SI trae gerencia conserva la suya.
         var conGerencia = ctx.SembrarSolicitud(
             solicitanteId, "enviada", """{"total":300}""", gerencia: "Descentralizado");
 
@@ -200,16 +176,13 @@ public class AprobacionesControllerTests
         resp.StatusCode.Should().Be(HttpStatusCode.OK);
         var envelope = await resp.Content.ReadFromJsonAsync<ApiEnvelope<List<BandejaItemJson>>>();
         envelope!.Success.Should().BeTrue();
-        // Usuario dado de baja no expone su nombre en la bandeja del admin.
         envelope.Data!.Single(x => x.IdSolicitud == deInactivo).NombreSolicitante
             .Should().Be($"Usuario #{inactivoId}");
         envelope.Data!.Single(x => x.IdSolicitud == deDesconocido).NombreSolicitante
             .Should().Be($"Usuario #{desconocidoId}");
     }
 
-    // ---------------- GET /api/viaticos/solicitudes: desglose FOR-008 ----------------
-
-    [Fact]
+[Fact]
     public async Task Bandeja_LeeDesglosePorConceptoDeDatosJson()
     {
         using var ctx = new TestContext();
@@ -233,7 +206,6 @@ public class AprobacionesControllerTests
         envelope!.Success.Should().BeTrue();
         var fila = envelope.Data!.Single(x => x.IdSolicitud == conDesglose);
 
-        // Nombres exactos de las columnas del concentrado ASK-ADM-FOR-008.
         fila.Autobus.Should().Be(478m);
         fila.Avion.Should().Be(14963m);
         fila.Gasolina.Should().Be(1200.50m);
@@ -264,7 +236,6 @@ public class AprobacionesControllerTests
 
         var resp = await cliente.GetAsync("/api/viaticos/solicitudes");
 
-        // Ningun snapshot roto tumba la bandeja ni convierte la celda en $0.00.
         resp.StatusCode.Should().Be(HttpStatusCode.OK);
         var envelope = await resp.Content.ReadFromJsonAsync<ApiEnvelope<List<BandejaItemJson>>>();
         envelope!.Success.Should().BeTrue();
@@ -282,8 +253,6 @@ public class AprobacionesControllerTests
             fila.Taxi.Should().BeNull();
         }
 
-        // Un tipo que no es numero tampoco se coacciona: null, no 0. Un 0
-        // explicito SI es un dato y se conserva.
         var filaInvalida = envelope.Data!.Single(x => x.IdSolicitud == tiposInvalidos);
         filaInvalida.Autobus.Should().BeNull();
         filaInvalida.Gasolina.Should().BeNull();
@@ -312,10 +281,8 @@ public class AprobacionesControllerTests
         var envelope = await resp.Content.ReadFromJsonAsync<ApiEnvelope<List<BandejaItemJson>>>();
         envelope!.Success.Should().BeTrue();
 
-        // Sin dato conocido: null ("no se sabe"), nunca 0 ("costo nada").
         foreach (var id in new[] { vacio, malformado, sinTotal, totalNoNumerico })
             envelope.Data!.Single(x => x.IdSolicitud == id).Total.Should().BeNull();
-        // Un total explicito SI es un dato y se conserva.
         envelope.Data!.Single(x => x.IdSolicitud == conTotal).Total.Should().Be(700m);
     }
 
@@ -325,27 +292,21 @@ public class AprobacionesControllerTests
         using var ctx = new TestContext();
         const int adminId = 5850;
 
-        // El wizard guarda el precio en solicitud_opciones, no en datos_json:
-        // sin el respaldo, "Costo del viaje" se quedaria en "—".
         var unaElegida = ctx.SembrarSolicitud(8851, "enviada", """{"destino":"PUEBLA"}""");
         ctx.SembrarOpcion(unaElegida, "vuelo", "Vuelo elegido", 3500m, fueElegida: true);
         ctx.SembrarOpcion(unaElegida, "vuelo", "Vuelo alterno", 9000m, fueElegida: false);
 
-        // Las elegidas se suman entre si; las descartadas nunca suman.
         var dosElegidas = ctx.SembrarSolicitud(8852, "enviada", "");
         ctx.SembrarOpcion(dosElegidas, "vuelo", "Vuelo", 1000m, fueElegida: true);
         ctx.SembrarOpcion(dosElegidas, "hotel", "Hotel", 500.50m, fueElegida: true);
 
-        // Sin precio de proveedor: null ("no se sabe"), nunca 0.
         var sinPrecio = ctx.SembrarSolicitud(8853, "enviada", "");
         ctx.SembrarOpcion(sinPrecio, "hotel", "Hotel estimado", null, fueElegida: true);
 
-        // Dos monedas no se pueden sumar en una sola cifra: null.
         var mixta = ctx.SembrarSolicitud(8854, "enviada", "");
         ctx.SembrarOpcion(mixta, "vuelo", "Vuelo", 1000m, fueElegida: true, moneda: "MXN");
         ctx.SembrarOpcion(mixta, "hotel", "Hotel", 200m, fueElegida: true, moneda: "USD");
 
-        // El total del snapshot (ruta autorizada o cotizacion importada) manda.
         var conTotal = ctx.SembrarSolicitud(8855, "enviada", """{"total":700}""");
         ctx.SembrarOpcion(conTotal, "vuelo", "Vuelo", 3500m, fueElegida: true);
 
@@ -368,15 +329,12 @@ public class AprobacionesControllerTests
         Total(conTotal).Should().Be(700m);
     }
 
-    // ---------------- GET /api/viaticos/solicitudes: transporte e itinerario ----------------
-
-    [Fact]
+[Fact]
     public async Task Bandeja_ResuelveElTipoDeTransporteDelMedioElegidoYDelModo()
     {
         using var ctx = new TestContext();
         const int adminId = 5900;
 
-        // El wizard no escribe $.avion: el medio sale de la opcion elegida.
         var conVuelo = ctx.SembrarSolicitud(8901, "enviada", """{"destino":"CANCUN"}""");
         ctx.SembrarOpcion(conVuelo, "vuelo", "Vuelo elegido", 3500m, fueElegida: true);
         var conAutobus = ctx.SembrarSolicitud(8902, "enviada", """{"destino":"TOLUCA"}""");
@@ -384,7 +342,6 @@ public class AprobacionesControllerTests
         var conAuto = ctx.SembrarSolicitud(8903, "enviada", """{"destino":"PUEBLA"}""");
         ctx.SembrarOpcion(conAuto, "auto", "Renta de auto", 900m, fueElegida: true);
 
-        // Sin medio elegido manda el modo del wizard.
         var modoPropio = ctx.SembrarSolicitud(
             8904, "enviada",
             """{"transporte":{"modo":"propio"},"calculo":{"modo_transporte":"propio","tramos":[]}}""");
@@ -392,7 +349,6 @@ public class AprobacionesControllerTests
             8905, "enviada",
             """{"transporte":{"modo":"solicitado"},"calculo":{"modo_transporte":"solicitado","tramos":[]}}""");
 
-        // Cotizacion importada: el concepto del snapshot ya dice el medio.
         var importada = ctx.SembrarSolicitud(8906, "enviada", """{"avion":9000,"total":9000}""");
         var sinDatos = ctx.SembrarSolicitud(8907, "enviada", """{"destino":"QUERETARO"}""");
 
@@ -412,8 +368,6 @@ public class AprobacionesControllerTests
         Transporte(conAutobus).Should().Be("autobus");
         Transporte(conAuto).Should().Be("propio");
         Transporte(modoPropio).Should().Be("propio");
-        // "Solicitado" no es un dato faltante: la empresa gestiona el viaje y
-        // aun no se elige medio.
         Transporte(modoSolicitado).Should().Be("solicitado");
         Transporte(importada).Should().Be("aereo");
         Transporte(sinDatos).Should().Be("sin-clasificar");
@@ -436,7 +390,6 @@ public class AprobacionesControllerTests
                {"de":"CDMX","a":"Morelia","salida_fecha":"2026-10-30","salida_hora":"08:00"},
                {"de":"Morelia","a":"Regreso al origen","salida_fecha":"2026-11-02","salida_hora":"18:30"}]}}
             """);
-        // Sin regreso: el documento imprime solo la ida.
         var soloIda = ctx.SembrarSolicitud(
             8952, "autorizada",
             """
@@ -466,8 +419,6 @@ public class AprobacionesControllerTests
             Origen = "CDMX",
             Destino = "Morelia",
         });
-        // "Regreso al origen" es una etiqueta del motor: el destino impreso es
-        // la ciudad de origen, no la etiqueta.
         idaYVuelta.Trayectos[1].Should().BeEquivalentTo(new
         {
             Fecha = "2026-11-02",
@@ -476,7 +427,6 @@ public class AprobacionesControllerTests
             Destino = "CDMX",
         });
 
-        // Persona y motivo salen del snapshot tal cual.
         idaYVuelta.PersonaNombre.Should().Be("Ana Viajera");
         idaYVuelta.Motivo.Should().Be("Taller de marca");
 
@@ -527,8 +477,6 @@ public class AprobacionesControllerTests
         propia.FechaNacimiento.Should().Be("1990-05-17");
         propia.PersonaNombre.Should().Be("Ana Viajera");
 
-        // Si viaja otra persona no se imprime el dato del solicitante: seria
-        // el puesto y el cumpleanos de quien no viaja.
         var ajena = envelope.Data!.Single(x => x.IdSolicitud == viajaOtraPersona);
         ajena.Puesto.Should().BeNull();
         ajena.FechaNacimiento.Should().BeNull();
@@ -555,7 +503,6 @@ public class AprobacionesControllerTests
 
         var resp = await cliente.GetAsync("/api/viaticos/solicitudes");
 
-        // Un dato que solo sirve para imprimir no puede tumbar la pantalla.
         resp.StatusCode.Should().Be(HttpStatusCode.OK);
         var envelope = await resp.Content.ReadFromJsonAsync<ApiEnvelope<List<BandejaItemJson>>>();
         envelope!.Success.Should().BeTrue();
@@ -565,9 +512,7 @@ public class AprobacionesControllerTests
         fila.PersonaNombre.Should().Be("Ana Viajera");
     }
 
-    // ---------------- GET /api/viaticos/solicitudes: origen y fecha FOR-008 ----------------
-
-    [Fact]
+[Fact]
     public async Task Bandeja_LeeOrigenYFechaDeDatosJson()
     {
         using var ctx = new TestContext();
@@ -589,12 +534,10 @@ public class AprobacionesControllerTests
         var envelope = await resp.Content.ReadFromJsonAsync<ApiEnvelope<List<BandejaItemJson>>>();
         envelope!.Success.Should().BeTrue();
 
-        // Rango salida/regreso en el formato del concentrado ASK-ADM-FOR-008.
         var filaRango = envelope.Data!.Single(x => x.IdSolicitud == conRango);
         filaRango.Origen.Should().Be("CDMX");
         filaRango.Fecha.Should().Be("05/10/2026 AL 09/10/2026");
 
-        // Sin regreso solo se expone la salida, formateada igual.
         var filaDia = envelope.Data!.Single(x => x.IdSolicitud == unSoloDia);
         filaDia.Origen.Should().Be("CDMX");
         filaDia.Fecha.Should().Be("05/10/2026");
@@ -605,11 +548,9 @@ public class AprobacionesControllerTests
     {
         using var ctx = new TestContext();
         const int adminId = 5650;
-        // solicitud-v2: el rango explicito manda sobre los dias de cada destino.
         var wizard = ctx.SembrarSolicitud(
             8650, "enviada",
             """{"version":"solicitud-v2","rango":{"inicio":"2026-10-18","fin":"2026-10-22"},"destinos":[{"debeEstarFecha":"2026-10-19"}]}""");
-        // Sin rango: el viaje va del dia menor al mayor de los destinos.
         var soloDestinos = ctx.SembrarSolicitud(
             8651, "enviada",
             """{"version":"solicitud-v2","destinos":[{"debeEstarFecha":"2026-10-21"},{"debeEstarFecha":"2026-10-22"}]}""");
@@ -639,8 +580,6 @@ public class AprobacionesControllerTests
     {
         using var ctx = new TestContext();
         const int adminId = 5670;
-        // solicitud-v2: origen y destinos son objetos con `punto`; se publican
-        // como ciudad, no como direccion completa.
         var multiPunto = ctx.SembrarSolicitud(
             8670, "enviada",
             """
@@ -666,7 +605,6 @@ public class AprobacionesControllerTests
 
         fila.Folio.Should().Be("VIA-BLEDESMA-42");
         fila.Origen.Should().Be("Pátzcuaro");
-        // Los puntos se unen con " - " y el repetido no se pinta dos veces.
         fila.Destino.Should().Be("Chihuahua - Juárez");
     }
 
@@ -690,7 +628,6 @@ public class AprobacionesControllerTests
 
         var resp = await cliente.GetAsync("/api/viaticos/solicitudes");
 
-        // Ausencia, JSON invalido o clave de tipo equivocado: null, sin lanzar.
         resp.StatusCode.Should().Be(HttpStatusCode.OK);
         var envelope = await resp.Content.ReadFromJsonAsync<ApiEnvelope<List<BandejaItemJson>>>();
         envelope!.Success.Should().BeTrue();
@@ -703,9 +640,7 @@ public class AprobacionesControllerTests
         }
     }
 
-    // ---------------- POST /{id}/autorizar ----------------
-
-    [Fact]
+[Fact]
     public async Task Autorizar_SinPermisoAutorizar_Retorna403()
     {
         using var ctx = new TestContext();
@@ -756,7 +691,6 @@ public class AprobacionesControllerTests
 
         resp.StatusCode.Should().Be(HttpStatusCode.OK);
         var datos = ctx.LeeDatosJson(id);
-        // La ruta calculada se conserva y ademas queda como autorizada.
         datos.Should().Contain("calculo").And.Contain("calculo_autorizado");
         datos.Should().Contain("Origen").And.Contain("Destino");
     }
@@ -797,7 +731,7 @@ public class AprobacionesControllerTests
 
         var datos = ctx.LeeDatosJson(id);
         datos.Should().Contain("calculo_autorizado").And.Contain("Nueva").And.Contain("Ruta");
-        datos.Should().Contain("Vieja"); // la ruta calculada original no se pierde.
+        datos.Should().Contain("Vieja"); 
 
         var opciones = ctx.LeeOpciones(id);
         opciones.Should().ContainSingle();
@@ -809,15 +743,11 @@ public class AprobacionesControllerTests
             e.Tipo == "autorizada" && e.PayloadJson!.Contains("\"ruta\":\"nueva\""));
     }
 
-    // ---------------- POST /{id}/autorizar: resumen de la version autorizada ----------------
-
-    [Fact]
+[Fact]
     public async Task Autorizar_ConRutaNueva_GuardaResumenAutorizadoYBandejaLoDevuelve()
     {
         using var ctx = new TestContext();
         const int adminId = 7100;
-        // Snapshot previo: la ruta vieja es de transporte solicitado (sus
-        // casetas NO aplican) y el total raiz es un valor historico.
         var id = ctx.SembrarSolicitud(
             adminId,
             "enviada",
@@ -863,7 +793,6 @@ public class AprobacionesControllerTests
                 new { tipo = "hotel", linea = "Hotel elegido", precio = 2000m, moneda = "MXN", fuente = "proveedor", fue_elegida = true },
                 new { tipo = "taxi", linea = "Taxi elegido", precio = 300m, moneda = "MXN", fuente = "proveedor", fue_elegida = true },
                 new { tipo = "auto", linea = "Renta elegida", precio = 800m, moneda = "MXN", fuente = "proveedor", fue_elegida = true },
-                // No elegida: no debe sumar en ninguna columna.
                 new { tipo = "autobus", linea = "Bus descartado", precio = 700m, moneda = "MXN", fuente = "proveedor", fue_elegida = false },
             },
         });
@@ -875,21 +804,16 @@ public class AprobacionesControllerTests
         resumen.GetProperty("autobus").ValueKind.Should().Be(JsonValueKind.Null);
         resumen.GetProperty("avion").GetDecimal().Should().Be(5000m);
         resumen.GetProperty("gasolina").GetDecimal().Should().Be(800m);
-        // Las casetas de la ruta son solo referencia; la opcion sin componentes conserva su precio combinado.
         resumen.GetProperty("casetas").ValueKind.Should().Be(JsonValueKind.Null);
         resumen.GetProperty("hospedaje").GetDecimal().Should().Be(2000m);
-        // comida no viene de opciones ni del calculo: se conserva la previa.
         resumen.GetProperty("comida").GetDecimal().Should().Be(350m);
         resumen.GetProperty("taxi").GetDecimal().Should().Be(300m);
         resumen.GetProperty("total").GetDecimal().Should().Be(8450m);
 
-        // La bandeja FOR-008 proyecta el resumen, no el total raiz historico.
         var bandejaResp = await cliente.GetAsync("/api/viaticos/solicitudes");
         bandejaResp.StatusCode.Should().Be(HttpStatusCode.OK);
         var envelope = await bandejaResp.Content.ReadFromJsonAsync<ApiEnvelope<List<BandejaItemJson>>>();
         var fila = envelope!.Data!.Single(x => x.IdSolicitud == id);
-        // El resumen autorizado manda incluso en null: el 999 historico no se
-        // cuela en una version donde no se eligio autobus.
         fila.Autobus.Should().BeNull();
         fila.Avion.Should().Be(5000m);
         fila.Gasolina.Should().Be(800m);
@@ -927,7 +851,6 @@ public class AprobacionesControllerTests
 
         resp.StatusCode.Should().Be(HttpStatusCode.OK);
         var resumen = ctx.LeeResumenAutorizado(id);
-        // En transporte solicitado las casetas ya van dentro del boleto.
         resumen.GetProperty("casetas").ValueKind.Should().Be(JsonValueKind.Null);
         resumen.GetProperty("total").GetDecimal().Should().Be(2500m);
     }
@@ -962,7 +885,6 @@ public class AprobacionesControllerTests
             },
             opciones = new object[]
             {
-                // Sin url_compra: la ruta recalculada puede no traer enlace.
                 new { tipo = "vuelo", linea = "Vuelo nuevo", precio = 4800m, moneda = "MXN", fuente = "proveedor", fue_elegida = true },
             },
         });
@@ -972,7 +894,6 @@ public class AprobacionesControllerTests
         using var doc = JsonDocument.Parse(ctx.LeeDatosJson(id));
         var raiz = doc.RootElement;
 
-        // La referencia original queda congelada con todos sus campos.
         var originales = raiz.GetProperty("opciones_originales");
         originales.ValueKind.Should().Be(JsonValueKind.Array);
         originales.GetArrayLength().Should().Be(1);
@@ -984,11 +905,9 @@ public class AprobacionesControllerTests
         original.GetProperty("fue_elegida").GetBoolean().Should().BeTrue();
         original.GetProperty("datos").GetProperty("tramo").GetInt32().Should().Be(1);
 
-        // La ruta calculada original no se pierde; la nueva queda autorizada.
         raiz.GetProperty("calculo").GetProperty("tramos")[0].GetProperty("a").GetString().Should().Be("Original");
         raiz.GetProperty("calculo_autorizado").GetProperty("tramos")[0].GetProperty("a").GetString().Should().Be("Nueva");
 
-        // Las opciones vigentes son las de esta autorizacion.
         var opciones = ctx.LeeOpciones(id);
         opciones.Should().ContainSingle();
         opciones[0].Linea.Should().Be("Vuelo nuevo");
@@ -1000,8 +919,6 @@ public class AprobacionesControllerTests
     {
         using var ctx = new TestContext();
         const int adminId = 7300;
-        // Un recálculo anterior ya dejo su referencia: es la original y no se
-        // debe reemplazar por una version intermedia.
         var id = ctx.SembrarSolicitud(
             adminId,
             "enviada",
@@ -1142,9 +1059,7 @@ public class AprobacionesControllerTests
         resumen.GetProperty("total").GetDecimal().Should().Be(300m);
     }
 
-    // ---------------- POST /{id}/ajustes ----------------
-
-    [Fact]
+[Fact]
     public async Task Ajustar_SinPermisoAjustar_Retorna403()
     {
         using var ctx = new TestContext();
@@ -1182,7 +1097,6 @@ public class AprobacionesControllerTests
             campo = "total",
             valor_anterior = "1000",
             valor_nuevo = "900"
-            // motivo omitido
         });
 
         resp.StatusCode.Should().Be(HttpStatusCode.BadRequest);
@@ -1213,7 +1127,6 @@ public class AprobacionesControllerTests
 
         resp.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        // valor_anterior INTACTO, valor_nuevo aplicado, motivo persistido.
         var ajustes = ctx.LeeAjustes(id);
         ajustes.Should().ContainSingle();
         ajustes[0].Campo.Should().Be("total");
@@ -1222,10 +1135,8 @@ public class AprobacionesControllerTests
         ajustes[0].Motivo.Should().Be("cotizacion corregida por el admin");
         ajustes[0].IdUsuarioAdmin.Should().Be(adminId);
 
-        // Estado transicionado.
         ctx.LeeEstado(id).Should().Be("autorizada_con_ajustes");
 
-        // Evento de bitacora.
         var eventos = ctx.LeeEventos(id);
         eventos.Should().Contain(e => e.Tipo == "ajuste_aplicado");
         eventos.First(e => e.Tipo == "ajuste_aplicado").PayloadJson.Should()
@@ -1253,14 +1164,11 @@ public class AprobacionesControllerTests
         resp.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         var body = await resp.Content.ReadAsStringAsync();
         body.Should().Contain("campo");
-        // Un ajuste sin campo no deja rastro fantasma ni cambia el estado.
         ctx.LeeAjustes(id).Should().BeEmpty();
         ctx.LeeEstado(id).Should().Be("autorizada");
     }
 
-    // ---------------- POST /{id}/rechazar ----------------
-
-    [Fact]
+[Fact]
     public async Task Rechazar_SinMotivo_Retorna400()
     {
         using var ctx = new TestContext();
@@ -1272,7 +1180,6 @@ public class AprobacionesControllerTests
 
         var resp = await cliente.PostAsJsonAsync($"/api/viaticos/solicitudes/{id}/rechazar", new
         {
-            // motivo omitido
         });
 
         resp.StatusCode.Should().Be(HttpStatusCode.BadRequest);
@@ -1281,30 +1188,12 @@ public class AprobacionesControllerTests
         ctx.LeeEstado(id).Should().Be("enviada");
     }
 
-    // =====================================================================
-    //                            Test harness
-    // =====================================================================
-
-    /// <summary>
-    /// <see cref="TestServer"/> con el <see cref="AprobacionesController"/> real,
-    /// <see cref="ApplicationDbContext"/> sobre InMemory (nombre unico por test) y
-    /// el <c>TestAuthHandler</c> compartido.
-    ///
-    /// <see cref="AsokamDbContext"/> tambien va sobre InMemory pero con su PROPIA
-    /// base: el directorio de usuarios (<c>app.Usuarios</c>) vive en la BD Asokam,
-    /// no en la de Lefarma, igual que en el servidor real.
-    /// </summary>
-    private sealed class TestContext : IDisposable
+private sealed class TestContext : IDisposable
     {
         private readonly string _dbName = $"AprobacionesCtrl-{Guid.NewGuid():N}";
         private readonly string _asokamDbName = $"AprobacionesCtrl-Asokam-{Guid.NewGuid():N}";
         public TestServer Servidor { get; }
 
-        /// <summary>
-        /// Directorio de personal que resuelve puesto y fecha de nacimiento del
-        /// formato "Solicitud de avión". Por defecto no resuelve a nadie: los
-        /// tests que necesitan esos datos configuran su propia respuesta.
-        /// </summary>
         public Mock<IEmpleadoRepository> EmpleadoRepository { get; } = new();
 
         public TestContext()
@@ -1447,11 +1336,6 @@ public class AprobacionesControllerTests
             db.SaveChanges();
         }
 
-        /// <summary>
-        /// Lee <c>datos.resumen_autorizado</c> como elemento JSON. Falla el test
-        /// con un mensaje claro si la propiedad no existe: es el contrato que
-        /// consume el concentrado FOR-008.
-        /// </summary>
         public JsonElement LeeResumenAutorizado(int idSolicitud)
         {
             using var doc = JsonDocument.Parse(LeeDatosJson(idSolicitud));
@@ -1477,12 +1361,7 @@ public class AprobacionesControllerTests
         public void Dispose() => Servidor.Dispose();
     }
 
-    // ---------------------------------------------------------------------
-    // Tipos auxiliares: replican el envelope y el DTO de bandeja para no
-    // acoplar el test a las clases de presentacion.
-    // ---------------------------------------------------------------------
-
-    private sealed class ApiEnvelope<T>
+private sealed class ApiEnvelope<T>
     {
         [JsonPropertyName("success")]
         public bool Success { get; set; }

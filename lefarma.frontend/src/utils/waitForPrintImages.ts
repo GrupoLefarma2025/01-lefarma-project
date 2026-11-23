@@ -1,10 +1,3 @@
-/**
- * Espera a que el contenido de un contenedor de impresión esté listo:
- * 1. Que no queden firmas descargándose ([data-firma-loading] de FirmaImg).
- * 2. Que todas las imágenes estén decodificadas (el contenedor suele estar
- *    oculto en pantalla, así que el navegador difiere el decode y
- *    window.print() capturaría imágenes en blanco).
- */
 export async function waitForPrintImages(selector: string): Promise<void> {
   const root = document.querySelector(selector);
   if (!root) return;

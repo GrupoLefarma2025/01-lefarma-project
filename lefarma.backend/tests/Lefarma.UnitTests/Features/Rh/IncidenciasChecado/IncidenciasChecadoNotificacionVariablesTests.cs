@@ -48,26 +48,22 @@ public class IncidenciasChecadoNotificacionVariablesTests
 
     private static List<NotificarIncidenciaItemRequest> ItemsDeEjemplo() =>
     [
-        // Omisión de checado (entrada y salida) con descuento
         Item(
             new DateTime(2026, 9, 1),
             justificada: false,
             descuento: true,
             Incidencia("OMISION_ENTRADA", "Omisión de entrada", true, true, 1, 1, "1.ª quincena de septiembre de 2026"),
             Incidencia("OMISION_SALIDA", "Omisión de salida", true, true, 1, 1, "1.ª quincena de septiembre de 2026")),
-        // Retardo 2.º de 3 sin descuento
         Item(
             new DateTime(2026, 9, 9),
             justificada: false,
             descuento: false,
             Incidencia("TARDANZA_ENTRADA", "Retardo de entrada menor a 20 min", false, true, 3, 2, "septiembre de 2026")),
-        // Retardo 3.º de 3 que genera el descuento
         Item(
             new DateTime(2026, 9, 12),
             justificada: false,
             descuento: true,
             Incidencia("TARDANZA_ENTRADA", "Retardo de entrada menor a 20 min", true, false, 3, 3, "septiembre de 2026")),
-        // Día justificado que en teoría habría generado descuento
         Item(
             new DateTime(2026, 9, 16),
             justificada: true,

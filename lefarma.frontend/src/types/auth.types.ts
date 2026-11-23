@@ -1,8 +1,6 @@
 ﻿import type { SseUserInfo } from './sse.types';
 import type { Area } from './catalogo.types';
 
-
-// Información del usuario desde el backend (coincide con UserInfo en los DTOs del backend)
 export interface UserInfo {
   id: number;
   username: string;
@@ -29,7 +27,6 @@ export interface PermissionInfo {
   accion?: string;
 }
 
-// Interfaz User legacy (para compatibilidad hacia atrás)
 export interface User {
   id: string;
   username: string;
@@ -57,7 +54,6 @@ export interface Sucursal {
   activo: boolean;
 }
 
-// Tipos legacy (para compatibilidad hacia atrás)
 export interface LoginCredentials {
   username: string;
   password: string;
@@ -69,7 +65,6 @@ export interface LoginResponse {
   empresas: Empresa[];
 }
 
-// Nuevos tipos para login de 2 pasos
 export interface LoginStepOneRequest {
   username: string;
 }
@@ -98,9 +93,7 @@ export interface RefreshTokenRequest {
   refreshToken: string;
 }
 
-// AuthState actualizado con flujo de 2 pasos
 export interface AuthState {
-  // Estado existente
   user: UserInfo | null;
   token: string | null;
   empresa: Empresa | null;
@@ -109,7 +102,6 @@ export interface AuthState {
   isLoading: boolean;
   isInitialized: boolean;
 
-  // Nuevo state para flujo de 3 pasos
   loginStep: 1 | 2 | 3;
   availableDomains: string[];
   requiresDomainSelection: boolean;
@@ -121,22 +113,14 @@ export interface AuthState {
   area: Area | null;
 
   hasFirma: boolean | null;
-  /**
-   * Firma legacy CxP (columna firma_path). Solo CxP la usa para el aviso
-   * "Sin firma digital"; el resto de apps solo mira hasFirma (RH).
-   */
   hasFirmaLegacy: boolean | null;
-  /** La firma del usuario está en comprobación por RH (remisión sin resolver). */
   firmaEnComprobacion: boolean | null;
   puedeSeleccionarEmpresas: boolean;
-  /** Área (departamento) del empleado según Asistencias.dbo.vwEmpleados. */
   areaEmpleado: string | null;
-  /** Puesto del empleado según Asistencias.dbo.vwEmpleados. */
   puestoEmpleado: string | null;
   usuarioDetalle: { idEmpresa: number; idSucursal: number; idArea: number | null } | null;
   profileError: string | null;
 
-  // Acciones existentes
   logout: () => Promise<void>;
   setEmpresa: (empresa: Empresa) => void;
   setSucursal: (sucursal: Sucursal) => void;
@@ -145,18 +129,7 @@ export interface AuthState {
   initialize: () => void;
   changeEmpresaSucursal: (empresa: Empresa, sucursal: Sucursal) => Promise<void>;
 
-  // Nuevas acciones para flujo de 3 pasos
   loginStepOne: (username: string) => Promise<void>;
-  /**
-   * Valida credenciales y ya sea avanza al paso 3 (flujo CxP por defecto) o
-   * finaliza la sesión (flujo global de 2 pasos).
-   *
-   * @param options.requireContextSelection Cuando es `false`, marca la sesión
-   *   como autenticada justo después de las credenciales y OMITE la carga de
-   *   empresa/sucursal/area. Usado por el flujo `/login` global y el login
-   *   por-app de RH. El comportamiento por defecto (sin opción) preserva el
-   *   flujo CxP de 3 pasos.
-   */
   loginStepTwo: (
     password: string,
     domain: string,
@@ -165,15 +138,12 @@ export interface AuthState {
   loginStepThree: (empresaId: string, sucursalId: string, areaId?: string) => Promise<void>;
   resetLoginFlow: () => void;
 
-  // Área resolver core — admin-managed only (REQ-001/005)
   resolveArea: (empresaId: string | number) => Area | null;
   loadProfile: () => Promise<void>;
   setCatalogs: (empresas: Empresa[], sucursales: Sucursal[], areas: Area[]) => void;
 
-  // Firma signature actions
   setHasFirma: (has: boolean) => void;
   fetchProfileSignature: () => Promise<void>;
 
-  // SSE
   updateUserFromSse: (sseUser: SseUserInfo) => void;
 }

@@ -2,10 +2,6 @@ import { Activity } from 'lucide-react';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { TelemetriaPanel } from './TelemetriaPanel';
 
-/**
- * Página de observabilidad en `/configuracion/telemetria` (dentro del layout de
- * Configuración). El contenido vive en `TelemetriaPanel`.
- */
 export function TelemetriaPage() {
   usePageTitle('Telemetría', 'Errores, clics y mapa de calor de la aplicación');
 

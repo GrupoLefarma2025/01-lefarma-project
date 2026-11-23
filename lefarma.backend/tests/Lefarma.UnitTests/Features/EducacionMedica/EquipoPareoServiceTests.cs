@@ -131,7 +131,6 @@ public class EquipoPareoServiceTests
         mock.Setup(r => r.CreateAsync(It.IsAny<EquipoPareo>(), It.IsAny<CancellationToken>()))
             .Callback((EquipoPareo equipo, CancellationToken _) =>
             {
-                // Replica el comportamiento del repositorio real
                 equipo.Activo = true;
                 equipo.FechaCreacion = DateTime.UtcNow;
                 equipo.FechaModificacion = DateTime.UtcNow;
@@ -305,8 +304,6 @@ public class EquipoPareoServiceTests
         var asokam = CreateAsokamInMemoryContext(Usuario(10, "Juan"), Usuario(20, "Maria"), Usuario(30, "Ana"));
         var service = CreateService(CreateRepositoryMock(context), asokam);
 
-        // El EV 10 esta en un equipo INACTIVO: la exclusividad es una regla
-        // de configuracion actual, no historica, por lo que puede re-parearse.
         var request = new CrearEquipoPareoRequest { IdRegion = 1, IdEjecutivo = 10, IdEspecialista = 30 };
 
         var dto = await service.CreateAsync(request, idUsuario: 99);
@@ -356,7 +353,6 @@ public class EquipoPareoServiceTests
         var asokam = CreateAsokamInMemoryContext(Usuario(10, "A"), Usuario(20, "B"), Usuario(30, "C"), Usuario(40, "D"));
         var service = CreateService(CreateRepositoryMock(context), asokam);
 
-        // El rango 2026-03-01..2026-03-31 solo traslapa con el equipo 1
         var filtro = new EquipoPareoFiltro
         {
             FechaInicio = new DateOnly(2026, 3, 1),

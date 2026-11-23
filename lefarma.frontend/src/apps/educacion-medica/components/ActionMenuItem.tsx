@@ -1,7 +1,6 @@
 import type { ElementType } from 'react';
 import { DropdownMenuItem } from '@/components/ui/dropdown-menu';
 
-/** Item del dropdown de acciones por fila (patrón RH). */
 export function ActionMenuItem({
   label,
   icon: Icon,

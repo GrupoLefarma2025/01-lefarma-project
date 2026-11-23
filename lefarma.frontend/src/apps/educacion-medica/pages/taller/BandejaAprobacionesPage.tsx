@@ -53,8 +53,8 @@ const formatearFecha = (fecha?: string | null) => {
 interface FiltrosBandeja {
   busqueda: string;
   tipo: 'todos' | 'seleccion' | 'matriz';
-  idEstado: string; // 'all' | idEstado
-  etapa: string; // 'all' | pasoNombre
+  idEstado: string; 
+  etapa: string; 
   fechaDesde: string;
   fechaHasta: string;
 }
@@ -87,7 +87,6 @@ export default function BandejaAprobacionesPage() {
   >({ pendientes: FILTROS_INICIALES, todos: FILTROS_INICIALES });
   const [workflowEstados, setWorkflowEstados] = useState<WorkflowEstado[]>([]);
 
-  // Documento seleccionado + modales independientes (patrón RH)
   const [seleccionado, setSeleccionado] = useState<PendienteAprobacion | null>(null);
   const [modalStates, setModalStates] = useState({
     detalle: false,
@@ -97,7 +96,6 @@ export default function BandejaAprobacionesPage() {
   });
   const [guardando, setGuardando] = useState(false);
 
-  // Detalle
   const [cargandoDetalle, setCargandoDetalle] = useState(false);
   const [seleccionDetalle, setSeleccionDetalle] = useState<SeleccionDetalle | null>(null);
   const [matrizDetalle, setMatrizDetalle] = useState<MatrizTalleresDetalle | null>(null);
@@ -215,7 +213,6 @@ export default function BandejaAprobacionesPage() {
   const toggleModal = (name: keyof typeof modalStates, state: boolean) =>
     setModalStates((prev) => ({ ...prev, [name]: state }));
 
-  // ── Detalle ────────────────────────────────────────────────────────────────
   const handleOpenDetalle = async (item: PendienteAprobacion) => {
     setSeleccionado(item);
     toggleModal('detalle', true);
@@ -243,7 +240,6 @@ export default function BandejaAprobacionesPage() {
     }
   };
 
-  // ── Firma ──────────────────────────────────────────────────────────────────
   const handleOpenFirma = (item: PendienteAprobacion) => {
     if (hasFirma === false) {
       toast.warning('No has cargado tu firma digital', {
@@ -276,8 +272,6 @@ export default function BandejaAprobacionesPage() {
 
       if (res.data.success) {
         toast.success(res.data.message ?? 'Acción registrada.');
-        // Patrón RH: se cierra solo el formulario y la lista de acciones queda
-        // abierta, refrescada con las acciones restantes del documento.
         const pendientes = await fetchTab('pendientes');
         const todos = puedeVerTodos ? await fetchTab('todos') : null;
         const actualizado = [...(pendientes ?? []), ...(todos ?? [])].find(
@@ -297,7 +291,6 @@ export default function BandejaAprobacionesPage() {
     }
   };
 
-  // ── Archivos / Historial ───────────────────────────────────────────────────
   const handleOpenArchivos = (item: PendienteAprobacion) => {
     setSeleccionado(item);
     toggleModal('archivos', true);
@@ -498,7 +491,7 @@ export default function BandejaAprobacionesPage() {
         )}
       </Tabs>
 
-      {/* ── Modal: Detalle ── */}
+      {}
       <Modal
         id="modal-bandeja-detalle"
         open={modalStates.detalle}
@@ -631,7 +624,7 @@ export default function BandejaAprobacionesPage() {
         ) : null}
       </Modal>
 
-      {/* ── Modales compartidos: Firma, Archivos, Historial ── */}
+      {}
       {seleccionado && (
         <>
           <DocumentoFirmaModal

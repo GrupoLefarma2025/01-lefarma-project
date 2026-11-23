@@ -6,11 +6,6 @@ using PdfPigDocument = UglyToad.PdfPig.PdfDocument;
 
 namespace Lefarma.API.Features.Sigma.Services.PdfSignature;
 
-/// <summary>
-/// Camino de producción: rasteriza cada página con PDFium a 250 dpi, dibuja encima con
-/// SkiaSharp y arma un PDF nuevo con una imagen por página. Reproduce el aplanado que
-/// hacía <c>page.get_pixmap(...)</c> en el script.
-/// </summary>
 public sealed class RasterStampRenderer : IPdfStampRenderer
 {
     private readonly ILogger<RasterStampRenderer> _logger;
@@ -37,9 +32,6 @@ public sealed class RasterStampRenderer : IPdfStampRenderer
 
         var recursos = new List<IDisposable>();
 
-        // MuPDF, el que usa el script de Python, dibuja las anotaciones al aplanar. PDFium no lo
-        // hace si no se le pide, y con eso se perdían las notas que los usuarios dejan en el PDF
-        // (anotaciones FreeText, por ejemplo junto a la firma).
         var opciones = new RenderOptions
         {
             Dpi = ajustes.DpiAplanado,
@@ -50,7 +42,6 @@ public sealed class RasterStampRenderer : IPdfStampRenderer
 
         try
         {
-            // El backend se publica en IIS sobre Windows; PDFium no aplica en otros SO.
 #pragma warning disable CA1416
             foreach (var mapaBits in Conversion.ToImages(pdf, null, opciones))
 #pragma warning restore CA1416
@@ -143,8 +134,6 @@ public sealed class RasterStampRenderer : IPdfStampRenderer
             estampas.Add(StampGeometry.Calcular(cajaVisual, ajustes, lineas.Count));
         }
 
-        // Primero todas las cubiertas y después firmas y textos, como el script:
-        // así una firma nunca queda tapada por el rectángulo blanco de otra.
         foreach (var caja in cajasVisuales)
         {
             var cubierta = new CajaDibujo(
@@ -192,10 +181,6 @@ public sealed class RasterStampRenderer : IPdfStampRenderer
         }
     }
 
-    /// <summary>
-    /// Agrega al PDF de salida una página del tamaño visible original con la imagen
-    /// rasterizada ocupándola completa, y devuelve el recurso que hay que liberar.
-    /// </summary>
     private IDisposable AgregarPagina(
         PdfSharp.Pdf.PdfDocument salida,
         SKBitmap lienzo,
@@ -232,8 +217,6 @@ public sealed class RasterStampRenderer : IPdfStampRenderer
         destino.Keywords = informacion.Keywords ?? string.Empty;
         destino.Creator = informacion.Creator ?? string.Empty;
 
-        // PdfPig expone las fechas como cadena PDF cruda y PDFsharp las reescribe al
-        // guardar; se copian sólo los textos, como se documenta en la prueba de paridad.
     }    private sealed class RecursosPagina : IDisposable
     {
         private readonly XGraphics _grafico;

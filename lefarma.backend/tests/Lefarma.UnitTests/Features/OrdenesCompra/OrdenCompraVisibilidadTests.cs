@@ -14,14 +14,8 @@ using Moq;
 
 namespace Lefarma.UnitTests.Features.OrdenesCompra;
 
-/// <summary>
-/// Matriz de alcances de visibilidad de órdenes de compra (ADR 00001):
-/// total, por empresa, por flujo, base (propias + paso actual), jefe inmediato
-/// y la comprobación puntual <see cref="IOrdenCompraVisibilidadService.PuedeVerAsync"/>.
-/// </summary>
 public class OrdenCompraVisibilidadTests
 {
-    // ---------- 1. Alcance total ----------
 
     [Fact]
     public async Task Total_Ve_Todas_Las_Ordenes_Sin_Importar_Creador_Empresa_Flujo_Estado()
@@ -41,9 +35,7 @@ public class OrdenCompraVisibilidadTests
         (await arnes.Servicio.PuedeVerAsync(1003, 10)).Should().BeTrue();
     }
 
-    // ---------- 2. Alcance por empresa ----------
-
-    [Fact]
+[Fact]
     public async Task Empresa_Ve_Solo_Ordenes_De_Sus_Empresas_Activas_Mas_Las_Propias()
     {
         using var arnes = new Arnes();
@@ -59,7 +51,7 @@ public class OrdenCompraVisibilidadTests
 
         var alcance = await arnes.Servicio.ResolverAsync(20);
 
-        alcance.Empresas.Should().BeEquivalentTo(new[] { 1 }); // la fila inactiva no cuenta
+        alcance.Empresas.Should().BeEquivalentTo(new[] { 1 }); 
         arnes.Visibles(alcance).Should().BeEquivalentTo(new[] { 2001, 2003, 2004 });
     }
 
@@ -67,7 +59,7 @@ public class OrdenCompraVisibilidadTests
     public async Task Empresa_Sin_Permiso_No_Amplia_Aunque_Tenga_Filas_Asignadas()
     {
         using var arnes = new Arnes();
-        arnes.OtorgarPermiso(21); // sin permisos de alcance
+        arnes.OtorgarPermiso(21); 
 
         arnes.SembrarAlcanceEmpresa(21, empresa: 1, activo: true);
         arnes.SembrarOrden(2101, creador: 98, empresa: 1, workflow: 19, paso: 10, estado: 5);
@@ -78,20 +70,17 @@ public class OrdenCompraVisibilidadTests
         arnes.Visibles(alcance).Should().BeEmpty();
     }
 
-    // ---------- 3. Alcance por flujo ----------
-
-    [Fact]
+[Fact]
     public async Task Flujo_Ve_Todas_Las_Ordenes_De_Los_Flujos_Donde_Participa_O_Esta_Mapeado()
     {
         using var arnes = new Arnes();
         arnes.OtorgarPermiso(74, Permissions.OrdenesCompra.VerPorFlujo);
 
-        // Mapeado a su propio workflow (6) y participante en el de Emmanuel (19).
         arnes.SembrarWorkflow(6, "Workflow Asokam Victor", CodigoProceso.ORDEN_COMPRA);
         arnes.SembrarWorkflow(19, "Workflow Emmanuel", CodigoProceso.ORDEN_COMPRA);
         arnes.SembrarWorkflow(100, "Workflow Viáticos", CodigoProceso.SOLICITUD_PERSONAL);
 
-        arnes.SembrarScopeType(1, "usuario");   // en minúsculas: la comparación debe ser case-insensitive
+        arnes.SembrarScopeType(1, "usuario");   
         arnes.SembrarScopeType(2, "empresa");
         arnes.SembrarMapping(codigoProceso: CodigoProceso.ORDEN_COMPRA, idScopeType: 1, scopeId: 74, idWorkflow: 6);
 
@@ -99,12 +88,9 @@ public class OrdenCompraVisibilidadTests
         arnes.SembrarPaso(11, idWorkflow: 6, orden: 10, activo: true);
         arnes.SembrarParticipante(10, idUsuario: 74);
 
-        // Del flujo 19: una en el paso donde participa y otra ya avanzada a otro paso.
         arnes.SembrarOrden(3001, creador: 98, empresa: 3, workflow: 19, paso: 10, estado: 5);
         arnes.SembrarOrden(3002, creador: 98, empresa: 3, workflow: 19, paso: 20, estado: 5);
-        // De otro proceso: no debe verse por este permiso.
         arnes.SembrarOrden(3003, creador: 98, empresa: 3, workflow: 100, paso: 1, estado: 5);
-        // Del flujo mapeado a su usuario: visible aunque no sea participante del paso.
         arnes.SembrarOrden(3004, creador: 98, empresa: 3, workflow: 6, paso: 11, estado: 5);
 
         var alcance = await arnes.Servicio.ResolverAsync(74);
@@ -127,7 +113,7 @@ public class OrdenCompraVisibilidadTests
         arnes.SembrarRol(3, "Aprobador", activo: true);
         arnes.SembrarRol(4, "Aprobador temporal", activo: true);
         arnes.SembrarUsuarioRol(75, idRol: 3, fechaExpiracion: null);
-        arnes.SembrarUsuarioRol(76, idRol: 4, fechaExpiracion: DateTime.UtcNow.AddDays(-1)); // expirado
+        arnes.SembrarUsuarioRol(76, idRol: 4, fechaExpiracion: DateTime.UtcNow.AddDays(-1)); 
 
         arnes.SembrarOrden(3101, creador: 98, empresa: 3, workflow: 19, paso: 20, estado: 5);
 
@@ -140,23 +126,21 @@ public class OrdenCompraVisibilidadTests
         arnes.Visibles(alcanceExpirado).Should().BeEmpty();
     }
 
-    // ---------- 4. Alcance base ----------
-
-    [Fact]
+[Fact]
     public async Task Base_Conserva_Propias_Y_Paso_Actual_Pero_No_Estados_Creada_Rechazada_Cancelada()
     {
         using var arnes = new Arnes();
-        arnes.OtorgarPermiso(30); // sin alcances amplios
+        arnes.OtorgarPermiso(30); 
 
         arnes.SembrarPaso(5, idWorkflow: 19, orden: 5, activo: true);
         arnes.SembrarPaso(6, idWorkflow: 19, orden: 6, activo: true);
         arnes.SembrarParticipante(5, idUsuario: 30);
 
-        arnes.SembrarOrden(4001, creador: 30, empresa: 9, workflow: 6, paso: 1, estado: 1);   // propia
-        arnes.SembrarOrden(4002, creador: 98, empresa: 3, workflow: 19, paso: 5, estado: 5);  // participa
-        arnes.SembrarOrden(4003, creador: 98, empresa: 3, workflow: 19, paso: 5, estado: 1);  // participa pero Creada
-        arnes.SembrarOrden(4004, creador: 98, empresa: 3, workflow: 19, paso: 6, estado: 5);  // otro paso
-        arnes.SembrarOrden(4005, creador: 98, empresa: 3, workflow: 19, paso: 5, estado: 7);  // participa pero Rechazada
+        arnes.SembrarOrden(4001, creador: 30, empresa: 9, workflow: 6, paso: 1, estado: 1);   
+        arnes.SembrarOrden(4002, creador: 98, empresa: 3, workflow: 19, paso: 5, estado: 5);  
+        arnes.SembrarOrden(4003, creador: 98, empresa: 3, workflow: 19, paso: 5, estado: 1);  
+        arnes.SembrarOrden(4004, creador: 98, empresa: 3, workflow: 19, paso: 6, estado: 5);  
+        arnes.SembrarOrden(4005, creador: 98, empresa: 3, workflow: 19, paso: 5, estado: 7);  
 
         var alcance = await arnes.Servicio.ResolverAsync(30);
 
@@ -170,7 +154,6 @@ public class OrdenCompraVisibilidadTests
         using var arnes = new Arnes();
         arnes.OtorgarPermiso(31);
 
-        // Datos que solo aplicarían con permiso: empresa asignada y mapping de usuario.
         arnes.SembrarAlcanceEmpresa(31, empresa: 1, activo: true);
         arnes.SembrarWorkflow(6, "Workflow mapeado", CodigoProceso.ORDEN_COMPRA);
         arnes.SembrarScopeType(1, "USUARIO");
@@ -184,9 +167,7 @@ public class OrdenCompraVisibilidadTests
         arnes.Visibles(alcance).Should().BeEmpty();
     }
 
-    // ---------- 5. Jefe inmediato ----------
-
-    [Fact]
+[Fact]
     public async Task Jefe_Inmediato_Ve_Las_Ordenes_Detenidas_En_Un_Paso_Que_Lo_Requiere()
     {
         using var arnes = new Arnes();
@@ -213,15 +194,12 @@ public class OrdenCompraVisibilidadTests
         (await arnes.Servicio.PuedeVerAsync(5001, 40)).Should().BeTrue();
         (await arnes.Servicio.PuedeVerAsync(5002, 40)).Should().BeFalse();
 
-        // Otro usuario no es jefe efectivo de ningún creador de esas órdenes.
         var alcanceOtro = await arnes.Servicio.ResolverAsync(41);
         alcanceOtro.CreadoresPosibles.Should().BeEmpty();
         arnes.Visibles(alcanceOtro).Should().BeEmpty();
     }
 
-    // ---------- 6. PuedeVerAsync ----------
-
-    [Fact]
+[Fact]
     public async Task PuedeVer_Devuelve_True_Dentro_Del_Alcance_Y_False_Fuera_O_Si_No_Existe()
     {
         using var arnes = new Arnes();
@@ -233,11 +211,11 @@ public class OrdenCompraVisibilidadTests
         arnes.SembrarOrden(6002, creador: 98, empresa: 3, workflow: 19, paso: 5, estado: 5);
         arnes.SembrarOrden(6003, creador: 98, empresa: 3, workflow: 19, paso: 6, estado: 5);
 
-        (await arnes.Servicio.PuedeVerAsync(6001, 30)).Should().BeTrue();  // propia
-        (await arnes.Servicio.PuedeVerAsync(6002, 30)).Should().BeTrue();  // participa en el paso
-        (await arnes.Servicio.PuedeVerAsync(6003, 30)).Should().BeFalse(); // fuera del alcance
-        (await arnes.Servicio.PuedeVerAsync(9999, 30)).Should().BeFalse(); // no existe
-        (await arnes.Servicio.PuedeVerAsync(6003, 0)).Should().BeFalse();  // usuario inválido
+        (await arnes.Servicio.PuedeVerAsync(6001, 30)).Should().BeTrue();  
+        (await arnes.Servicio.PuedeVerAsync(6002, 30)).Should().BeTrue();  
+        (await arnes.Servicio.PuedeVerAsync(6003, 30)).Should().BeFalse(); 
+        (await arnes.Servicio.PuedeVerAsync(9999, 30)).Should().BeFalse(); 
+        (await arnes.Servicio.PuedeVerAsync(6003, 0)).Should().BeFalse();  
     }
 
     [Fact]
@@ -252,8 +230,6 @@ public class OrdenCompraVisibilidadTests
 
         var alcance = await arnes.Servicio.ResolverAsync(60);
 
-        // El proveedor InMemory no traduce a SQL; se compila contra SQL Server (sin abrir conexión)
-        // para detectar errores de traducción del predicado compuesto.
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
             .UseSqlServer("Server=(localdb)\\MSSQLLocalDB;Database=LefarmaVisibilidad;Trusted_Connection=True;TrustServerCertificate=True")
             .Options;
@@ -267,11 +243,7 @@ public class OrdenCompraVisibilidadTests
         sql.Should().Contain("id_paso_actual");
     }
 
-    // =====================================================================
-    // Arnés
-    // =====================================================================
-
-    private sealed class Arnes : IDisposable
+private sealed class Arnes : IDisposable
     {
         private readonly MemoryCache _cache;
 
@@ -290,9 +262,6 @@ public class OrdenCompraVisibilidadTests
                 .UseInMemoryDatabase($"oc-visibilidad-asokam-{Guid.NewGuid()}")
                 .Options);
 
-            // Los permisos viven en app.Permisos/app.UsuariosPermisos; aquí se siembra la caché
-            // compartida de UserPermissionService (misma llave y duración que en producción) para
-            // aislar la matriz de visibilidad del proveedor InMemory.
             _cache = new MemoryCache(new MemoryCacheOptions());
             var permisos = new UserPermissionService(Asokam, _cache);
             Servicio = new OrdenCompraVisibilidadService(App, Asokam, permisos, JefeResolver.Object);

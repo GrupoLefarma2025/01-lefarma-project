@@ -8,11 +8,6 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { FileViewer } from '@/components/archivos/FileViewer';
 
-// Celdas compartidas por la tabla de transporte y la de hoteles. La regla de
-// negocio vive aqui y en ningun otro lado: un estimado por formula NUNCA se
-// presenta como cotizacion real ("Unknown prices remain unknown, not zero") y
-// la `fuente` cruda que devuelve el backend nunca se oculta.
-
 export function CeldaFuente({ fuente, estimado }: { fuente: string; estimado: boolean }) {
   return (
     <div className="flex flex-col items-start gap-1">
@@ -24,15 +19,6 @@ export function CeldaFuente({ fuente, estimado }: { fuente: string; estimado: bo
   );
 }
 
-/**
- * Convierte una ruta persistida de captura (`/api/media/capturas-viaticos/x.png`,
- * `/media/capturas-viaticos/x.png` o `capturas-viaticos/x.png`) en la ruta del
- * endpoint autenticado `GET /api/viaticos/capturas/x.png`.
- *
- * Los PNG ya no se sirven por el estatico anonimo: el backend los expone SOLO
- * por ese endpoint `[Authorize]`. Devuelve `null` cuando la ruta no es una
- * captura del backend (URL externa, data:, blob:), porque esas no llevan token.
- */
 export function rutaApiCaptura(ruta: string): string | null {
   const coincidencia = ruta.match(/(?:^|\/)capturas-viaticos\/([^/?#]+)$/);
   if (!coincidencia) return null;
@@ -40,28 +26,17 @@ export function rutaApiCaptura(ruta: string): string | null {
 }
 
 export interface EstadoCaptura {
-  /** Object URL de la imagen, o la propia ruta si es externa; null mientras carga o si fallo. */
   url: string | null;
   error: string | null;
 }
 
 const MENSAJE_ERROR_CAPTURA = 'No se pudo cargar la captura.';
 
-/**
- * Carga una captura con el token del cliente `API` y devuelve un object URL.
- * `<img src>` no puede mandar la cabecera Authorization, por eso se hace fetch
- * con `responseType: 'blob'`. El object URL se libera con
- * `URL.revokeObjectURL` al desmontar o al cambiar de captura: sin eso, una
- * tabla con muchas filas filtra memoria.
- */
 export function useCapturaAutenticada(ruta: string | undefined, revision = 0): EstadoCaptura {
   const apiPath = ruta ? rutaApiCaptura(ruta) : null;
   const apiUrl = apiPath
     ? (revision > 0 ? `${apiPath}?v=${revision}` : apiPath)
     : null;
-  // Se guarda con qué ruta/revisión se cargó cada resultado: así, al cambiar de
-  // captura o al reemplazarla con el mismo nombre, la miniatura vieja no se
-  // queda pegada mientras llega la nueva.
   const [cargada, setCargada] = useState<{
     ruta: string;
     revision: number;
@@ -119,10 +94,6 @@ function ImagenCaptura({
   return <img src={estado.url} alt={alt} loading="lazy" className={className} />;
 }
 
-/**
- * Miniatura suelta de una captura (sin ancla), usada por el importador, que
- * lista varias capturas por fila. Se apoya en `useCapturaAutenticada`.
- */
 export function MiniaturaCaptura({
   ruta,
   alt,
@@ -136,15 +107,6 @@ export function MiniaturaCaptura({
   return <ImagenCaptura estado={estado} alt={alt} className={className} />;
 }
 
-/**
- * Miniatura de la captura de pantalla. Sin `ruta` se muestra un placeholder
- * textual, nunca una <img> rota ni el PNG crudo del estatico. El ancla abre la
- * imagen completa en otra pestana porque la miniatura es demasiado pequena para
- * leer el precio.
- *
- * `onRebuscar` pide al agente volver a buscar la oferta (llenando el buscador
- * del sitio con la ruta y capturando los RESULTADOS, no la portada).
- */
 export function CeldaCaptura({
   ruta,
   etiqueta,
@@ -159,10 +121,8 @@ export function CeldaCaptura({
   etiqueta: string;
   onRebuscar?: () => void;
   rebuscando?: boolean;
-  /** Sube un PNG tomado fuera del backend y lo asocia a esta opción. */
   onSubirCaptura?: (archivo: File) => void | Promise<void>;
   subiendo?: boolean;
-  /** Cambia cuando se reemplaza el archivo para forzar un nuevo fetch. */
   revision?: number;
   sinCapturaTexto?: string;
 }) {

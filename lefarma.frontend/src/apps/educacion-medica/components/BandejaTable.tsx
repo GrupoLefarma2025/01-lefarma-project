@@ -67,7 +67,6 @@ interface BandejaTableProps {
   pageSize?: number;
 }
 
-/** DataTable de la Bandeja de Autorizaciones — mismo patrón que SolicitudesTable (RH). */
 export function BandejaTable({
   data,
   title,

@@ -63,9 +63,7 @@ import {
 } from '../utils';
 
 interface IntegracionesPanelProps {
-  /** Permiso `configuracion.api_keys`. Sin él no se debe renderizar el panel. */
   puedeGestionar: boolean;
-  /** Módulos activos, para mostrar su nombre en el selector de alcance. */
   modulos: ModuloConfig[];
 }
 
@@ -604,7 +602,7 @@ export function IntegracionesPanel({ puedeGestionar, modulos }: IntegracionesPan
         )}
       </div>
 
-      {/* Crear cliente */}
+      {}
       <Modal
         id="modal-crear-integracion"
         open={crearAbierto}
@@ -804,7 +802,7 @@ export function IntegracionesPanel({ puedeGestionar, modulos }: IntegracionesPan
         </div>
       </Modal>
 
-      {/* Llave recién creada */}
+      {}
       <Modal
         id="modal-llave-integracion"
         open={creada !== null}
@@ -876,7 +874,7 @@ export function IntegracionesPanel({ puedeGestionar, modulos }: IntegracionesPan
         )}
       </Modal>
 
-      {/* Revocar */}
+      {}
       <AlertDialog
         open={aRevocar !== null}
         onOpenChange={(abierto) => {
@@ -910,7 +908,7 @@ export function IntegracionesPanel({ puedeGestionar, modulos }: IntegracionesPan
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Nota de seguridad permanente */}
+      {}
       <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
         <ShieldOff className="h-3 w-3" />
         Revocar una llave no borra el cliente: conserva su historial para auditoría.

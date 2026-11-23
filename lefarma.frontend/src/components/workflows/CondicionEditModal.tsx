@@ -121,7 +121,7 @@ export function CondicionEditModal({ workflow, condicion, open, setOpen, onSave 
       }
     >
       <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Paso donde aplica */}
+        {}
         <div className="space-y-2">
           <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             Accion donde aplica la condicion *
@@ -155,7 +155,7 @@ export function CondicionEditModal({ workflow, condicion, open, setOpen, onSave 
           </Select>
         </div>
 
-        {/* Campo a Evaluar */}
+        {}
         <div className="space-y-2">
           <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             Campo a evaluar *
@@ -180,7 +180,7 @@ export function CondicionEditModal({ workflow, condicion, open, setOpen, onSave 
           </p>
         </div>
 
-        {/* Grid: Operador y Valor */}
+        {}
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -218,7 +218,7 @@ export function CondicionEditModal({ workflow, condicion, open, setOpen, onSave 
           )}
         </div>
 
-        {/* Paso Destino si cumple */}
+        {}
         <div className="space-y-2">
           <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             Ir a paso (si cumple) *
@@ -250,7 +250,7 @@ export function CondicionEditModal({ workflow, condicion, open, setOpen, onSave 
           </Select>
         </div>
 
-        {/* Preview */}
+        {}
         {formData.idAccion > 0 && formData.campoEvaluacion && formData.idPasoSiCumple > 0 && (
           <div className="p-4 rounded-lg border border-border bg-muted/30">
             <p className="text-xs font-semibold text-muted-foreground mb-2">REGLA</p>
@@ -266,7 +266,7 @@ export function CondicionEditModal({ workflow, condicion, open, setOpen, onSave 
           </div>
         )}
 
-        {/* Activo */}
+        {}
         <div className="flex items-center gap-3 p-3 rounded-lg border border-border bg-muted/30">
           <Checkbox
             id="condicion-activa"

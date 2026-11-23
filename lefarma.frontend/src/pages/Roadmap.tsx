@@ -107,15 +107,12 @@ const exampleReleases = Array.from({ length: 3 })
     name: capitalize(faker.company.buzzPhrase()),
   }));
 
-// Helper para generar fechas con duraciones más realistas (1-3 años de rango total)
 const generateFeatureDates = () => {
   const now = new Date();
-  // Fecha de inicio: entre 6 meses atrás y 1 año adelante
   const startDate = faker.date.between({
     from: new Date(now.getFullYear(), now.getMonth() - 6, 1),
     to: new Date(now.getFullYear() + 1, now.getMonth(), 1),
   });
-  // Duración: entre 3 y 18 meses
   const durationMonths = faker.number.int({ min: 3, max: 18 });
   const endDate = new Date(startDate);
   endDate.setMonth(endDate.getMonth() + durationMonths);
@@ -198,7 +195,6 @@ const GanttView = () => {
       )
     );
 
-    console.log(`Move feature: ${id} from ${startAt} to ${endAt}`);
   };
 
   const handleAddFeature = (date: Date) =>

@@ -15,7 +15,6 @@ public class RefreshToken
     public DateTime? FechaRevocacion { get; set; }
     public string? MotivoRevocacion { get; set; }
 
-    // Navigation
     public Usuario Usuario { get; set; } = null!;
     public Sesion? Sesion { get; set; }
 }

@@ -5,8 +5,6 @@ import { MapaPunto } from './MapaPunto';
 
 const handlers = vi.hoisted(() => ({ actual: {} as Record<string, (e: unknown) => void> }));
 
-// jsdom no renderiza Leaflet; se sustituyen las primitivas por nodos planos.
-// useMapEvents captura los manejadores para poder disparar clic derecho.
 vi.mock('react-leaflet', () => ({
   MapContainer: ({ children }: { children?: ReactNode }) => <div data-testid="mapa">{children}</div>,
   TileLayer: () => null,
@@ -61,7 +59,6 @@ describe('MapaPunto', () => {
     const onPunto = vi.fn();
     render(<MapaPunto punto={null} interactivo onPunto={onPunto} onMover={() => {}} onQuitar={() => {}} />);
     clicDerecho(19.5, -99.5);
-    // Sin pin no se ofrece quitarlo.
     expect(screen.queryByRole('button', { name: 'Quitar pin' })).not.toBeInTheDocument();
     act(() => {
       screen.getByRole('button', { name: 'Poner pin aquí' }).click();
@@ -98,7 +95,6 @@ describe('MapaPunto', () => {
     } finally {
       popup.remove();
     }
-    // Botón ya desmontado (React quitó el menú antes de procesar el clic).
     const suelto = document.createElement('button');
     act(() => {
       handlers.actual.click({ latlng: { lat: 19.8, lng: -99.8 }, originalEvent: { target: suelto } });
@@ -114,7 +110,7 @@ describe('MapaPunto', () => {
     const onPunto = vi.fn();
     render(<MapaPunto punto={null} interactivo onPunto={onPunto} onMover={() => {}} />);
     act(() => {
-      handlers.actual.click({ latlng: { lat: 29.76, lng: -95.37 } }); // Houston
+      handlers.actual.click({ latlng: { lat: 29.76, lng: -95.37 } }); 
     });
     expect(onPunto).not.toHaveBeenCalled();
   });

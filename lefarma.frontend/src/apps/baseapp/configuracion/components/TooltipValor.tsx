@@ -5,11 +5,9 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { cn } from '@/lib/utils';
 
 interface TooltipValorProps {
-  /** Elemento que abre el tooltip (debe ser un solo nodo y aceptar ref). */
   trigger: ReactElement;
   titulo: string;
   detalle: string;
-  /** Texto completo que se copia; puede ser una función para no construirlo hasta el clic. */
   textoParaCopiar: string | (() => string);
   icono: ReactNode;
   children: ReactNode;
@@ -21,7 +19,6 @@ async function copiarAlPortapapeles(texto: string): Promise<boolean> {
     await navigator.clipboard.writeText(texto);
     return true;
   } catch {
-    // Respaldo para navegadores sin permisos de Clipboard API.
     const area = document.createElement('textarea');
     area.value = texto;
     area.setAttribute('readonly', '');
@@ -37,10 +34,6 @@ async function copiarAlPortapapeles(texto: string): Promise<boolean> {
   }
 }
 
-/**
- * Tooltip de valores largos: cabecera con título, conteo y botón de copiar,
- * cuerpo con scroll y altura máxima. Se usa igual para textos y listas.
- */
 export function TooltipValor({
   trigger,
   titulo,

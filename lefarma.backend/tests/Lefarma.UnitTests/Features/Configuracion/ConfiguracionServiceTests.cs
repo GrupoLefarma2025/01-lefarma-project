@@ -76,9 +76,7 @@ public class ConfiguracionServiceTests
         DisponibleFrontend = true
     };
 
-    // ------------------------------------------------------------------ crear
-
-    [Fact]
+[Fact]
     public async Task Crear_Guarda_Version_Uno_Y_Bitacora_Con_Snapshot()
     {
         var (servicio, contexto) = Crear();
@@ -160,9 +158,7 @@ public class ConfiguracionServiceTests
         resultado.FirstError.Type.Should().Be(ErrorType.Validation);
     }
 
-    // ------------------------------------------------------------- actualizar
-
-    [Fact]
+[Fact]
     public async Task Actualizar_Rechaza_Cambio_De_Clave()
     {
         var (servicio, _) = Crear();
@@ -238,9 +234,7 @@ public class ConfiguracionServiceTests
         (await contexto.ConfigVariablesBitacora.CountAsync()).Should().Be(2);
     }
 
-    // --------------------------------------------------------------- estado
-
-    [Fact]
+[Fact]
     public async Task Desactivar_No_Borra_Y_Registra_Bitacora()
     {
         var (servicio, contexto) = Crear();
@@ -273,9 +267,7 @@ public class ConfiguracionServiceTests
         reactivada.Value.Version.Should().Be(3);
     }
 
-    // ------------------------------------------------------------ restaurar
-
-    [Fact]
+[Fact]
     public async Task Restaurar_Aplica_Solo_Campos_Editables_Y_Crea_Nueva_Revision()
     {
         var (servicio, contexto) = Crear();
@@ -366,9 +358,7 @@ public class ConfiguracionServiceTests
         resultado.FirstError.Type.Should().Be(ErrorType.Conflict);
     }
 
-    // -------------------------------------------------------------- historial
-
-    [Fact]
+[Fact]
     public async Task Historial_Devuelve_Mas_Reciente_Primero()
     {
         var (servicio, _) = Crear();
@@ -390,9 +380,7 @@ public class ConfiguracionServiceTests
         detalle.Value.DatosNuevos.GetProperty("clave").GetString().Should().Be("app.tema");
     }
 
-    // --------------------------------------------------------------- frontend
-
-    [Fact]
+[Fact]
     public async Task ConsultarFrontend_Devuelve_Vigentes_Y_Eliminadas()
     {
         var (servicio, _) = Crear();

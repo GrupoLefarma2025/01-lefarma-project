@@ -11,7 +11,6 @@ public class AsokamDbContext : DbContext
     {
     }
 
-    // Auth tables
     public DbSet<Usuario> Usuarios { get; set; } = null!;
     public DbSet<Rol> Roles { get; set; } = null!;
     public DbSet<Permiso> Permisos { get; set; } = null!;
@@ -35,10 +34,8 @@ public class AsokamDbContext : DbContext
     {
         base.OnModelCreating(modelBuilder);
 
-        // Apply all configurations from this assembly
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(AsokamDbContext).Assembly);
 
-        // Specify primary keys for all entities
         modelBuilder.Entity<Usuario>(entity =>
         {
             entity.HasKey(e => e.IdUsuario);

@@ -4,12 +4,6 @@ using System.Text.RegularExpressions;
 
 namespace Lefarma.API.Features.Viaticos;
 
-/// <summary>
-/// Parser de autobuses para ClickBus/Primera Plus. Reutiliza los patrones del
-/// cotizador CLI; si una tarjeta no trae el formato exacto, aplica un bloque
-/// genérico de horas + precio. No inventa precios: una tarjeta sin precio se
-/// descarta.
-/// </summary>
 public static class AutobusesParser
 {
     private static readonly Regex ClickBus = new(
@@ -95,12 +89,6 @@ public static class AutobusesParser
         return Seleccionar(deduplicadas, objetivo, fecha, deadline, minutosTaxi);
     }
 
-    /// <summary>
-    /// Variante para el markdown de Firecrawl: ClickBus publica cada campo en
-    /// su propia línea (compañía, hora de salida, tipo, duración, hora de
-    /// llegada y precio). Se reconstruye la tarjeta y se aplica el mismo filtro
-    /// por horario que la variante de Playwright.
-    /// </summary>
     public static List<PrecioDetectado> ParsearMarkdown(
         string markdown,
         string objetivo,

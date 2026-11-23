@@ -8,11 +8,6 @@ interface ReglasDescuentoContenidoProps {
   className?: string;
 }
 
-/**
- * Explicación de cómo se generan los descuentos por incidencias.
- * Presentacional: se usa inline (modal de detalle admin) y dentro de
- * ReglasDescuentoModal (páginas del empleado).
- */
 export function ReglasDescuentoContenido({ reglas, className }: ReglasDescuentoContenidoProps) {
   const limite = reglas?.limiteDescuentosJustificadosMes ?? 2;
 

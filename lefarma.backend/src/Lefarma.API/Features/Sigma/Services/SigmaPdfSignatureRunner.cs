@@ -4,16 +4,8 @@ using Microsoft.Extensions.Options;
 
 namespace Lefarma.API.Features.Sigma;
 
-/// <summary>Resultado de ejecutar el motor de firma.</summary>
-/// <param name="PalabraClaveAusente">El PDF no contenía el texto que se reemplaza por la firma.</param>
-/// <param name="Salida">Detalle del resultado (se registra para diagnóstico).</param>
 public sealed record SigmaPdfSignatureResult(bool PalabraClaveAusente, string Salida);
 
-/// <summary>
-/// Fachada del firmado de PDFs. Elige el motor según <c>Sigma:PdfSignature:Motor</c>
-/// (<c>csharp</c> por defecto, <c>python</c> para volver al script original) y aplica
-/// el tiempo máximo configurado.
-/// </summary>
 public sealed class SigmaPdfSignatureRunner
 {
     private readonly SigmaPdfSignatureOptions _options;
@@ -33,11 +25,6 @@ public sealed class SigmaPdfSignatureRunner
         _logger = logger;
     }
 
-    /// <summary>
-    /// Procesa un documento de <c>app.Documentos</c>. Con <paramref name="soloEscanear"/>
-    /// sólo comprueba que exista el texto de firma; sin él estampa la firma y guarda el
-    /// binario autorizado.
-    /// </summary>
     public async Task<SigmaPdfSignatureResult> EjecutarAsync(
         Guid idDocumento,
         bool soloEscanear,
@@ -55,7 +42,6 @@ public sealed class SigmaPdfSignatureRunner
                 return await _python.EjecutarAsync(idDocumento, soloEscanear, tiempo.Token);
             }
 
-            // El motor nativo hace trabajo pesado de CPU: se saca del hilo de la petición.
             return await Task.Run(
                 () => _csharp.EjecutarAsync(idDocumento, soloEscanear, tiempo.Token),
                 tiempo.Token);

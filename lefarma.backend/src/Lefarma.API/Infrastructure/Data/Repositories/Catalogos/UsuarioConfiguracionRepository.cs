@@ -52,7 +52,6 @@ public class UsuarioConfiguracionRepository : IUsuarioConfiguracionRepository
                 DestinatariosIncidenciasDefault = json,
                 FechaCreacion = DateTime.UtcNow,
                 FechaModificacion = DateTime.UtcNow,
-                // Valores mínimos requeridos por la entidad
                 IdEmpresa = 1,
                 IdSucursal = 1,
                 TemaInterfaz = "light",

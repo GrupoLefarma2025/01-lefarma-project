@@ -19,8 +19,6 @@ public class RutaVisitaConfiguration : IEntityTypeConfiguration<RutaVisita>
         builder.Property(e => e.IdEspecialista).HasColumnName("id_especialista");
         builder.Property(e => e.IdTipoVisita).HasColumnName("id_tipo_visita");
         builder.Property(e => e.FechaVisita).HasColumnName("fecha_visita");
-        // Script 0007 declara orden TINYINT; el entity usa int. La conversion
-        // explicita evita InvalidCastException (Byte -> Int32) al materializar.
         builder.Property(e => e.Orden)
             .HasColumnName("orden")
             .HasColumnType("tinyint")
@@ -43,9 +41,6 @@ public class RutaVisitaConfiguration : IEntityTypeConfiguration<RutaVisita>
             .HasForeignKey(e => e.IdSeleccionHospital)
             .OnDelete(DeleteBehavior.Restrict);
 
-        // UN UNIQUE (id_ruta, fecha_visita, orden) y el índice único filtrado
-        // (id_ruta, id_seleccion_hospital) WHERE id_seleccion_hospital IS NOT NULL
-        // viven en los scripts 0007/0028; EF los replica para el proveedor InMemory.
         builder.HasIndex(e => new { e.IdRuta, e.FechaVisita, e.Orden })
             .IsUnique()
             .HasDatabaseName("UQ_rutas_visitas_orden");

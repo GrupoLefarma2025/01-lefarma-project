@@ -5,7 +5,6 @@ using System.Text.RegularExpressions;
 
 namespace Lefarma.API.Features.Viaticos;
 
-/// <summary>Plaza de cobro de una ruta, con su km desde el origen y la tarifa de automóvil.</summary>
 public record CasetaRutaInfo(string Nombre, string Carretera, double KmDesdeOrigen, double TarifaAuto, string Direccion);
 
 public static class EstadosCasetasRuta
@@ -16,7 +15,6 @@ public static class EstadosCasetasRuta
     public const string RespuestaInvalida = "respuesta_invalida";
 }
 
-/// <summary>Official route data when available; null totals never mean official zero.</summary>
 public record ResultadoCasetasRuta(
     string Estado,
     IReadOnlyList<CasetaRutaInfo> Casetas,
@@ -25,23 +23,11 @@ public record ResultadoCasetasRuta(
     double? PeajeTotal,
     string Fuente);
 
-/// <summary>
-/// Rutas Punto a Punto de la SCT (Secretaría de Comunicaciones y Transportes):
-/// el catálogo oficial con plaza de cobro, km desde el origen, carretera y tarifa
-/// por tipo de vehículo. El sitio es un formulario clásico: se cargan los
-/// estados, luego las ciudades y al final se consulta la ruta; se reproduce
-/// aquí esa secuencia con POST de formulario.
-///
-/// Alternativas revisadas: tarifascapufe.com.mx publica una página por ruta
-/// (WordPress, sin API general) y Reddit es contenido comunitario; la SCT
-/// cubre cualquier par de ciudades con datos oficiales, por eso se usa.
-/// </summary>
 public static class CasetasRutaService
 {
     private const string Base = "https://app.sct.gob.mx/sibuac_internet/ControllerUI";
     private const string VehiculoAuto = "2";
 
-    /// <summary>Nombres de estado que no coinciden con los de la SCT.</summary>
     private static readonly Dictionary<string, string> AliasEstado = new(StringComparer.Ordinal)
     {
         ["ciudad de mexico"] = "distrito federal",
@@ -49,10 +35,6 @@ public static class CasetasRutaService
         ["mexico city"] = "distrito federal",
     };
 
-    /// <summary>
-    /// La SCT usa sesión (jsessionid) para la secuencia de formularios y el
-    /// HttpClient comparte las cookies: las consultas se serializan.
-    /// </summary>
     private static readonly SemaphoreSlim Semaforo = new(1, 1);
 
     public static Task<ResultadoCasetasRuta> ConsultarAsync(
@@ -179,9 +161,7 @@ public static class CasetasRutaService
         return ParsearRuta(resultado);
     }
 
-    // ---------- HTTP ----------
-
-    private static async Task<string> GetAsync(HttpClient http, string url, CancellationToken ct)
+private static async Task<string> GetAsync(HttpClient http, string url, CancellationToken ct)
     {
         using var req = new HttpRequestMessage(HttpMethod.Get, url);
         req.Headers.UserAgent.ParseAdd("GrupoLefarmaViaticos/1.0 (soporte@lefarma.com)");
@@ -202,7 +182,6 @@ public static class CasetasRutaService
         return await res.Content.ReadAsStringAsync(ct);
     }
 
-    /// <summary>Devuelve la acción del formulario (URL absoluta) con la de la SCT indicada.</summary>
     private static string Accion(string html, string accion)
     {
         var m = Regex.Match(html, "<form name=\"frmConsulta\"[^>]*action=\"([^\"]+)\"");
@@ -215,10 +194,7 @@ public static class CasetasRutaService
         return url;
     }
 
-    // ---------- HTML ----------
-
-    /// <summary>Opciones de un select: valor -> texto (sin acentos ni espacios extra).</summary>
-    private static List<(string Valor, string Texto)> Opciones(string html, string nombre)
+private static List<(string Valor, string Texto)> Opciones(string html, string nombre)
     {
         var m = Regex.Match(html, $"<select name=\"{Regex.Escape(nombre)}\"[^>]*>(.*?)</select>", RegexOptions.Singleline);
         if (!m.Success) return [];
@@ -279,13 +255,11 @@ public static class CasetasRutaService
             return t.Contains(ciudad, StringComparison.Ordinal) || ciudad.Contains(t, StringComparison.Ordinal);
         });
         if (parcial.Valor is not null) return parcial.Valor;
-        // "Ciudad Victoria" vs "C. Victoria": se compara sin el prefijo.
         var nucleo = Nucleo(ciudad);
         var porNucleo = ciudades.FirstOrDefault(c => Nucleo(Normalizar(c.Texto)) == nucleo);
         return porNucleo.Valor;
     }
 
-    /// <summary>Quita el prefijo de ciudad ("ciudad", "c.", "san") y el paréntesis.</summary>
     private static string Nucleo(string texto)
     {
         var t = Regex.Replace(texto, @"\(.*?\)", " ");
@@ -293,7 +267,6 @@ public static class CasetasRutaService
         return Regex.Replace(t, @"\s+", " ").Trim();
     }
 
-    /// <summary>Lee la tabla de la ruta: tramos con plaza de cobro, km y tarifa de auto.</summary>
     internal static ResultadoCasetasRuta ParsearRuta(string html)
     {
         foreach (Match tabla in Regex.Matches(html, "<table[^>]*>(.*?)</table>", RegexOptions.Singleline))

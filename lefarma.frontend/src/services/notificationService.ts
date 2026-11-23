@@ -1,9 +1,3 @@
-/**
- * Servicio para el sistema de notificaciones de Lefarma
- * Maneja el envío y recepción de notificaciones a través de múltiples canales
- */
-
-
 import { API } from '@/shared/api/apiClient';
 import type { ApiResponse } from '@/types/api.types';
 import type {
@@ -15,16 +9,9 @@ import type {
   NotificationFilter,
 } from '@/types/notification.types';
 
-/**
- * Servicio de notificaciones
- * Proporciona métodos para enviar y gestionar notificaciones
- */
 class NotificationService {
   private readonly basePath = '/notifications';
 
-  /**
-   * Envía una notificación a través de los canales especificados
-   */
   async sendNotification(request: SendNotificationRequest): Promise<SendNotificationResponse> {
     const response = await API.post<ApiResponse<SendNotificationResponse>>(
       `${this.basePath}/send`,
@@ -33,9 +20,6 @@ class NotificationService {
     return response.data.data;
   }
 
-  /**
-   * Envía una notificación a múltiples usuarios (bulk)
-   */
   async sendBulkNotification(request: BulkNotificationRequest): Promise<SendNotificationResponse> {
     const response = await API.post<ApiResponse<SendNotificationResponse>>(
       `${this.basePath}/send-bulk`,
@@ -44,9 +28,6 @@ class NotificationService {
     return response.data.data;
   }
 
-  /**
-   * Envía una notificación a todos los usuarios con roles específicos
-   */
   async sendByRole(request: RoleNotificationRequest): Promise<SendNotificationResponse> {
     const response = await API.post<ApiResponse<SendNotificationResponse>>(
       `${this.basePath}/send-by-role`,
@@ -55,10 +36,6 @@ class NotificationService {
     return response.data.data;
   }
 
-  /**
-   * Envía una notificación a todos los canales configurados
-   * Método de conveniencia para broadcast rápido
-   */
   async sendToAllChannels(
     title: string,
     message: string,
@@ -71,9 +48,6 @@ class NotificationService {
     return response.data.data;
   }
 
-  /**
-   * Obtiene las notificaciones del usuario actual
-   */
   async getUserNotifications(
     userId: number,
     filter?: NotificationFilter
@@ -91,39 +65,25 @@ class NotificationService {
     return response.data;
   }
 
-  /**
-   * Marca una notificación como leída
-   */
   async markAsRead(notificationId: number, userId: number): Promise<void> {
-    // Backend espera UserId con mayúscula (C# naming convention)
     const payload = { UserId: userId };
     await API.patch<ApiResponse<void>>(`${this.basePath}/${notificationId}/read`, payload);
   }
 
-  /**
-   * Marca todas las notificaciones del usuario como leídas
-   */
   async markAllAsRead(userId: number): Promise<void> {
     await API.patch<ApiResponse<void>>(`${this.basePath}/user/${userId}/read-all`);
   }
 
-  /**
-   * Obtiene el conteo de notificaciones no leídas
-   */
   async getUnreadCount(userId: number): Promise<number> {
     const notifications = await this.getUserNotifications(userId, { unreadOnly: true });
     return notifications.length;
   }
 
-  /**
-   * Envía una notificación de prueba para verificar la configuración
-   */
   async sendTestNotification(channelType: 'email' | 'telegram' | 'in-app'): Promise<SendNotificationResponse> {
     const testRequest: SendNotificationRequest = {
       channels: [
         {
           channelType,
-          // No especificamos userIds - el backend usará el usuario actual
         },
       ],
       title: 'Notificación de Prueba',
@@ -136,9 +96,6 @@ class NotificationService {
     return this.sendNotification(testRequest);
   }
 
-  /**
-   * Construye una solicitud de notificación con plantilla
-   */
   buildTemplatedNotification(
     templateId: string,
     templateData: Record<string, unknown>,
@@ -151,8 +108,8 @@ class NotificationService {
       })),
       templateId,
       templateData,
-      title: '', // Se llenará desde la plantilla
-      message: '', // Se llenará desde la plantilla
+      title: '', 
+      message: '', 
       type: 'info',
       priority: 'normal',
       category: 'system',
@@ -160,5 +117,4 @@ class NotificationService {
   }
 }
 
-// Singleton instance
 export const notificationService = new NotificationService();

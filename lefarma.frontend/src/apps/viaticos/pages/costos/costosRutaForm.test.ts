@@ -46,7 +46,6 @@ describe('typed route request', () => {
   it('resolves the origin from the branch catalog and the destination from the hospital catalog independently', () => {
     const person = { ...newPerson(1), name: 'Ana', originId: 1, destinations: [{ id: 1, hospitalId: 1, date: '2026-10-15' }] };
     const { request } = buildRouteRequest([person], branches, hospitals, options);
-    // Same numeric id (1) exists in both catalogs with different names and coordinates.
     expect(request?.personas[0].lugares.map(place => [place.orden, place.tipo, place.nombre, place.latitud])).toEqual([
       [1, 'salida', 'Branch 1', 19],
       [2, 'taller', 'Hospital Uno', 20],

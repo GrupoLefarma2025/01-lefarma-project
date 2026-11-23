@@ -11,10 +11,6 @@ using Microsoft.Extensions.Options;
 
 namespace Lefarma.API.Features.Sigma;
 
-/// <summary>
-/// Notificaciones por correo del módulo Documentos. Puerto de DocumentoEmailService de SIGMA
-/// sobre el canal de email de Lefarma (<see cref="EmailNotificationChannel"/>).
-/// </summary>
 public sealed class SigmaDocumentoEmailService
 {
     private readonly SigmaDb _db;
@@ -34,10 +30,6 @@ public sealed class SigmaDocumentoEmailService
         _logger = logger;
     }
 
-    /// <summary>
-    /// Envío masivo de autorizaciones pendientes: agrupa los documentos de app.Documentos
-    /// (últimos 2 meses, estatus 1) y manda un correo al destinatario configurado.
-    /// </summary>
     public async Task<DocumentoEmailResult> EnviarNotificacionesAutorizacionPendienteAsync(CancellationToken ct = default)
     {
         var resultado = new DocumentoEmailResult();
@@ -93,11 +85,6 @@ public sealed class SigmaDocumentoEmailService
         return resultado;
     }
 
-    /// <summary>
-    /// Notificación individual de un documento de app.Documentos.
-    /// <paramref name="soloCC"/> = true: aviso de documento subido a los CC (adjunta el PDF original).
-    /// false: aviso de autorizado/rechazado al destinatario principal (sólo enlace de descarga).
-    /// </summary>
     public async Task<DocumentoEmailResult> EnviarNotificacionDocumentoAsync(Guid idDocumento, bool soloCC, CancellationToken ct = default)
     {
         var documento = await _db.QueryFirstOrDefaultAsync<DocumentoEmailRow>(
@@ -145,7 +132,6 @@ public sealed class SigmaDocumentoEmailService
             : await EnviarNotificacionDecisionAsync(documento, metadata, ccList, ct);
     }
 
-    /// <summary>Recordatorio al aprobador actual de un documento del flujo (reenviar-notificación).</summary>
     public async Task<DocumentoEmailResult> EnviarRecordatorioAsync(Guid idDocumento, PasoNotificacionDto paso, CancellationToken ct = default)
     {
         var destinatario = paso.CorreoUsuario;
@@ -203,10 +189,6 @@ public sealed class SigmaDocumentoEmailService
         };
     }
 
-    /// <summary>
-    /// true si el correo del visitante aparece en el to/cc del MetadataJSON del documento legacy.
-    /// Se usa para que un visitante externo sólo notifique documentos que le corresponden.
-    /// </summary>
     public async Task<bool> CorreoAutorizadoAsync(Guid idDocumento, string correo, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(correo))
@@ -327,11 +309,9 @@ public sealed class SigmaDocumentoEmailService
         };
     }
 
-    /// <summary>URL pública base sin barra final (vacía si no está configurada).</summary>
     private string UrlBase() =>
         string.IsNullOrWhiteSpace(_options.Value.UrlBase) ? string.Empty : _options.Value.UrlBase.TrimEnd('/');
 
-    /// <summary>Ajusta el mensaje de éxito cuando el envío de correos está deshabilitado.</summary>
     private string MensajeCorreo(string mensajeEnviado)
     {
         if (_options.Value.EnviarCorreos)
@@ -360,9 +340,6 @@ public sealed class SigmaDocumentoEmailService
         NotificationAttachment? adjunto,
         CancellationToken ct)
     {
-        // Interruptor general: con Sigma:DocumentosNotificaciones:EnviarCorreos=false
-        // los correos NO van a los destinatarios reales. Si hay destinatarios de prueba,
-        // se redirigen solo a ellos (con el asunto marcado); si no hay, no se envía nada.
         if (!_options.Value.EnviarCorreos)
         {
             var prueba = DestinatariosDePrueba();
@@ -1130,7 +1107,6 @@ public sealed class SigmaDocumentoEmailService
     private static string Html(string? valor) => WebUtility.HtmlEncode(valor ?? string.Empty);
 }
 
-/// <summary>Correo/nombre de un aprobador cuando la subconsulta del SP no lo resuelve (aprobador anónimo).</summary>
 internal sealed record UsuarioDestinoRow
 {
     public string? Correo { get; init; }

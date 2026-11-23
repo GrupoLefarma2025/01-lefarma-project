@@ -3,10 +3,6 @@ using System.Globalization;
 
 namespace Lefarma.API.Shared.ModelBinders;
 
-/// <summary>
-/// Fuerza que los decimales se parseen con cultura invariante (punto como decimal),
-/// evitando que el servidor con cultura es-MX interprete el punto como separador de miles.
-/// </summary>
 public class DecimalModelBinder : IModelBinder
 {
     public Task BindModelAsync(ModelBindingContext bindingContext)
@@ -21,7 +17,6 @@ public class DecimalModelBinder : IModelBinder
         if (string.IsNullOrWhiteSpace(value))
             return Task.CompletedTask;
 
-        // Reemplazar coma por punto y luego parsear con InvariantCulture
         value = value.Replace(',', '.');
 
         if (decimal.TryParse(value, NumberStyles.Number, CultureInfo.InvariantCulture, out var result))

@@ -7,10 +7,6 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Lefarma.API.Features.Telemetria.Consulta;
 
-/// <summary>
-/// Consultas de solo lectura del panel. Todo se agrega en SQL Server; el único
-/// cálculo en memoria es el cruce de las rejillas del mapa de calor.
-/// </summary>
 public interface ITelemetriaConsulta
 {
     Task<ResumenTelemetria> ObtenerResumenAsync(DateTime desde, DateTime hasta, long descartados, int maximos, CancellationToken cancellationToken);
@@ -176,7 +172,6 @@ public sealed class TelemetriaConsulta(
             if (filas.Count == 0)
                 return null;
 
-            // Las rejillas de distinto tamaño no se pueden sumar: se usa la más común.
             var dominante = filas
                 .GroupBy(f => new { f.Columnas, f.Filas, f.TamanoCelda })
                 .OrderByDescending(g => g.Count())

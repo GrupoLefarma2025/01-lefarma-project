@@ -89,7 +89,6 @@ import { Dropzone, DropzoneContent, DropzoneEmptyState } from "@/apps/sigma/comp
 import { API_BASE_URL, del, get, post, postForm } from "@/apps/sigma/lib/httpClient";
 import { type Document } from "@/apps/sigma/lib/documents";
 
-// Interfaces
 interface Usuario {
   usuario: string;
   nombreCompleto: string;
@@ -135,7 +134,6 @@ interface PasoFlujo {
   motivoRechazo: string | null;
 }
 
-/** Documento adjunto tal como lo devuelve la API (tolera PascalCase y camelCase). */
 interface RawDocumentoAdjunto {
   IdDocumento?: string;
   idDocumento?: string;
@@ -155,7 +153,6 @@ interface RawDocumentoAdjunto {
   hashSHA256?: string | null;
 }
 
-/** Grupo de documentos tal como lo devuelve la API. */
 interface RawDocumentoGrupo {
   idGrupo?: string;
   IdGrupo?: string;
@@ -196,7 +193,6 @@ interface RawDocumentoGrupo {
   documentosGrupo?: unknown;
 }
 
-/** Usuario aprobador tal como lo devuelve la API. */
 interface RawUsuario {
   usuario?: string;
   Usuario?: string;
@@ -212,7 +208,6 @@ interface RawUsuario {
   PathFirma?: string;
 }
 
-/** Comentario del historial tal como lo devuelve la API. */
 interface RawComentario {
   fecha?: string;
   Fecha?: string;
@@ -229,7 +224,6 @@ export default function DocumentosFlujo() {
   const accessToken = sigmaAuth.getToken();
   const [mounted, setMounted] = useState(false);
 
-  // Estados de datos
   const [misDocumentos, setMisDocumentos] = useState<DocumentoFlujo[]>([]);
   const [pendientes, setPendientes] = useState<DocumentoFlujo[]>([]);
   const [firmados, setFirmados] = useState<DocumentoFlujo[]>([]);
@@ -237,14 +231,12 @@ export default function DocumentosFlujo() {
   const [loading, setLoading] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
-// Interface para archivos en el wizard
 interface WizardFile {
   id: string;
   file: File;
   column: 'Principal' | 'Complemento';
 }
 
-// Estados de subida de documento
 const [showUploadDialog, setShowUploadDialog] = useState(false);
 const [uploadFiles, setUploadFiles] = useState<WizardFile[]>([]);
 const [uploadReason, setUploadReason] = useState("");
@@ -257,10 +249,8 @@ const [flowBuilderEdges, setFlowBuilderEdges] = useState<Edge[]>([]);
 const [uploadingDocument, setUploadingDocument] = useState(false);
   const [flowError, setFlowError] = useState<string | null>(null);
 
-// Variable de entorno para controlar modo de subida
 const allowMultipleFiles = import.meta.env.VITE_DOCUMENTOS_FLUJO_MODO === 'multiple';
 
-  // Estados de flujo con React Flow
   const [showFlowDialog, setShowFlowDialog] = useState(false);
   const [flowNodes, setFlowNodes] = useNodesState<Node>([]);
   const [flowEdges, setFlowEdges] = useEdgesState<Edge>([]);
@@ -270,7 +260,6 @@ const allowMultipleFiles = import.meta.env.VITE_DOCUMENTOS_FLUJO_MODO === 'multi
   const [groupDocs, setGroupDocs] = useState<DocumentoAdjunto[]>([]);
   const [groupTitle, setGroupTitle] = useState<string>("");
 
-  // Estados de aprobación/rechazo
   const [showApproveDialog, setShowApproveDialog] = useState(false);
   const [showRejectDialog, setShowRejectDialog] = useState(false);
   const [selectedDocument, setSelectedDocument] = useState<DocumentoFlujo | null>(null);
@@ -279,7 +268,6 @@ const allowMultipleFiles = import.meta.env.VITE_DOCUMENTOS_FLUJO_MODO === 'multi
   const [isApproving, setIsApproving] = useState(false);
   const [isRejecting, setIsRejecting] = useState(false);
 
-  // Estados de preview
   const [previewDocument, setPreviewDocument] = useState<Document | null>(null);
 const [showPreview, setShowPreview] = useState(false);
 const [loadingDocumentId, setLoadingDocumentId] = useState<string | null>(null);
@@ -313,7 +301,6 @@ const [previewParentDoc, setPreviewParentDoc] = useState<DocumentoFlujo | null>(
   const loadDocuments = useCallback(async () => {
     setLoading(true);
     try {
-      // Cargar documentos de cada pestaña en paralelo
       const [misDocs, pendientesDocs, firmadosDocs, todosDocs] = await Promise.all([
         get<{ data?: RawDocumentoGrupo[] }>("/v2/documentos/mis-documentos"),
         get<{ data?: RawDocumentoGrupo[] }>("/v2/documentos/pendientes-firmar"),
@@ -461,13 +448,11 @@ const [previewParentDoc, setPreviewParentDoc] = useState<DocumentoFlujo | null>(
         toast.error("Debes ingresar el motivo de la solicitud");
         return;
       }
-      // Validar que haya al menos un archivo principal
       const principalFiles = uploadFiles.filter(f => f.column === 'Principal');
       if (principalFiles.length === 0) {
         toast.error("Debe haber al menos un archivo marcado como 'Principal'");
         return;
       }
-      // En modo single, solo un principal
       if (!allowMultipleFiles && principalFiles.length > 1) {
         toast.error("En modo simple solo puedes tener un archivo principal (los demás como anexos)");
         return;
@@ -498,7 +483,6 @@ const [previewParentDoc, setPreviewParentDoc] = useState<DocumentoFlujo | null>(
     }
   }, [showUploadDialog]);
 
-  // Ajustar nodos del builder al entrar a paso 3 o cambiar selección
   useEffect(() => {
     if (wizardStep !== 3) return;
     const nodes: Node[] = selectedUsers.map((usuario, idx) => ({
@@ -509,7 +493,6 @@ const [previewParentDoc, setPreviewParentDoc] = useState<DocumentoFlujo | null>(
       sourcePosition: Position.Right,
       targetPosition: Position.Left,
     }));
-    // Limpiar edges que apuntan a nodos eliminados
     const validIds = new Set(nodes.map((n) => n.id));
     setFlowBuilderNodes(nodes);
     setFlowBuilderEdges((eds) =>
@@ -523,7 +506,6 @@ const [previewParentDoc, setPreviewParentDoc] = useState<DocumentoFlujo | null>(
       return;
     }
 
-    // Evitar ciclos: si hay camino desde target a source, esta conexión crea ciclo
     if (hasPath(connection.target, connection.source, flowBuilderEdges)) {
       toast.error("No puedes conectar hacia un nodo anterior (evita ciclos)");
       return;
@@ -625,7 +607,6 @@ const [previewParentDoc, setPreviewParentDoc] = useState<DocumentoFlujo | null>(
   const addFiles = async (files: File[]) => {
     if (!files.length) return;
 
-    // Validar que todos sean PDF
     const invalidFiles = files.filter(f => f.type !== "application/pdf");
     if (invalidFiles.length > 0) {
       toast.error("Solo se permiten archivos PDF");
@@ -662,7 +643,6 @@ const [previewParentDoc, setPreviewParentDoc] = useState<DocumentoFlujo | null>(
       return;
     }
 
-    // Validar que haya al menos un archivo principal
     const principalFiles = uploadFiles.filter(f => f.column === 'Principal');
     if (principalFiles.length === 0) {
       toast.error("Debe haber al menos un archivo marcado como 'Principal'");
@@ -671,7 +651,6 @@ const [previewParentDoc, setPreviewParentDoc] = useState<DocumentoFlujo | null>(
 
     let ordenes: { Usuario: string; Orden: number }[] = [];
     try {
-      // Si no hay conexiones, poner todo en etapa 1
       if (flowBuilderNodes.length === 0) {
         const nodes = selectedUsers.map((u) => ({ id: u, data: { label: u }, position: { x: 0, y: 0 } }));
         setFlowBuilderNodes(nodes);
@@ -702,7 +681,6 @@ const [previewParentDoc, setPreviewParentDoc] = useState<DocumentoFlujo | null>(
 
       const formData = new FormData();
 
-      // Agregar todos los archivos
       uploadFiles.forEach((wf) => {
         formData.append(`archivos`, wf.file);
         formData.append(`tiposDocumento`, wf.column);
@@ -740,7 +718,6 @@ const [previewParentDoc, setPreviewParentDoc] = useState<DocumentoFlujo | null>(
       setFlowSteps(steps);
       setFlowDocument(doc);
 
-      // Crear nodos y edges para React Flow
       const nodes: Node[] = steps.map((step, index) => ({
         id: `step-${index}`,
         type: "default",
@@ -798,7 +775,7 @@ const [previewParentDoc, setPreviewParentDoc] = useState<DocumentoFlujo | null>(
         source: `step-${index}`,
         target: `step-${index + 1}`,
         type: "smoothstep",
-        animated: true, // animación estilo "hormiguitas" para indicar dirección
+        animated: true, 
         style: { strokeDasharray: "4 3" },
         markerEnd: {
           type: MarkerType.ArrowClosed,
@@ -1263,7 +1240,7 @@ const [previewParentDoc, setPreviewParentDoc] = useState<DocumentoFlujo | null>(
                 </Button>
               </>
             )}
-            {/* Reenviar notificación solo disponible en "Subidos por mí" (showResend) */}
+            {}
             {showResend && isCreator && doc.alertaColor !== "ninguna" && (
               <Button
                 variant="ghost"
@@ -1275,7 +1252,7 @@ const [previewParentDoc, setPreviewParentDoc] = useState<DocumentoFlujo | null>(
                 <Send className="h-3 w-3" />
               </Button>
             )}
-            {/* Eliminar solo en "Subidos por mí" y solo sin firmas (estatus EnProgreso) */}
+            {}
             {showResend && isCreator && doc.estatusFlujo === "EnProgreso" && (
               <Button
                 variant="ghost"
@@ -1342,7 +1319,7 @@ const [previewParentDoc, setPreviewParentDoc] = useState<DocumentoFlujo | null>(
               <Navbar />
               <main className="flex-1 p-3">
                 <div className="space-y-3 max-w-full">
-                  {/* Header */}
+                  {}
                   <div className="py-0.5">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
@@ -1369,7 +1346,7 @@ const [previewParentDoc, setPreviewParentDoc] = useState<DocumentoFlujo | null>(
                     </p>
                   </div>
 
-              {/* Subida de documento */}
+              {}
               <Card>
                 <CardContent className="py-3 px-3">
                   <Button
@@ -1382,7 +1359,7 @@ const [previewParentDoc, setPreviewParentDoc] = useState<DocumentoFlujo | null>(
                 </CardContent>
               </Card>
 
-              {/* Tabs de documentos */}
+              {}
               {loading ? (
                 <div className="flex items-center justify-center p-8">
                   <Spinner className="h-8 w-8" />
@@ -1542,7 +1519,7 @@ const [previewParentDoc, setPreviewParentDoc] = useState<DocumentoFlujo | null>(
           </>
         )}
 
-        {/* Preview Dialog */}
+        {}
         <PDFPreviewDialog
           document={previewDocument}
           open={showPreview}
@@ -1552,7 +1529,7 @@ const [previewParentDoc, setPreviewParentDoc] = useState<DocumentoFlujo | null>(
           onSelectAttachment={handleSelectAttachment}
         />
 
-        {/* Grupo de documentos */}
+        {}
         <Dialog open={showGroupDialog} onOpenChange={setShowGroupDialog}>
           <DialogContent className="sm:max-w-[520px]">
             <DialogHeader>
@@ -1635,7 +1612,7 @@ const [previewParentDoc, setPreviewParentDoc] = useState<DocumentoFlujo | null>(
           </DialogContent>
         </Dialog>
 
-        {/* Document Upload Dialog (Wizard) */}
+        {}
         <Dialog open={showUploadDialog} onOpenChange={setShowUploadDialog}>
           <DialogContent className="sm:max-w-[90vw] max-h-[90vh] overflow-y-auto">
             <DialogHeader>
@@ -1683,7 +1660,7 @@ const [previewParentDoc, setPreviewParentDoc] = useState<DocumentoFlujo | null>(
                     <Dropzone
                       accept={{ "application/pdf": [] }}
                       multiple
-                      maxSize={25 * 1024 * 1024} // 25MB
+                      maxSize={25 * 1024 * 1024} 
                       onDrop={handleDropFiles}
                       onError={(err) => toast.error(err.message)}
                       className="w-full"
@@ -1976,7 +1953,7 @@ const [previewParentDoc, setPreviewParentDoc] = useState<DocumentoFlujo | null>(
           </DialogContent>
         </Dialog>
 
-        {/* Flow Visualization Dialog */}
+        {}
         <Dialog open={showFlowDialog} onOpenChange={setShowFlowDialog}>
           <DialogContent className="sm:max-w-[90vw] max-h-[90vh] h-[90vh] flex flex-col">
             <DialogHeader>
@@ -2057,7 +2034,7 @@ const [previewParentDoc, setPreviewParentDoc] = useState<DocumentoFlujo | null>(
           </DialogContent>
         </Dialog>
 
-        {/* Approve Dialog */}
+        {}
         <Dialog open={showApproveDialog} onOpenChange={setShowApproveDialog}>
           <DialogContent>
             <DialogHeader>
@@ -2093,7 +2070,7 @@ const [previewParentDoc, setPreviewParentDoc] = useState<DocumentoFlujo | null>(
           </DialogContent>
         </Dialog>
 
-        {/* Reject Dialog */}
+        {}
         <Dialog open={showRejectDialog} onOpenChange={setShowRejectDialog}>
           <DialogContent>
             <DialogHeader>
@@ -2136,7 +2113,7 @@ const [previewParentDoc, setPreviewParentDoc] = useState<DocumentoFlujo | null>(
           </DialogContent>
         </Dialog>
 
-        {/* Comments History Dialog */}
+        {}
         <Dialog open={showCommentsDialog} onOpenChange={setShowCommentsDialog}>
           <DialogContent className="sm:max-w-[600px]">
             <DialogHeader>

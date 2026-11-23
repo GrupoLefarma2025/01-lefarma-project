@@ -1,16 +1,3 @@
-/* =====================================================================
-   Estilos de impresión — Educación Médica
-   Documentos: resumen de selección, planificación de rutas y matriz de
-   talleres. Cada portal se re-visibiliza aquí porque el bloque base de
-   impresión (index_ordenes.css) oculta todo con `body * { visibility:
-   hidden }` y saca #root del flujo.
-   ===================================================================== */
-
-/* ===== Impresion del resumen de seleccion (educacion medica) =====
-   El contenido imprimible vive en un portal propio (createPortal a body,
-   ver ResumenSeleccionModal). El bloque @media print de index_ordenes.css
-   oculta TODO con visibility:hidden; aqui se re-visible el resumen y se
-   saca al resto del DOM (#root, dialogo y overlay abiertos) del flujo. */
 @media print {
   #root,
   [role="dialog"],
@@ -49,9 +36,6 @@
   }
 }
 
-/* ===== Impresion de la planificacion de rutas (RutasPrintModal) =====
-   El portal #rutas-print vive fuera de #root; el @media print base oculta
-   todo con visibility:hidden, aqui se re-visible y se fuerza el contenido. */
 @media print {
   #rutas-print,
   #rutas-print * {
@@ -72,8 +56,6 @@
   }
 }
 
-/* ===== Impresion de la matriz de talleres (MatrizPrintDocument) =====
-   El FOR-005 tiene 19 columnas: A4 horizontal via body.print-matriz. */
 @media print {
   body.print-matriz {
     page: landscape;
