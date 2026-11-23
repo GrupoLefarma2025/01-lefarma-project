@@ -36,7 +36,16 @@ public sealed class RasterStampRenderer : IPdfStampRenderer
         CopiarMetadatos(origen, salida);
 
         var recursos = new List<IDisposable>();
-        var opciones = new RenderOptions { Dpi = ajustes.DpiAplanado };
+
+        // MuPDF, el que usa el script de Python, dibuja las anotaciones al aplanar. PDFium no lo
+        // hace si no se le pide, y con eso se perdían las notas que los usuarios dejan en el PDF
+        // (anotaciones FreeText, por ejemplo junto a la firma).
+        var opciones = new RenderOptions
+        {
+            Dpi = ajustes.DpiAplanado,
+            WithAnnotations = true,
+            WithFormFill = true,
+        };
         var numero = 1;
 
         try

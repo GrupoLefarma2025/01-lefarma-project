@@ -116,6 +116,15 @@ argumentos, variables de entorno, tiempo máximo y marcadores.
 copias `<id>.pdf` y `<id>_autorizado.pdf` se escriben en el almacén configurado antes de actualizar
 la base, y si el `UPDATE` afecta cero filas se lanza la misma excepción que antes.
 
+### AD-7 — El aplanado dibuja también las anotaciones del PDF
+
+El script usaba `page.get_pixmap` de MuPDF, que dibuja las anotaciones de la página por defecto;
+PDFium sólo las dibuja si se le pide. Como los usuarios dejan notas en el PDF (anotaciones
+`FreeText` junto a la firma, por ejemplo), `RasterStampRenderer` activa `WithAnnotations = true` y
+`WithFormFill = true`. Así la nota sigue viéndose después de autorizar, igual que con el script. El
+trazado de la leyenda `Id:`/`Fecha:` no cambia: cae debajo de la firma y, si el documento tiene una
+nota justo en esa franja, la leyenda la cruza, que es el mismo resultado que daba el script.
+
 ## Paridad medida
 
 Fixtures:
@@ -125,6 +134,9 @@ Fixtures:
 - (b) El documento real de SIGMA `fbf1ff22-05de-4900-9c13-f3e7e9e6b777.pdf` (1 página apaisada,
   productor jsPDF 4.2.1, fuentes estándar Helvetica, Times, Courier, Symbol y ZapfDingbats sin
   incrustar, marca `#firmad` en Helvetica 7,5 pt).
+- (c) El documento real `e870e903-03c5-46d2-b9fa-83e36aeba29f.pdf` (2 páginas carta, Word 2016) con
+  dos anotaciones `FreeText` en la página 2, «Nota:» y «Solicitar reunion con Luis…», junto a la
+  marca `#firmad`.
 
 Misma imagen `scripts/assets/firma.png` y misma fecha de autorización en ambos motores.
 
@@ -148,6 +160,11 @@ Las fuentes estándar sin incrustar (base 14) se miden con la tabla `AscensosBas
 `PdfTextLocator` (catorce valores medidos contra PyMuPDF 1.27.1), porque MuPDF no usa el rectángulo
 del glifo sino sus propias métricas. Con eso la caja cae donde cae con el script también en los
 documentos jsPDF que hoy usa Lefarma.
+
+En (c), firmado con los dos motores y recortado el mismo trozo, la nota azul aparece en ambos y la
+página 2 queda sin texto extraíble; la leyenda `Id:`/`Fecha:` cruza la nota en los dos casos porque
+el documento la coloca justo debajo de la firma. La diferencia media medida en esa página (muestreo
+del raster a 200 dpi) es 0,45/255, del mismo orden que el remuestreo de los otros casos.
 
 ## Implementación
 
@@ -178,8 +195,12 @@ Se modifican `SigmaPdfSignatureRunner.cs` (fachada), `SigmaPdfSignatureOptions.c
   firmado, escaneo, marcador ausente, documento inexistente, cifrado y ausencia de texto
   extraíble).
 - Paridad con el script real: la tabla de arriba.
-- Pendiente: humo en desarrollo (subir, autorizar, descargar y abrir un PDF) y verificar la
-  publicación `win-x64` con los binarios nativos de PDFium.
+- Notas del PDF: con el documento (c) se renderiza la página 2 con y sin `WithAnnotations`; sin la
+  opción la nota desaparece y con ella aparece, y el resultado firmado coincide con el del script.
+- Humo en desarrollo: subir, autorizar, descargar y abrir el PDF con el motor C# (documento
+  sintético, 16 s de extremo a extremo y ~1,5 s de firma real).
+- Publicación `win-x64`: `pdfium.dll` y `libSkiaSharp.dll` quedan junto al ejecutable y no se copian
+  binarios de otras plataformas.
 
 ## Consecuencias
 
