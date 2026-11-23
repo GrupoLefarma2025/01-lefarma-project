@@ -248,8 +248,6 @@ export function BandejaView({
     const requestId = ++lastRequestIdRef.current;
     setLoading(true);
     try {
-      console.log("bandeja loadDocuments: Starting to load documents");
-
       // Construir parámetros de consulta
       const params = new URLSearchParams({
         soloActivos: "true",
@@ -281,14 +279,8 @@ export function BandejaView({
       }
 
       const path = `/sigma/pdf-signature/listar-documento?${params}`;
-      console.log("bandeja loadDocuments: Fetching from URL:", path);
 
       const result = await get<{ data?: RawDocumentoApi[] }>(path);
-      console.log("bandeja loadDocuments: API result:", result);
-      console.log(
-        "bandeja loadDocuments: Documents count:",
-        result.data?.length || 0
-      );
 
       const docs: Document[] = (result.data || [])
         .map((doc: RawDocumentoApi): Document => ({
@@ -318,13 +310,9 @@ export function BandejaView({
         .filter((doc: Document) => shouldFilterDocumentByMode(doc, mode));
 
       if (requestId !== lastRequestIdRef.current) {
-        console.log(
-          "bandeja loadDocuments: respuesta obsoleta, se ignora (hay un filtro más reciente)"
-        );
         return;
       }
 
-      console.log("bandeja loadDocuments: Setting", docs.length, "documents");
       setDocuments(docs);
     } catch (error) {
       console.error("bandeja loadDocuments: Error loading documents:", error);
@@ -375,15 +363,11 @@ export function BandejaView({
   };
 
   const handlePreview = async (document: Document, mostrarDocumentoSoporte?: boolean) => {
-    console.log("bandeja handlePreview: Document ID:", document.id);
-    console.log("bandeja handlePreview: Document object:", document);
-    
     // Si no se especifica mostrarDocumentoSoporte, usar false por defecto (documento original)
     const showSupport = mostrarDocumentoSoporte !== undefined 
       ? mostrarDocumentoSoporte 
       : false;
     
-    console.log("bandeja handlePreview: mostrarDocumentoSoporte:", showSupport);
     setLoadingDocumentId(document.id);
     try {
       if (previewUrlRef.current) {
@@ -392,7 +376,6 @@ export function BandejaView({
       }
 
       const path = `/sigma/pdf-signature/pdf/${document.id}?descargar=true&mostrarDocumentoSoporte=${showSupport}`;
-      console.log("bandeja handlePreview: Fetching from URL:", path);
 
       const blob = await getBlob(path);
       if (!blob || blob.size === 0) {
