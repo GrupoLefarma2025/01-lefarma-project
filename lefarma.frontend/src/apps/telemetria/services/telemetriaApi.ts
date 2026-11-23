@@ -23,11 +23,8 @@ import type {
 // Ruta relativa a propósito: en desarrollo la atiende el proxy de Vite y en
 // producción el mismo sitio, así el panel no depende de configuración de
 // origen ni de CORS (a diferencia del resto de la app).
-const BASE_URL = '/api';
+const BASE_URL = '/api/telemetria';
 const ESPERA_MAXIMA_MS = 12_000;
-
-/** TEMPORAL: últimas respuestas y errores, para diagnosticar la pantalla. */
-export const diagnosticoApi = { ultimoCuerpo: '', ultimoError: '' };
 
 function construirUrl(ruta: string, params: Record<string, string | number | undefined>): string {
   const url = new URL(`${BASE_URL}${ruta}`, window.location.origin);
@@ -44,7 +41,6 @@ async function pedir<T>(
   const url = construirUrl(ruta, params);
   const control = new AbortController();
   const temporizador = window.setTimeout(() => control.abort(), ESPERA_MAXIMA_MS);
-  diagnosticoApi.ultimoError = '';
 
   try {
     const token = localStorage.getItem('accessToken');
@@ -57,7 +53,6 @@ async function pedir<T>(
       signal: control.signal,
     });
     const crudo = await respuesta.text();
-    diagnosticoApi.ultimoCuerpo = `${respuesta.status} ${url} :: ${crudo.slice(0, 200)}`;
 
     if (!respuesta.ok) {
       throw {
@@ -96,7 +91,6 @@ async function pedir<T>(
           : error instanceof Error
             ? error.message
             : ((error as ApiError)?.message ?? 'Error desconocido.');
-    diagnosticoApi.ultimoError = motivo;
     throw { message: motivo, statusCode: 0 } satisfies ApiError;
   } finally {
     window.clearTimeout(temporizador);

@@ -72,7 +72,7 @@ function reiniciar(): EstadoMapa | null {
 }
 
 function manejarPuntero(evento: PointerEvent): void {
-  if (!TELEMETRIA_ACTIVA || !estado) {
+  if (!TELEMETRIA_ACTIVA || !estado || document.visibilityState === 'hidden') {
     return;
   }
 

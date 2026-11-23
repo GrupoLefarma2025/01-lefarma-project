@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Download, MousePointer2, RefreshCw } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Download, MonitorPlay, MousePointer2, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -19,12 +19,20 @@ interface Props {
   hasta: Date;
 }
 
+/** Rutas donde no tiene sentido incrustar la pantalla (o sería recursivo). */
+function sinFondo(ruta: string): boolean {
+  return ruta.startsWith('/configuracion') || ruta.startsWith('/login');
+}
+
 export function MapaCalorTab({ desde, hasta }: Props) {
   const [rutas, setRutas] = useState<RutaResumen[]>([]);
   const [ruta, setRuta] = useState<string>('');
   const [mapa, setMapa] = useState<MapaCalorResumen | null>(null);
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [conFondo, setConFondo] = useState(true);
+  const [escala, setEscala] = useState(1);
+  const contenedorRef = useRef<HTMLDivElement | null>(null);
 
   const cargarRutas = useCallback(async () => {
     try {
@@ -72,6 +80,49 @@ export function MapaCalorTab({ desde, hasta }: Props) {
     [mapa],
   );
 
+  const ancho = mapa ? mapa.columnas * mapa.tamanoCelda : 0;
+  const alto = mapa ? mapa.filas * mapa.tamanoCelda : 0;
+  const conPantalla = Boolean(mapa && conFondo && !sinFondo(mapa.ruta));
+
+  // La captura se tomó con un ancho de ventana concreto (columnas × celda);
+  // se dibuja a ese tamaño y se reduce para que quepa, así las celdas coinciden.
+  useEffect(() => {
+    const elemento = contenedorRef.current;
+    if (!elemento || !ancho) return;
+    const ajustar = () => {
+      setEscala(Math.min(1, elemento.clientWidth / ancho));
+    };
+    ajustar();
+    if (typeof ResizeObserver === 'undefined') return;
+    const observador = new ResizeObserver(ajustar);
+    observador.observe(elemento);
+    return () => observador.disconnect();
+  }, [ancho, conPantalla]);
+
+  const celda = mapa ? mapa.tamanoCelda : 32;
+
+  const celdas = (
+    <div
+      role="img"
+      aria-label={`Mapa de calor de ${mapa ? mapa.ruta : ''}`}
+      className="grid"
+      style={{
+        gridTemplateColumns: `repeat(${mapa ? mapa.columnas : 0}, ${celda}px)`,
+        gridAutoRows: `${celda}px`,
+        mixBlendMode: conPantalla ? 'multiply' : 'normal',
+      }}
+    >
+      {(mapa ? mapa.celdas : []).map((valor, indice) => (
+        <div
+          key={indice}
+          className="border border-white/40"
+          style={{ backgroundColor: colorCalor(valor, maximo) }}
+          title={`Celda ${indice}: ${numero(valor)} movimientos`}
+        />
+      ))}
+    </div>
+  );
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
@@ -90,6 +141,16 @@ export function MapaCalorTab({ desde, hasta }: Props) {
         <Button variant="outline" size="sm" onClick={() => void cargarMapa()} disabled={cargando || !ruta}>
           <RefreshCw className="mr-2 h-4 w-4" />
           Actualizar
+        </Button>
+        <Button
+          variant={conFondo ? 'secondary' : 'outline'}
+          size="sm"
+          onClick={() => setConFondo((actual) => !actual)}
+          aria-pressed={conFondo}
+          title="Superpone el calor sobre la pantalla real de esa ruta"
+        >
+          <MonitorPlay className="mr-2 h-4 w-4" />
+          {conFondo ? 'Viendo la pantalla' : 'Ver la pantalla'}
         </Button>
         {mapa && (
           <Button
@@ -121,12 +182,10 @@ export function MapaCalorTab({ desde, hasta }: Props) {
       <Card>
         <CardHeader className="flex-row items-center justify-between space-y-0">
           <div>
-            <CardTitle className="text-base">
-              {mapa ? mapa.ruta : 'Movimiento del puntero'}
-            </CardTitle>
+            <CardTitle className="text-base">{mapa ? mapa.ruta : 'Movimiento del puntero'}</CardTitle>
             <p className="text-xs text-muted-foreground">
               {mapa
-                ? `${numero(mapa.totalMovimientos)} movimientos · rejilla ${mapa.columnas}×${mapa.filas} de ${mapa.tamanoCelda} px`
+                ? `${numero(mapa.totalMovimientos)} movimientos · rejilla ${mapa.columnas}×${mapa.filas} de ${mapa.tamanoCelda} px · ventana de ${ancho}×${alto} px`
                 : 'Elige una ruta para ver dónde se detiene el puntero.'}
             </p>
           </div>
@@ -152,27 +211,34 @@ export function MapaCalorTab({ desde, hasta }: Props) {
             <Skeleton className="h-[420px] w-full" />
           ) : mapa ? (
             <div className="space-y-3">
-              <div
-                className="grid w-full overflow-hidden rounded-md border bg-muted/20"
-                style={{
-                  gridTemplateColumns: `repeat(${mapa.columnas}, minmax(0, 1fr))`,
-                }}
-                role="img"
-                aria-label={`Mapa de calor de ${mapa.ruta}`}
-              >
-                {mapa.celdas.map((valor, indice) => (
+              {conPantalla ? (
+                <div
+                  ref={contenedorRef}
+                  className="relative overflow-hidden rounded-md border bg-muted/20"
+                  style={{ height: alto * escala }}
+                >
                   <div
-                    key={indice}
-                    className="aspect-[4/3] border border-white/40"
-                    style={{ backgroundColor: colorCalor(valor, maximo) }}
-                    title={`Celda ${indice}: ${numero(valor)} movimientos`}
-                  />
-                ))}
-              </div>
+                    className="absolute left-0 top-0"
+                    style={{ width: ancho, height: alto, transform: `scale(${escala})`, transformOrigin: 'top left' }}
+                  >
+                    <iframe
+                      title={`Pantalla de ${mapa.ruta}`}
+                      src={`${mapa.ruta}?telemetria=off`}
+                      width={ancho}
+                      height={alto}
+                      className="pointer-events-none block border-0 bg-background"
+                    />
+                    <div className="absolute inset-0">{celdas}</div>
+                  </div>
+                </div>
+              ) : (
+                <div className="max-w-full overflow-x-auto rounded-md border bg-muted/20">{celdas}</div>
+              )}
               <p className="text-xs text-muted-foreground">
-                El calor es una aproximación de dónde se detuvo el ratón, no de dónde miró la
-                persona. Si el diseño de la pantalla cambió dentro del periodo, las zonas viejas
-                no coinciden con la versión actual.
+                El fondo es la pantalla real de esa ruta, dibujada al tamaño de ventana que tenía
+                quien la usó; el calor encima marca dónde se detuvo el ratón, no dónde miró la
+                persona. Si el diseño cambió dentro del periodo, las zonas viejas no coinciden.
+                {sinFondo(mapa.ruta) ? ' Esta ruta se muestra solo como rejilla.' : ''}
               </p>
             </div>
           ) : (

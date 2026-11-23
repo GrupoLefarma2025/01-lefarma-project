@@ -11,6 +11,11 @@ import { pedirEnvio } from './emisor';
 
 const MAXIMO_ELEMENTO = 200;
 const MAXIMO_ETIQUETA = 80;
+/** Tope por página y visita: un bucle o una lista muy clickeada no infla la telemetría. */
+const MAXIMO_CLICS_POR_PAGINA = 400;
+
+let clicsEnPagina = 0;
+let rutaContada = '';
 
 /**
  * Quita de la etiqueta lo que podría identificar una fila o revelar datos:
@@ -88,13 +93,18 @@ function identidadDe(elemento: Element): {
   };
 }
 
-function elementoInteractivo(objetivo: Element): Element {
-  const interactivo = objetivo.closest(
-    'button, a, [role="button"], [role="tab"], [role="menuitem"], [role="option"], ' +
+/**
+ * Devuelve el elemento interactivo más cercano o `null` si el clic cayó en un
+ * hueco de la pantalla. Los clics en zonas muertas no se guardan como botones:
+ * la posición ya queda en el mapa de calor y así la tabla de botones es limpia.
+ */
+function elementoInteractivo(objetivo: Element): Element | null {
+  return objetivo.closest(
+    'button, a[href], [role="button"], [role="tab"], [role="menuitem"], [role="option"], ' +
+      '[role="switch"], [role="menuitemcheckbox"], [role="menuitemradio"], summary, select, ' +
       'input[type="submit"], input[type="button"], input[type="checkbox"], ' +
       'input[type="radio"], label, [data-track]',
   );
-  return interactivo ?? objetivo;
 }
 
 function manejarClic(evento: MouseEvent): void {
@@ -117,9 +127,18 @@ function manejarClic(evento: MouseEvent): void {
     }
 
     const elemento = elementoInteractivo(objetivo);
-    if (elemento.tagName.toLowerCase() === 'option') {
+    if (!elemento || elemento.tagName.toLowerCase() === 'option') {
       return;
     }
+
+    if (ruta !== rutaContada) {
+      rutaContada = ruta;
+      clicsEnPagina = 0;
+    }
+    if (clicsEnPagina >= MAXIMO_CLICS_POR_PAGINA) {
+      return;
+    }
+    clicsEnPagina += 1;
 
     const datos = identidadDe(elemento);
     void encolar({
@@ -145,5 +164,5 @@ export function instalarCapturaDeClics(): void {
     return;
   }
 
-  document.addEventListener('click', manejarClic, true);
+  document.addEventListener('click', manejarClic, { capture: true, passive: true });
 }

@@ -59,9 +59,19 @@ function estaApagadaPorElUsuario(): boolean {
   }
 }
 
+/** `?telemetria=off` permite mostrar la app dentro de un iframe (mapa de calor) sin que se retroalimente. */
+function estaApagadaPorUrl(): boolean {
+  try {
+    return new URLSearchParams(window.location.search).get('telemetria') === 'off';
+  } catch {
+    return false;
+  }
+}
+
 export const TELEMETRIA_ACTIVA =
   leerBooleano(import.meta.env.VITE_TELEMETRIA_ACTIVA, true) &&
   !estaEnAutotest() &&
+  !estaApagadaPorUrl() &&
   !prefiereNoRastrear() &&
   !estaApagadaPorElUsuario();
 

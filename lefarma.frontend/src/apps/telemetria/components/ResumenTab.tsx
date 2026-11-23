@@ -21,8 +21,8 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { telemetriaApi, diagnosticoApi } from '../services/telemetriaApi';
-import type { EstadoTelemetria, ResumenTelemetria } from '../types';
+import { telemetriaApi } from '../services/telemetriaApi';
+import type { EstadoTelemetria, ResumenTelemetria, RutaResumen } from '../types';
 import { fechaHora, numero, porcentaje, recortar } from '../utils';
 
 interface Props {
@@ -33,6 +33,7 @@ interface Props {
 export function ResumenTab({ desde, hasta }: Props) {
   const [resumen, setResumen] = useState<ResumenTelemetria | null>(null);
   const [estado, setEstado] = useState<EstadoTelemetria | null>(null);
+  const [rutas, setRutas] = useState<RutaResumen[]>([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -40,12 +41,14 @@ export function ResumenTab({ desde, hasta }: Props) {
     setCargando(true);
     setError(null);
     try {
-      const [datosResumen, datosEstado] = await Promise.all([
+      const [datosResumen, datosEstado, datosRutas] = await Promise.all([
         telemetriaApi.resumen(desde, hasta),
         telemetriaApi.estado().catch(() => null),
+        telemetriaApi.rutas(desde, hasta).catch(() => [] as RutaResumen[]),
       ]);
       setResumen(datosResumen);
       setEstado(datosEstado);
+      setRutas(datosRutas);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo cargar el resumen.');
     } finally {
@@ -57,22 +60,23 @@ export function ResumenTab({ desde, hasta }: Props) {
     void cargar();
   }, [cargar]);
 
-  // TEMPORAL: se deja a la vista el estado de la carga mientras se investiga
-  // por qué la pestaña se veía vacía. Se retira al confirmar la causa.
-  const diagnostico = (
-    <p className="rounded border border-dashed border-amber-500 bg-amber-50 p-2 text-xs text-amber-900">
-      DIAG · cargando={String(cargando)} · error={error ?? '—'} · resumen=
-      {resumen ? `${resumen.erroresPeriodo} errores / ${resumen.clicsPeriodo} clics` : 'null'} ·
-      desde={String(desde)} · hasta={String(hasta)} · err={diagnosticoApi.ultimoError || '—'}
-      <br />
-      raw={diagnosticoApi.ultimoCuerpo || '(sin respuesta)'}
-    </p>
-  );
+  const modulos = (() => {
+    const acumulado = new Map<string, { clics: number; errores: number }>();
+    for (const fila of rutas) {
+      const modulo = `/${fila.ruta.split('/')[1] ?? ''}`;
+      const actual = acumulado.get(modulo) ?? { clics: 0, errores: 0 };
+      actual.clics += fila.clics;
+      actual.errores += fila.errores;
+      acumulado.set(modulo, actual);
+    }
+    return [...acumulado.entries()]
+      .sort((a, b) => b[1].clics + b[1].errores - (a[1].clics + a[1].errores))
+      .slice(0, 6);
+  })();
 
   if (cargando) {
     return (
       <div className="space-y-3">
-        {diagnostico}
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           {[0, 1, 2, 3].map((indice) => (
             <Skeleton key={indice} className="h-28 w-full" />
@@ -84,25 +88,19 @@ export function ResumenTab({ desde, hasta }: Props) {
 
   if (error) {
     return (
-      <div className="space-y-3">
-        {diagnostico}
-        <Card>
-          <CardContent className="py-8 text-center text-sm text-destructive">{error}</CardContent>
-        </Card>
-      </div>
+      <Card>
+        <CardContent className="py-8 text-center text-sm text-destructive">{error}</CardContent>
+      </Card>
     );
   }
 
   if (!resumen) {
     return (
-      <div className="space-y-3">
-        {diagnostico}
-        <Card>
-          <CardContent className="py-8 text-center text-sm text-muted-foreground">
-            No hay datos de telemetría para el periodo seleccionado.
-          </CardContent>
-        </Card>
-      </div>
+      <Card>
+        <CardContent className="py-8 text-center text-sm text-muted-foreground">
+          No hay datos de telemetría para el periodo seleccionado.
+        </CardContent>
+      </Card>
     );
   }
 
@@ -113,7 +111,6 @@ export function ResumenTab({ desde, hasta }: Props) {
 
   return (
     <div className="space-y-4">
-      {diagnostico}
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <TarjetaIndicador
           titulo="Errores hoy"
@@ -244,6 +241,39 @@ export function ResumenTab({ desde, hasta }: Props) {
           </CardContent>
         </Card>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Módulos con más actividad</CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Módulo</TableHead>
+                <TableHead className="text-right">Clics</TableHead>
+                <TableHead className="text-right">Errores</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {modulos.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={3} className="text-center text-sm text-muted-foreground">
+                    Sin actividad registrada en el periodo.
+                  </TableCell>
+                </TableRow>
+              )}
+              {modulos.map(([modulo, datos]) => (
+                <TableRow key={modulo}>
+                  <TableCell className="font-medium">{modulo}</TableCell>
+                  <TableCell className="text-right tabular-nums">{numero(datos.clics)}</TableCell>
+                  <TableCell className="text-right tabular-nums">{numero(datos.errores)}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
 
       {resumen.eventosDescartados > 0 && (
         <p className="text-xs text-amber-600">
