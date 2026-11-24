@@ -986,7 +986,125 @@ public class SolicitudesControllerTests
             .Should().BeTrue("guardar opciones sigue registrando su propia bitacora");
     }
 
-private sealed class TestContext : IDisposable
+    [Fact]
+    public async Task PutPrecioReal_ConCaptura_ConvierteLaOpcionYRecalculaTotales()
+    {
+        using var ctx = new TestContext();
+        const int duenoId = 9800;
+        var idSolicitud = ctx.SembrarSolicitud(duenoId, "MIA -> ZLO", estado: "enviada");
+        var idOpcion = ctx.SembrarOpcionEstimada(
+            idSolicitud,
+            referencia: 1546.14m,
+            urlCompra: "https://www.kayak.com.mx/flights/MEX-ZLO/2026-11-20");
+
+        using var cliente = ctx.Servidor.CreateClient();
+        cliente.DefaultRequestHeaders.Add("X-Test-UserId", duenoId.ToString());
+        cliente.DefaultRequestHeaders.Add("X-Test-Permissions", Permissions.Viaticos.Solicitar);
+
+        var resp = await cliente.PutAsJsonAsync(
+            $"/api/viaticos/solicitudes/{idSolicitud}/opciones/{idOpcion}/precio",
+            new
+            {
+                linea = "Aeroméxico 08:00–09:34",
+                precio = 4974m,
+                moneda = "MXN",
+                fuente = "kayak.com.mx",
+                url_compra = "https://www.kayak.com.mx/flights/MEX-ZLO/2026-11-20",
+                ruta_captura = "capturas-viaticos/viaje31-op108.png",
+                salida = "2026-11-20T08:00",
+                llegada = "2026-11-20T09:34",
+            });
+
+        resp.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        using var scope = ctx.Servidor.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var opcion = await db.SolicitudOpciones.AsNoTracking().SingleAsync(o => o.IdOpcion == idOpcion);
+        opcion.Precio.Should().Be(4974m);
+        opcion.Linea.Should().Be("Aeroméxico 08:00–09:34");
+        opcion.Fuente.Should().Be("kayak.com.mx");
+        opcion.RutaCaptura.Should().Be("capturas-viaticos/viaje31-op108.png");
+        opcion.DatosJson.Should().Contain("\"tipo_precio\":\"cotizado\"");
+        opcion.DatosJson.Should().Contain("\"precio_estimado\":1546.14");
+
+        var solicitud = await db.Solicitudes.AsNoTracking().SingleAsync(s => s.IdSolicitud == idSolicitud);
+        using var datos = JsonDocument.Parse(solicitud.DatosJson);
+        datos.RootElement.GetProperty("total_cotizado").GetDecimal().Should().Be(4974m);
+        datos.RootElement.GetProperty("total").GetDecimal().Should().Be(4974m);
+
+        db.SolicitudEventos.AsNoTracking()
+            .Any(e => e.IdSolicitud == idSolicitud && e.Tipo == "precio_real_capturado")
+            .Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task PutPrecioReal_SinCaptura_Retorna400YNoCambiaLaOpcion()
+    {
+        using var ctx = new TestContext();
+        const int duenoId = 9801;
+        var idSolicitud = ctx.SembrarSolicitud(duenoId, "MIA -> ZLO", estado: "enviada");
+        var idOpcion = ctx.SembrarOpcionEstimada(
+            idSolicitud,
+            referencia: 1546.14m,
+            urlCompra: "https://www.kayak.com.mx/flights/MEX-ZLO/2026-11-20",
+            rutaCaptura: null);
+
+        using var cliente = ctx.Servidor.CreateClient();
+        cliente.DefaultRequestHeaders.Add("X-Test-UserId", duenoId.ToString());
+        cliente.DefaultRequestHeaders.Add("X-Test-Permissions", Permissions.Viaticos.Solicitar);
+
+        var resp = await cliente.PutAsJsonAsync(
+            $"/api/viaticos/solicitudes/{idSolicitud}/opciones/{idOpcion}/precio",
+            new
+            {
+                linea = "Aeroméxico 08:00–09:34",
+                precio = 4974m,
+                moneda = "MXN",
+                fuente = "kayak.com.mx",
+                url_compra = "https://www.kayak.com.mx/flights/MEX-ZLO/2026-11-20",
+                ruta_captura = (string?)null,
+            });
+
+        resp.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        var body = await resp.Content.ReadAsStringAsync();
+        body.Should().Contain("captura");
+
+        using var scope = ctx.Servidor.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var opcion = await db.SolicitudOpciones.AsNoTracking().SingleAsync(o => o.IdOpcion == idOpcion);
+        opcion.Precio.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task PutPrecioReal_EnSolicitudAutorizada_Retorna409()
+    {
+        using var ctx = new TestContext();
+        const int duenoId = 9802;
+        var idSolicitud = ctx.SembrarSolicitud(duenoId, "MIA -> ZLO", estado: "autorizada");
+        var idOpcion = ctx.SembrarOpcionEstimada(
+            idSolicitud,
+            referencia: 1546.14m,
+            urlCompra: "https://www.kayak.com.mx/flights/MEX-ZLO/2026-11-20");
+
+        using var cliente = ctx.Servidor.CreateClient();
+        cliente.DefaultRequestHeaders.Add("X-Test-UserId", duenoId.ToString());
+        cliente.DefaultRequestHeaders.Add("X-Test-Permissions", Permissions.Viaticos.Solicitar);
+
+        var resp = await cliente.PutAsJsonAsync(
+            $"/api/viaticos/solicitudes/{idSolicitud}/opciones/{idOpcion}/precio",
+            new
+            {
+                precio = 4974m,
+                moneda = "MXN",
+                fuente = "kayak.com.mx",
+                url_compra = "https://www.kayak.com.mx/flights/MEX-ZLO/2026-11-20",
+                ruta_captura = "capturas-viaticos/test.png",
+            });
+
+        resp.StatusCode.Should().Be(HttpStatusCode.Conflict);
+    }
+
+    private sealed class TestContext : IDisposable
     {
         private readonly string _dbName = $"SolicitudesCtrl-{Guid.NewGuid():N}";
         public TestServer Servidor { get; }
@@ -1158,6 +1276,41 @@ private sealed class TestContext : IDisposable
                 CapturadaEn = null,
             });
             db.SaveChanges();
+        }
+
+        /// <summary>
+        /// Opción de vuelo estimada: `Precio=null` y la referencia en
+        /// `datos.precio_estimado`, como la persiste el wizard corregido.
+        /// </summary>
+        public int SembrarOpcionEstimada(
+            int idSolicitud,
+            decimal referencia,
+            string? urlCompra,
+            string? rutaCaptura = "capturas-viaticos/viaje31-op108.png")
+        {
+            using var scope = Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var opcion = new SolicitudOpcion
+            {
+                IdSolicitud = idSolicitud,
+                Tipo = "vuelo",
+                Linea = "Vuelo (estimado)",
+                DatosJson = JsonSerializer.Serialize(new
+                {
+                    tipo_precio = "estimado",
+                    precio_estimado = referencia,
+                }),
+                Precio = null,
+                Moneda = "MXN",
+                UrlCompra = urlCompra,
+                Fuente = "estimado fase 1 (sin proveedor)",
+                FueElegida = true,
+                RutaCaptura = rutaCaptura,
+                CapturadaEn = rutaCaptura is null ? null : DateTime.UtcNow,
+            };
+            db.SolicitudOpciones.Add(opcion);
+            db.SaveChanges();
+            return opcion.IdOpcion;
         }
 
         public void SembrarEvento(int idSolicitud, string tipo, int userId, string? payloadJson = null)

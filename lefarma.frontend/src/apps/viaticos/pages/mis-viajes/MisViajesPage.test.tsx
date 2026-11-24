@@ -22,6 +22,7 @@ vi.mock('../../services/solicitudes.api', () => ({
     actualizar: vi.fn(),
     enviar: vi.fn(),
     guardarOpciones: vi.fn(),
+    detectarPrecioPreview: vi.fn(),
   },
 }));
 vi.mock('../../services/evidencias.api', () => ({
@@ -259,6 +260,50 @@ describe('MisViajesPage', () => {
     expect(screen.getByTestId('detalle-viaje')).toHaveTextContent('Compartido con Ana Acompañante');
     expect(screen.getByTestId('detalle-viaje')).toHaveTextContent('Vuelo Y');
     expect(screen.queryAllByTestId('viaje-1')).toHaveLength(1);
+  });
+
+  it('muestra que el precio se está detectando sin pulsar nada', async () => {
+    const usuario = userEvent.setup();
+    mocks.mis.mockResolvedValue({
+      data: { success: true, data: [solicitud(1, { datos: { version: 'solicitud-v2' } })] },
+    });
+    mocks.detalle.mockResolvedValue({
+      data: {
+        success: true,
+        data: solicitud(1, {
+          datos: {
+            version: 'solicitud-v2',
+            persona: { modo: 'mia', nombre: 'Persona Actual', motivo: 'Ejemplo' },
+            transporte: { modo: 'solicitado', compartir: false, acompanantes: [] },
+            destinos: [{ punto: { nombre: 'La Huerta' }, debeEstarFecha: '2026-11-20', debeEstarHora: '16:14' }],
+            retorno: { destino: 'origen', punto: null },
+            rango: { inicio: '2026-11-20', fin: '2026-11-21' },
+          },
+          opciones: [
+            {
+              id_opcion: 1,
+              tipo: 'hotel',
+              linea: 'Hotel Camino Real (2026-11-20 al 2026-11-21)',
+              precio: null,
+              moneda: 'MXN',
+              url_compra: 'https://www.google.com/travel/search?q=Hotel+Camino+Real',
+              fuente: 'estimado fase 1 (sin proveedor)',
+              fue_elegida: true,
+              ruta_captura: null,
+              datos: { tramo: 0, tipo_precio: 'estimado', deteccion_estado: 'pendiente' },
+            },
+          ],
+        }),
+      },
+    });
+
+    render(<MisViajesPage />);
+    await waitFor(() => expect(screen.getByTestId('viaje-1')).toBeInTheDocument());
+    await usuario.click(within(screen.getByTestId('viaje-1')).getByRole('button', { name: /Ver detalle/ }));
+    await waitFor(() => expect(screen.getByTestId('detalle-viaje')).toBeInTheDocument());
+
+    expect(screen.getByText('Buscando precio real…')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Detectar precio/ })).toBeInTheDocument();
   });
 
   it('el detalle separa la ruta calculada (la que manda) de la propuesta del wizard', async () => {

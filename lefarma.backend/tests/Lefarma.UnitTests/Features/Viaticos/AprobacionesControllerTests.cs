@@ -1188,7 +1188,60 @@ public class AprobacionesControllerTests
         ctx.LeeEstado(id).Should().Be("enviada");
     }
 
-private sealed class TestContext : IDisposable
+    [Fact]
+    public async Task Autorizar_ConVueloEstimadoSinPrecioReal_Retorna409YNoAutoriza()
+    {
+        using var ctx = new TestContext();
+        const int adminId = 7200;
+        var id = ctx.SembrarSolicitud(adminId, "enviada", """{"total":1546.14}""");
+        ctx.SembrarOpcion(
+            id,
+            "vuelo",
+            "Vuelo (estimado)",
+            precio: null,
+            fueElegida: true,
+            datosJson: """{"tipo_precio":"estimado","precio_estimado":1546.14}""");
+
+        using var cliente = ctx.Servidor.CreateClient();
+        cliente.DefaultRequestHeaders.Add("X-Test-UserId", adminId.ToString());
+        cliente.DefaultRequestHeaders.Add("X-Test-Permissions", Permissions.Viaticos.Autorizar);
+
+        var resp = await cliente.PostAsJsonAsync($"/api/viaticos/solicitudes/{id}/autorizar", new { });
+
+        resp.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        var body = await resp.Content.ReadAsStringAsync();
+        body.Should().Contain("Faltan precios reales");
+        body.Should().Contain("Vuelo (estimado)");
+        ctx.LeeEstado(id).Should().Be("enviada");
+    }
+
+    [Fact]
+    public async Task Autorizar_ConVueloConPrecioReal_PermiteAutorizar()
+    {
+        using var ctx = new TestContext();
+        const int adminId = 7201;
+        var id = ctx.SembrarSolicitud(adminId, "enviada", """{"total":4974}""");
+        ctx.SembrarOpcion(
+            id,
+            "vuelo",
+            "Aeroméxico 08:00–09:34",
+            precio: 4974m,
+            fueElegida: true,
+            datosJson: """{"tipo_precio":"cotizado","precio_estimado":1546.14}""");
+
+        using var cliente = ctx.Servidor.CreateClient();
+        cliente.DefaultRequestHeaders.Add("X-Test-UserId", adminId.ToString());
+        cliente.DefaultRequestHeaders.Add("X-Test-Permissions", Permissions.Viaticos.Autorizar);
+
+        var resp = await cliente.PostAsJsonAsync($"/api/viaticos/solicitudes/{id}/autorizar", new { });
+
+        resp.StatusCode.Should().Be(HttpStatusCode.OK);
+        ctx.LeeEstado(id).Should().Be("autorizada");
+        var resumen = ctx.LeeResumenAutorizado(id);
+        resumen.GetProperty("avion").GetDecimal().Should().Be(4974m);
+    }
+
+    private sealed class TestContext : IDisposable
     {
         private readonly string _dbName = $"AprobacionesCtrl-{Guid.NewGuid():N}";
         private readonly string _asokamDbName = $"AprobacionesCtrl-Asokam-{Guid.NewGuid():N}";
