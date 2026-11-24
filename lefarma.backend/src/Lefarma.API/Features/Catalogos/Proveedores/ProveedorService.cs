@@ -439,6 +439,7 @@ public async Task<ErrorOr<IEnumerable<ProveedorResponse>>> GetAllAsync(Proveedor
                     {
                         IdStaging = staging.IdStaging,
                         IdDetalle = proveedor.Detalle?.IdDetalle ?? 0,
+                        ConstanciaFiscalPath = proveedor.Detalle?.ConstanciaFiscalPath,
                         FechaCreacion = DateTime.UtcNow
                     };
                     _dbContext.StagingProveedoresDetalle.Add(detalleStaging);
@@ -713,10 +714,10 @@ public async Task<ErrorOr<IEnumerable<ProveedorResponse>>> GetAllAsync(Proveedor
                 return CommonErrors.NotFound("cuenta", cuentaId.ToString());
             }
 
-            return DeterminarRutaCaratula(proveedor.Estatus) switch
+            return DeterminarRutaArchivoProveedor(proveedor.Estatus) switch
             {
-                RutaCaratula.Directo => await EscribirCaratulaDirectoAsync(proveedor, cuenta, caratulaPath),
-                RutaCaratula.Staging => await StagearCaratulaAsync(proveedor, cuenta, caratulaPath),
+                RutaArchivoProveedor.Directo => await EscribirCaratulaDirectoAsync(proveedor, cuenta, caratulaPath),
+                RutaArchivoProveedor.Staging => await StagearCaratulaAsync(proveedor, cuenta, caratulaPath),
                 _ => Error.Conflict($"Estatus de proveedor no soportado para caratula: {EstatusProveedor.GetDescripcion(proveedor.Estatus)}"),
             };
         }
@@ -724,6 +725,37 @@ public async Task<ErrorOr<IEnumerable<ProveedorResponse>>> GetAllAsync(Proveedor
         {
             EnrichWideEvent(action: "SubirCaratulaCuenta", entityId: proveedorId, error: ex.GetDetailedMessage());
             return CommonErrors.DatabaseError("subir la caratula de la cuenta");
+        }
+    }
+
+    public async Task<ErrorOr<bool>> SubirConstanciaFiscalAsync(int proveedorId, string constanciaFiscalPath)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(constanciaFiscalPath) || constanciaFiscalPath.Contains("..") || constanciaFiscalPath.Contains("\\"))
+            {
+                EnrichWideEvent(action: "SubirConstanciaFiscal", entityId: proveedorId, error: "Ruta de constancia fiscal invalida");
+                return CommonErrors.Validation("ConstanciaFiscalPath", "La ruta de la constancia fiscal contiene caracteres invalidos");
+            }
+
+            var proveedor = await _proveedorRepository.GetByIdWithDetailsAsync(proveedorId);
+            if (proveedor == null)
+            {
+                EnrichWideEvent(action: "SubirConstanciaFiscal", entityId: proveedorId, notFound: true);
+                return CommonErrors.NotFound("proveedor", proveedorId.ToString());
+            }
+
+            return DeterminarRutaArchivoProveedor(proveedor.Estatus) switch
+            {
+                RutaArchivoProveedor.Directo => await EscribirConstanciaFiscalDirectoAsync(proveedor, constanciaFiscalPath),
+                RutaArchivoProveedor.Staging => await StagearConstanciaFiscalAsync(proveedor, constanciaFiscalPath),
+                _ => Error.Conflict($"Estatus de proveedor no soportado para constancia fiscal: {EstatusProveedor.GetDescripcion(proveedor.Estatus)}"),
+            };
+        }
+        catch (Exception ex)
+        {
+            EnrichWideEvent(action: "SubirConstanciaFiscal", entityId: proveedorId, error: ex.GetDetailedMessage());
+            return CommonErrors.DatabaseError("subir la constancia fiscal del proveedor");
         }
     }
 
@@ -757,16 +789,81 @@ public async Task<ErrorOr<IEnumerable<ProveedorResponse>>> GetAllAsync(Proveedor
         }
     }
 
-    internal enum RutaCaratula { Directo, Staging, Conflict }
+    internal enum RutaArchivoProveedor { Directo, Staging, Conflict }
 
-    internal static RutaCaratula DeterminarRutaCaratula(int estatus) => estatus switch
+    internal static RutaArchivoProveedor DeterminarRutaArchivoProveedor(int estatus) => estatus switch
     {
-        EstatusProveedor.Nuevo => RutaCaratula.Directo,
-        EstatusProveedor.Rechazado => RutaCaratula.Directo,
-        EstatusProveedor.Aprobado => RutaCaratula.Staging,
-        EstatusProveedor.EditadoPendiente => RutaCaratula.Staging,
-        _ => RutaCaratula.Conflict,
+        EstatusProveedor.Nuevo => RutaArchivoProveedor.Directo,
+        EstatusProveedor.Rechazado => RutaArchivoProveedor.Directo,
+        EstatusProveedor.Aprobado => RutaArchivoProveedor.Staging,
+        EstatusProveedor.EditadoPendiente => RutaArchivoProveedor.Staging,
+        _ => RutaArchivoProveedor.Conflict,
     };
+
+    private async Task<StagingProveedor> ObtenerOCrearStagingAsync(Proveedor proveedor)
+    {
+        var stagingExistente = await _dbContext.StagingProveedores
+            .Include(s => s.Detalle)
+            .Include(s => s.CuentasFormaPago)
+            .FirstOrDefaultAsync(s => s.IdProveedor == proveedor.IdProveedor);
+
+        if (stagingExistente != null)
+        {
+            return stagingExistente;
+        }
+
+        var staging = new StagingProveedor
+        {
+            IdProveedor = proveedor.IdProveedor,
+            RazonSocial = proveedor.RazonSocial,
+            RazonSocialNormalizada = proveedor.RazonSocialNormalizada,
+            RFC = proveedor.RFC,
+            CodigoPostal = proveedor.CodigoPostal,
+            RegimenFiscalId = proveedor.RegimenFiscalId,
+            UsoCfdi = proveedor.UsoCfdi,
+            SinDatosFiscales = proveedor.SinDatosFiscales,
+            Estatus = EstatusProveedor.EditadoPendiente,
+            CambioEstatusPor = proveedor.CambioEstatusPor,
+            FechaRegistro = proveedor.FechaRegistro,
+            FechaStaging = DateTime.UtcNow
+        };
+
+        if (proveedor.Detalle != null)
+        {
+            staging.Detalle = new StagingProveedorDetalle
+            {
+                IdDetalle = proveedor.Detalle.IdDetalle,
+                PersonaContactoNombre = proveedor.Detalle.PersonaContactoNombre,
+                ContactoTelefono = proveedor.Detalle.ContactoTelefono,
+                ContactoEmail = proveedor.Detalle.ContactoEmail,
+                Comentario = proveedor.Detalle.Comentario,
+                CaratulaPath = proveedor.Detalle.CaratulaPath,
+                ConstanciaFiscalPath = proveedor.Detalle.ConstanciaFiscalPath,
+                FechaCreacion = proveedor.Detalle.FechaCreacion
+            };
+        }
+
+        foreach (var c in proveedor.CuentasFormaPago)
+        {
+            staging.CuentasFormaPago.Add(new StagingProveedorFormaPagoCuenta
+            {
+                IdCuenta = c.IdCuenta,
+                IdFormaPago = c.IdFormaPago,
+                IdBanco = c.IdBanco,
+                NumeroCuenta = c.NumeroCuenta,
+                Clabe = c.Clabe,
+                NumeroTarjeta = c.NumeroTarjeta,
+                Beneficiario = c.Beneficiario,
+                CorreoNotificacion = c.CorreoNotificacion,
+                Activo = c.Activo,
+                CaratulaPath = c.CaratulaPath,
+                StagingProveedor = staging
+            });
+        }
+
+        _dbContext.StagingProveedores.Add(staging);
+        return staging;
+    }
 
     private async Task<ErrorOr<bool>> EscribirCaratulaDirectoAsync(
         Proveedor proveedor, ProveedorFormaPagoCuenta cuenta, string caratulaPath)
@@ -782,87 +879,29 @@ public async Task<ErrorOr<IEnumerable<ProveedorResponse>>> GetAllAsync(Proveedor
     private async Task<ErrorOr<bool>> StagearCaratulaAsync(
         Proveedor proveedor, ProveedorFormaPagoCuenta cuenta, string caratulaPath)
     {
-        var stagingExistente = await _dbContext.StagingProveedores
-            .Include(s => s.Detalle)
-            .Include(s => s.CuentasFormaPago)
-            .FirstOrDefaultAsync(s => s.IdProveedor == proveedor.IdProveedor);
+        var staging = await ObtenerOCrearStagingAsync(proveedor);
 
-        if (stagingExistente != null)
+        var stagedCuenta = staging.CuentasFormaPago.FirstOrDefault(c => c.IdCuenta == cuenta.IdCuenta);
+        if (stagedCuenta != null)
         {
-            var stagedCuenta = stagingExistente.CuentasFormaPago.FirstOrDefault(c => c.IdCuenta == cuenta.IdCuenta);
-            if (stagedCuenta != null)
-            {
-                stagedCuenta.CaratulaPath = caratulaPath;
-            }
-            else
-            {
-                stagingExistente.CuentasFormaPago.Add(new StagingProveedorFormaPagoCuenta
-                {
-                    IdCuenta = cuenta.IdCuenta,
-                    IdFormaPago = cuenta.IdFormaPago,
-                    IdBanco = cuenta.IdBanco,
-                    NumeroCuenta = cuenta.NumeroCuenta,
-                    Clabe = cuenta.Clabe,
-                    NumeroTarjeta = cuenta.NumeroTarjeta,
-                    Beneficiario = cuenta.Beneficiario,
-                    CorreoNotificacion = cuenta.CorreoNotificacion,
-                    Activo = cuenta.Activo,
-                    CaratulaPath = caratulaPath,
-                    StagingProveedor = stagingExistente
-                });
-            }
+            stagedCuenta.CaratulaPath = caratulaPath;
         }
         else
         {
-            var staging = new StagingProveedor
+            staging.CuentasFormaPago.Add(new StagingProveedorFormaPagoCuenta
             {
-                IdProveedor = proveedor.IdProveedor,
-                RazonSocial = proveedor.RazonSocial,
-                RazonSocialNormalizada = proveedor.RazonSocialNormalizada,
-                RFC = proveedor.RFC,
-                CodigoPostal = proveedor.CodigoPostal,
-                RegimenFiscalId = proveedor.RegimenFiscalId,
-                UsoCfdi = proveedor.UsoCfdi,
-                SinDatosFiscales = proveedor.SinDatosFiscales,
-                Estatus = EstatusProveedor.EditadoPendiente,
-                CambioEstatusPor = proveedor.CambioEstatusPor,
-                FechaRegistro = proveedor.FechaRegistro,
-                FechaStaging = DateTime.UtcNow
-            };
-
-            if (proveedor.Detalle != null)
-            {
-                staging.Detalle = new StagingProveedorDetalle
-                {
-                    IdDetalle = proveedor.Detalle.IdDetalle,
-                    PersonaContactoNombre = proveedor.Detalle.PersonaContactoNombre,
-                    ContactoTelefono = proveedor.Detalle.ContactoTelefono,
-                    ContactoEmail = proveedor.Detalle.ContactoEmail,
-                    Comentario = proveedor.Detalle.Comentario,
-                    CaratulaPath = proveedor.Detalle.CaratulaPath,
-                    FechaCreacion = proveedor.Detalle.FechaCreacion
-                };
-            }
-
-            foreach (var c in proveedor.CuentasFormaPago)
-            {
-                staging.CuentasFormaPago.Add(new StagingProveedorFormaPagoCuenta
-                {
-                    IdCuenta = c.IdCuenta,
-                    IdFormaPago = c.IdFormaPago,
-                    IdBanco = c.IdBanco,
-                    NumeroCuenta = c.NumeroCuenta,
-                    Clabe = c.Clabe,
-                    NumeroTarjeta = c.NumeroTarjeta,
-                    Beneficiario = c.Beneficiario,
-                    CorreoNotificacion = c.CorreoNotificacion,
-                    Activo = c.Activo,
-                    CaratulaPath = c.IdCuenta == cuenta.IdCuenta ? caratulaPath : c.CaratulaPath,
-                    StagingProveedor = staging
-                });
-            }
-
-            _dbContext.StagingProveedores.Add(staging);
+                IdCuenta = cuenta.IdCuenta,
+                IdFormaPago = cuenta.IdFormaPago,
+                IdBanco = cuenta.IdBanco,
+                NumeroCuenta = cuenta.NumeroCuenta,
+                Clabe = cuenta.Clabe,
+                NumeroTarjeta = cuenta.NumeroTarjeta,
+                Beneficiario = cuenta.Beneficiario,
+                CorreoNotificacion = cuenta.CorreoNotificacion,
+                Activo = cuenta.Activo,
+                CaratulaPath = caratulaPath,
+                StagingProveedor = staging
+            });
         }
 
         proveedor.Estatus = EstatusProveedor.EditadoPendiente;
@@ -870,6 +909,47 @@ public async Task<ErrorOr<IEnumerable<ProveedorResponse>>> GetAllAsync(Proveedor
         await _dbContext.SaveChangesAsync();
 
         EnrichWideEvent(action: "StagearCaratula", entityId: proveedor.IdProveedor, nombre: proveedor.RazonSocial);
+        return true;
+    }
+
+    private async Task<ErrorOr<bool>> EscribirConstanciaFiscalDirectoAsync(
+        Proveedor proveedor, string constanciaFiscalPath)
+    {
+        proveedor.Detalle ??= new ProveedorDetalle
+        {
+            IdProveedor = proveedor.IdProveedor,
+            FechaCreacion = DateTime.UtcNow
+        };
+
+        proveedor.Detalle.ConstanciaFiscalPath = constanciaFiscalPath;
+        proveedor.Detalle.FechaModificacion = DateTime.UtcNow;
+        await _proveedorRepository.UpdateAsync(proveedor);
+
+        EnrichWideEvent(action: "SubirConstanciaFiscal", entityId: proveedor.IdProveedor, nombre: proveedor.RazonSocial);
+        return true;
+    }
+
+    private async Task<ErrorOr<bool>> StagearConstanciaFiscalAsync(
+        Proveedor proveedor, string constanciaFiscalPath)
+    {
+        var staging = await ObtenerOCrearStagingAsync(proveedor);
+
+        if (staging.Detalle == null)
+        {
+            staging.Detalle = new StagingProveedorDetalle
+            {
+                IdDetalle = proveedor.Detalle?.IdDetalle ?? 0,
+                FechaCreacion = DateTime.UtcNow
+            };
+        }
+
+        staging.Detalle.ConstanciaFiscalPath = constanciaFiscalPath;
+
+        proveedor.Estatus = EstatusProveedor.EditadoPendiente;
+        proveedor.FechaModificacion = DateTime.UtcNow;
+        await _dbContext.SaveChangesAsync();
+
+        EnrichWideEvent(action: "StagearConstanciaFiscal", entityId: proveedor.IdProveedor, nombre: proveedor.RazonSocial);
         return true;
     }
 
@@ -916,6 +996,18 @@ public async Task<ErrorOr<IEnumerable<ProveedorResponse>>> GetAllAsync(Proveedor
                 proveedor.Detalle.ContactoTelefono = staging.Detalle.ContactoTelefono;
                 proveedor.Detalle.ContactoEmail = staging.Detalle.ContactoEmail;
                 proveedor.Detalle.Comentario = staging.Detalle.Comentario;
+                proveedor.Detalle.FechaModificacion = DateTime.UtcNow;
+            }
+
+            if (staging.Detalle?.ConstanciaFiscalPath != null)
+            {
+                proveedor.Detalle ??= new ProveedorDetalle
+                {
+                    IdProveedor = id,
+                    FechaCreacion = DateTime.UtcNow
+                };
+
+                proveedor.Detalle.ConstanciaFiscalPath = staging.Detalle.ConstanciaFiscalPath;
                 proveedor.Detalle.FechaModificacion = DateTime.UtcNow;
             }
 
@@ -1116,7 +1208,8 @@ public async Task<ErrorOr<IEnumerable<ProveedorResponse>>> GetAllAsync(Proveedor
                     ContactoTelefono = staging.Detalle.ContactoTelefono,
                     ContactoEmail = staging.Detalle.ContactoEmail,
                     Comentario = staging.Detalle.Comentario,
-                    CaratulaPath = staging.Detalle.CaratulaPath
+                    CaratulaPath = staging.Detalle.CaratulaPath,
+                    ConstanciaFiscalPath = staging.Detalle.ConstanciaFiscalPath
                 } : null,
                 CuentasFormaPago = staging.CuentasFormaPago.Select(c => new StagingProveedorFormaPagoCuentaResponse
                 {
@@ -1179,6 +1272,22 @@ public async Task<ErrorOr<IEnumerable<ProveedorResponse>>> GetAllAsync(Proveedor
 
             if (StringsDifieren(original.Detalle.Comentario, staging.Detalle.Comentario))
                 diffs.Add(new CampoDiff { Campo = "Comentario", Label = "Comentario", ValorAnterior = original.Detalle.Comentario, ValorNuevo = staging.Detalle.Comentario });
+        }
+
+        if (!string.IsNullOrWhiteSpace(staging.Detalle?.ConstanciaFiscalPath))
+        {
+            var constanciaOriginal = original.Detalle?.ConstanciaFiscalPath;
+            if (constanciaOriginal != staging.Detalle.ConstanciaFiscalPath)
+            {
+                var accion = string.IsNullOrWhiteSpace(constanciaOriginal) ? "agregada" : "actualizada";
+                diffs.Add(new CampoDiff
+                {
+                    Campo = "Detalle.ConstanciaFiscal",
+                    Label = $"Constancia fiscal {accion}",
+                    ValorAnterior = constanciaOriginal,
+                    ValorNuevo = staging.Detalle.ConstanciaFiscalPath
+                });
+            }
         }
 
         var originalCuentas = original.CuentasFormaPago.ToList();

@@ -143,7 +143,7 @@ public class ProveedoresController : ControllerBase
         }));
     }
 
-    private static readonly string[] CaratulaAllowedExtensions = { ".jpg", ".jpeg", ".png", ".gif", ".webp", ".pdf" };
+    private static readonly string[] DocumentosAllowedExtensions = { ".jpg", ".jpeg", ".png", ".gif", ".webp", ".pdf" };
 
     [HttpPost("{id}/cuentas/{cuentaId}/caratula")]
     [Consumes("multipart/form-data")]
@@ -168,7 +168,7 @@ public class ProveedoresController : ControllerBase
         }
 
         var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
-        if (string.IsNullOrEmpty(extension) || !CaratulaAllowedExtensions.Contains(extension))
+        if (string.IsNullOrEmpty(extension) || !DocumentosAllowedExtensions.Contains(extension))
         {
             return BadRequest(new ApiResponse<object>
             {
@@ -197,11 +197,78 @@ public class ProveedoresController : ControllerBase
         var relativeUrl = relativePath.Replace("\\", "/");
         var result = await _proveedorService.SubirCaratulaCuentaAsync(id, cuentaId, relativeUrl);
 
-        return result.ToActionResult(this, _ => Ok(new ApiResponse<CaratulaUploadResponse>
+        return result.ToActionResult(this, _ => Ok(new ApiResponse<ArchivoUploadResponse>
         {
             Success = true,
             Message = "Carátula de cuenta procesada exitosamente",
-            Data = new CaratulaUploadResponse
+            Data = new ArchivoUploadResponse
+            {
+                FileName = fileName,
+                Url = $"/media/archivos/{relativeUrl}",
+                ContentType = file.ContentType,
+                Size = file.Length
+            }
+        }));
+    }
+
+    [HttpPost("{id}/constancia-fiscal")]
+    [Consumes("multipart/form-data")]
+    [RequestSizeLimit(10_000_000)]
+    [SwaggerOperation(Summary = "Subir constancia de situación fiscal del proveedor (opcional)",
+        Description = "Sube/reemplaza la constancia de situación fiscal (CSF) del proveedor, a nivel " +
+                      "proveedor (no por cuenta). Documento opcional para Tesorería: permite verificar " +
+                      "el RFC real cuando la carátula bancaria trae el RFC genérico del banco. Enruta " +
+                      "por estatus igual que la carátula: Nuevo/Rechazado escriben directo; " +
+                      "Aprobado/EditadoPendiente van a staging (requiere autorización).")]
+    public async Task<IActionResult> UploadConstanciaFiscal(
+        [SwaggerParameter(Description = "Identificador del proveedor", Required = true)] int id,
+        [SwaggerRequestBody(Description = "Archivo de imagen/PDF de la constancia de situación fiscal", Required = true)] IFormFile file)
+    {
+        if (file == null || file.Length == 0)
+        {
+            return BadRequest(new ApiResponse<object>
+            {
+                Success = false,
+                Message = "No se proporcionó ningún archivo",
+                Data = null
+            });
+        }
+
+        var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
+        if (string.IsNullOrEmpty(extension) || !DocumentosAllowedExtensions.Contains(extension))
+        {
+            return BadRequest(new ApiResponse<object>
+            {
+                Success = false,
+                Message = "Solo se permiten archivos de imagen (jpg, jpeg, png, gif, webp) o PDF",
+                Data = null
+            });
+        }
+
+        var basePath = _configuration["ArchivosSettings:BasePath"] ?? "wwwroot/media/archivos";
+        var fileName = $"constancia_fiscal_{id}_{Guid.NewGuid()}{extension}";
+        var relativePath = Path.Combine("constancias-fiscales", fileName);
+        var fullDir = Path.GetFullPath(Path.Combine(basePath, "constancias-fiscales"));
+        var fullPath = Path.Combine(fullDir, fileName);
+
+        if (!Directory.Exists(fullDir))
+        {
+            Directory.CreateDirectory(fullDir);
+        }
+
+        await using (var stream = new FileStream(fullPath, FileMode.Create))
+        {
+            await file.CopyToAsync(stream);
+        }
+
+        var relativeUrl = relativePath.Replace("\\", "/");
+        var result = await _proveedorService.SubirConstanciaFiscalAsync(id, relativeUrl);
+
+        return result.ToActionResult(this, _ => Ok(new ApiResponse<ArchivoUploadResponse>
+        {
+            Success = true,
+            Message = "Constancia fiscal procesada exitosamente",
+            Data = new ArchivoUploadResponse
             {
                 FileName = fileName,
                 Url = $"/media/archivos/{relativeUrl}",

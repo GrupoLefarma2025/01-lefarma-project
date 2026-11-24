@@ -33,6 +33,9 @@ public class StagingProveedorDetalle
     [MaxLength(500)]
     public string? CaratulaPath { get; set; }
 
+    [MaxLength(500)]
+    public string? ConstanciaFiscalPath { get; set; }
+
     [ForeignKey(nameof(IdStaging))]
     public StagingProveedor? StagingProveedor { get; set; }
 

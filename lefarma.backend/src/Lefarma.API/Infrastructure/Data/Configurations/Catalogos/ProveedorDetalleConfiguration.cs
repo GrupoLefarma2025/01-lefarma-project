@@ -39,6 +39,10 @@ public class ProveedorDetalleConfiguration : IEntityTypeConfiguration<ProveedorD
             .HasColumnName("caratula_path")
             .HasMaxLength(500);
 
+        builder.Property(e => e.ConstanciaFiscalPath)
+            .HasColumnName("constancia_fiscal_path")
+            .HasMaxLength(500);
+
         builder.Property(e => e.FechaCreacion)
             .HasColumnName("fecha_creacion")
             .IsRequired()

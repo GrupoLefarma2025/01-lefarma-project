@@ -29,6 +29,7 @@ public class ProveedorDetalleResponse
     public string? ContactoEmail { get; set; }
     public string? Comentario { get; set; }
     public string? CaratulaUrl { get; set; }
+    public string? ConstanciaFiscalUrl { get; set; }
 }
 
 public class CreateProveedorRequest
@@ -168,6 +169,7 @@ public class StagingProveedorDetalleResponse
     public string? ContactoEmail { get; set; }
     public string? Comentario { get; set; }
     public string? CaratulaPath { get; set; }
+    public string? ConstanciaFiscalPath { get; set; }
 }
 
 public class StagingProveedorFormaPagoCuentaResponse

@@ -13,6 +13,7 @@ public class ProveedorDetalle
 
     [Obsolete("Use ProveedorFormaPagoCuenta.CaratulaPath instead. Scheduled for removal after caratulas-proveedor migration completes.")]
     public string? CaratulaPath { get; set; }
+    public string? ConstanciaFiscalPath { get; set; }
     public DateTime FechaCreacion { get; set; }
     public DateTime? FechaModificacion { get; set; }
 

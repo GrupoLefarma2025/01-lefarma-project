@@ -44,5 +44,9 @@ public class StagingProveedorDetalleConfiguration : IEntityTypeConfiguration<Sta
         builder.Property(x => x.CaratulaPath)
             .HasColumnName("caratula_path")
             .HasMaxLength(500);
+
+        builder.Property(x => x.ConstanciaFiscalPath)
+            .HasColumnName("constancia_fiscal_path")
+            .HasMaxLength(500);
     }
 }

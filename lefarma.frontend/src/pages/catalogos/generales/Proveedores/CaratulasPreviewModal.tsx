@@ -24,6 +24,7 @@ interface CaratulaCuenta {
 export interface CaratulasPreviewModalProps {
   proveedorId: number;
   open: boolean;
+  constanciaUrl?: string | null;
   onOpenChange: (open: boolean) => void;
   onPreview?: (url: string) => void;
 }
@@ -38,6 +39,7 @@ const buildFullUrl = (relativePath: string) => {
 export function CaratulasPreviewModal({
   proveedorId,
   open,
+  constanciaUrl,
   onOpenChange,
   onPreview,
 }: CaratulasPreviewModalProps) {
@@ -78,9 +80,9 @@ export function CaratulasPreviewModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[560px]">
         <DialogHeader>
-          <DialogTitle>Carátulas del proveedor</DialogTitle>
+          <DialogTitle>Documentos del proveedor</DialogTitle>
           <DialogDescription>
-            Una carátula por cuenta bancaria que tenga un archivo cargado.
+            Constancia de situación fiscal (opcional) y una carátula por cuenta bancaria que tenga un archivo cargado.
           </DialogDescription>
         </DialogHeader>
 
@@ -93,13 +95,49 @@ export function CaratulasPreviewModal({
           </div>
         ) : error ? (
           <p className="py-8 text-center text-sm text-red-600">{error}</p>
-        ) : caratulas.length === 0 ? (
+        ) : caratulas.length === 0 && !constanciaUrl ? (
           <p className="py-8 text-center text-sm text-muted-foreground">
-            No hay carátulas para este proveedor.
+            No hay documentos para este proveedor.
           </p>
         ) : (
           <ScrollArea className="max-h-[60vh]">
             <ul className="space-y-2 pr-2">
+              {constanciaUrl && (
+                <li
+                  className="flex items-center justify-between gap-3 rounded-md border border-gray-200 bg-gray-50/60 px-3 py-2"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="rounded-md bg-muted p-1.5">
+                      {isPdf(buildFullUrl(constanciaUrl)) ? (
+                        <FileText className="h-6 w-6 text-blue-600" />
+                      ) : (
+                        <img
+                          src={buildFullUrl(constanciaUrl)}
+                          alt="Constancia de situación fiscal"
+                          className="h-10 w-10 rounded object-cover"
+                        />
+                      )}
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-xs font-medium">Constancia de Situación Fiscal</span>
+                      <span className="text-xs text-muted-foreground">
+                        Documento opcional del proveedor
+                      </span>
+                    </div>
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-8 gap-1.5"
+                    disabled={!onPreview}
+                    onClick={() => onPreview?.(buildFullUrl(constanciaUrl))}
+                  >
+                    <Eye className="h-3.5 w-3.5" />
+                    Ver
+                  </Button>
+                </li>
+              )}
               {caratulas.map((c) => {
                 const fullUrl = c.caratulaUrl ? buildFullUrl(c.caratulaUrl) : null;
                 return (
