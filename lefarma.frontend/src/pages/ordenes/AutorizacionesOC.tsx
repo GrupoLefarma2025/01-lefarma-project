@@ -1,4 +1,4 @@
-﻿import { Fragment, useEffect, useMemo, useCallback, useRef, useState } from 'react';
+import { Fragment, useEffect, useMemo, useCallback, useRef, useState } from 'react';
 
 import { createPortal } from 'react-dom';
 import {useNavigate, useSearchParams } from 'react-router-dom';
@@ -2001,11 +2001,12 @@ export default function AutorizacionesOC() {
                                   </p>
                                   <button
                                     type="button"
+                                    title="Carátula bancaria y/o constancia de situación fiscal"
                                     onClick={() => setDocumentosProveedorId(selectedOrden.idProveedor!)}
                                     className="mt-1 inline-flex items-center gap-1 text-[10px] font-medium text-blue-600 hover:underline"
                                   >
                                     <Eye className="h-3 w-3" />
-                                    Ver carátula bancaria y/o constancia de situación fiscal
+                                    Ver documentos del proveedor
                                   </button>
                                   <div className="mt-1.5 rounded border border-red-300 bg-red-50 px-2 py-1 text-[11px] font-semibold text-red-700 dark:border-red-700 dark:bg-red-950/40 dark:text-red-300">
                                     ⚠ Proveedor no autorizado
@@ -2037,10 +2038,11 @@ export default function AutorizacionesOC() {
                                     </button>
                                     <button
                                       type="button"
+                                      title="Carátula bancaria y/o constancia de situación fiscal"
                                       onClick={() => setDocumentosProveedorId(selectedOrden.idProveedor!)}
                                       className="ml-auto rounded bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-600 hover:bg-blue-100 dark:bg-blue-950/40 dark:text-blue-300"
                                     >
-                                      Ver carátula bancaria y/o constancia de situación fiscal
+                                      Ver documentos del proveedor
                                     </button>
                                     <button
                                       type="button"
@@ -2104,11 +2106,12 @@ export default function AutorizacionesOC() {
                                 </p>
                                 <button
                                   type="button"
+                                  title="Carátula bancaria y/o constancia de situación fiscal"
                                   onClick={() => setDocumentosProveedorId(selectedOrden.idProveedor!)}
                                   className="mt-1 inline-flex items-center gap-1 text-[10px] font-medium text-blue-600 hover:underline"
                                 >
                                   <Eye className="h-3 w-3" />
-                                  Ver carátula bancaria y/o constancia de situación fiscal
+                                  Ver documentos del proveedor
                                 </button>
                               </div>
                             );
