@@ -39,6 +39,32 @@ namespace Lefarma.API.Shared.Extensions
             return stringBuilder.ToString().Normalize(NormalizationForm.FormC);
         }
 
+        private const int NombreArchivoMaxLength = 80;
+
+        public static string SanitizarNombreArchivo(this string? nombreOriginal)
+        {
+            var baseName = Path.GetFileNameWithoutExtension(nombreOriginal ?? string.Empty).RemoveDiacritics();
+
+            var sb = new StringBuilder(baseName.Length);
+            foreach (var c in baseName)
+            {
+                if (char.IsWhiteSpace(c))
+                    sb.Append('-');
+                else if (char.IsAsciiLetterOrDigit(c) || c is '.' or '-' or '_')
+                    sb.Append(c);
+            }
+
+            var limpio = sb.ToString();
+            while (limpio.Contains("--"))
+                limpio = limpio.Replace("--", "-");
+            limpio = limpio.Trim('-', '.');
+
+            if (limpio.Length > NombreArchivoMaxLength)
+                limpio = limpio[..NombreArchivoMaxLength].Trim('-', '.');
+
+            return limpio.Length > 0 ? limpio : "documento";
+        }
+
         public static bool IsValidRFC(this string rfc)
         {
             if (string.IsNullOrWhiteSpace(rfc))

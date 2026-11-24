@@ -246,21 +246,28 @@ public class ProveedoresController : ControllerBase
         }
 
         var basePath = _configuration["ArchivosSettings:BasePath"] ?? "wwwroot/media/archivos";
-        var fileName = $"constancia_fiscal_{id}_{Guid.NewGuid()}{extension}";
-        var relativePath = Path.Combine("constancias-fiscales", fileName);
+        var baseName = file.FileName.SanitizarNombreArchivo();
         var fullDir = Path.GetFullPath(Path.Combine(basePath, "constancias-fiscales"));
+        var fileName = $"{baseName}{extension}";
         var fullPath = Path.Combine(fullDir, fileName);
+
+        for (var intento = 5; System.IO.File.Exists(fullPath); intento++)
+        {
+            fileName = $"{baseName}-{intento}{extension}";
+            fullPath = Path.Combine(fullDir, fileName);
+        }
 
         if (!Directory.Exists(fullDir))
         {
             Directory.CreateDirectory(fullDir);
         }
 
-        await using (var stream = new FileStream(fullPath, FileMode.Create))
+        await using (var stream = new FileStream(fullPath, FileMode.CreateNew))
         {
             await file.CopyToAsync(stream);
         }
 
+        var relativePath = Path.Combine("constancias-fiscales", fileName);
         var relativeUrl = relativePath.Replace("\\", "/");
         var result = await _proveedorService.SubirConstanciaFiscalAsync(id, relativeUrl);
 
