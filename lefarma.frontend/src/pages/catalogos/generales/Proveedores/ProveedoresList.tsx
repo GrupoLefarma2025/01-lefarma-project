@@ -52,7 +52,7 @@ import { toApiError } from '@/utils/errors';
 import { PermissionElement } from '@/components/permissions/PermissionElement';
 import { BulkUploadModal } from './BulkUploadModal';
 import { ClavesReferenciaModal } from './ClavesReferenciaModal';
-import { CaratulasPreviewModal } from './CaratulasPreviewModal';
+import { ProveedorDocumentosModal } from '@/components/proveedores/ProveedorDocumentosModal';
 
 const ENDPOINT = '/catalogos/Proveedores';
 const REGIMENES_ENDPOINT = '/catalogos/RegimenesFiscales';
@@ -1918,14 +1918,12 @@ const filteredProveedores = useMemo(() => {
         regimenesFiscales={regimenesFiscales}
       />
 
-      <CaratulasPreviewModal
-        proveedorId={caratulasModalProveedorId ?? 0}
+      <ProveedorDocumentosModal
+        proveedorId={caratulasModalProveedorId}
         open={caratulasModalProveedorId !== null}
-        constanciaUrl={proveedores.find((p) => p.idProveedor === caratulasModalProveedorId)?.detalle?.constanciaFiscalUrl}
         onOpenChange={(open) => {
           if (!open) setCaratulasModalProveedorId(null);
         }}
-        onPreview={(url) => setFullscreenImage(url)}
       />
 
       {}

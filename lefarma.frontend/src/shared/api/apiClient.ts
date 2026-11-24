@@ -188,10 +188,7 @@ export const proveedorApi = {
       { headers: { 'Content-Type': 'multipart/form-data' } },
     );
   },
-  getCaratulas: (id: number) =>
-    apiClient.get(`/catalogos/Proveedores/${id}/caratulas`),
-  uploadConstanciaFiscal: (id: number, file: File) => {
-    const formData = new FormData();
+  uploadConstanciaFiscal: (id: number, file: File) => {    const formData = new FormData();
     formData.append('file', file);
     return apiClient.post(
       `/catalogos/Proveedores/${id}/constancia-fiscal`,

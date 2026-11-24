@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useCallback, useRef, useState } from 'react';
+﻿import { Fragment, useEffect, useMemo, useCallback, useRef, useState } from 'react';
 
 import { createPortal } from 'react-dom';
 import {useNavigate, useSearchParams } from 'react-router-dom';
@@ -9,6 +9,7 @@ import type { ApiResponse } from '@/types/api.types';
 import { DataTable } from '@/components/ui/data-table';
 import type { ColumnDef } from '@/components/ui/data-table';
 import { TiempoAtencion } from '@/components/ordenes/TiempoAtencion';
+import { ProveedorDocumentosModal } from '@/components/proveedores/ProveedorDocumentosModal';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -499,6 +500,7 @@ export default function AutorizacionesOC() {
   const [ordenes, setOrdenes] = useState<OrdenCompraResponse[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(idOrdenParam);
   const [selectedOrden, setSelectedOrden] = useState<OrdenCompraResponse | null>(null);
+  const [documentosProveedorId, setDocumentosProveedorId] = useState<number | null>(null);
   const [acciones, setAcciones] = useState<AccionDisponibleResponse[]>([]);
   const [historial, setHistorial] = useState<HistorialWorkflowItemResponse[]>([]);
   const [workflowsMap, setWorkflowsMap] = useState<Map<number, WorkflowFlowResponse>>(new Map());
@@ -1997,6 +1999,14 @@ export default function AutorizacionesOC() {
                                     RFC: {prov.rfc || 'N/A'}
                                     {prov.regimenFiscalDescripcion && <span className="ml-2">• {prov.regimenFiscalDescripcion}</span>}
                                   </p>
+                                  <button
+                                    type="button"
+                                    onClick={() => setDocumentosProveedorId(selectedOrden.idProveedor!)}
+                                    className="mt-1 inline-flex items-center gap-1 text-[10px] font-medium text-blue-600 hover:underline"
+                                  >
+                                    <Eye className="h-3 w-3" />
+                                    Ver carátula bancaria y/o constancia de situación fiscal
+                                  </button>
                                   <div className="mt-1.5 rounded border border-red-300 bg-red-50 px-2 py-1 text-[11px] font-semibold text-red-700 dark:border-red-700 dark:bg-red-950/40 dark:text-red-300">
                                     ⚠ Proveedor no autorizado
                                   </div>
@@ -2027,8 +2037,15 @@ export default function AutorizacionesOC() {
                                     </button>
                                     <button
                                       type="button"
+                                      onClick={() => setDocumentosProveedorId(selectedOrden.idProveedor!)}
+                                      className="ml-auto rounded bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-600 hover:bg-blue-100 dark:bg-blue-950/40 dark:text-blue-300"
+                                    >
+                                      Ver carátula bancaria y/o constancia de situación fiscal
+                                    </button>
+                                    <button
+                                      type="button"
                                       onClick={() => navigate('/cxp/catalogos/proveedores')}
-                                      className="ml-auto rounded bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground hover:bg-muted/80"
+                                      className="rounded bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground hover:bg-muted/80"
                                     >
                                       Ir a proveedores →
                                     </button>
@@ -2085,6 +2102,14 @@ export default function AutorizacionesOC() {
                                   RFC: {prov.rfc || 'N/A'}
                                   {prov.regimenFiscalDescripcion && <span className="ml-2">• {prov.regimenFiscalDescripcion}</span>}
                                 </p>
+                                <button
+                                  type="button"
+                                  onClick={() => setDocumentosProveedorId(selectedOrden.idProveedor!)}
+                                  className="mt-1 inline-flex items-center gap-1 text-[10px] font-medium text-blue-600 hover:underline"
+                                >
+                                  <Eye className="h-3 w-3" />
+                                  Ver carátula bancaria y/o constancia de situación fiscal
+                                </button>
                               </div>
                             );
                           })()
@@ -4069,6 +4094,14 @@ export default function AutorizacionesOC() {
         />,
         document.body
       )}
+
+      <ProveedorDocumentosModal
+        proveedorId={documentosProveedorId}
+        open={documentosProveedorId !== null}
+        onOpenChange={(open) => {
+          if (!open) setDocumentosProveedorId(null);
+        }}
+      />
 
     </div>
   );
