@@ -86,6 +86,7 @@ interface ProveedorDetalle {
   contactoEmail?: string;
   comentario?: string;
   caratulaUrl?: string;
+  constanciaFiscalUrl?: string;
   metadata?: ProveedorMetadata;
 }
 
@@ -267,6 +268,7 @@ export default function ProveedoresList() {
   const [caratulasModalProveedorId, setCaratulasModalProveedorId] = useState<number | null>(null);
   const [caratulaUploadingCuentaId, setCaratulaUploadingCuentaId] = useState<number | null>(null);
   const [pendingCaratulas, setPendingCaratulas] = useState<Record<number, File>>({});
+  const [pendingConstancia, setPendingConstancia] = useState<File | null>(null);
   const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
   const [diffModal, setDiffModal] = useState<DiffModalState>({ open: false, stagingData: null, loading: false });
   const [bulkModalOpen, setBulkModalOpen] = useState(false);
@@ -402,6 +404,7 @@ export default function ProveedoresList() {
     setCuentasFormaPago([]);
     setCuentasEditMode(new Set());
     setPendingCaratulas({});
+    setPendingConstancia(null);
     setIsEditing(false);
     setModalOpen(true);
   };
@@ -431,6 +434,7 @@ export default function ProveedoresList() {
       setCuentasFormaPago((proveedor.cuentasFormaPago || []).map((c) => ({ ...c })));
       setCuentasEditMode(new Set());
       setPendingCaratulas({});
+      setPendingConstancia(null);
       setIsEditing(true);
       setModalOpen(true);
     }
@@ -562,7 +566,7 @@ export default function ProveedoresList() {
       }
 
       const hasPendingCaratulas = Object.keys(pendingCaratulas).length > 0;
-      if (!dataChanged && !hasPendingCaratulas) {
+      if (!dataChanged && !hasPendingCaratulas && !pendingConstancia) {
         toast.info('No hay cambios para guardar.');
         setModalOpen(false);
         setIsSaving(false);
@@ -584,8 +588,9 @@ export default function ProveedoresList() {
         toast.success(isEditing ? 'Proveedor actualizado correctamente.' : 'Proveedor creado correctamente.');
       }
 
+      const targetProveedorId = savedProveedorData?.idProveedor ?? proveedorId;
+
       if (hasPendingCaratulas) {
-        const targetProveedorId = savedProveedorData?.idProveedor ?? proveedorId;
         const savedCuentas = savedProveedorData?.cuentasFormaPago;
         for (const [indexStr, file] of Object.entries(pendingCaratulas)) {
           const index = Number(indexStr);
@@ -599,6 +604,15 @@ export default function ProveedoresList() {
           }
         }
         setPendingCaratulas({});
+      }
+
+      if (pendingConstancia && targetProveedorId) {
+        try {
+          await proveedorApi.uploadConstanciaFiscal(targetProveedorId, pendingConstancia);
+        } catch {
+          toast.error('Error al subir la constancia fiscal');
+        }
+        setPendingConstancia(null);
       }
 
       setModalOpen(false);
@@ -704,6 +718,31 @@ const filteredProveedores = useMemo(() => {
     );
   }, [proveedores, search]);
 
+  const proveedorEditado = proveedores.find((p) => p.idProveedor === proveedorId);
+  const constanciaExistenteUrl = proveedorEditado?.detalle?.constanciaFiscalUrl
+    ? `${import.meta.env.VITE_API_URL || ''}/media/archivos/${proveedorEditado.detalle.constanciaFiscalUrl}`
+    : null;
+
+  const esDiffDocumento = (campo: string) =>
+    campo === 'Detalle.ConstanciaFiscal' ||
+    (campo.startsWith('CuentasFormaPago[') && campo.endsWith('.Caratula'));
+
+  const renderValorDocumento = (valor: string | null) => {
+    if (!valor) return <span className="text-muted-foreground italic">vacío</span>;
+    const url = `${import.meta.env.VITE_API_URL || ''}/media/archivos/${valor}`;
+    return (
+      <button
+        type="button"
+        onClick={() => setFullscreenImage(url)}
+        title={valor}
+        className="inline-flex h-7 items-center gap-1 rounded-md border border-blue-200 bg-white px-2 text-xs text-blue-600 hover:bg-blue-50"
+      >
+        <Eye className="h-3.5 w-3.5" />
+        Ver
+      </button>
+    );
+  };
+
   const columns: ColumnDef<Proveedor>[] = [
     {
       accessorKey: 'razonSocial',
@@ -723,7 +762,7 @@ const filteredProveedores = useMemo(() => {
                   <Badge
                     variant="secondary"
                     className="cursor-pointer text-xs"
-                    title="Ver carátulas"
+                    title="Ver documentos"
                     onClick={() => setCaratulasModalProveedorId(row.original.idProveedor)}
                   >
                     {caratulasCount} carátula{caratulasCount > 1 ? 's' : ''}
@@ -852,10 +891,10 @@ const filteredProveedores = useMemo(() => {
               variant="outline"
               className="h-8 gap-1.5"
               onClick={() => setCaratulasModalProveedorId(proveedor.idProveedor)}
-              title="Ver carátulas"
+              title="Ver documentos"
             >
               <FileText className="h-3.5 w-3.5" />
-              Ver carátulas
+              Ver documentos
             </Button>
             {proveedor.estatus === ESTATUS.NUEVO && (
               <>
@@ -1226,6 +1265,94 @@ const filteredProveedores = useMemo(() => {
                   )}
                 />
               </div>
+            </div>
+
+            {}
+            <div className="space-y-3 pt-2 border-t mt-2">
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-medium">Constancia de Situación Fiscal</label>
+                <Badge variant="outline" className="text-xs text-muted-foreground">Opcional</Badge>
+              </div>
+
+              {pendingConstancia ? (
+                <div className="flex items-center gap-3 rounded-md border border-orange-200 bg-orange-50 p-2">
+                  <div className="rounded-md bg-orange-100 p-1.5">
+                    <FileText className="h-7 w-7 text-orange-600" />
+                  </div>
+                  <div className="flex flex-col gap-1 text-xs">
+                    <span className="font-medium text-orange-700 truncate max-w-[240px]" title={pendingConstancia.name}>
+                      Pendiente: {pendingConstancia.name}
+                    </span>
+                    <span className="text-orange-600/70">Se subirá al guardar</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setPendingConstancia(null)}
+                    className="ml-auto inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs text-red-500 hover:bg-red-50"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    Quitar
+                  </button>
+                </div>
+              ) : constanciaExistenteUrl ? (
+                <div className="flex items-center gap-3 rounded-md border border-gray-200 bg-white p-2">
+                  <div className="rounded-md bg-muted p-1.5">
+                    {constanciaExistenteUrl.toLowerCase().endsWith('.pdf') ? (
+                      <FileText className="h-7 w-7 text-blue-600" />
+                    ) : (
+                      <img
+                        src={constanciaExistenteUrl}
+                        alt="Constancia de situación fiscal"
+                        className="h-10 w-10 rounded object-cover cursor-pointer hover:opacity-80"
+                        onClick={() => setFullscreenImage(constanciaExistenteUrl)}
+                      />
+                    )}
+                  </div>
+                  <div className="flex flex-col gap-1 text-xs text-muted-foreground">
+                    <span>Constancia cargada</span>
+                    <button
+                      type="button"
+                      onClick={() => setFullscreenImage(constanciaExistenteUrl)}
+                      className="text-left text-blue-600 hover:underline"
+                    >
+                      Ver tamaño completo
+                    </button>
+                  </div>
+                  <label
+                    className="ml-auto inline-flex h-7 cursor-pointer items-center gap-1 rounded-md px-2 text-xs text-blue-600 hover:bg-blue-50"
+                  >
+                    <Upload className="h-3.5 w-3.5" />
+                    Reemplazar
+                    <input
+                      type="file"
+                      accept="application/pdf,image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) setPendingConstancia(file);
+                        e.target.value = '';
+                      }}
+                    />
+                  </label>
+                </div>
+              ) : (
+                <label
+                  className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md border border-dashed border-gray-300 px-3 text-xs text-gray-600 hover:bg-gray-50"
+                >
+                  <Upload className="h-3.5 w-3.5" />
+                  Subir constancia fiscal
+                  <input
+                    type="file"
+                    accept="application/pdf,image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) setPendingConstancia(file);
+                      e.target.value = '';
+                    }}
+                  />
+                </label>
+              )}
             </div>
 
             {}
@@ -1750,10 +1877,14 @@ const filteredProveedores = useMemo(() => {
                       <tr key={idx} className="hover:bg-muted/50">
                         <td className="px-4 py-2 font-medium">{diff.label}</td>
                         <td className="px-4 py-2 text-red-600 bg-red-50">
-                          {diff.valorAnterior ?? <span className="text-muted-foreground italic">vacío</span>}
+                          {esDiffDocumento(diff.campo)
+                            ? renderValorDocumento(diff.valorAnterior)
+                            : (diff.valorAnterior ?? <span className="text-muted-foreground italic">vacío</span>)}
                         </td>
                         <td className="px-4 py-2 text-green-600 bg-green-50">
-                          {diff.valorNuevo ?? <span className="text-muted-foreground italic">vacío</span>}
+                          {esDiffDocumento(diff.campo)
+                            ? renderValorDocumento(diff.valorNuevo)
+                            : (diff.valorNuevo ?? <span className="text-muted-foreground italic">vacío</span>)}
                         </td>
                       </tr>
                     ))}
@@ -1790,6 +1921,7 @@ const filteredProveedores = useMemo(() => {
       <CaratulasPreviewModal
         proveedorId={caratulasModalProveedorId ?? 0}
         open={caratulasModalProveedorId !== null}
+        constanciaUrl={proveedores.find((p) => p.idProveedor === caratulasModalProveedorId)?.detalle?.constanciaFiscalUrl}
         onOpenChange={(open) => {
           if (!open) setCaratulasModalProveedorId(null);
         }}
