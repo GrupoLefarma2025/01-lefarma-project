@@ -34,7 +34,7 @@ public sealed class CSharpPdfSignatureEngine
         bool soloEscanear,
         CancellationToken ct = default)
     {
-        var rutaImagen = RutasRecursos.Resolver(_raizContenido, _options.ImagePath);
+        var rutaImagen = RutasRecursos.ResolverArchivo(_raizContenido, _options.ImagePath);
         if (!soloEscanear && !File.Exists(rutaImagen))
         {
             throw new FileNotFoundException(

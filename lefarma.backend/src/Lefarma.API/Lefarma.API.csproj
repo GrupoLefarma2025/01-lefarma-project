@@ -8,6 +8,10 @@
     <AppVersion Condition="'$(AppVersion)' == ''">$([System.IO.File]::ReadAllText('$(MSBuildProjectDirectory)\..\..\..\VERSION').Trim())</AppVersion>
   </PropertyGroup>
 
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+  </PropertyGroup>
+
   <!-- dotnet watch (.NET 10): logs y media subida en runtime cambian mientras
        la app corre. Si el watcher los detecta (sobre todo archivos NUEVOS en
        wwwroot), Hot Reload truena con
@@ -59,7 +63,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Update="scripts\**\*" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <EmbeddedResource Include="scripts\pdf_signature_replacer.py" />
+    <EmbeddedResource Include="scripts\assets\firma.png" />
   </ItemGroup>
 
   <ItemGroup>

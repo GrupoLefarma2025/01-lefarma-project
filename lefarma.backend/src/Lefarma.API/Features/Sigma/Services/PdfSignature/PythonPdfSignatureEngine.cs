@@ -35,7 +35,7 @@ public sealed class PythonPdfSignatureEngine
         bool soloEscanear,
         CancellationToken ct = default)
     {
-        var script = RutasRecursos.Resolver(_raizContenido, _options.ScriptPath);
+        var script = RutasRecursos.ResolverArchivo(_raizContenido, _options.ScriptPath);
         if (!File.Exists(script))
         {
             throw new FileNotFoundException(
@@ -43,7 +43,7 @@ public sealed class PythonPdfSignatureEngine
                 script);
         }
 
-        var imagen = RutasRecursos.Resolver(_raizContenido, _options.ImagePath);
+        var imagen = RutasRecursos.ResolverArchivo(_raizContenido, _options.ImagePath);
         var almacen = RutasRecursos.Resolver(_raizContenido, _sigmaOptions.StoragePath);
         Directory.CreateDirectory(almacen);
 

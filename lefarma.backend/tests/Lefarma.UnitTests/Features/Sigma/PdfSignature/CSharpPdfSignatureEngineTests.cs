@@ -112,14 +112,46 @@ public sealed class CSharpPdfSignatureEngineTests : IDisposable
             .WithMessage("*no se encontró*");
     }
 
-    private CSharpPdfSignatureEngine CrearMotor()
+    [Fact]
+    public async Task Firma_ConLaImagenSoloEnElEnsamblado_LaExtraeYEstampaElDocumento()
+    {
+        var raiz = Path.Combine(
+            Path.GetTempPath(),
+            "lefarma-firma-embebida-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(raiz);
+
+        try
+        {
+            var id = Guid.NewGuid();
+            _almacen.Pdf = PdfDePrueba.Crear("#firmad");
+
+            var resultado = await CrearMotor(raiz, "scripts/assets/firma.png")
+                .EjecutarAsync(id, soloEscanear: false);
+
+            resultado.Salida.Should().Be(PdfSignatureMessages.Exito);
+            _almacen.Autorizado.Should().NotBeNull();
+            File.Exists(Path.Combine(raiz, "App_Data", "recursos", "firma.png")).Should().BeTrue();
+        }
+        finally
+        {
+            try
+            {
+                Directory.Delete(raiz, recursive: true);
+            }
+            catch (IOException)
+            {
+            }
+        }
+    }
+
+    private CSharpPdfSignatureEngine CrearMotor(string? raiz = null, string imagen = "firma.png")
     {
         var entorno = new Mock<IHostEnvironment>();
-        entorno.SetupGet(e => e.ContentRootPath).Returns(_carpeta);
+        entorno.SetupGet(e => e.ContentRootPath).Returns(raiz ?? _carpeta);
 
         var opciones = Options.Create(new SigmaPdfSignatureOptions
         {
-            ImagePath = "firma.png",
+            ImagePath = imagen,
             SearchText = "#firmad"
         });
 
