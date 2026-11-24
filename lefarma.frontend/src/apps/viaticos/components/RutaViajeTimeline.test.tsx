@@ -49,4 +49,26 @@ describe('RutaViajeTimeline', () => {
 
     expect(screen.queryByText(/MXN|\$/)).not.toBeInTheDocument();
   });
+
+  it('en modo compacto deja las terminales y taxis bajo un detalle', () => {
+    render(
+      <RutaViajeTimeline
+        compacto
+        nodos={[
+          nodo({ id: 'origen', titulo: 'Origen', detalles: ['Ciudad de México'] }),
+          nodo({ id: 'terminal', titulo: 'Central del Norte', detalles: ['En taxi desde CDMX'] }),
+          nodo({ id: 'destino', titulo: '1. Puebla', detalles: ['Llegada 15:21'] }),
+          nodo({ id: 'hotel', titulo: 'Hotel Colonial', detalles: ['Noche 01 → 02'] }),
+          nodo({ id: 'regreso', titulo: 'Regreso', detalles: ['Vuelta al origen'] }),
+        ]}
+      />,
+    );
+
+    expect(screen.getByText('Origen')).toBeInTheDocument();
+    expect(screen.getByText('1. Puebla')).toBeInTheDocument();
+    expect(screen.getByText('Hotel Colonial')).toBeInTheDocument();
+    const detalle = screen.getByText('Ver 1 parada de traslado').closest('details');
+    expect(detalle).not.toHaveAttribute('open');
+    expect(screen.getByText('Central del Norte').closest('details')).toBe(detalle);
+  });
 });

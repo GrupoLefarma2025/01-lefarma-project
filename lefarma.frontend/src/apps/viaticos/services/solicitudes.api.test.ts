@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { OpcionCotizacion } from '../types/solicitud.types';
 
-const api = vi.hoisted(() => ({ put: vi.fn() }));
-vi.mock('@/shared/api/apiClient', () => ({ API: { put: api.put } }));
+const api = vi.hoisted(() => ({ put: vi.fn(), post: vi.fn() }));
+vi.mock('@/shared/api/apiClient', () => ({ API: { put: api.put, post: api.post } }));
 
 import { solicitudesApi } from './solicitudes.api';
 
@@ -22,7 +22,12 @@ const opcion = (over: Partial<OpcionCotizacion> = {}): OpcionCotizacion => ({
 const guardar = async (opciones: OpcionCotizacion[]) => {
   await solicitudesApi.guardarOpciones(1, opciones);
   return api.put.mock.calls.at(-1)![1] as {
-    cotizacion: { total?: number };
+    cotizacion: {
+      total?: number;
+      total_cotizado?: number;
+      total_estimado?: number;
+      opciones: OpcionCotizacion[];
+    };
   };
 };
 
@@ -57,6 +62,10 @@ describe('guardarOpciones', () => {
     ]);
 
     expect(body.cotizacion.total).toBe(2813.81);
+    // El taxi conserva su importe de referencia (tipo_precio lo distingue);
+    // solo el vuelo estimado se anula para bloquear la autorización.
+    expect(body.cotizacion.opciones[1].precio).toBe(1093.81);
+    expect(body.cotizacion.opciones[1].datos?.tipo_precio).toBe('estimado');
   });
 
   it('omite el total si no hay opciones elegidas con precio', async () => {
@@ -75,5 +84,73 @@ describe('guardarOpciones', () => {
     ]);
 
     expect(body.cotizacion).not.toHaveProperty('total');
+  });
+
+  it('un vuelo estimado viaja con precio null y su referencia aparte', async () => {
+    const body = await guardar([
+      opcion({
+        tipo: 'vuelo',
+        precio: 1546.14,
+        fuente: 'estimado fase 1 (sin proveedor)',
+        datos: { tipo_precio: 'estimado' },
+      }),
+      opcion({
+        tipo: 'taxi',
+        precio: 795.06,
+        fuente: 'Tarifa taxi punto↔terminal (estimado)',
+        datos: { tipo_precio: 'estimado' },
+      }),
+    ]);
+
+    expect(body.cotizacion.opciones[0].precio).toBeNull();
+    expect(body.cotizacion.opciones[0].datos?.precio_estimado).toBe(1546.14);
+    expect(body.cotizacion).not.toHaveProperty('total_cotizado');
+    expect(body.cotizacion.total_estimado).toBe(2341.2);
+    expect(body.cotizacion.total).toBe(2341.2);
+  });
+
+  it('separa el precio real del vuelo de la referencia del taxi', async () => {
+    const body = await guardar([
+      opcion({
+        tipo: 'vuelo',
+        precio: 4974,
+        fuente: 'kayak.com.mx',
+        datos: { tipo_precio: 'cotizado' },
+      }),
+      opcion({
+        tipo: 'taxi',
+        precio: 795.06,
+        fuente: 'Tarifa taxi punto↔terminal (estimado)',
+        datos: { tipo_precio: 'estimado' },
+      }),
+    ]);
+
+    expect(body.cotizacion.total_cotizado).toBe(4974);
+    expect(body.cotizacion.total_estimado).toBe(795.06);
+    expect(body.cotizacion.total).toBe(5769.06);
+  });
+});
+
+describe('detectarPrecioPreview', () => {
+  it('envía la opción y la señal de cancelación al endpoint de vista previa', async () => {
+    api.post.mockResolvedValue({ data: { success: true, data: { detectado: false } } });
+    const controller = new AbortController();
+    const payload = {
+      tipo: 'vuelo',
+      linea: 'Aeromexico',
+      url_compra: 'https://www.kayak.com.mx/flights/MEX-ZLO/2026-12-10',
+      salida: '08:00',
+      llegada: '09:34',
+      datos: { tramo: 0, minutos_taxi_destino: 36 },
+      solicitud_datos: { destinos: [] },
+    };
+
+    await solicitudesApi.detectarPrecioPreview(payload, controller.signal);
+
+    expect(api.post).toHaveBeenCalledWith(
+      '/viaticos/opciones/detectar-precio',
+      payload,
+      expect.objectContaining({ signal: controller.signal, timeout: 80_000 }),
+    );
   });
 });

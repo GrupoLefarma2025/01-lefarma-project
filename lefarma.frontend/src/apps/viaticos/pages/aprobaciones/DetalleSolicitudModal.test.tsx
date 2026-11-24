@@ -136,6 +136,77 @@ describe('DetalleSolicitudModal', () => {
     );
   });
 
+  it('un vuelo estimado queda como referencia pendiente y no se suma al cotizado', async () => {
+    mocks.get.mockResolvedValue(
+      ok(
+        detalle([
+          opcion({
+            id_opcion: 1,
+            tipo: 'vuelo',
+            linea: 'Vuelo estimado',
+            precio: null,
+            fuente: 'estimado fase 1',
+            fue_elegida: true,
+            datos: { tipo_precio: 'estimado', precio_estimado: 1546.14 },
+          }),
+          opcion({
+            id_opcion: 2,
+            tipo: 'taxi',
+            linea: 'Taxi punto ↔ terminal',
+            precio: 795.06,
+            fuente: 'Tarifa taxi punto↔terminal (estimado)',
+            fue_elegida: true,
+            datos: { tipo_precio: 'estimado' },
+          }),
+        ])
+      )
+    );
+
+    renderModal();
+
+    await waitFor(() => expect(screen.getByTestId('total-elegidas')).toBeDefined());
+    expect(screen.getByTestId('total-elegidas').textContent).toBe(
+      'Referencia: $2,341.20 · Por cotizar · 1 vuelo por cotizar'
+    );
+    expect(screen.getByTestId('precios-pendientes').textContent).toContain('1 vuelo');
+    expect(within(screen.getByTestId('opcion-1')).getByText(/Referencia/)).toBeDefined();
+  });
+
+  it('separa el precio real del vuelo de la referencia del taxi', async () => {
+    mocks.get.mockResolvedValue(
+      ok(
+        detalle([
+          opcion({
+            id_opcion: 1,
+            tipo: 'vuelo',
+            linea: 'Aeroméxico 08:00–09:34',
+            precio: 4974,
+            fuente: 'kayak.com.mx',
+            fue_elegida: true,
+            datos: { tipo_precio: 'cotizado', precio_estimado: 1546.14 },
+          }),
+          opcion({
+            id_opcion: 2,
+            tipo: 'taxi',
+            linea: 'Taxi punto ↔ terminal',
+            precio: 795.06,
+            fuente: 'Tarifa taxi punto↔terminal (estimado)',
+            fue_elegida: true,
+            datos: { tipo_precio: 'estimado' },
+          }),
+        ])
+      )
+    );
+
+    renderModal();
+
+    await waitFor(() => expect(screen.getByTestId('total-elegidas')).toBeDefined());
+    expect(screen.getByTestId('total-elegidas').textContent).toBe(
+      'Cotizado: $4,974.00 · Referencia: $795.06'
+    );
+    expect(screen.queryByTestId('precios-pendientes')).toBeNull();
+  });
+
   it('una opción sin captura muestra placeholder y nunca una imagen rota', async () => {
     renderModal();
 

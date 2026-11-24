@@ -10,7 +10,7 @@ vi.mock('../../services/aprobaciones.api', () => ({
   aprobacionesApi: { bandeja: mocks.bandeja, autorizar: mocks.autorizar, rechazar: mocks.rechazar, registrarAjuste: vi.fn() },
 }));
 vi.mock('../../services/solicitudes.api', () => ({
-  solicitudesApi: { detalle: mocks.detalle, crear: vi.fn(), guardarOpciones: vi.fn(), misSolicitudes: vi.fn() },
+  solicitudesApi: { detalle: mocks.detalle, crear: vi.fn(), guardarOpciones: vi.fn(), misSolicitudes: vi.fn(), detectarPrecioPreview: vi.fn() },
 }));
 vi.mock('@/hooks/usePermission', () => ({
   usePermission: ({ require }: { require?: string }) => {

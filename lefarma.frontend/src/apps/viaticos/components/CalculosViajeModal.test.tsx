@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   autorizar: vi.fn(),
   enviar: vi.fn(),
   guardarOpciones: vi.fn(),
+  detectarPrecioPreview: vi.fn(),
 }));
 
 vi.mock('../services/costosRuta.api', () => ({
@@ -20,7 +21,11 @@ vi.mock('../services/aprobaciones.api', () => ({
   aprobacionesApi: { autorizar: mocks.autorizar },
 }));
 vi.mock('../services/solicitudes.api', () => ({
-  solicitudesApi: { enviar: mocks.enviar, guardarOpciones: mocks.guardarOpciones },
+  solicitudesApi: {
+    enviar: mocks.enviar,
+    guardarOpciones: mocks.guardarOpciones,
+    detectarPrecioPreview: mocks.detectarPrecioPreview,
+  },
 }));
 vi.mock('sonner', () => ({
   toast: { error: vi.fn(), success: vi.fn(), warning: vi.fn() },
@@ -171,6 +176,9 @@ const respuestaConTramos = (
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.calcular.mockResolvedValue({ data: { success: true, data: respuestaMotor() } });
+  mocks.detectarPrecioPreview.mockResolvedValue({
+    data: { success: true, data: { detectado: false, motivo: 'Sin confirmación en la prueba.' } },
+  });
 });
 
 describe('CalculosViajeModal con hotel', () => {
@@ -352,15 +360,17 @@ describe('CalculosViajeModal con hotel intermedio de Educación Médica', () => 
       />,
     );
 
-    const antes = await screen.findByRole('checkbox', { name: /Noche antes/i });
-    expect(antes).not.toBeChecked();
+    // La llegada es el mismo día y hay otro destino al día siguiente: la
+    // noche se configura en el tramo siguiente, no como "noche antes".
+    expect(await screen.findByText(/se configura en el siguiente tramo/i)).toBeInTheDocument();
+    expect(screen.queryByRole('checkbox', { name: /Noche antes/i })).not.toBeInTheDocument();
 
     await usuario.click(screen.getByRole('button', { name: /siguiente/i }));
     const despues = await screen.findByRole('checkbox', { name: /Noche después: dormir cerca de Zapopan/i });
     expect(despues).toBeChecked();
 
     await screen.findByText('ADO León');
-    expect(screen.getByText(/Opciones Hotel Centro → León/i)).toBeInTheDocument();
+    expect(screen.getByTestId('opciones-transporte')).toBeInTheDocument();
     await waitFor(() => expect(screen.getByLabelText('Taxi local del hotel')).toHaveValue('uber-vuelta'));
 
     await usuario.click(screen.getByRole('button', { name: /siguiente/i }));
@@ -438,5 +448,172 @@ describe('CalculosViajeModal en modo autorizar', () => {
     expect(mocks.autorizar).not.toHaveBeenCalled();
     expect(mocks.enviar).not.toHaveBeenCalled();
     expect(mocks.guardarOpciones).not.toHaveBeenCalled();
+  });
+});
+
+describe('CalculosViajeModal vista previa de precio', () => {
+  it('en ruta larga abre Avión y reemplaza los estimados con la lista real', async () => {
+    const base = respuestaMotor();
+    const vueloEstimado: CostosRutaOferta = {
+      ...oferta('vuelo-estimado', 'Vuelo (estimado)', 1729),
+      modo: 'avion',
+      precioTxt: '$1729 MXN /persona',
+      estimado: true,
+      tipoPrecio: 'estimado',
+      salidaTxt: '23/11 06:00',
+      llegadaTxt: '23/11 07:30',
+      comprar: compra('https://www.kayak.com.mx/flights/MEX-MTY/2026-11-23'),
+    };
+    const respuestaVuelo: CostosRutaResponse = {
+      ...base,
+      resultados: [{
+        ...base.resultados[0],
+        tramos: [{ from: 'CDMX', to: 'Monterrey', km: 700, opciones: [vueloEstimado] }],
+      }],
+    };
+    const solicitudLarga: Solicitud = {
+      ...solicitud,
+      id_solicitud: 77,
+      datos: {
+        ...(solicitud.datos as Record<string, unknown>),
+        origen: {
+          punto: {
+            nombre: 'Ciudad de México',
+            latitud: 19.43,
+            longitud: -99.13,
+            municipio: 'Ciudad de México',
+            estado: 'Ciudad de México',
+          },
+          fechaSalida: '2026-11-23',
+          horaSalida: '08:00',
+        },
+        destinos: [{
+          punto: {
+            nombre: 'Monterrey',
+            latitud: 25.68,
+            longitud: -100.31,
+            municipio: 'Monterrey',
+            estado: 'Nuevo León',
+          },
+          debeEstarFecha: '2026-11-23',
+          debeEstarHora: '15:52',
+        }],
+        retorno: { destino: 'origen', punto: null },
+      },
+    };
+
+    mocks.calcular.mockResolvedValue({ data: { success: true, data: respuestaVuelo } });
+    mocks.detectarPrecioPreview.mockResolvedValue({
+      data: {
+        success: true,
+        data: {
+          detectado: true,
+          fuente: 'playwright',
+          ruta_captura: 'capturas-viaticos/real.png',
+          opciones: [
+            {
+              tipo: 'vuelo',
+              linea: 'Aeromexico 06:10–07:45',
+              precio: 4100,
+              moneda: 'MXN',
+              fuente: 'kayak.com.mx',
+              url_compra: 'https://www.kayak.com.mx/book/flight?code=real',
+              salida: '06:10',
+              llegada: '07:45',
+              dias_llegada: 0,
+              duracion_min: 95,
+              patrocinado: false,
+            },
+            {
+              tipo: 'vuelo',
+              linea: 'VivaAerobus 08:20–10:05',
+              precio: 3890,
+              moneda: 'MXN',
+              fuente: 'kayak.com.mx',
+              url_compra: 'https://www.kayak.com.mx/book/flight?code=viva',
+              salida: '08:20',
+              llegada: '10:05',
+              dias_llegada: 0,
+              duracion_min: 105,
+              patrocinado: false,
+            },
+          ],
+        },
+      },
+    });
+
+    render(
+      <CalculosViajeModal
+        solicitud={solicitudLarga}
+        open
+        onOpenChange={vi.fn()}
+        onEnviado={vi.fn()}
+        modo="autorizar"
+        onPropuesta={vi.fn()}
+      />,
+    );
+
+    await waitFor(() => expect(mocks.detectarPrecioPreview).toHaveBeenCalledWith(
+      expect.objectContaining({ tipo: 'vuelo' }),
+      expect.anything(),
+    ));
+    await screen.findByText('Aeromexico');    expect(screen.getByText(/4,100/)).toBeInTheDocument();
+    expect(screen.queryByText('$1729 MXN /persona')).not.toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /Avión/ })).toHaveAttribute('aria-selected', 'true');
+  });
+
+  it('al elegir una opción pide la vista previa y usa el precio real', async () => {
+    const usuario = userEvent.setup();
+    mocks.detectarPrecioPreview.mockResolvedValue({
+      data: {
+        success: true,
+        data: {
+          detectado: true,
+          fuente: 'playwright',
+          ruta_captura: 'capturas-viaticos/preview.png',
+          elegido: {
+            tipo: 'autobus',
+            linea: 'Futura 09:00–13:30',
+            precio: 777,
+            moneda: 'MXN',
+            fuente: 'clickbus.com.mx',
+            url_compra: null,
+            detalle: 'Tipo Local',
+            salida: '09:00',
+            llegada: '13:30',
+            dias_llegada: 0,
+            duracion_min: 270,
+            asientos: 10,
+            noches: null,
+          },
+          opciones: [],
+        },
+      },
+    });
+
+    render(
+      <CalculosViajeModal
+        solicitud={solicitud}
+        open
+        onOpenChange={vi.fn()}
+        onEnviado={vi.fn()}
+        modo="autorizar"
+        onPropuesta={vi.fn()}
+      />,
+    );
+
+    const siguiente = await screen.findByRole('button', { name: /siguiente/i });
+    await waitFor(() => expect(siguiente).toBeEnabled());
+    await usuario.click((await screen.findAllByRole('button', { name: /^Elegir / }))[0]);
+
+    await waitFor(() => expect(mocks.detectarPrecioPreview).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tipo: 'autobus',
+        linea: 'Futura',
+        url_compra: 'https://comprar.test/a',
+      }),
+      expect.anything(),
+    ));
+    await waitFor(() => expect(screen.getByText(/\$777/)).toBeInTheDocument());
   });
 });
