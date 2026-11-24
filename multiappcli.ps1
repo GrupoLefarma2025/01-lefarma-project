@@ -225,7 +225,7 @@ function Invoke-DeployBuild([string]$NpmScript, [string]$ZipName, [string]$Versi
 
     Write-Host "[1/5] dotnet publish -c Release (AppVersion=$AppVersion)" -ForegroundColor Cyan
     Push-Location $Backend
-    dotnet publish -c Release -p:AppVersion=$AppVersion
+    dotnet publish -c Release -p:AppVersion=$AppVersion -o $PublishDir
     if ($LASTEXITCODE -ne 0) { Pop-Location; throw "Backend publish failed" }
     Pop-Location
 
