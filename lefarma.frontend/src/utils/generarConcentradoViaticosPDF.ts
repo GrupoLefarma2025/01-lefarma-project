@@ -3,7 +3,7 @@ import autoTable from 'jspdf-autotable';
 import logoAsokam from '@/assets/logo_7.png';
 import type { MacroViatico } from '@/types/macroViatico.types';
 import {
-  fmtFechaLarga,
+  fmtFechaViaje,
   fmtMoney,
   fmtMoneyCelda,
   sumarCostos,
@@ -197,10 +197,10 @@ export async function generarConcentradoViaticosPDF(
   doc.line(117, 33.5, 210, 33.5);
   doc.line(230, 33.5, 287, 33.5);
 
-  const body = filas.map((fila) => [
-    fila.renglon?.toString() ?? '',
+  const body = filas.map((fila, indice) => [
+    (indice + 1).toString(),
     texto(fila.solicitante),
-    fmtFechaLarga(fila.fechInicio),
+    fmtFechaViaje(fila.fechInicio, fila.fechaFin),
     texto(fila.origen),
     texto(fila.destino),
     ...costosDe(fila).map(fmtMoneyCelda),

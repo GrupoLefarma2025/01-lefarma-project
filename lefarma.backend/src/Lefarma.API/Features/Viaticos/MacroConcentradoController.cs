@@ -116,16 +116,22 @@ public class MacroConcentradoController : ControllerBase
                     "TRY_CONVERT(date, CONVERT(varchar(50), fecha), 23), " +
                     "TRY_CONVERT(date, CONVERT(varchar(50), fecha))) AS fecha, " +
                     "renglon, solicitante, " +
-                    "COALESCE(TRY_CONVERT(date, LEFT(CONVERT(varchar(50), fechInicio), " +
-                    "CHARINDEX(' AL ', CONVERT(varchar(50), fechInicio) + ' AL ') - 1), 103), " +
-                    "TRY_CONVERT(date, CONVERT(varchar(50), fechInicio), 23), " +
-                    "TRY_CONVERT(date, CONVERT(varchar(50), fechInicio))) AS fechInicio, " +
-                    "COALESCE(TRY_CONVERT(date, NULLIF(CONVERT(varchar(50), fechaFin), ''), 103), " +
-                    "TRY_CONVERT(date, NULLIF(CONVERT(varchar(50), fechaFin), ''), 23), " +
-                    "TRY_CONVERT(date, NULLIF(CONVERT(varchar(50), fechaFin), ''))) AS fechaFin, " +
+                    "COALESCE(TRY_CONVERT(date, viaje.inicio, 103), " +
+                    "TRY_CONVERT(date, viaje.inicio, 23), " +
+                    "TRY_CONVERT(date, viaje.inicio)) AS fechInicio, " +
+                    "COALESCE(TRY_CONVERT(date, viaje.fin, 103), " +
+                    "TRY_CONVERT(date, viaje.fin, 23), " +
+                    "TRY_CONVERT(date, viaje.fin), " +
+                    "TRY_CONVERT(date, NULLIF(CONVERT(varchar(50), m.fechaFin), ''), 103), " +
+                    "TRY_CONVERT(date, NULLIF(CONVERT(varchar(50), m.fechaFin), ''), 23), " +
+                    "TRY_CONVERT(date, NULLIF(CONVERT(varchar(50), m.fechaFin), ''))) AS fechaFin, " +
                     "origen, destino, costoAutobus, costoAvion, costoGasolina, costoCasetas, " +
                     "costoHospedaje, costoComida, costoTaxi, diasHospedaje, numeroComidas " +
                     "FROM dbo.infoMacroViaticos m " +
+                    "CROSS APPLY (SELECT LTRIM(RTRIM(REPLACE(REPLACE(CONVERT(varchar(50), m.fechInicio), CHAR(13), ' '), CHAR(10), ' '))) AS texto) normalizado " +
+                    "CROSS APPLY (SELECT CHARINDEX(' AL ', UPPER(normalizado.texto) + ' AL ') AS posicion) busqueda " +
+                    "CROSS APPLY (SELECT LEFT(normalizado.texto, busqueda.posicion - 1) AS inicio, " +
+                    "NULLIF(LTRIM(RTRIM(SUBSTRING(normalizado.texto, busqueda.posicion + 4, 50))), '') AS fin) viaje " +
                     "WHERE NOT EXISTS (" +
                     "SELECT 1 FROM operaciones.ordenes_compra oc " +
                     "INNER JOIN config.workflow_estados e ON e.id_estado = oc.id_estado " +
