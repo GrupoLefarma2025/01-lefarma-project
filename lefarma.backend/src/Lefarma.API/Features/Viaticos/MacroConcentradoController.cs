@@ -2,9 +2,15 @@ using System.Runtime.CompilerServices;
 using System.Security.Claims;
 using System.Text.Json;
 using Lefarma.API.Domain.Entities.Asokam;
+using Lefarma.API.Domain.Entities.Config;
+using Lefarma.API.Domain.Entities.Operaciones;
+using Lefarma.API.Domain.Interfaces.Config;
+using Lefarma.API.Features.Config.Workflows.DTOs;
+using Lefarma.API.Features.OrdenesCompra.Firmas;
 using Lefarma.API.Features.Viaticos.DTOs;
 using Lefarma.API.Infrastructure.Data;
 using Lefarma.API.Shared.Authorization;
+using Lefarma.API.Shared.Constants;
 using Lefarma.API.Shared.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -25,15 +31,21 @@ public class MacroConcentradoController : ControllerBase
 
     private readonly ApplicationDbContext _context;
     private readonly AsokamDbContext _asokamContext;
+    private readonly IWorkflowRepository _workflowRepo;
+    private readonly IOrdenCompraFirmasService _firmasService;
     private readonly ILogger<MacroConcentradoController> _logger;
 
     public MacroConcentradoController(
         ApplicationDbContext context,
         AsokamDbContext asokamContext,
+        IWorkflowRepository workflowRepo,
+        IOrdenCompraFirmasService firmasService,
         ILogger<MacroConcentradoController> logger)
     {
         _context = context;
         _asokamContext = asokamContext;
+        _workflowRepo = workflowRepo;
+        _firmasService = firmasService;
         _logger = logger;
     }
 
@@ -48,7 +60,8 @@ public class MacroConcentradoController : ControllerBase
         {
             var metadatos = await _asokamContext.Documentos
                 .AsNoTracking()
-                .Where(d => d.MetadataJSON != null &&
+                .Where(d => d.Activo &&
+                            d.MetadataJSON != null &&
                             d.MetadataJSON.Contains("concentrado_viaticos"))
                 .Select(d => d.MetadataJSON!)
                 .ToListAsync(ct);
@@ -58,6 +71,19 @@ public class MacroConcentradoController : ControllerBase
                 try
                 {
                     using var json = JsonDocument.Parse(metadata);
+                    if (!json.RootElement.TryGetProperty("tipo", out var tipoJson) ||
+                        tipoJson.ValueKind != JsonValueKind.String ||
+                        !string.Equals(tipoJson.GetString(), "concentrado_viaticos", StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+
+                    if (json.RootElement.TryGetProperty("aplicado", out var aplicadoJson) &&
+                        aplicadoJson.ValueKind == JsonValueKind.False)
+                    {
+                        continue;
+                    }
+
                     if (!json.RootElement.TryGetProperty("folios", out var foliosJson) ||
                         foliosJson.ValueKind != JsonValueKind.Array)
                     {
@@ -140,8 +166,33 @@ public class MacroConcentradoController : ControllerBase
                     "ORDER BY 4 DESC, 2, 3, 5"))
                 .ToListAsync(ct);
 
+            var foliosFilas = filas
+                .Select(fila => fila.Folio.Trim())
+                .Where(folio => folio.Length > 0)
+                .Distinct()
+                .ToList();
+
+            var idEstadoPreparacion = await _context.WorkflowEstados
+                .Where(e => e.Activo && e.Codigo == WorkflowEstadoCodigo.PREPARACION)
+                .Select(e => (int?)e.IdEstado)
+                .FirstOrDefaultAsync(ct);
+
+            Dictionary<string, int> estadoPorFolio = new(StringComparer.OrdinalIgnoreCase);
+            if (idEstadoPreparacion.HasValue && foliosFilas.Count > 0)
+            {
+                estadoPorFolio = (await _context.OrdenesCompra
+                        .Where(o => foliosFilas.Contains(o.Folio))
+                        .Select(o => new { o.Folio, o.IdEstado })
+                        .ToListAsync(ct))
+                    .DistinctBy(o => o.Folio, StringComparer.OrdinalIgnoreCase)
+                    .ToDictionary(o => o.Folio, o => o.IdEstado, StringComparer.OrdinalIgnoreCase);
+            }
+
             var foliosEnviados = await ObtenerFoliosEnviadosAsync(ct);
             var visibles = filas
+                .Where(fila => idEstadoPreparacion.HasValue
+                    && estadoPorFolio.TryGetValue(fila.Folio.Trim(), out var idEstado)
+                    && idEstado == idEstadoPreparacion.Value)
                 .Where(fila => !foliosEnviados.Contains(fila.Folio))
                 .ToList();
 
@@ -214,6 +265,119 @@ public class MacroConcentradoController : ControllerBase
             });
         }
 
+        var idEstadoPreparacion = await _context.WorkflowEstados
+            .Where(e => e.Activo && e.Codigo == WorkflowEstadoCodigo.PREPARACION)
+            .Select(e => (int?)e.IdEstado)
+            .FirstOrDefaultAsync(ct);
+        if (idEstadoPreparacion is null)
+        {
+            return StatusCode(500, new ApiResponse<object>
+            {
+                Success = false,
+                Message = "El catálogo de estados no tiene el estado PREPARACION.",
+                Data = null
+            });
+        }
+
+        var estados = await _context.WorkflowEstados
+            .Where(e => e.Activo)
+            .ToDictionaryAsync(e => e.IdEstado, e => e.Nombre ?? e.Codigo ?? e.IdEstado.ToString(), ct);
+
+        var ordenesPorFolio = (await _context.OrdenesCompra
+                .Where(o => folios.Contains(o.Folio))
+                .ToListAsync(ct))
+            .ToDictionary(o => o.Folio, o => o, StringComparer.OrdinalIgnoreCase);
+
+        var foliosEnviados = await ObtenerFoliosEnviadosAsync(ct);
+
+        var accionesPorPaso = new Dictionary<int, WorkflowAccion?>();
+        var resultados = new List<MacroConcentradoEnvioItemResult>();
+        var foliosValidos = new List<(OrdenCompra Orden, WorkflowAccion Accion)>();
+
+        foreach (var folio in folios)
+        {
+            if (!ordenesPorFolio.TryGetValue(folio, out var orden))
+            {
+                resultados.Add(new MacroConcentradoEnvioItemResult
+                {
+                    Folio = folio,
+                    Exitoso = false,
+                    Motivo = "No existe una orden de compra con ese folio."
+                });
+                continue;
+            }
+
+            if (!orden.IdPasoActual.HasValue)
+            {
+                resultados.Add(new MacroConcentradoEnvioItemResult
+                {
+                    Folio = folio,
+                    Exitoso = false,
+                    Motivo = "La orden no tiene paso actual."
+                });
+                continue;
+            }
+
+            if (orden.IdEstado != idEstadoPreparacion.Value)
+            {
+                var estadoActual = estados.GetValueOrDefault(orden.IdEstado, $"estado {orden.IdEstado}");
+                resultados.Add(new MacroConcentradoEnvioItemResult
+                {
+                    Folio = folio,
+                    Exitoso = false,
+                    Motivo = $"La orden no está lista para concentrado (estado actual: {estadoActual})."
+                });
+                continue;
+            }
+
+            if (foliosEnviados.Contains(folio))
+            {
+                resultados.Add(new MacroConcentradoEnvioItemResult
+                {
+                    Folio = folio,
+                    Exitoso = false,
+                    Motivo = "Ya fue enviada en un concentrado de viáticos."
+                });
+                continue;
+            }
+
+            if (!accionesPorPaso.TryGetValue(orden.IdPasoActual.Value, out var accionEnviar))
+            {
+                var acciones = await _workflowRepo.GetAccionesDisponiblesAsync(orden.IdPasoActual.Value);
+                accionEnviar = acciones.FirstOrDefault(a => a.EnviaConcentrado && a.Activo);
+                accionesPorPaso[orden.IdPasoActual.Value] = accionEnviar;
+            }
+
+            if (accionEnviar is null)
+            {
+                resultados.Add(new MacroConcentradoEnvioItemResult
+                {
+                    Folio = folio,
+                    Exitoso = false,
+                    Motivo = "La orden no tiene acción de envío concentrado disponible en su paso actual."
+                });
+                continue;
+            }
+
+            resultados.Add(new MacroConcentradoEnvioItemResult { Folio = folio, Exitoso = true });
+            foliosValidos.Add((orden, accionEnviar));
+        }
+
+        if (resultados.Any(r => !r.Exitoso))
+        {
+            return BadRequest(new ApiResponse<MacroConcentradoEnvioResponse>
+            {
+                Success = false,
+                Message = "No se puede enviar el concentrado: "
+                    + string.Join("; ", resultados.Where(r => !r.Exitoso).Select(r => $"{r.Folio}: {r.Motivo}")),
+                Data = new MacroConcentradoEnvioResponse
+                {
+                    TotalFolios = folios.Count,
+                    Resultados = resultados
+                }
+            });
+        }
+
         var nombreArchivo = string.IsNullOrWhiteSpace(request.Nombre)
             ? $"concentrado-viaticos-{DateTime.Now:yyyyMMddHHmm}"
             : request.Nombre.Trim();
@@ -234,16 +398,18 @@ public class MacroConcentradoController : ControllerBase
         await request.Archivo.CopyToAsync(stream, ct);
 
         var idUsuario = GetUserId();
-        var metadata = JsonSerializer.Serialize(new
+        var metadatos = new Dictionary<string, object?>
         {
-            tipo = "concentrado_viaticos",
-            folios,
-            nombre = request.Nombre,
-            gerencia = request.Gerencia,
-            fecha = request.Fecha,
-            to = request.Correo,
-            cc = request.CorreoCC
-        });
+            ["tipo"] = "concentrado_viaticos",
+            ["folios"] = folios,
+            ["nombre"] = request.Nombre,
+            ["gerencia"] = request.Gerencia,
+            ["fecha"] = request.Fecha,
+            ["to"] = request.Correo,
+            ["cc"] = request.CorreoCC,
+            ["aplicado"] = false
+        };
+        var metadata = JsonSerializer.Serialize(metadatos);
 
         var documento = new Documento
         {
@@ -271,6 +437,82 @@ public class MacroConcentradoController : ControllerBase
         _asokamContext.Documentos.Add(documento);
         await _asokamContext.SaveChangesAsync(ct);
 
+        var avances = new List<MacroConcentradoEnvioItemResult>();
+        var commitHecho = false;
+        var transaccionTerminada = false;
+        await using var transaction = await _context.Database.BeginTransactionAsync(ct);
+        try
+        {
+            foreach (var (orden, accionEnviar) in foliosValidos)
+            {
+                var resultadoFirma = await _firmasService.FirmarAsync(
+                    orden.IdOrden,
+                    new FirmarRequest { IdAccion = accionEnviar.IdAccion, Comentario = comentario },
+                    idUsuario);
+
+                avances.Add(resultadoFirma.IsError
+                    ? new MacroConcentradoEnvioItemResult
+                    {
+                        Folio = orden.Folio,
+                        Exitoso = false,
+                        Motivo = resultadoFirma.FirstError.Description
+                    }
+                    : new MacroConcentradoEnvioItemResult { Folio = orden.Folio, Exitoso = true });
+            }
+
+            if (avances.Any(a => !a.Exitoso))
+            {
+                await transaction.RollbackAsync(ct);
+                transaccionTerminada = true;
+                DesactivarDocumento(documento, folios, string.Join(" | ", avances.Where(a => !a.Exitoso).Select(a => $"{a.Folio}: {a.Motivo}")));
+                await _asokamContext.SaveChangesAsync(ct);
+
+                return Conflict(new ApiResponse<MacroConcentradoEnvioResponse>
+                {
+                    Success = false,
+                    Message = "El envío se canceló: "
+                        + string.Join("; ", avances.Where(a => !a.Exitoso).Select(a => $"{a.Folio}: {a.Motivo}")),
+                    Data = new MacroConcentradoEnvioResponse
+                    {
+                        IdDocumento = documento.Id,
+                        NombreArchivo = documento.NombreArchivo,
+                        TotalFolios = folios.Count,
+                        Resultados = avances
+                    }
+                });
+            }
+
+            await transaction.CommitAsync(ct);
+            transaccionTerminada = true;
+            commitHecho = true;
+
+            metadatos["aplicado"] = true;
+            metadatos["fechaAplicado"] = DateTime.Now;
+            documento.MetadataJSON = JsonSerializer.Serialize(metadatos);
+            await _asokamContext.SaveChangesAsync(ct);
+        }
+        catch (Exception ex)
+        {
+            if (!transaccionTerminada)
+                await transaction.RollbackAsync(ct);
+
+            if (!commitHecho)
+            {
+                DesactivarDocumento(documento, folios, "Error inesperado al concentrar las órdenes de compra.");
+                await _asokamContext.SaveChangesAsync(ct);
+                _logger.LogError(ex, "El documento {IdDocumento} del concentrado de viáticos se desactivó porque el avance de las órdenes falló.", documento.Id);
+
+                return StatusCode(500, new ApiResponse<MacroConcentradoEnvioResponse>
+                {
+                    Success = false,
+                    Message = "Error inesperado al concentrar las órdenes de compra. Reintenta el envío.",
+                    Data = null
+                });
+            }
+
+            _logger.LogWarning(ex, "Las órdenes del concentrado {IdDocumento} se avanzaron, pero no se pudo marcar el documento como aplicado.", documento.Id);
+        }
+
         return Ok(new ApiResponse<MacroConcentradoEnvioResponse>
         {
             Success = true,
@@ -279,8 +521,21 @@ public class MacroConcentradoController : ControllerBase
             {
                 IdDocumento = documento.Id,
                 NombreArchivo = documento.NombreArchivo,
-                TotalFolios = folios.Count
+                TotalFolios = folios.Count,
+                Resultados = avances
             }
+        });
+    }
+
+    private static void DesactivarDocumento(Documento documento, List<string> folios, string motivo)
+    {
+        documento.Activo = false;
+        documento.MetadataJSON = JsonSerializer.Serialize(new
+        {
+            tipo = "concentrado_viaticos",
+            folios,
+            aplicado = false,
+            error = motivo
         });
     }
 }
