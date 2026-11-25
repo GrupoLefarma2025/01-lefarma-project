@@ -2,7 +2,7 @@ import type { CSSProperties } from 'react';
 import logoAsokam from '@/assets/logo_7.png';
 import type { MacroViatico } from '@/types/macroViatico.types';
 import {
-  fmtFechaViaje,
+  fmtFechaCorta,
   fmtMoney,
   fmtMoneyCelda,
   sumarCostos,
@@ -199,7 +199,7 @@ export function ConcentradoViaticosPDF({
               <td style={{ ...border, textAlign: 'center' }}>{indice + 1}</td>
               <td style={border}>{texto(fila.solicitante)}</td>
               <td style={border}>
-                {fmtFechaViaje(fila.fechInicio, fila.fechaFin)}
+                {fmtFechaCorta(fila.fechInicio, fila.fechaFin)}
               </td>
               <td style={border}>{texto(fila.origen)}</td>
               <td style={border}>{texto(fila.destino)}</td>

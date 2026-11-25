@@ -7,7 +7,7 @@ import {
   AGRUPACION_VIATICO_LABELS,
   buildHeader,
   claveGrupoViatico,
-  fmtFechaViaje,
+  fmtFechaCorta,
   fmtMoney,
   ordenarViaticos,
   sumarCostos,
@@ -508,7 +508,7 @@ export default function EnvioConcentradoViaticos({
                               {texto(fila.solicitante)}
                             </TableCell>
                             <TableCell className="text-xs text-right text-muted-foreground">
-                              {fmtFechaViaje(fila.fechInicio, fila.fechaFin)}
+                              {fmtFechaCorta(fila.fechInicio, fila.fechaFin)}
                             </TableCell>
                             <TableCell className="text-xs text-right font-medium">
                               {fmtMoney(totalViatico(fila))}

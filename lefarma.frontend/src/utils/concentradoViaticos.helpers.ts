@@ -81,7 +81,7 @@ export function fechaViajeLineas(
   return [fmtFecha(fInicio), `AL ${fmtFecha(fFin)}`];
 }
 
-export function fmtFechaViaje(
+export function fmtFechaCorta(
   inicio?: string | null,
   fin?: string | null,
 ): string {
