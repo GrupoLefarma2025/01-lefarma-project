@@ -11,8 +11,6 @@ import type {
   SaldoVacacionesCreateRequest,
   SaldoVacacionesDetalle,
   SaldoVacacionesAjusteRequest,
-  SincronizarSaldosRequest,
-  SincronizarSaldosResponse,
 } from '@/types/vacaciones.types';
 
 const BASE = '/rh/vacaciones';
@@ -41,9 +39,6 @@ getSaldos: (filters: SaldoVacacionesRequest) =>
 
   createSaldo: (data: SaldoVacacionesCreateRequest) =>
     API.post<ApiResponse<SaldoVacacionesResponse>>(`${BASE}/saldos`, data),
-
-  syncSaldos: (data: SincronizarSaldosRequest) =>
-    API.post<ApiResponse<SincronizarSaldosResponse>>(`${BASE}/saldos/sincronizar`, data),
 };
 
 export default vacacionesApi;

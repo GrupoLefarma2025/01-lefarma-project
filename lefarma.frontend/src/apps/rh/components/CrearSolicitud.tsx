@@ -265,10 +265,13 @@ export function CrearSolicitud({ idSolicitud, onClose, onSaved, incidencia, fech
 
   const saldoDisponibleVacaciones = useMemo(() => {
     if (saldosVacaciones === null) return null;
-    const anio = watchedFechaInicio
-      ? new Date(`${watchedFechaInicio}T00:00:00`).getFullYear()
-      : new Date().getFullYear();
-    return saldosVacaciones.find((s) => s.anio === anio)?.diasPendientes ?? 0;
+    const fecha = watchedFechaInicio
+      ? new Date(`${watchedFechaInicio}T00:00:00`)
+      : new Date();
+    const periodo = saldosVacaciones.find(
+      (s) => new Date(s.fechaInicioPeriodo) <= fecha && new Date(s.fechaFinPeriodo) >= fecha
+    );
+    return periodo?.diasPendientes ?? 0;
   }, [saldosVacaciones, watchedFechaInicio]);
 
   const mostrarAvisoSaldoNegativo =

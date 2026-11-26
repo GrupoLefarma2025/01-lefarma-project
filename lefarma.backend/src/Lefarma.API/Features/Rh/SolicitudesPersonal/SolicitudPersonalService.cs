@@ -13,6 +13,7 @@ using Lefarma.API.Features.Rh.IncidenciasChecado;
 using Lefarma.API.Features.Rh.IncidenciasChecado.DTOs;
 using Lefarma.API.Features.Rh.SolicitudesPersonal.DTOs;
 using Lefarma.API.Features.Rh.SolicitudesPersonal.Settings;
+using Lefarma.API.Features.Rh.Vacaciones;
 using Lefarma.API.Features.Rh.Vacaciones.DTOs;
 using Lefarma.API.Infrastructure.Data;
 using Lefarma.API.Shared.Constants;
@@ -491,23 +492,74 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                     && soli.FechaInicio.HasValue && soli.FechaFin.HasValue)
                 {
                     var fechasDetalle = soli.Detalle.Select(d => d.Fecha).ToList();
-                    var diasQueDescuentan = fechasDetalle.Count > 0
-                        ? await ContarDiasQueConsumenSaldoAsync(_context, soli.IdEmpresa, fechasDetalle)
-                        : await ContarDiasQueConsumenSaldoAsync(_context, soli.IdEmpresa, soli.FechaInicio.Value, soli.FechaFin.Value);
+                    var fechasConsumo = fechasDetalle.Count > 0
+                        ? await ObtenerFechasQueConsumenSaldoAsync(_context, soli.IdEmpresa, fechasDetalle)
+                        : await ObtenerFechasQueConsumenSaldoAsync(_context, soli.IdEmpresa, soli.FechaInicio.Value, soli.FechaFin.Value);
 
-                    var anioSaldo = soli.FechaInicio.Value.Year;
                     var idUsuarioSaldo = soli.IdUsuarioSolicitante ?? soli.IdUsuarioCreador;
-                    var diasPendientes = await _context.SaldosVacacionesAnuales
-                        .AsNoTracking()
-                        .Where(s => s.IdUsuario == idUsuarioSaldo && s.Anio == anioSaldo && s.Activo)
-                        .Select(s => (decimal?)s.DiasPendientes)
-                        .FirstOrDefaultAsync() ?? 0m;
+                    var empleado = await _empleadoRepository.ObtenerEmpleadoPorUsuarioAsync(idUsuarioSaldo);
+                    var fechaIngreso = empleado?.Fechaingreso ?? soli.FechaInicio.Value;
 
-                    var resultante = diasPendientes - diasQueDescuentan;
+                    var periodos = fechasConsumo
+                        .GroupBy(f => VacacionesPeriodoHelper.CalcularPeriodo(fechaIngreso, f))
+                        .Select(g => new { Periodo = g.Key, Dias = g.Count() })
+                        .OrderBy(g => g.Periodo.Inicio)
+                        .ToList();
+
+                    var idsPeriodos = periodos.Select(p => p.Periodo.Inicio).ToList();
+                    var saldos = await _context.SaldosVacacionesPeriodos
+                        .AsNoTracking()
+                        .Where(s => s.IdUsuario == idUsuarioSaldo && s.Activo && idsPeriodos.Contains(s.FechaInicioPeriodo))
+                        .Select(s => new { s.FechaInicioPeriodo, s.DiasPendientes, s.DiasAjustadosArrastre })
+                        .ToDictionaryAsync(s => s.FechaInicioPeriodo, s => s);
+
+                    var saldoDisponibleActual = await _context.SaldosVacacionesPeriodos
+                        .AsNoTracking()
+                        .Where(s => s.IdUsuario == idUsuarioSaldo && s.Activo
+                            && s.FechaLimiteDisfrute >= DateTime.Today)
+                        .Select(s => new { s.DiasPendientes, s.DiasAjustadosArrastre })
+                        .ToListAsync();
+
+                    var tieneArrastre = await _context.SaldosVacacionesPeriodos
+                        .AsNoTracking()
+                        .AnyAsync(s => s.IdUsuario == idUsuarioSaldo && s.Activo && s.DiasAjustadosArrastre > 0);
+
+                    var arrastre = tieneArrastre
+                        ? await _context.SaldosVacacionesArrastres
+                            .AsNoTracking()
+                            .Where(a => a.IdUsuario == idUsuarioSaldo && a.Activo)
+                            .SumAsync(a => (decimal?)a.DiasRestante) ?? 0m
+                        : 0m;
+
+                    var detallePeriodos = periodos.Select(p =>
+                    {
+                        saldos.TryGetValue(p.Periodo.Inicio, out var saldoPeriodo);
+                        var pendientes = (saldoPeriodo?.DiasPendientes ?? 0m)
+                            - (saldoPeriodo?.DiasAjustadosArrastre ?? 0m);
+                        var resultantePeriodo = pendientes - p.Dias;
+                        return new SaldoVacacionesSolicitudPeriodoDto
+                        {
+                            NumeroPeriodo = p.Periodo.NumeroPeriodo,
+                            FechaInicioPeriodo = p.Periodo.Inicio,
+                            FechaFinPeriodo = p.Periodo.Fin,
+                            Periodo = VacacionesPeriodoHelper.EtiquetaPeriodo(p.Periodo.Inicio, p.Periodo.Fin),
+                            DiasPendientes = pendientes,
+                            DiasQueDescuentan = p.Dias,
+                            SaldoResultante = resultantePeriodo,
+                            QuedaNegativo = resultantePeriodo < 0
+                        };
+                    }).ToList();
+
+                    var diasQueDescuentan = fechasConsumo.Count;
+                    var diasPendientesTotal = saldoDisponibleActual
+                        .Sum(s => s.DiasPendientes - s.DiasAjustadosArrastre) + arrastre;
+                    var resultante = diasPendientesTotal - diasQueDescuentan;
+
                     response.SaldoVacaciones = new SaldoVacacionesSolicitudDto
                     {
-                        Anio = anioSaldo,
-                        DiasPendientes = diasPendientes,
+                        Periodos = detallePeriodos,
+                        DiasArrastre = arrastre,
+                        DiasPendientes = diasPendientesTotal,
                         DiasQueDescuentan = diasQueDescuentan,
                         SaldoResultante = resultante,
                         QuedaNegativo = resultante < 0
@@ -1394,6 +1446,13 @@ if (soli.IdTipoSolicitud != request.IdTipoSolicitud)
         }
 
         internal static async Task<List<DateTime>> ObtenerFechasQueConsumenSaldoAsync(
+            ApplicationDbContext context, int idEmpresa, IEnumerable<DateTime> fechasSolicitud)
+        {
+            var fechas = fechasSolicitud.Select(f => f.Date).Distinct().ToList();
+            return await FiltrarFechasQueConsumenSaldoAsync(context, idEmpresa, fechas);
+        }
+
+        internal static async Task<List<DateTime>> ObtenerFechasQueConsumenSaldoAsync(
             ApplicationDbContext context, int idEmpresa, DateTime fechaInicio, DateTime fechaFin)
         {
             var totalDias = (fechaFin - fechaInicio).Days + 1;
@@ -1522,25 +1581,36 @@ if (soli.IdTipoSolicitud != request.IdTipoSolicitud)
                 var (periodoInicio, periodoFin, periodoEtiqueta) = PeriodoHelper.ObtenerPeriodoActual(
                     ahora, PeriodoHelper.Quincena);
 
-var anioActual = ahora.Year;
-                var saldos = await _context.SaldosVacacionesAnuales
+                var hoy = DateTime.Today;
+                var saldos = await _context.SaldosVacacionesPeriodos
                     .AsNoTracking()
-                    .Where(s => s.IdUsuario == idUsuarioObjetivo && s.Anio == anioActual && s.Activo)
+                    .Where(s => s.IdUsuario == idUsuarioObjetivo && s.Activo
+                        && s.FechaInicioPeriodo <= hoy && s.FechaFinPeriodo >= hoy)
                     .Select(s => new SaldoVacacionesResponse
                     {
                         IdSaldo = s.IdSaldo,
                         IdUsuario = s.IdUsuario,
                         IdEmpresa = s.IdEmpresa,
-                        Anio = s.Anio,
+                        FechaInicioPeriodo = s.FechaInicioPeriodo,
+                        FechaFinPeriodo = s.FechaFinPeriodo,
+                        FechaLimiteDisfrute = s.FechaLimiteDisfrute,
+                        NumeroPeriodo = s.NumeroPeriodo,
                         DiasGenerados = s.DiasGenerados,
                         DiasVencidos = s.DiasVencidos,
                         DiasCompensados = s.DiasCompensados,
                         DiasAjustados = s.DiasAjustados,
+                        DiasAjustadosArrastre = s.DiasAjustadosArrastre,
                         DiasTomados = s.DiasTomados,
                         DiasPendientes = s.DiasPendientes,
+                        DiasPendientesTotal = s.DiasPendientes,
                         Activo = s.Activo
                     })
                     .ToListAsync();
+
+                foreach (var saldo in saldos)
+                {
+                    saldo.Periodo = VacacionesPeriodoHelper.EtiquetaPeriodo(saldo.FechaInicioPeriodo, saldo.FechaFinPeriodo);
+                }
 
                 return new MisLimitesResponse
                 {

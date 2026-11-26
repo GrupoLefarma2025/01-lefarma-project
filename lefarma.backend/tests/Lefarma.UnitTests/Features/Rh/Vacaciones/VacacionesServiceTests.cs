@@ -49,26 +49,30 @@ public class VacacionesServiceTests
             asokam,
             Mock.Of<IWideEventAccessor>());
 
-    private static List<SaldoVacacionesAjusteHistorialDto> LeerHistorial(SaldoVacacionesAnual saldo)
+    private static List<SaldoVacacionesAjusteHistorialDto> LeerHistorial(SaldoVacacionesPeriodo saldo)
         => JsonSerializer.Deserialize<List<SaldoVacacionesAjusteHistorialDto>>(
                saldo.HistorialAjustes ?? "[]",
                new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase })
            ?? new List<SaldoVacacionesAjusteHistorialDto>();
 
-    private static SaldoVacacionesAnual SeedSaldo(
-        ApplicationDbContext context, int idUsuario = 1, int anio = 2026)
+    private static SaldoVacacionesPeriodo SeedSaldo(
+        ApplicationDbContext context, int idUsuario = 1, DateTime? inicio = null)
     {
-        var saldo = new SaldoVacacionesAnual
+        var fechaInicio = inicio ?? new DateTime(2026, 1, 1);
+        var saldo = new SaldoVacacionesPeriodo
         {
             IdUsuario = idUsuario,
             IdEmpresa = 1,
-            Anio = anio,
+            FechaInicioPeriodo = fechaInicio,
+            FechaFinPeriodo = fechaInicio.AddYears(1).AddDays(-1),
+            FechaLimiteDisfrute = fechaInicio.AddYears(1).AddMonths(18),
+            NumeroPeriodo = 0,
             DiasGenerados = 12m,
             DiasTomados = 2m,
             Activo = true,
             FechaCreacion = DateTime.Now
         };
-        context.SaldosVacacionesAnuales.Add(saldo);
+        context.SaldosVacacionesPeriodos.Add(saldo);
         context.SaveChanges();
         return saldo;
     }
@@ -108,7 +112,7 @@ public class VacacionesServiceTests
 
         result.IsError.Should().BeFalse();
 
-        var actualizado = await context.SaldosVacacionesAnuales.FindAsync(saldo.IdSaldo);
+        var actualizado = await context.SaldosVacacionesPeriodos.FindAsync(saldo.IdSaldo);
         actualizado!.DiasAjustados.Should().Be(3m);
         actualizado.DiasVencidos.Should().Be(1m);
         actualizado.DiasCompensados.Should().Be(2m);
@@ -145,7 +149,7 @@ public class VacacionesServiceTests
         primero.IsError.Should().BeFalse();
         segundo.IsError.Should().BeFalse();
 
-        var actualizado = await context.SaldosVacacionesAnuales.FindAsync(saldo.IdSaldo);
+        var actualizado = await context.SaldosVacacionesPeriodos.FindAsync(saldo.IdSaldo);
         var historial = LeerHistorial(actualizado!);
         historial.Should().HaveCount(2);
         historial[0].Motivo.Should().Be("Primer ajuste");
@@ -170,7 +174,7 @@ public class VacacionesServiceTests
         }, idUsuario: 99);
 
         result.IsError.Should().BeFalse();
-        var actualizado = await context.SaldosVacacionesAnuales.FindAsync(saldo.IdSaldo);
+        var actualizado = await context.SaldosVacacionesPeriodos.FindAsync(saldo.IdSaldo);
         actualizado!.DiasAjustados.Should().Be(-2m);
     }
 
@@ -254,7 +258,7 @@ public class VacacionesServiceTests
         }, idUsuario: 99);
 
         result.IsError.Should().BeTrue();
-        result.FirstError.Code.Should().Be("SaldoVacacionesAnual.NotFound");
+        result.FirstError.Code.Should().Be("SaldoVacacionesPeriodo.NotFound");
     }
 
     [Fact]
@@ -360,18 +364,21 @@ public class VacacionesServiceTests
     public async Task ObtenerDetalle_ReportaSolicitudesEnTramiteYProyeccion()
     {
         var context = CreateAppContext();
-        var saldo = new SaldoVacacionesAnual
+        var saldo = new SaldoVacacionesPeriodo
         {
             IdUsuario = 7,
             IdEmpresa = 1,
-            Anio = 2026,
+            FechaInicioPeriodo = new DateTime(2026, 1, 1),
+            FechaFinPeriodo = new DateTime(2026, 12, 31),
+            FechaLimiteDisfrute = new DateTime(2027, 7, 1),
+            NumeroPeriodo = 0,
             DiasGenerados = 12m,
             DiasTomados = 2m,
             DiasPendientes = 10m,
             Activo = true,
             FechaCreacion = DateTime.Now
         };
-        context.SaldosVacacionesAnuales.Add(saldo);
+        context.SaldosVacacionesPeriodos.Add(saldo);
 
         context.TiposSolicitud.Add(new TipoSolicitud
         {
@@ -433,42 +440,54 @@ public class VacacionesServiceTests
     public async Task ObtenerDetalle_IncluyeHistorialDeTodosLosAniosDelUsuario()
     {
         var context = CreateAppContext();
-        var saldoActual = SeedSaldo(context, idUsuario: 7, anio: 2026);
+        var saldoActual = SeedSaldo(context, idUsuario: 7);
 
-        context.SaldosVacacionesAnuales.Add(new SaldoVacacionesAnual
+        context.SaldosVacacionesPeriodos.Add(new SaldoVacacionesPeriodo
         {
             IdUsuario = 7,
             IdEmpresa = 1,
-            Anio = 2025,
+            FechaInicioPeriodo = new DateTime(2025, 1, 1),
+            FechaFinPeriodo = new DateTime(2025, 12, 31),
+            FechaLimiteDisfrute = new DateTime(2027, 7, 1),
+            NumeroPeriodo = 0,
             DiasGenerados = 12m,
             DiasTomados = 5m,
             Activo = true,
             FechaCreacion = DateTime.Now
         });
-        context.SaldosVacacionesAnuales.Add(new SaldoVacacionesAnual
+        context.SaldosVacacionesPeriodos.Add(new SaldoVacacionesPeriodo
         {
             IdUsuario = 7,
             IdEmpresa = 1,
-            Anio = 2024,
+            FechaInicioPeriodo = new DateTime(2024, 1, 1),
+            FechaFinPeriodo = new DateTime(2024, 12, 31),
+            FechaLimiteDisfrute = new DateTime(2026, 7, 1),
+            NumeroPeriodo = 0,
             DiasGenerados = 10m,
             DiasTomados = 10m,
             Activo = true,
             FechaCreacion = DateTime.Now
         });
-        context.SaldosVacacionesAnuales.Add(new SaldoVacacionesAnual
+        context.SaldosVacacionesPeriodos.Add(new SaldoVacacionesPeriodo
         {
             IdUsuario = 8,
             IdEmpresa = 1,
-            Anio = 2025,
+            FechaInicioPeriodo = new DateTime(2025, 1, 1),
+            FechaFinPeriodo = new DateTime(2025, 12, 31),
+            FechaLimiteDisfrute = new DateTime(2027, 7, 1),
+            NumeroPeriodo = 0,
             DiasGenerados = 12m,
             Activo = true,
             FechaCreacion = DateTime.Now
         });
-        context.SaldosVacacionesAnuales.Add(new SaldoVacacionesAnual
+        context.SaldosVacacionesPeriodos.Add(new SaldoVacacionesPeriodo
         {
             IdUsuario = 7,
             IdEmpresa = 1,
-            Anio = 2023,
+            FechaInicioPeriodo = new DateTime(2023, 1, 1),
+            FechaFinPeriodo = new DateTime(2023, 12, 31),
+            FechaLimiteDisfrute = new DateTime(2025, 7, 1),
+            NumeroPeriodo = 0,
             DiasGenerados = 12m,
             Activo = false,
             FechaCreacion = DateTime.Now
@@ -482,8 +501,8 @@ public class VacacionesServiceTests
         result.IsError.Should().BeFalse();
         var historial = result.Value.Historial;
         historial.Should().HaveCount(3);
-        historial.Select(h => h.Anio).Should().ContainInOrder(2026, 2025, 2024);
-        historial.Should().OnlyContain(h => h.Anio != 2023);
+        historial.Select(h => h.FechaInicioPeriodo.Year).Should().ContainInOrder(2026, 2025, 2024);
+        historial.Should().OnlyContain(h => h.FechaInicioPeriodo.Year != 2023);
         historial[0].IdSaldo.Should().Be(saldoActual.IdSaldo);
     }
 
@@ -496,7 +515,7 @@ public class VacacionesServiceTests
         var result = await service.ObtenerDetalleSaldoAsync(999);
 
         result.IsError.Should().BeTrue();
-        result.FirstError.Code.Should().Be("SaldoVacacionesAnual.NotFound");
+        result.FirstError.Code.Should().Be("SaldoVacacionesPeriodo.NotFound");
     }
 
     [Fact]

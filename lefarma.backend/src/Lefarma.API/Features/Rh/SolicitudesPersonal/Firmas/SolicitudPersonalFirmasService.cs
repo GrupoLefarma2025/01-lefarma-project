@@ -7,6 +7,7 @@ using Lefarma.API.Domain.Interfaces.Rh;
 using Lefarma.API.Features.Config.Workflows;
 using Lefarma.API.Features.Config.Workflows.DTOs;
 using Lefarma.API.Features.Profile;
+using Lefarma.API.Features.Rh.Vacaciones;
 using Lefarma.API.Infrastructure.Data;
 using Lefarma.API.Shared.Constants;
 using Lefarma.API.Shared.Errors;
@@ -31,6 +32,7 @@ public class SolicitudPersonalFirmasService : BaseService, ISolicitudPersonalFir
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly IJefeInmediatoResolver _jefeInmediatoResolver;
     private readonly IProfileService _profileService;
+    private readonly IEmpleadoRepository _empleadoRepository;
     protected override string EntityName => "SolicitudPersonalFirma";
 
     public SolicitudPersonalFirmasService(
@@ -44,6 +46,7 @@ public class SolicitudPersonalFirmasService : BaseService, ISolicitudPersonalFir
         IServiceScopeFactory scopeFactory,
         IJefeInmediatoResolver jefeInmediatoResolver,
         IProfileService profileService,
+        IEmpleadoRepository empleadoRepository,
         IWideEventAccessor wideEventAccessor) : base(wideEventAccessor)
     {
         _context = context;
@@ -56,6 +59,7 @@ public class SolicitudPersonalFirmasService : BaseService, ISolicitudPersonalFir
         _scopeFactory = scopeFactory;
         _jefeInmediatoResolver = jefeInmediatoResolver;
         _profileService = profileService;
+        _empleadoRepository = empleadoRepository;
     }
 
     public async Task<ErrorOr<FirmarResponse>> FirmarAsync(int idSolicitud, FirmarRequest request, int idUsuario)
@@ -316,38 +320,105 @@ public class SolicitudPersonalFirmasService : BaseService, ISolicitudPersonalFir
                 .Select(d => d.Fecha)
                 .ToListAsync();
 
-            var diasQueDescuentan = fechasDetalle.Count > 0
-                ? await SolicitudPersonalService.ContarDiasQueConsumenSaldoAsync(
+            var fechasConsumo = fechasDetalle.Count > 0
+                ? await SolicitudPersonalService.ObtenerFechasQueConsumenSaldoAsync(
                     _context, solicitud.IdEmpresa, fechasDetalle)
-                : await SolicitudPersonalService.ContarDiasQueConsumenSaldoAsync(
+                : await SolicitudPersonalService.ObtenerFechasQueConsumenSaldoAsync(
                     _context, solicitud.IdEmpresa, solicitud.FechaInicio.Value, solicitud.FechaFin.Value);
 
-            if (diasQueDescuentan == 0)
+            var pendiente = (decimal)fechasConsumo.Count;
+            if (pendiente == 0)
                 return true;
 
-            var anio = solicitud.FechaInicio.Value.Year;
-            var saldo = await _context.SaldosVacacionesAnuales
-                .FirstOrDefaultAsync(s => s.IdUsuario == idUsuarioSolicitante && s.Anio == anio && s.Activo);
+            var empleado = await _empleadoRepository.ObtenerEmpleadoPorUsuarioAsync(idUsuarioSolicitante);
+            var fechaIngreso = empleado?.Fechaingreso ?? solicitud.FechaInicio.Value;
 
-            if (saldo is null)
+            var periodos = await _context.SaldosVacacionesPeriodos
+                .Where(s => s.IdUsuario == idUsuarioSolicitante && s.Activo)
+                .OrderBy(s => s.FechaInicioPeriodo)
+                .ToListAsync();
+
+            var tieneArrastre = periodos.Any(p => p.DiasAjustadosArrastre > 0);
+            var arrastres = new List<SaldoVacacionesArrastre>();
+
+            if (tieneArrastre)
             {
-                saldo = new SaldoVacacionesAnual
-                {
-                    IdUsuario = idUsuarioSolicitante,
-                    IdEmpresa = solicitud.IdEmpresa,
-                    Anio = anio,
-                    DiasGenerados = 0,
-                    DiasVencidos = 0,
-                    DiasCompensados = 0,
-                    DiasAjustados = 0,
-                    DiasTomados = 0,
-                    Activo = true,
-                    FechaCreacion = DateTime.Now
-                };
-                _context.SaldosVacacionesAnuales.Add(saldo);
+                arrastres = await _context.SaldosVacacionesArrastres
+                    .Where(a => a.IdUsuario == idUsuarioSolicitante && a.Activo && a.DiasTotal > 0)
+                    .OrderBy(a => a.FechaCorte)
+                    .ThenBy(a => a.IdArrastre)
+                    .ToListAsync();
             }
 
-            saldo.DiasTomados += diasQueDescuentan;
+            foreach (var arrastre in arrastres)
+            {
+                if (pendiente <= 0) break;
+
+                var restante = arrastre.DiasTotal - arrastre.DiasAplicados;
+                if (restante <= 0) continue;
+
+                var aplicar = Math.Min(restante, pendiente);
+                arrastre.DiasAplicados += aplicar;
+                arrastre.FechaModificacion = DateTime.Now;
+                pendiente -= aplicar;
+            }
+
+            foreach (var periodo in periodos)
+            {
+                if (pendiente <= 0) break;
+                if (periodo.FechaLimiteDisfrute < DateTime.Today) continue;
+
+                var disponible = periodo.DiasGenerados + periodo.DiasCompensados + periodo.DiasAjustados
+                    - periodo.DiasVencidos - periodo.DiasTomados;
+
+                if (disponible <= 0) continue;
+
+                var aplicar = Math.Min(disponible, pendiente);
+                periodo.DiasTomados += aplicar;
+                pendiente -= aplicar;
+            }
+
+            SaldoVacacionesPeriodo? periodoUsado = null;
+
+            if (pendiente > 0)
+            {
+                var (inicio, fin, limite, numero) = VacacionesPeriodoHelper.CalcularPeriodo(fechaIngreso, solicitud.FechaFin.Value);
+
+                periodoUsado = await _context.SaldosVacacionesPeriodos
+                    .FirstOrDefaultAsync(s => s.IdUsuario == idUsuarioSolicitante && s.FechaInicioPeriodo == inicio && s.Activo);
+
+                if (periodoUsado is null)
+                {
+                    periodoUsado = new SaldoVacacionesPeriodo
+                    {
+                        IdUsuario = idUsuarioSolicitante,
+                        IdEmpresa = solicitud.IdEmpresa,
+                        FechaInicioPeriodo = inicio,
+                        FechaFinPeriodo = fin,
+                        FechaLimiteDisfrute = limite,
+                        NumeroPeriodo = numero,
+                        DiasGenerados = VacacionesPeriodoHelper.CalcularDiasGenerados(numero),
+                        Activo = true,
+                        FechaCreacion = DateTime.Now
+                    };
+                    _context.SaldosVacacionesPeriodos.Add(periodoUsado);
+                    periodos.Add(periodoUsado);
+                }
+
+                periodoUsado.DiasTomados += pendiente;
+            }
+
+            var restanteArrastre = arrastres.Sum(a => a.DiasTotal - a.DiasAplicados);
+
+            var periodoEspejo = periodos.FirstOrDefault(p => p.FechaInicioPeriodo <= DateTime.Today && p.FechaFinPeriodo >= DateTime.Today)
+                ?? periodoUsado
+                ?? periodos.OrderByDescending(p => p.FechaInicioPeriodo).FirstOrDefault();
+
+            if (periodoEspejo is not null)
+            {
+                periodoEspejo.DiasAjustadosArrastre = restanteArrastre;
+                periodoEspejo.FechaModificacion = DateTime.Now;
+            }
 
             await _context.SaveChangesAsync();
             return true;

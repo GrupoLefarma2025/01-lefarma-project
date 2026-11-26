@@ -50,13 +50,19 @@ export interface SaldoVacacionesResponse {
   nomina?: number;
   idEmpresa: number;
   empresaNombre?: string;
-  anio: number;
+  fechaInicioPeriodo: string;
+  fechaFinPeriodo: string;
+  fechaLimiteDisfrute: string;
+  numeroPeriodo: number;
+  periodo: string;
   diasGenerados: number;
   diasVencidos: number;
   diasCompensados: number;
   diasAjustados: number;
+  diasAjustadosArrastre: number;
   diasTomados: number;
   diasPendientes: number;
+  diasPendientesTotal: number;
   activo: boolean;
 }
 
@@ -75,7 +81,9 @@ export interface UsuarioAfectadoResponse {
 export interface SaldoVacacionesRequest {
   idEmpresa?: number;
   idUsuario?: number;
-  anio?: number;
+  fechaInicioPeriodo?: string;
+  fechaFinPeriodo?: string;
+  soloVigentes?: boolean;
 }
 
 export interface SolicitudVacacionesDetalle {
@@ -92,13 +100,26 @@ export interface SolicitudVacacionesDetalle {
 
 export interface SaldoVacacionesHistorial {
   idSaldo: number;
-  anio: number;
+  numeroPeriodo: number;
+  fechaInicioPeriodo: string;
+  fechaFinPeriodo: string;
+  periodo: string;
   diasGenerados: number;
   diasVencidos: number;
   diasCompensados: number;
   diasAjustados: number;
+  diasAjustadosArrastre: number;
   diasTomados: number;
   diasPendientes: number;
+}
+
+export interface SaldoVacacionesArrastre {
+  idArrastre: number;
+  descripcion: string;
+  fechaCorte: string;
+  diasTotal: number;
+  diasAplicados: number;
+  diasRestante: number;
 }
 
 export interface SaldoAjusteHistorial {
@@ -119,7 +140,11 @@ export interface SaldoVacacionesDetalle {
   nomina?: number;
   idEmpresa: number;
   empresaNombre?: string;
-  anio: number;
+  fechaInicioPeriodo: string;
+  fechaFinPeriodo: string;
+  fechaLimiteDisfrute: string;
+  numeroPeriodo: number;
+  periodo: string;
   puesto?: string;
   departamento?: string;
   empleadoEmpresa?: string;
@@ -130,14 +155,17 @@ export interface SaldoVacacionesDetalle {
   diasVencidos: number;
   diasCompensados: number;
   diasAjustados: number;
+  diasAjustadosArrastre: number;
   diasTomados: number;
   diasPendientes: number;
+  diasPendientesTotal: number;
   fechaModificacion?: string;
   ajustadoPor?: string;
   diasEnTramite: number;
   diasPendientesProyectado: number;
   solicitudes: SolicitudVacacionesDetalle[];
   historial: SaldoVacacionesHistorial[];
+  arrastres: SaldoVacacionesArrastre[];
   historialAjustes: SaldoAjusteHistorial[];
 }
 
@@ -151,24 +179,12 @@ export interface SaldoVacacionesAjusteRequest {
 export interface SaldoVacacionesCreateRequest {
   idUsuario: number;
   idEmpresa: number;
-  anio: number;
+  fechaInicioPeriodo?: string;
   diasGenerados?: number;
   diasVencidos: number;
   diasCompensados: number;
   diasAjustados: number;
   diasTomados: number;
-}
-
-export interface SincronizarSaldosRequest {
-  anio?: number;
-}
-
-export interface SincronizarSaldosResponse {
-  anio: number;
-  total: number;
-  creados: number;
-  actualizados: number;
-  omitidos: number;
 }
 
 export interface DiaHabilFilters {
