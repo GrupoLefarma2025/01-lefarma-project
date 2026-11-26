@@ -45,11 +45,6 @@ public static class CalculoCostosRuta
         ["BJX"] = ("Terminal de Autobuses de León", 21.1214, -101.6830),
     };
 
-    private static readonly Dictionary<string, double> CasetasIda = new()    {
-        ["CDMX-GDL"] = 950, ["CDMX-MTY"] = 1180, ["CDMX-QRO"] = 330, ["CDMX-PUE"] = 180,
-        ["GDL-MTY"] = 900, ["CDMX-CUN"] = 1450, ["GDL-CUN"] = 1250,
-    };
-
     private static readonly Dictionary<string, (double Base, double PorKm)> Taxi = new()
     {
         ["CDMX"] = (30, 11), ["GDL"] = (28, 10), ["MTY"] = (30, 12), ["QRO"] = (25, 10),
@@ -84,7 +79,6 @@ public static class CalculoCostosRuta
 
     private const string FuenteTabuladorHotel = "seed tabulador SHCP";
 
-    private const double CasetaPorKm = 1.4;
     private static readonly string[] OverpassInstancias =
     [
         "https://overpass-api.de/api/interpreter",
@@ -94,7 +88,6 @@ public static class CalculoCostosRuta
     private const double ComidaDiaEstandar = 600;
 
 private static double RendimientoEfectivo() => ConfiguracionViaticos.Double("costos.rendimiento_km_l", RendimientoKmL);
-    private static double CasetaPorKmEfectivo() => ConfiguracionViaticos.Double("costos.caseta_por_km", CasetaPorKm);
     private static double ComidaDiaEfectiva() => (double)ConfiguracionViaticos.Decimal("costos.comida_dia", 600m);
 
     private static (double Base, double Km) TarifaTaxi(string ciudad)
@@ -170,7 +163,7 @@ private static double RendimientoEfectivo() => ConfiguracionViaticos.Double("cos
 
     private sealed record OpCalc(string Modo, string Linea, string Codigo, DateTime Salida, DateTime Llegada,
         double PuertaH, int OverheadMin, double Lo, double Hi, double CostoGrupo, bool PorPersona,
-        double? Litros, double? PrecioLitro, double? CasetasVal, double? TarifaDia,
+        double? Litros, double? PrecioLitro, double? TarifaDia,
         bool Late, bool SaleAntes, int LateMin, string Fuente, bool Estimado, string Nota,
         string Url, string Sitio, string Accion, string Objetivo, string Badge,
         CostosRutaTerminal? TerminalOrigenDato = null, CostosRutaTerminal? TerminalDestinoDato = null,
@@ -1276,7 +1269,7 @@ public static async Task<CostosRutaResponse> CalcularAsync(CostosRutaRequest req
                     Opciones = t.Opciones.Select((o, oi) => OfertaDe(o, norm.Nombre, i, ti + 1, oi, t.From, t.To,
                         ti < prop.Count ? prop[ti] : null, ti + 1 < prop.Count ? prop[ti + 1] : null)).ToList(),
                 }).ToList(),
-                RutaArmada = RutaArmada(prop, tramos, precios),
+                RutaArmada = RutaArmada(tramos, precios),
                 HotelesPropuestos = hoteles,
                 Incumplimientos = incumplimientos,
                 Casetas = casetas,
@@ -1542,7 +1535,6 @@ private static async Task<double> HorasManejoAsync(HttpClient http, double latO,
         var air = HaversineKm(a.Lat, a.Lon, b.Lat, b.Lon);
         var (keyO, _) = SnapCiudad(a.Lat, a.Lon);
         var (keyD, _) = SnapCiudad(b.Lat, b.Lon);
-        var cas = Casetas(keyO, keyD, km);
         var gas = km / RendimientoEfectivo() * precios.Magna;
         var osm = $"https://www.openstreetmap.org/directions?engine=fossgis_osrm_car&route={a.Lat}%2C{a.Lon}%3B{b.Lat}%2C{b.Lon}";
         var opts = new List<OpCalc>();
@@ -1555,17 +1547,17 @@ private static async Task<double> HorasManejoAsync(HttpClient http, double latO,
         {
             var divisor = nSh is > 1 ? nSh.Value : 1;
             var litros = km / RendimientoEfectivo();
-            foreach (var (nombre, casetas, factorT) in new[] { ("Auto (cuota)", cas.Costo, 1.0), ("Auto (libre)", 0.0, 1.15) })
+            foreach (var (nombre, factorT) in new[] { ("Auto (cuota)", 1.0), ("Auto (libre)", 1.15) })
             {
                 var dur = hrs * factorT;
                 var sal = salidaPrevia ?? deadline.AddHours(-dur).AddMinutes(-BufferMin);
                 var arr = sal.AddHours(dur);
-                var parte = (gas + casetas) / divisor;
+                var parte = gas / divisor;
                 opts.Add(new OpCalc("auto", nombre + NotaSh(), $"{km:F0} km carretera", sal, arr, dur, 0,
-                    parte, parte * 1.1, parte, false, litros / divisor, precios.Magna, casetas / divisor, null,
+                    parte, parte * 1.1, parte, false, litros / divisor, precios.Magna, null,
                     arr > deadline, false, arr > deadline ? (int)(arr - deadline).TotalMinutes : 0,
                     $"OSRM + CNE ({srcRuta}; {precios.Fuente})", false,
-                    salidaPrevia is not null ? $"casetas + gasolina CNE · sales {sal:dd/MM HH:mm} (tu hora){NotaSh()}" : $"casetas + gasolina CNE · sale {sal:dd/MM HH:mm} para llegar {BufferMin} min antes{NotaSh()}",
+                    salidaPrevia is not null ? $"gasolina CNE · sales {sal:dd/MM HH:mm} (tu hora){NotaSh()}" : $"gasolina CNE · sale {sal:dd/MM HH:mm} para llegar {BufferMin} min antes{NotaSh()}",
                     osm, "OSRM + OpenStreetMap", "ver ruta", $"ruta de manejo {a.Nombre} → {b.Nombre}", ""));
             }
         }
@@ -1574,9 +1566,9 @@ private static async Task<double> HorasManejoAsync(HttpClient http, double latO,
         {
             var sal = salidaPrevia ?? deadline.AddHours(-hrs).AddMinutes(-BufferMin);
             var arr = sal.AddHours(hrs);
-            var total = (tarifa + gas + cas.Costo) / (nSh is > 1 ? nSh.Value : 1);
+            var total = (tarifa + gas) / (nSh is > 1 ? nSh.Value : 1);
             opts.Add(new OpCalc("renta", nombre + NotaSh(), $"{km:F0} km carretera", sal, arr, hrs, 0,
-                total, total * 1.12, total, false, km / RendimientoEfectivo(), precios.Magna, cas.Costo, tarifa,
+                total, total * 1.12, total, false, km / RendimientoEfectivo(), precios.Magna, tarifa,
                 arr > deadline, false, arr > deadline ? (int)(arr - deadline).TotalMinutes : 0,
                 "seed renta", true, $"{notaR} · tarifa/día ${tarifa:F0}{NotaSh()}",
                 $"https://www.google.com/search?q=renta de autos {b.Nombre} por día", "Google", "cotizar renta", $"renta en {b.Nombre}", ""));
@@ -1658,7 +1650,7 @@ private static async Task<double> HorasManejoAsync(HttpClient http, double latO,
                         viaje.Salida, viaje.Llegada, durB + 0.5, 30,
                         viaje.PrecioDesde, viaje.PrecioHasta,
                         (viaje.PrecioDesde + viaje.PrecioHasta) / 2, true,
-                        null, null, null, null, lateB, saleAntesB,
+                        null, null, null, lateB, saleAntesB,
                         lateB ? (int)(llegadaFinalB - deadline).TotalMinutes : 0,
                         viaje.Fuente, busEstimado, $"{viaje.Nota} · cotiza en el sitio/app oficial",
                         viaje.Url,
@@ -1731,7 +1723,7 @@ private static async Task<double> HorasManejoAsync(HttpClient http, double latO,
                     var late = llegadaFinal > deadline;
                     opts.Add(new OpCalc("avion", mejor.Linea, "estimado", mejor.Salida, mejor.Llegada, puerta, 120,
                         mejor.PrecioDesde, mejor.PrecioHasta, (mejor.PrecioDesde + mejor.PrecioHasta) / 2, true,
-                        null, null, null, null, late, saleAntes,
+                        null, null, null, late, saleAntes,
                         late ? (int)(llegadaFinal - deadline).TotalMinutes : 0,
                         mejor.Fuente, true, $"{mejor.Nota} · llegar al aeropuerto + 120 min antes{notaHub} · precio real en Kayak",
                         mejor.Url, "Kayak", "ver precios reales", $"vuelo {mejor.Linea} {vueloDesde} → {vueloHasta}", "",
@@ -1748,7 +1740,7 @@ private static async Task<double> HorasManejoAsync(HttpClient http, double latO,
         {
             opts.Add(new OpCalc("uber", "Taxi (referencia intermedia)", $"{km:F0} km", salidaPrevia ?? deadline.AddHours(-hrs),
                 (salidaPrevia ?? deadline.AddHours(-hrs)).AddHours(hrs), hrs, 0, 0, 0, 0, false,
-                null, null, null, null, false, false, 0, "seed", true,
+                null, null, null, false, false, 0, "seed", true,
                 "viaje intermedio sin conectores (opción desactivada)", osm, "OSRM", "ver ruta", "referencia", ""));
         }
 
@@ -1840,14 +1832,6 @@ private static async Task<double> HorasManejoAsync(HttpClient http, double latO,
         return puntuales.Count > 0 ? puntuales.MaxBy(c => sal(c))! : pool.MinBy(c => arr(c))!;
     }
 
-    private static (double Costo, string Fuente) Casetas(string? keyO, string? keyD, double km)
-    {
-        foreach (var par in new[] { $"{keyO}-{keyD}", $"{keyD}-{keyO}" })
-            if (CasetasIda.TryGetValue(par, out var v))
-                return (v, $"seed de corredor {par} (estilo CAPUFE)");
-        return (Math.Round(km * CasetaPorKmEfectivo()), "seed ~$1.4/km (estilo CAPUFE)");
-    }
-
     private static List<OpCalc> TaxiUber(LugarNorm a, LugarNorm b, double km, double hrs,
         string? ciudadKey, DateTime? salidaPrevia, DateTime deadline, string osm)
     {
@@ -1861,7 +1845,7 @@ private static async Task<double> HorasManejoAsync(HttpClient http, double latO,
             var sal = salidaPrevia ?? deadline.AddHours(-dur).AddMinutes(-BufferMin);
             var arr = sal.AddHours(dur);
             list.Add(new OpCalc("uber", linea, $"{km:F0} km · por auto (hasta 4 pax)", sal, arr, dur, 0,
-                costo, costo * 1.25, costo, false, null, null, null, null,
+                costo, costo * 1.25, costo, false, null, null, null,
                 arr > deadline, false, arr > deadline ? (int)(arr - deadline).TotalMinutes : 0,
                 fuente, true, salidaPrevia is not null ? $"{nota} · sales {sal:dd/MM HH:mm} (tu hora)" : $"{nota}{recargo}",
                 url, sitio, "cotizar viaje", $"viaje {linea} {a.Nombre} → {b.Nombre}", ""));
@@ -1914,7 +1898,7 @@ private static async Task<double> HorasManejoAsync(HttpClient http, double latO,
         var sal = salidaPrevia ?? deadline.AddHours(-dur).AddMinutes(-BufferMin);
         var arr = sal.AddHours(dur);
         return new OpCalc("publico", $"Transporte público ({sist})", $"{km:F0} km · tarifa plana", sal, arr, dur + 0.33, 20,
-            tarifa, tarifa * 1.3, tarifa, true, null, null, null, null,
+            tarifa, tarifa * 1.3, tarifa, true, null, null, null,
             arr > deadline, false, arr > deadline ? (int)(arr - deadline).TotalMinutes : 0,
             "seed transporte público", true, $"tarifa plana ~${tarifa:F0}",
             $"https://www.google.com/search?q={Uri.EscapeDataString(sist + " " + b.Nombre + " tarifa")}", "Google",
@@ -2335,16 +2319,13 @@ private static List<CostosRutaPropuesta> ArmarPropuestas(PersonaNorm norm, List<
         return clave.ToString().Trim('_');
     }
 
-private static CostosRutaRutaArmada RutaArmada(List<LugarNorm> prop, List<TramoCalc> tramos, PreciosGasolina precios)
+private static CostosRutaRutaArmada RutaArmada(List<TramoCalc> tramos, PreciosGasolina precios)
     {
         var armada = new CostosRutaRutaArmada();
         for (var ti = 0; ti < tramos.Count; ti++)
         {
             var t = tramos[ti];
             var litros = t.Km / RendimientoKmL;
-            var (keyO, _) = SnapCiudad(prop[ti].Lat, prop[ti].Lon);
-            var (keyD, _) = SnapCiudad(prop[ti + 1].Lat, prop[ti + 1].Lon);
-            var cas = Casetas(keyO, keyD, t.Km);
             var cm = litros * precios.Magna;
             var cp = litros * precios.Premium;
             armada.Tramos.Add(new CostosRutaRutaTramo
@@ -2355,9 +2336,8 @@ private static CostosRutaRutaArmada RutaArmada(List<LugarNorm> prop, List<TramoC
                     Magna = new CostosRutaPrecioCombustible { PrecioL = precios.Magna, Costo = Math.Round(cm, 2), Fuente = precios.Fuente },
                     Premium = new CostosRutaPrecioCombustible { PrecioL = precios.Premium, Costo = Math.Round(cp, 2), Fuente = precios.Fuente },
                 },
-                Casetas = new CostosRutaCasetasDetalle { Costo = cas.Costo, Fuente = cas.Fuente },
-                SubtotalMagna = Math.Round(cm + cas.Costo, 2),
-                SubtotalPremium = Math.Round(cp + cas.Costo, 2),
+                SubtotalMagna = Math.Round(cm, 2),
+                SubtotalPremium = Math.Round(cp, 2),
                 Grafica = t.Grafica?.Select(g => new[] { g.Lat, g.Lon }).ToList(),
             });
         }
@@ -2365,7 +2345,6 @@ private static CostosRutaRutaArmada RutaArmada(List<LugarNorm> prop, List<TramoC
         {
             Km = Math.Round(armada.Tramos.Sum(t => t.Km), 1),
             Litros = Math.Round(armada.Tramos.Sum(t => t.Litros), 2),
-            Casetas = Math.Round(armada.Tramos.Sum(t => t.Casetas.Costo), 2),
             SubtotalMagna = Math.Round(armada.Tramos.Sum(t => t.SubtotalMagna), 2),
             SubtotalPremium = Math.Round(armada.Tramos.Sum(t => t.SubtotalPremium), 2),
         };
@@ -2446,9 +2425,6 @@ private static CostosRutaRutaArmada RutaArmada(List<LugarNorm> prop, List<TramoC
             Combustible = o.Modo == "auto" && o.Litros is { } litros && o.PrecioLitro is { } precioLitro
                 ? Math.Round(litros * precioLitro, 2)
                 : null,
-            CasetasEstimadas = o.Modo == "auto" && o.CasetasVal is { } casetasEstimadas
-                ? Math.Round(casetasEstimadas, 2)
-                : null,
             Comprar = new CostosRutaCompra { Url = o.Url, Sitio = o.Sitio, Accion = o.Accion, Objetivo = o.Objetivo, Fecha = o.Salida.ToString("yyyy-MM-dd") },
         };
     }
@@ -2501,7 +2477,7 @@ private static Dictionary<int, Dictionary<int, ComparteInfo>> DetectarCompartido
                 var clave = $"{a.Nombre}|{b.Nombre}|{string.Join(",", miembros)}";
                 if (!vistos.Add(clave)) continue;
                 var km = HaversineKm(a.Lat, a.Lon, b.Lat, b.Lon) * 1.25;
-                var indiv = km / RendimientoEfectivo() * 23.5 + Math.Round(km * CasetaPorKmEfectivo());
+                var indiv = km / RendimientoEfectivo() * 23.5;
                 var ahorro = Math.Round(indiv * (1 - 1.0 / info.N), 2);
                 out_.Add(new CostosRutaCompartido
                 {
@@ -2509,7 +2485,7 @@ private static Dictionary<int, Dictionary<int, ComparteInfo>> DetectarCompartido
                     AhorroEstimadoMxn = ahorro,
                     Nota = compartirActivo
                         ? $"auto compartido entre {info.N}" + (info.Conductor is not null ? $" (maneja {info.Conductor})" : " (renta compartida)")
-                        : $"ahorro potencial si comparten (~${ahorro:F0} por persona con seed magna/casetas)",
+                        : $"ahorro potencial si comparten (~${ahorro:F0} por persona con seed magna)",
                 });
             }
         return out_;

@@ -330,8 +330,8 @@ public class CostosRutaServiceTests
         {
             t.Litros.Should().BeApproximately(t.Km / 12.0, 0.01);
             t.Gasolina.Magna.PrecioL.Should().Be(23.5);
-            t.SubtotalMagna.Should().BeApproximately(t.Litros * 23.5 + t.Casetas.Costo, 0.6);
-            t.SubtotalPremium.Should().BeApproximately(t.Litros * 25.5 + t.Casetas.Costo, 0.6);
+            t.SubtotalMagna.Should().BeApproximately(t.Litros * 23.5, 0.6);
+            t.SubtotalPremium.Should().BeApproximately(t.Litros * 25.5, 0.6);
         }
         r.RutaArmada.Totales.SubtotalMagna.Should().BeApproximately(
             r.RutaArmada.Tramos.Sum(t => t.SubtotalMagna), 0.01);
@@ -993,7 +993,7 @@ public class CostosRutaServiceTests
     }
 
     [Fact]
-    public async Task AutoOffers_ExposeComponentsThatSumToSelectedPrice()
+    public async Task AutoOffers_ExposeFuelThatMatchesSelectedPrice()
     {
         var (http, cache) = Infra();
 
@@ -1011,9 +1011,7 @@ public class CostosRutaServiceTests
         foreach (var auto in autos)
         {
             auto.Combustible.Should().NotBeNull();
-            auto.CasetasEstimadas.Should().NotBeNull();
-            (auto.Combustible!.Value + auto.CasetasEstimadas!.Value)
-                .Should().BeApproximately(auto.CostoGrupo, 0.02);
+            auto.Combustible!.Value.Should().BeApproximately(auto.CostoGrupo, 0.02);
         }
     }
 }

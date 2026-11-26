@@ -206,7 +206,6 @@ public class CostosRutaOferta
     public string Disponibilidad { get; set; } = string.Empty;
     public string DisponibilidadDetalle { get; set; } = string.Empty;
     public double? Combustible { get; set; }
-    public double? CasetasEstimadas { get; set; }
     public CostosRutaCompra Comprar { get; set; } = new();
 }
 
@@ -313,7 +312,6 @@ public class CostosRutaRutaTramo
     public List<double[]>? Grafica { get; set; }
     public double Litros { get; set; }
     public CostosRutaGasolinaDetalle Gasolina { get; set; } = new();
-    public CostosRutaCasetasDetalle Casetas { get; set; } = new();
     public double SubtotalMagna { get; set; }
     public double SubtotalPremium { get; set; }
 }
@@ -331,17 +329,10 @@ public class CostosRutaPrecioCombustible
     public string Fuente { get; set; } = string.Empty;
 }
 
-public class CostosRutaCasetasDetalle
-{
-    public double Costo { get; set; }
-    public string Fuente { get; set; } = string.Empty;
-}
-
 public class CostosRutaRutaTotales
 {
     public double Km { get; set; }
     public double Litros { get; set; }
-    public double Casetas { get; set; }
     public double SubtotalMagna { get; set; }
     public double SubtotalPremium { get; set; }
 }
