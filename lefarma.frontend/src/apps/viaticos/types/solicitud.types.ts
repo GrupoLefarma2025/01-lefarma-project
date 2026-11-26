@@ -16,7 +16,6 @@ export interface DatosOpcion {
   de?: string;
   a?: string;
   combustible?: number;
-  casetas_estimadas?: number;
   source?: string;
   tipo_precio?: string;
   precio_estimado?: number | null;
@@ -136,6 +135,17 @@ export interface PropuestaRuta {
   calculo: CalculoViaje;
   opciones: OpcionCotizacion[];
   resumen: ResumenCostosRuta;
+}
+
+export type OrigenPropuesta = 'calculo' | 'recalculo' | 'costos';
+
+export interface PropuestaVersion {
+  numero: number;
+  origen: OrigenPropuesta;
+  creado_en: string | null;
+  calculo: CalculoViaje;
+  opciones: OpcionCotizacion[];
+  resumen: ResumenCostosRuta | null;
 }
 
 export interface CrearSolicitudPayload {

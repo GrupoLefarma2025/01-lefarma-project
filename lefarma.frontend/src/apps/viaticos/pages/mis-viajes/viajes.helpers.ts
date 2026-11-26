@@ -209,6 +209,8 @@ export function tipoTransporte(solicitud: Solicitud): string {
 }
 
 export function costoViaje(solicitud: Solicitud): number | null {
+  if (solicitud.estado === 'borrador') return null;
+
   const datos = objetoPlano(solicitud.datos);
   const totalSnapshot = Number(datos?.total);
   if (Number.isFinite(totalSnapshot) && totalSnapshot > 0) return totalSnapshot;

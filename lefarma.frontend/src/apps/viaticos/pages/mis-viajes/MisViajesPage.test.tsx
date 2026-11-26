@@ -2,7 +2,13 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MisViajesPage, VistaDetalle } from './MisViajesPage';
-import type { CalculoViaje, PropuestaRuta, Solicitud, SolicitudOpcion } from '../../types/solicitud.types';
+import type {
+  CalculoViaje,
+  PropuestaRuta,
+  PropuestaVersion,
+  Solicitud,
+  SolicitudOpcion,
+} from '../../types/solicitud.types';
 
 const mocks = vi.hoisted(() => ({
   mis: vi.fn(),
@@ -86,6 +92,30 @@ describe('MisViajesPage', () => {
     expect(screen.getByText('Creada por mí para otra persona')).toBeInTheDocument();
     expect(screen.getByText('Solicitada para mí por otra persona')).toBeInTheDocument();
     expect(screen.getByText(/Compartida conmigo/)).toBeInTheDocument();
+  });
+
+  it('un borrador todavía no muestra costo del viaje y una enviada sí', async () => {
+    mocks.mis.mockResolvedValue({
+      data: {
+        success: true,
+        data: [
+          solicitud(1, { estado: 'borrador', folio: 'VIA-BOR-0001', datos: { total: 150 } }),
+          solicitud(2, { estado: 'enviada', folio: 'VIA-ENV-0002', datos: { total: 230.5 } }),
+        ],
+      },
+    });
+    const vista = render(<MisViajesPage />);
+
+    const borrador = await screen.findByTestId('viaje-1');
+    const celdasBorrador = Array.from(borrador.querySelectorAll('td')).map((celda) => celda.textContent?.trim());
+    expect(celdasBorrador).toContain('—');
+    expect(celdasBorrador.join(' ')).not.toContain('$150.00');
+
+    mocks.busqueda = new URLSearchParams('pestana=enviadas');
+    vista.rerender(<MisViajesPage />);
+    const enviada = await screen.findByTestId('viaje-2');
+    const celdasEnviada = Array.from(enviada.querySelectorAll('td')).map((celda) => celda.textContent?.trim());
+    expect(celdasEnviada).toContain('$230.50');
   });
 
   it('los filtros de periodo muestran el rango visible y filtran por fecha de creación', async () => {
@@ -262,6 +292,61 @@ describe('MisViajesPage', () => {
     expect(screen.queryAllByTestId('viaje-1')).toHaveLength(1);
   });
 
+  it('el detalle del borrador explica por qué se rechazó', async () => {
+    const usuario = userEvent.setup();
+    const rechazada = solicitud(1, {
+      estado: 'borrador',
+      datos: { version: 'solicitud-v2' },
+      eventos: [
+        { id_evento: 1, tipo: 'enviada', id_usuario: 7, fecha_creacion: '2026-11-05T12:00:00' },
+        {
+          id_evento: 2,
+          tipo: 'rechazada',
+          id_usuario: 9,
+          fecha_creacion: '2026-11-06T09:30:00',
+          payload: { motivo: 'falta la factura del hospedaje' },
+        },
+      ],
+    });
+    mocks.mis.mockResolvedValue({ data: { success: true, data: [rechazada] } });
+    mocks.detalle.mockResolvedValue({ data: { success: true, data: rechazada } });
+
+    render(<MisViajesPage />);
+    await waitFor(() => expect(screen.getByTestId('viaje-1')).toBeInTheDocument());
+    await usuario.click(screen.getByTestId('viaje-1'));
+
+    const aviso = await screen.findByTestId('aviso-rechazo');
+    expect(aviso).toHaveTextContent(/Rechazada el/);
+    expect(aviso).toHaveTextContent('falta la factura del hospedaje');
+  });
+
+  it('no muestra el aviso de rechazo si la solicitud ya se volvió a enviar', async () => {
+    const usuario = userEvent.setup();
+    const reenviada = solicitud(1, {
+      estado: 'borrador',
+      datos: { version: 'solicitud-v2' },
+      eventos: [
+        {
+          id_evento: 1,
+          tipo: 'rechazada',
+          id_usuario: 9,
+          fecha_creacion: '2026-11-06T09:30:00',
+          payload: { motivo: 'falta la factura del hospedaje' },
+        },
+        { id_evento: 2, tipo: 'enviada', id_usuario: 7, fecha_creacion: '2026-11-07T08:00:00' },
+      ],
+    });
+    mocks.mis.mockResolvedValue({ data: { success: true, data: [reenviada] } });
+    mocks.detalle.mockResolvedValue({ data: { success: true, data: reenviada } });
+
+    render(<MisViajesPage />);
+    await waitFor(() => expect(screen.getByTestId('viaje-1')).toBeInTheDocument());
+    await usuario.click(screen.getByTestId('viaje-1'));
+    await waitFor(() => expect(screen.getByTestId('detalle-viaje')).toBeInTheDocument());
+
+    expect(screen.queryByTestId('aviso-rechazo')).not.toBeInTheDocument();
+  });
+
   it('muestra que el precio se está detectando sin pulsar nada', async () => {
     const usuario = userEvent.setup();
     mocks.mis.mockResolvedValue({
@@ -411,6 +496,30 @@ describe('MisViajesPage', () => {
     expect(screen.getByTestId('diagrama-ruta-autorizada')).toBeInTheDocument();
     expect(screen.getByTestId('diagrama-ruta-autorizada')).toHaveTextContent('Ruta autorizada por el concentrado');
   });
+
+  it('abre el detalle en la ruta autorizada cuando el viaje ya se autorizó', async () => {
+    const usuario = userEvent.setup();
+    const datos = datosRevision({
+      calculo: calculoDe('Ruta del viajero', 'Destino original'),
+      calculo_autorizado: calculoDe('Ruta autorizada por el concentrado', 'Destino aprobado'),
+    });
+    mocks.busqueda = new URLSearchParams('pestana=enviadas');
+    mocks.mis.mockResolvedValue({
+      data: { success: true, data: [solicitud(1, { estado: 'autorizada', datos })] },
+    });
+    mocks.detalle.mockResolvedValue({
+      data: { success: true, data: solicitud(1, { estado: 'autorizada', datos }) },
+    });
+    render(<MisViajesPage />);
+    await waitFor(() => expect(screen.getByTestId('viaje-1')).toBeInTheDocument());
+    await usuario.click(within(screen.getByTestId('viaje-1')).getByRole('button', { name: /Ver detalle/ }));
+    await waitFor(() => expect(screen.getByTestId('detalle-viaje')).toBeInTheDocument());
+
+    expect(screen.getByRole('tab', { name: 'Ruta autorizada' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tab', { name: 'Ruta calculada' })).toHaveAttribute('aria-selected', 'false');
+    expect(screen.getByTestId('diagrama-ruta-autorizada')).toHaveTextContent('Ruta autorizada por el concentrado');
+    expect(screen.queryByTestId('diagrama-ruta-calculada')).not.toBeInTheDocument();
+  });
 });
 
 const tramoCalculado = (de: string, a: string) => ({
@@ -534,6 +643,37 @@ const propuestaDeRuta = (): PropuestaRuta => ({
     comida: null,
     taxi: null,
     total: 2300,
+  },
+});
+
+const versionDe = (numero: number, de: string, a: string): PropuestaVersion => ({
+  numero,
+  origen: 'recalculo',
+  creado_en: '2026-11-06T09:00:00.000Z',
+  calculo: calculoDe(de, a),
+  opciones: [
+    {
+      tipo: 'vuelo',
+      linea: `Vuelo de la propuesta ${numero}`,
+      precio: 1000 + numero * 100,
+      moneda: 'MXN',
+      url_compra: null,
+      fuente: 'proveedor',
+      fue_elegida: true,
+      ruta_captura: null,
+      capturas: [],
+      datos: { tramo: 0 },
+    },
+  ],
+  resumen: {
+    autobus: null,
+    avion: 1000 + numero * 100,
+    gasolina: null,
+    casetas: null,
+    hospedaje: null,
+    comida: null,
+    taxi: null,
+    total: 1000 + numero * 100,
   },
 });
 
@@ -717,6 +857,69 @@ describe('VistaDetalle en revisión', () => {
     expect(screen.getByTestId('comparador-total-original')).toHaveTextContent('$1,000.00');
     expect(screen.getByTestId('comparador-total-propuesto')).toHaveTextContent('$1,200.00');
     expect(screen.getByTestId('comparador-total-diferencia')).toHaveTextContent('+$200.00');
+  });
+
+  it('etiqueta las pestañas con la última propuesta y esconde las que no corresponden', async () => {
+    const usuario = userEvent.setup();
+    const datos = datosRevision({ calculo: calculoDe('Ruta original', 'Destino original') });
+
+    render(
+      <VistaDetalle
+        solicitud={solicitud(1, {
+          datos,
+          estado: 'enviada',
+          opciones: [opcionBase({ id_opcion: 11 })],
+        })}
+        modoRevision
+        versiones={[
+          versionDe(1, 'Ruta original', 'Destino original'),
+          versionDe(2, 'Ruta propuesta dos', 'Destino dos'),
+        ]}
+        pestanasVisibles={['comparar', 'calculada']}
+      />,
+    );
+
+    const comparacion = screen.getByRole('tab', { name: 'Inicial vs propuesta 2' });
+    expect(comparacion).toHaveAttribute('aria-selected', 'true');
+    expect(screen.queryByRole('tab', { name: 'Viaje inicial' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'Ruta autorizada' })).not.toBeInTheDocument();
+
+    await usuario.click(screen.getByRole('tab', { name: 'Ruta (propuesta 2)' }));
+    const diagrama = screen.getByTestId('diagrama-ruta-propuesta');
+    expect(diagrama).toHaveTextContent('Destino dos');
+    expect(diagrama).toHaveTextContent('Propuesta 2');
+  });
+
+  it('permite volver a la ruta inicial desde el selector de versiones', async () => {
+    const usuario = userEvent.setup();
+    const datos = datosRevision({ calculo: calculoDe('Ruta original', 'Destino original') });
+
+    render(
+      <VistaDetalle
+        solicitud={solicitud(1, {
+          datos,
+          estado: 'enviada',
+          opciones: [opcionBase({ id_opcion: 11 })],
+        })}
+        modoRevision
+        pestanaInicial="calculada"
+        versiones={[
+          versionDe(1, 'Ruta original', 'Destino original'),
+          versionDe(2, 'Ruta propuesta dos', 'Destino dos'),
+        ]}
+        pestanasVisibles={['comparar', 'calculada']}
+      />,
+    );
+
+    expect(screen.getByTestId('diagrama-ruta-propuesta')).toHaveTextContent('Destino dos');
+
+    await usuario.click(screen.getByRole('button', { name: 'Elegir la versión de la ruta' }));
+    await usuario.click(await screen.findByRole('menuitem', { name: 'Ruta inicial' }));
+
+    expect(screen.queryByTestId('diagrama-ruta-propuesta')).not.toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Elegir la versión de la ruta' }),
+    ).toHaveTextContent('Ruta inicial');
   });
 });
 

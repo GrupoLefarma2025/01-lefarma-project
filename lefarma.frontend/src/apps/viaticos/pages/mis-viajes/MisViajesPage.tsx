@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { BedDouble, Bus, CalendarDays, Camera, CarFront, Clock, ExternalLink, Eye, MapPin, MoreHorizontal, PanelRightClose, PanelRightOpen, Pencil, Plane, RefreshCw, Route, Send, ShieldCheck, Sparkles, Ticket, Trash2, Upload, Wallet, type LucideIcon } from 'lucide-react';
+import { AlertCircle, BedDouble, Bus, CalendarDays, Camera, CarFront, ChevronDown, Clock, ExternalLink, Eye, MapPin, MoreHorizontal, PanelRightClose, PanelRightOpen, Pencil, Plane, RefreshCw, Route, Send, ShieldCheck, Sparkles, Ticket, Trash2, Upload, Wallet, type LucideIcon } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -29,6 +29,7 @@ import type {
   CalculoViaje,
   DatosOpcion,
   PropuestaRuta,
+  PropuestaVersion,
   Solicitud,
   SolicitudOpcion,
 } from '../../types/solicitud.types';
@@ -74,6 +75,7 @@ function comoObjeto(v: unknown): Record<string, unknown> | null {
 }
 
 type Pestana = 'borradores' | 'enviadas';
+type PestanaRevision = 'comparar' | 'calculada' | 'inicial' | 'autorizada';
 
 export function MisViajesPage({ hoy = new Date() }: { hoy?: Date }) {
   usePageTitle('Mis viajes', 'Viáticos');
@@ -153,7 +155,12 @@ export function MisViajesPage({ hoy = new Date() }: { hoy?: Date }) {
       .filter(({ solicitud }) => enRango(solicitud.fecha_creacion, rango));
     return {
       borradores: base.filter(({ solicitud }) => solicitud.estado === 'borrador'),
-      enviadas: base.filter(({ solicitud }) => solicitud.estado === 'enviada'),
+      enviadas: base.filter(
+        ({ solicitud }) =>
+          solicitud.estado === 'enviada' ||
+          solicitud.estado === 'autorizada' ||
+          solicitud.estado === 'autorizada_con_ajustes',
+      ),
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [solicitudes, tipo, periodo, desde, hasta]);
@@ -375,10 +382,13 @@ export function MisViajesPage({ hoy = new Date() }: { hoy?: Date }) {
           </DialogHeader>
           {cargandoDetalle ? <p role="status">Cargando detalle…</p> : null}
           {detalle ? (
-            <VistaDetalle
-              solicitud={detalle}
-              onSolicitudActualizada={actualizarDetalle}
-            />
+            <>
+              <AvisoRechazo solicitud={detalle} />
+              <VistaDetalle
+                solicitud={detalle}
+                onSolicitudActualizada={actualizarDetalle}
+              />
+            </>
           ) : null}
           <DialogFooter className="gap-2">
             {detalle?.estado === 'borrador' ? (
@@ -412,6 +422,38 @@ export function MisViajesPage({ hoy = new Date() }: { hoy?: Date }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+function motivoDeRechazoVigente(solicitud: Solicitud): { motivo: string; fecha: string } | null {
+  if (solicitud.estado !== 'borrador') return null;
+  const eventos = solicitud.eventos ?? [];
+  for (let indice = eventos.length - 1; indice >= 0; indice -= 1) {
+    const evento = eventos[indice];
+    if (evento.tipo === 'rechazada') {
+      const motivo = typeof evento.payload?.motivo === 'string' ? evento.payload.motivo.trim() : '';
+      return motivo === '' ? null : { motivo, fecha: evento.fecha_creacion };
+    }
+    if (evento.tipo === 'enviada' || evento.tipo === 'autorizada') return null;
+  }
+  return null;
+}
+
+function AvisoRechazo({ solicitud }: { solicitud: Solicitud }) {
+  const aviso = motivoDeRechazoVigente(solicitud);
+  if (aviso === null) return null;
+  const fecha = new Date(aviso.fecha).toLocaleString('es-MX').replace(/\.$/, '');
+  return (
+    <div
+      data-testid="aviso-rechazo"
+      className="flex gap-2 rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm"
+    >
+      <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" aria-hidden />
+      <div className="space-y-0.5">
+        <p className="font-medium text-destructive">Rechazada el {fecha}</p>
+        <p className="text-muted-foreground">{aviso.motivo}</p>
+      </div>
     </div>
   );
 }
@@ -818,14 +860,18 @@ export function VistaDetalle({
   modoRevision = false,
   pestanaInicial,
   propuesta = null,
+  versiones = null,
+  pestanasVisibles,
   onRecalcular,
   onSolicitudActualizada,
 }: {
   solicitud: Solicitud;
   acciones?: ReactNode;
   modoRevision?: boolean;
-  pestanaInicial?: 'comparar' | 'calculada' | 'inicial' | 'autorizada';
+  pestanaInicial?: PestanaRevision;
   propuesta?: PropuestaRuta | null;
+  versiones?: PropuestaVersion[] | null;
+  pestanasVisibles?: PestanaRevision[];
   onRecalcular?: () => void;
   onSolicitudActualizada?: (solicitud: Solicitud) => void;
 }) {
@@ -835,6 +881,9 @@ export function VistaDetalle({
     solicitud.estado === 'autorizada' || solicitud.estado === 'autorizada_con_ajustes';
   const calculoAutorizado =
     leerCalculoAutorizadoDesdeDatos(solicitud.datos) ?? (estaAutorizada ? calculo : null);
+  const versionVigente = versiones !== null && versiones.length > 0
+    ? versiones[versiones.length - 1]
+    : null;
 
   const versionAutorizada: {
     calculo: CalculoViaje;
@@ -848,16 +897,23 @@ export function VistaDetalle({
         claveDatos: null,
         esPropuesta: true,
       }
-    : calculoAutorizado
+    : versionVigente
       ? {
-          calculo: calculoAutorizado,
-          opciones: solicitud.opciones,
-          claveDatos: 'calculo_autorizado',
-          esPropuesta: false,
+          calculo: versionVigente.calculo,
+          opciones: opcionesDePropuesta(versionVigente.opciones),
+          claveDatos: null,
+          esPropuesta: true,
         }
-      : modoRevision && calculo
-        ? { calculo, opciones: solicitud.opciones, claveDatos: 'calculo', esPropuesta: false }
-        : null;
+      : calculoAutorizado
+        ? {
+            calculo: calculoAutorizado,
+            opciones: solicitud.opciones,
+            claveDatos: 'calculo_autorizado',
+            esPropuesta: false,
+          }
+        : modoRevision && calculo
+          ? { calculo, opciones: solicitud.opciones, claveDatos: 'calculo', esPropuesta: false }
+          : null;
 
   const costosAutorizados = versionAutorizada?.claveDatos
     ? leerCostosCalculo(solicitud.datos, versionAutorizada.claveDatos)
@@ -868,24 +924,44 @@ export function VistaDetalle({
   const mostrarComparador =
     versionAutorizada !== null &&
     opcionesOriginales.length > 0 &&
-    (propuesta !== null || snapshotOriginal !== null || modoRevision);
+    (propuesta !== null || versionVigente !== null || snapshotOriginal !== null || modoRevision);
 
+  const [versionSeleccionada, setVersionSeleccionada] = useState<number | 'inicial' | null>(null);
   const [mapaAbierto, setMapaAbierto] = useState<
-    'calculada' | 'inicial' | 'autorizada' | 'comparada' | null
+    'calculada' | 'inicial' | 'autorizada' | 'comparada' | 'version' | null
   >(null);
   const [boletoAbierto, setBoletoAbierto] = useState(false);
   const mapaCalculado = mapaDeCalculo(calculo);
   const mapaAutorizado = mapaDeCalculo(versionAutorizada?.calculo ?? null);
   const mapaInicial = resumen ? mapaDeInicial(resumen) : { puntos: [], segmentos: [] };
-  const tabPreferida = pestanaInicial ?? (modoRevision ? 'comparar' : 'calculada');
-  const tabInicial =
+  const versionEnVista =
+    versionVigente === null || versionSeleccionada === 'inicial'
+      ? null
+      : versiones?.find((version) => version.numero === versionSeleccionada) ?? versionVigente;
+  const rutaInicialElegida = versionSeleccionada === 'inicial';
+  const opcionesVersion = versionEnVista ? opcionesDePropuesta(versionEnVista.opciones) : [];
+  const opcionesBoleto = (
+    versionVigente && !rutaInicialElegida ? opcionesVersion : solicitud.opciones
+  ).filter((opcion) => opcion.fue_elegida);
+  const mapaVersion = mapaDeCalculo(versionEnVista?.calculo ?? null);
+  const tabsRevision: PestanaRevision[] =
+    pestanasVisibles ?? ['comparar', 'calculada', 'inicial', 'autorizada'];
+  const etiquetaComparar = versionVigente
+    ? `Inicial vs propuesta ${versionVigente.numero}`
+    : 'Inicial vs calculada';
+  const etiquetaRuta = versionVigente
+    ? `Ruta (propuesta ${versionVigente.numero})`
+    : 'Ruta calculada';
+  const tabPreferida =
+    pestanaInicial ??
+    (modoRevision ? 'comparar' : estaAutorizada && calculoAutorizado !== null ? 'autorizada' : 'calculada');
+  const tabInicial: PestanaRevision =
+    (modoRevision && !tabsRevision.includes(tabPreferida)) ||
     (tabPreferida === 'autorizada' && versionAutorizada === null) ||
     (tabPreferida === 'comparar' && !modoRevision)
       ? 'calculada'
       : tabPreferida;
-  const [tabActiva, setTabActiva] = useState<
-    'comparar' | 'calculada' | 'inicial' | 'autorizada'
-  >(tabInicial);
+  const [tabActiva, setTabActiva] = useState<PestanaRevision>(tabInicial);
   const [desgloseAbierto, setDesgloseAbierto] = useState(true);
   const tienePanelLateral = tabActiva !== 'inicial' && tabActiva !== 'comparar';
   const accionesDetalle = acciones ? (
@@ -1014,43 +1090,50 @@ export function VistaDetalle({
   return (
     <Tabs
       value={tabActiva}
-      onValueChange={(valor) =>
-        setTabActiva(valor as 'comparar' | 'calculada' | 'inicial' | 'autorizada')
-      }
+      onValueChange={(valor) => setTabActiva(valor as PestanaRevision)}
       className="space-y-4"
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <TabsList
           className={cn(
             'grid h-auto min-h-11 w-full gap-1 rounded-xl bg-muted/60 p-1',
-            modoRevision ? 'max-w-3xl grid-cols-4' : 'max-w-2xl grid-cols-3',
+            !modoRevision && 'max-w-2xl grid-cols-3',
+            modoRevision && tabsRevision.length === 2 && 'max-w-2xl grid-cols-2',
+            modoRevision && tabsRevision.length === 3 && 'max-w-2xl grid-cols-3',
+            modoRevision && tabsRevision.length === 4 && 'max-w-3xl grid-cols-4',
           )}
         >
-          {modoRevision ? (
+          {modoRevision && tabsRevision.includes('comparar') ? (
             <TabsTrigger value="comparar" className={tabRevisionTriggerClassName}>
               <Sparkles className="hidden h-3.5 w-3.5 sm:inline" aria-hidden />
-              Inicial vs calculada
+              {etiquetaComparar}
             </TabsTrigger>
           ) : null}
-          <TabsTrigger value="calculada" className={tabRevisionTriggerClassName}>
-            <Route className="hidden h-3.5 w-3.5 sm:inline" aria-hidden />
-            Ruta calculada
-          </TabsTrigger>
-          <TabsTrigger value="inicial" className={tabRevisionTriggerClassName}>
-            <MapPin className="hidden h-3.5 w-3.5 sm:inline" aria-hidden />
-            Viaje inicial
-          </TabsTrigger>
-          <TabsTrigger
-            value="autorizada"
-            className={tabRevisionTriggerClassName}
-            disabled={!versionAutorizada}
-            title={!versionAutorizada
-              ? 'La ruta autorizada aparece cuando el concentrado autoriza el viaje.'
-              : undefined}
-          >
-            <ShieldCheck className="hidden h-3.5 w-3.5 sm:inline" aria-hidden />
-            Ruta autorizada
-          </TabsTrigger>
+          {tabsRevision.includes('calculada') ? (
+            <TabsTrigger value="calculada" className={tabRevisionTriggerClassName}>
+              <Route className="hidden h-3.5 w-3.5 sm:inline" aria-hidden />
+              {etiquetaRuta}
+            </TabsTrigger>
+          ) : null}
+          {!modoRevision || tabsRevision.includes('inicial') ? (
+            <TabsTrigger value="inicial" className={tabRevisionTriggerClassName}>
+              <MapPin className="hidden h-3.5 w-3.5 sm:inline" aria-hidden />
+              Viaje inicial
+            </TabsTrigger>
+          ) : null}
+          {!modoRevision || tabsRevision.includes('autorizada') ? (
+            <TabsTrigger
+              value="autorizada"
+              className={tabRevisionTriggerClassName}
+              disabled={!versionAutorizada}
+              title={!versionAutorizada
+                ? 'La ruta autorizada aparece cuando el concentrado autoriza el viaje.'
+                : undefined}
+            >
+              <ShieldCheck className="hidden h-3.5 w-3.5 sm:inline" aria-hidden />
+              Ruta autorizada
+            </TabsTrigger>
+          ) : null}
         </TabsList>
         <div className="flex flex-wrap items-center justify-end gap-2">
           {accionesDetalle}
@@ -1174,36 +1257,145 @@ export function VistaDetalle({
         </TabsContent>
       ) : null}
       <TabsContent value="calculada" className="space-y-4">
-        <MetricasRuta calculo={calculo} resumen={resumen} opciones={solicitud.opciones} />
-        <div className={gridRuta}>
-          <div
-            data-testid="diagrama-ruta-calculada"
-            className="rounded-2xl border border-slate-200/80 bg-card p-4 shadow-sm"
-          >
-            <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
-              <div>
-                <h3 className="font-semibold">Ruta del viaje</h3>
-                <p className="text-xs text-muted-foreground">
-                  Itinerario completo con paradas, costos y enlaces.
-                </p>
+        {versionVigente ? (
+          <>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Versión
+                </span>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-8 gap-1.5"
+                      aria-label="Elegir la versión de la ruta"
+                    >
+                      {rutaInicialElegida
+                        ? 'Ruta inicial'
+                        : `Propuesta ${versionEnVista?.numero ?? versionVigente.numero}`}
+                      <ChevronDown className="h-3.5 w-3.5" aria-hidden />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start">
+                    <DropdownMenuItem onClick={() => setVersionSeleccionada('inicial')}>
+                      Ruta inicial
+                    </DropdownMenuItem>
+                    {versiones?.map((version) => (
+                      <DropdownMenuItem
+                        key={version.numero}
+                        onClick={() => setVersionSeleccionada(version.numero)}
+                      >
+                        Propuesta {version.numero}
+                        {version.numero === versionVigente.numero ? ' (actual)' : ''}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
-              <div className="flex flex-wrap items-center gap-2">
-                {botonMostrarDesglose}
-                {mapaCalculado.puntos.length > 0 ? (
-                  <BotonVerMapa onClick={() => setMapaAbierto('calculada')} />
-                ) : (
-                  <span className="text-xs text-muted-foreground">
-                    Calculada sin coordenadas: vuelve a calcular para ver el mapa.
-                  </span>
-                )}
-                <BotonVerBoleto onClick={() => setBoletoAbierto(true)} />
-              </div>
+              {rutaInicialElegida
+                ? mapaInicial.puntos.length > 0
+                  ? <BotonVerMapa onClick={() => setMapaAbierto('inicial')} />
+                  : null
+                : mapaVersion.puntos.length > 0
+                  ? <BotonVerMapa onClick={() => setMapaAbierto('version')} />
+                  : null}
             </div>
-            <RutaPorFases nodos={nodosDesdeCalculo(calculo, solicitud.opciones)} />
-          </div>
-          {panelCalculada}
-          {rielCalculada}
-        </div>
+
+            {rutaInicialElegida ? (
+              vistaInicial
+            ) : versionEnVista ? (
+              <>
+                <MetricasRuta
+                  calculo={versionEnVista.calculo}
+                  resumen={resumen}
+                  opciones={opcionesVersion}
+                />
+                <div className={gridRuta}>
+                  <div
+                    data-testid="diagrama-ruta-propuesta"
+                    className="rounded-2xl border border-slate-200/80 bg-card p-4 shadow-sm"
+                  >
+                    <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
+                      <div>
+                        <h3 className="font-semibold">Ruta del viaje</h3>
+                        <p className="text-xs text-muted-foreground">
+                          Propuesta {versionEnVista.numero}: itinerario completo con paradas,
+                          costos y enlaces.
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        {botonMostrarDesglose}
+                        <BotonVerBoleto onClick={() => setBoletoAbierto(true)} />
+                      </div>
+                    </div>
+                    <RutaPorFases
+                      nodos={nodosDesdeCalculo(versionEnVista.calculo, opcionesVersion)}
+                    />
+                  </div>
+                  <div className={cn('space-y-3', !desgloseAbierto && 'lg:hidden')}>
+                    {opcionesVersion.length > 0 ? (
+                      <DetalleOpciones
+                        solicitud={solicitud}
+                        opcionesVista={opcionesVersion}
+                        onSolicitudActualizada={onSolicitudActualizada}
+                        onCerrar={() => setDesgloseAbierto(false)}
+                      />
+                    ) : null}
+                    <CasetasRuta calculo={versionEnVista.calculo} />
+                    {versionEnVista.creado_en ? (
+                      <p className="text-xs text-muted-foreground">
+                        Guardada el{' '}
+                        {new Date(versionEnVista.creado_en).toLocaleString('es-MX').replace(/\.$/, '')}.
+                      </p>
+                    ) : null}
+                  </div>
+                  {!desgloseAbierto ? (
+                    <DesgloseColapsado
+                      total={totalDeOpcionesElegidas(opcionesVersion).suma}
+                      onAbrir={() => setDesgloseAbierto(true)}
+                    />
+                  ) : null}
+                </div>
+              </>
+            ) : null}
+          </>
+        ) : (
+          <>
+            <MetricasRuta calculo={calculo} resumen={resumen} opciones={solicitud.opciones} />
+            <div className={gridRuta}>
+              <div
+                data-testid="diagrama-ruta-calculada"
+                className="rounded-2xl border border-slate-200/80 bg-card p-4 shadow-sm"
+              >
+                <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
+                  <div>
+                    <h3 className="font-semibold">Ruta del viaje</h3>
+                    <p className="text-xs text-muted-foreground">
+                      Itinerario completo con paradas, costos y enlaces.
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {botonMostrarDesglose}
+                    {mapaCalculado.puntos.length > 0 ? (
+                      <BotonVerMapa onClick={() => setMapaAbierto('calculada')} />
+                    ) : (
+                      <span className="text-xs text-muted-foreground">
+                        Calculada sin coordenadas: vuelve a calcular para ver el mapa.
+                      </span>
+                    )}
+                    <BotonVerBoleto onClick={() => setBoletoAbierto(true)} />
+                  </div>
+                </div>
+                <RutaPorFases nodos={nodosDesdeCalculo(calculo, solicitud.opciones)} />
+              </div>
+              {panelCalculada}
+              {rielCalculada}
+            </div>
+          </>
+        )}
       </TabsContent>
       <TabsContent value="inicial" className="space-y-4">
         <div className="grid gap-4 xl:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
@@ -1335,11 +1527,21 @@ export function VistaDetalle({
         puntos={mapaAutorizado.puntos}
         segmentos={mapaAutorizado.segmentos}
       />
+      <RutaMapaDialog
+        abierto={mapaAbierto === 'version'}
+        onOpenChange={(abierto) => setMapaAbierto(abierto ? 'version' : null)}
+        titulo={
+          versionEnVista ? `Propuesta ${versionEnVista.numero}` : 'Ruta de la propuesta'
+        }
+        descripcion="La ruta de esta propuesta, con terminales, hotel y taxis."
+        puntos={mapaVersion.puntos}
+        segmentos={mapaVersion.segmentos}
+      />
       <BoletoViajeDialog
         abierto={boletoAbierto}
         onOpenChange={setBoletoAbierto}
         titulo="Boletos del viaje"
-        opciones={solicitud.opciones.filter((o) => o.fue_elegida)}
+        opciones={opcionesBoleto}
       />
     </Tabs>
   );

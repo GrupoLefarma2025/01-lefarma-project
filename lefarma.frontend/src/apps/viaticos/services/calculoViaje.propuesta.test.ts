@@ -97,7 +97,7 @@ function respuesta(opciones: CostosRutaOferta[]): CostosRutaResponse {
         tramos: [{ from: 'Guadalajara', to: 'Zapopan', km: 120, opciones }],
         rutaArmada: {
           tramos: [],
-          totales: { km: 120, litros: 10, casetas: 250.25, subtotalMagna: 900, subtotalPremium: 1000 },
+          totales: { km: 120, litros: 10, subtotalMagna: 900, subtotalPremium: 1000 },
         },
         hotelesPropuestos: [],
         incumplimientos: [],
@@ -127,7 +127,6 @@ function respuestaHotel(
           totales: {
             km: tramos.reduce((suma, t) => suma + t.km, 0),
             litros: 10,
-            casetas: 0,
             subtotalMagna: 900,
             subtotalPremium: 1000,
           },
@@ -512,6 +511,39 @@ describe('construirOpcionesPropuesta', () => {
     expect(estimada?.fuente).toMatch(/estimado/i);
   });
 
+  it('marca como elegida la misma oferta que toma el cálculo cuando no hay selección', () => {
+    const bus = oferta({
+      id: 'bus-estimado',
+      linea: 'Autobús (estimado)',
+      costoGrupo: 1505.82,
+      estimado: true,
+      tipoPrecio: 'estimado',
+    });
+    const vuelo = oferta({
+      id: 'vuelo-viva',
+      linea: 'Viva',
+      costoGrupo: 2096,
+      modo: 'avion',
+      estimado: true,
+      tipoPrecio: 'estimado',
+    });
+    const motor = respuesta([bus, vuelo]);
+    const tramos = [tramo('Ciudad de México', 'Monterrey')];
+
+    const calculo = construirCalculo(tramos, { 0: motor }, 'solicitado');
+    const opciones = construirOpcionesPropuesta(tramos, { 0: motor });
+
+    expect(calculo.tramos[0]).toMatchObject({ costo: 1505.82, linea: 'Autobús (estimado)' });
+    const elegidas = opciones.filter((opcion) => opcion.fue_elegida);
+    expect(elegidas).toHaveLength(1);
+    expect(elegidas[0]).toMatchObject({ linea: 'Autobús (estimado)', precio: 1505.82 });
+    expect(resumenCostosRuta(calculo, opciones, 'solicitado')).toMatchObject({
+      autobus: 1505.82,
+      avion: null,
+      total: 1505.82,
+    });
+  });
+
   it('limita a 20 opciones por tramo sin perder la elegida', () => {
     const ofertas = Array.from({ length: 25 }, (_, i) =>
       oferta({ id: `o-${i}`, linea: `Linea ${i}`, costoGrupo: 100 + i }),
@@ -560,14 +592,13 @@ describe('construirOpcionesPropuesta', () => {
     expect(hoteles.every((opcion) => /estimado/i.test(opcion.fuente))).toBe(true);
   });
 
-  it('persists auto components in datos without changing the selected price', () => {
+  it('persists auto fuel in datos without changing the selected price', () => {
     const auto = oferta({
       id: 'auto-nuevo',
       modo: 'auto',
       linea: 'Auto (cuota)',
       costoGrupo: 300,
       combustible: 180,
-      casetasEstimadas: 120,
       fuente: 'OSRM + CNE (fixture)',
     });
 
@@ -589,7 +620,6 @@ describe('construirOpcionesPropuesta', () => {
       disponibilidad: '',
       disponibilidad_detalle: '',
       combustible: 180,
-      casetas_estimadas: 120,
       source: 'OSRM + CNE (fixture)',
     });
   });
@@ -640,18 +670,18 @@ describe('resumenCostosRuta', () => {
     });
   });
 
-  it('splits new auto 300 into fuel 180 and toll 120 without adding reference 72', () => {
+  it('charges the full auto price as fuel without splitting or inventing tolls', () => {
     const autoNuevo = opcionElegida({
       tipo: 'auto',
       precio: 300,
-      datos: { combustible: 180, casetas_estimadas: 120, source: 'OSRM + CNE (fixture)' },
+      datos: { combustible: 180, source: 'OSRM + CNE (fixture)' },
     });
 
     expect(resumenCostosRuta(calculo, [autoNuevo], 'propio')).toEqual({
       autobus: null,
       avion: null,
-      gasolina: 180,
-      casetas: 120,
+      gasolina: 300,
+      casetas: null,
       hospedaje: null,
       comida: null,
       taxi: null,
@@ -659,28 +689,28 @@ describe('resumenCostosRuta', () => {
     });
   });
 
-  it('keeps rental and legacy auto combined when mixed with a new auto', () => {
+  it('sums every selected own or rental car price as fuel', () => {
     const seleccion = [
       opcionElegida({
         tipo: 'auto',
         precio: 300,
-        datos: { combustible: 180, casetas_estimadas: 120, source: 'OSRM + CNE (fixture)' },
+        datos: { combustible: 180, source: 'OSRM + CNE (fixture)' },
       }),
       opcionElegida({ tipo: 'auto', precio: 500 }),
       opcionElegida({ tipo: 'renta', precio: 900 }),
     ];
 
     const resumen = resumenCostosRuta(calculo, seleccion, 'propio');
-    expect(resumen.gasolina).toBe(1580);
-    expect(resumen.casetas).toBe(120);
+    expect(resumen.gasolina).toBe(1700);
+    expect(resumen.casetas).toBeNull();
     expect(resumen.total).toBe(1700);
   });
 
-  it('falls back to the combined price when components do not reconcile', () => {
+  it('ignores the persisted fuel hint and uses the selected price', () => {
     const inconsistente = opcionElegida({
       tipo: 'auto',
       precio: 300,
-      datos: { combustible: 180, casetas_estimadas: 60, source: 'OSRM + CNE (fixture)' },
+      datos: { combustible: 180, source: 'OSRM + CNE (fixture)' },
     });
 
     const resumen = resumenCostosRuta(calculo, [inconsistente], 'propio');
@@ -699,11 +729,11 @@ describe('resumenCostosRuta', () => {
     const autoNuevo = opcionElegida({
       tipo: 'auto',
       precio: 300,
-      datos: { combustible: 180, casetas_estimadas: 120, source: 'OSRM + CNE (fixture)' },
+      datos: { combustible: 180, source: 'OSRM + CNE (fixture)' },
     });
 
     const resumen = resumenCostosRuta(calculo, [autoNuevo], 'propio', 350);
-    expect(resumen).toMatchObject({ gasolina: 180, casetas: 120, comida: 350, total: 650 });
+    expect(resumen).toMatchObject({ gasolina: 300, casetas: null, comida: 350, total: 650 });
   });
 
   it('leaves concepts null when nothing is selected instead of inventing zeros', () => {
