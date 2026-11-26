@@ -15,16 +15,16 @@ function printResponse(mode = 'bus', fuel = 'magna'): CostosRutaResponse {
   return { categorias: {}, recomendaciones: [], compartidos: [],
     propuestas: [{ persona: 'Ana', clave: 'selected', titulo: 'Selected', cumpleTodos: false,
       salidaOrigen: '05/10 05:00', llegadaFinal: '05/10 09:00', margenMinimoMinutos: -60,
-      costoTotalMxn: mode === 'auto' ? (fuel === 'premium' ? 350 : 300) : 100,
+      costoTotalMxn: mode === 'auto' ? (fuel === 'premium' ? 300 : 250) : 100,
       comida: 120, taxi: 60, hospedaje: 850,
-      tramos: [{ tramo: 1, de: 'Base', a: 'Hospital', modo: mode, linea: 'Fixture', salida: '05/10 05:00', llegada: '05/10 09:00', costo: mode === 'auto' ? (fuel === 'premium' ? 350 : 300) : 100 }],
+      tramos: [{ tramo: 1, de: 'Base', a: 'Hospital', modo: mode, linea: 'Fixture', salida: '05/10 05:00', llegada: '05/10 09:00', costo: mode === 'auto' ? (fuel === 'premium' ? 300 : 250) : 100 }],
       hotelesPropuestos: [], incumplimientos: ['Late'], fuentes: ['fixture'] }],
     resultados: [{ nombre: 'Ana', gasolina: fuel, propuesta: { razones: [], lugares: [] },
       tramos: [], hotelesPropuestos: [], incumplimientos: [], rutaArmada: {
         tramos: [{ de: 'Base', a: 'Hospital', km: 120, litros: 10,
           gasolina: { magna: { precioL: 25, costo: 250, fuente: 'fixture' }, premium: { precioL: 30, costo: 300, fuente: 'fixture' } },
-          casetas: { costo: 50, fuente: 'fixture' }, subtotalMagna: 300, subtotalPremium: 350 }],
-        totales: { km: 120, litros: 10, casetas: 50, subtotalMagna: 300, subtotalPremium: 350 },
+          subtotalMagna: 250, subtotalPremium: 300 }],
+        totales: { km: 120, litros: 10, subtotalMagna: 250, subtotalPremium: 300 },
       } }],
   };
 }
@@ -43,12 +43,12 @@ describe('FOR-008 selected transport', () => {
     expect(container).not.toHaveTextContent('Página 1 de 1');
   });
 
-  it.each([['magna', '$250.00', '$300.00'], ['premium', '$300.00', '$350.00']])('uses only selected car %s fuel and tolls', (fuel, gasoline, total) => {
+  it.each([['magna', '$250.00'], ['premium', '$300.00']])('uses only the selected car %s fuel', (fuel, gasoline) => {
     const { container } = render(<CostosViaticosPrint respuesta={printResponse('auto', fuel)} solicitud={null} />);
     const cells = within(container.querySelectorAll('table')[1].querySelector('tbody tr')! as HTMLElement).getAllByRole('cell');
     expect(cells[7]).toHaveTextContent(gasoline);
-    expect(cells[8]).toHaveTextContent('$50.00');
-    expect(cells[12]).toHaveTextContent(total);
+    expect(cells[8]).toHaveTextContent('—');
+    expect(cells[12]).toHaveTextContent(gasoline);
   });
 
   it('keeps unmatched/shared car costs not desglosado rather than inventing a breakdown', () => {
@@ -70,7 +70,7 @@ describe('FOR-008 selected transport', () => {
     response.propuestas[0].tramos.push({ ...response.propuestas[0].tramos[0], tramo: 2, modo: 'bus', costo: 100 });
     response.propuestas[0].costoTotalMxn = 400;
     const costs = selectedCosts(response, response.propuestas[0]);
-    expect(costs).toMatchObject({ autobus: 100, gasolina: 250, casetas: 50, total: 400 });
+    expect(costs).toMatchObject({ autobus: 100, gasolina: 250, casetas: null, total: 400 });
   });
 
   it('prints FOR-007 portrait headings, unknown prices and blank actual signatures', () => {

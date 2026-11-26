@@ -66,6 +66,15 @@ function mxn(n: number): string {
   return n.toLocaleString('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 });
 }
 
+function mxn2(n: number): string {
+  return n.toLocaleString('es-MX', {
+    style: 'currency',
+    currency: 'MXN',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
 function fechaHoraAmPm(valor: string): string {
   const [fecha, hora] = valor.split(' ');
   if (!fecha || !hora) return valor;
@@ -476,6 +485,13 @@ export function CalculosViajeModal({
     ? disponibilidadActual.peajeTotal
     : null;
   const ofertaCostos = ofertaCalculada(resultadoActual, seleccion[paso] ?? null) ?? null;
+  const kmTramoOferta = ofertaCostos?.tramo != null
+    ? persona?.rutaArmada.tramos[ofertaCostos.tramo - 1]?.km ?? null
+    : null;
+  const kmCarro = kmTramoOferta ?? persona?.rutaArmada.totales.km ?? null;
+  const costoPorKm = kmCarro !== null && kmCarro > 0 && typeof ofertaCostos?.combustible === 'number'
+    ? ofertaCostos.combustible / kmCarro
+    : null;
   const totalIdaVuelta = useMemo(() => {
     if (!tramo?.esRegreso) return null;
     const totales = tramos.map((tramoViaje, indice) => {
@@ -1537,14 +1553,13 @@ useEffect(() => {
       reemplazarOfertasVuelo(indice, base.id, reales);
       vuelosCargadosRef.current.add(indice);
       setSeleccion((previo) => {
-        const elegido = previo[indice];
-        const eraVueloBase = Boolean(elegido) && opciones.some(
-          (oferta) => oferta.id === elegido && oferta.modo === 'avion',
-        );
-        if (!eraVueloBase) return previo;
-        const copia = { ...previo };
-        delete copia[indice];
-        return copia;
+        const anterior = opciones.find((oferta) => oferta.id === previo[indice]);
+        if (!anterior || anterior.modo !== 'avion') return previo;
+        const aerolinea = anterior.linea.replace(/\s*\(estimado\)$/i, '').trim();
+        const reemplazo = (aerolinea
+          ? reales.find((oferta) => oferta.linea.includes(aerolinea))
+          : undefined) ?? reales[0];
+        return reemplazo ? { ...previo, [indice]: reemplazo.id } : previo;
       });
     } catch (falla: unknown) {
       if (controller.signal.aborted) return;
@@ -1906,77 +1921,85 @@ useEffect(() => {
                       </dl>
                     </section>
 
-                    <section aria-label="Detalle de casetas SCT" className="space-y-2 border-t pt-3">
-                      <h4 className="text-sm font-semibold text-foreground">Casetas en la ruta</h4>
-                      {ofertaCostos?.modo === 'auto'
-                        && typeof ofertaCostos.combustible === 'number'
-                        && typeof ofertaCostos.casetasEstimadas === 'number' ? (
-                          <div className="border-b pb-3">
-                            <p className="text-sm leading-relaxed text-foreground">
-                              Estimación de <span className="font-medium">{ofertaCostos.linea}</span>: combustible{' '}
-                              <span className="font-semibold tabular-nums">{mxn(ofertaCostos.combustible)}</span> + casetas estimadas{' '}
-                              <span className="font-semibold tabular-nums">{mxn(ofertaCostos.casetasEstimadas)}</span> ={' '}
-                              <span className="font-semibold tabular-nums">{mxn(ofertaCostos.costoGrupo)}</span>.
-                            </p>
-                            <p role="note" aria-label="Fuente de la estimación del auto" className="mt-1 break-words text-xs leading-relaxed text-muted-foreground">
-                              Fuente de la estimación: <span className="font-medium text-foreground">{ofertaCostos.fuente}</span>. Ya está incluida en el precio seleccionado.
-                            </p>
-                          </div>
-                        ) : null}
-                      {disponibilidadActual?.estado === 'disponible' ? (
-                        <>
-                          {casetasRuta.length > 0 ? (
-                            <table className="w-full table-fixed text-left text-sm">
-                              <thead>
-                                <tr className="border-b border-border/70 text-xs text-muted-foreground">
-                                  <th className="w-[34%] py-2 pr-2 align-bottom font-medium">Caseta</th>
-                                  <th className="w-[14%] px-1 py-2 text-right align-bottom font-medium">Km</th>
-                                  <th className="w-[28%] px-2 py-2 align-bottom font-medium">Dirección</th>
-                                  <th className="w-[24%] py-2 pl-2 text-right align-bottom font-medium">Tarifa auto</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {casetasRuta.map((plaza) => (
-                                  <tr key={`${plaza.nombre}-${plaza.km}`} className="border-b border-border/70 last:border-0">
-                                    <td className="break-words py-2.5 pr-2 align-top text-foreground">{plaza.nombre}</td>
-                                    <td className="px-1 py-2.5 text-right align-top tabular-nums text-foreground">{plaza.km}</td>
-                                    <td className="break-words px-2 py-2.5 align-top text-foreground">{plaza.direccion}</td>
-                                    <td className="py-2.5 pl-2 text-right align-top font-medium tabular-nums text-foreground">
-                                      {plaza.costo != null ? mxn(plaza.costo) : 's/d'}
-                                    </td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                              {totalCasetasTramo !== null ? (
-                                <tfoot>
-                                  <tr className="border-t-2 border-border/70 bg-muted/30">
-                                    <td className="py-2.5 pr-2 font-semibold text-foreground" colSpan={3}>Total casetas del tramo</td>
-                                    <td className="py-2.5 pl-2 text-right font-semibold tabular-nums text-foreground">{mxn(totalCasetasTramo)}</td>
-                                  </tr>
-                                </tfoot>
-                              ) : null}
-                            </table>
-                          ) : (
-                            <p className="text-sm leading-relaxed text-foreground">La SCT no reporta plazas de cobro para este tramo.</p>
-                          )}
-                          <p role="note" aria-label="Fuente oficial SCT" className="break-words text-xs leading-relaxed text-muted-foreground">
-                            Fuente oficial: <span className="font-medium text-foreground">{disponibilidadActual.fuente}</span>. Referencia: {disponibilidadActual.kmTotal?.toLocaleString('es-MX', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} km · {disponibilidadActual.tiempoTotal}. No se suma al precio seleccionado.
-                          </p>
-                        </>
-                      ) : (
-                        <p className="text-sm leading-relaxed text-foreground">{mensajeCasetasNoDisponible(disponibilidadActual?.estado)}</p>
-                      )}
-                      {tramo.esRegreso && totalIdaVuelta !== null ? (
-                        <p className="text-sm font-semibold leading-relaxed text-foreground">
-                          Total oficial SCT de ida y vuelta: {mxn(totalIdaVuelta)}. Incluye solo tramos con resultado oficial.
-                        </p>
-                      ) : null}
-                      {tramo.esRegreso && totalIdaVuelta === null ? (
+                    {ofertaCostos?.modo === 'auto' && typeof ofertaCostos.combustible === 'number' ? (
+                      <section aria-label="Combustible del recorrido" className="space-y-2 border-t pt-3">
+                        <h4 className="text-sm font-semibold text-foreground">Gasolina Magna (verde)</h4>
                         <p className="text-sm leading-relaxed text-foreground">
-                          No hay un total oficial de ida y vuelta: falta detalle oficial en al menos un tramo.
+                          {kmCarro !== null && kmCarro > 0 && costoPorKm !== null ? (
+                            <>
+                              {kmCarro.toLocaleString('es-MX', { maximumFractionDigits: 1 })} km ×{' '}
+                              <span className="font-semibold tabular-nums">{mxn2(costoPorKm)}</span>/km ={' '}
+                              <span className="font-semibold tabular-nums">{mxn(ofertaCostos.combustible)}</span>.
+                            </>
+                          ) : (
+                            <>
+                              Costo estimado: <span className="font-semibold tabular-nums">{mxn(ofertaCostos.combustible)}</span>.
+                            </>
+                          )}
                         </p>
-                      ) : null}
-                    </section>
+                        <p className="text-xs leading-relaxed text-muted-foreground">
+                          Auto de referencia: 1.6 L (1,600 cc) · rendimiento 12 km/L · precio CNE · solo combustible, casetas aparte.
+                        </p>
+                      </section>
+                    ) : null}
+                    {disponibilidadActual && disponibilidadActual.estado !== 'destino_no_soportado'
+                      && (disponibilidadActual.estado !== 'disponible' || casetasRuta.length > 0
+                        || (tramo.esRegreso && totalIdaVuelta !== null && totalIdaVuelta > 0)) ? (
+                      <section aria-label="Detalle de casetas SCT" className="space-y-2 border-t pt-3">
+                        <h4 className="text-sm font-semibold text-foreground">Casetas en la ruta</h4>
+                        {disponibilidadActual?.estado === 'disponible' ? (
+                          <>
+                            {casetasRuta.length > 0 ? (
+                              <table className="w-full table-fixed text-left text-sm">
+                                <thead>
+                                  <tr className="border-b border-border/70 text-xs text-muted-foreground">
+                                    <th className="w-[34%] py-2 pr-2 align-bottom font-medium">Caseta</th>
+                                    <th className="w-[14%] px-1 py-2 text-right align-bottom font-medium">Km</th>
+                                    <th className="w-[28%] px-2 py-2 align-bottom font-medium">Dirección</th>
+                                    <th className="w-[24%] py-2 pl-2 text-right align-bottom font-medium">Tarifa auto</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {casetasRuta.map((plaza) => (
+                                    <tr key={`${plaza.nombre}-${plaza.km}`} className="border-b border-border/70 last:border-0">
+                                      <td className="break-words py-2.5 pr-2 align-top text-foreground">{plaza.nombre}</td>
+                                      <td className="px-1 py-2.5 text-right align-top tabular-nums text-foreground">{plaza.km}</td>
+                                      <td className="break-words px-2 py-2.5 align-top text-foreground">{plaza.direccion}</td>
+                                      <td className="py-2.5 pl-2 text-right align-top font-medium tabular-nums text-foreground">
+                                        {plaza.costo != null ? mxn(plaza.costo) : 's/d'}
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                                {totalCasetasTramo !== null ? (
+                                  <tfoot>
+                                    <tr className="border-t-2 border-border/70 bg-muted/30">
+                                      <td className="py-2.5 pr-2 font-semibold text-foreground" colSpan={3}>Total casetas del tramo</td>
+                                      <td className="py-2.5 pl-2 text-right font-semibold tabular-nums text-foreground">{mxn(totalCasetasTramo)}</td>
+                                    </tr>
+                                  </tfoot>
+                                ) : null}
+                              </table>
+                            ) : null}
+                            <p role="note" aria-label="Fuente oficial SCT" className="break-words text-xs leading-relaxed text-muted-foreground">
+                              Fuente oficial: <span className="font-medium text-foreground">{disponibilidadActual.fuente}</span>. Referencia: {disponibilidadActual.kmTotal?.toLocaleString('es-MX', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} km · {disponibilidadActual.tiempoTotal}. No se suma al precio seleccionado.
+                            </p>
+                          </>
+                        ) : (
+                          <p className="text-sm leading-relaxed text-foreground">{mensajeCasetasNoDisponible(disponibilidadActual?.estado)}</p>
+                        )}
+                        {tramo.esRegreso && totalIdaVuelta !== null ? (
+                          <p className="text-sm font-semibold leading-relaxed text-foreground">
+                            Total oficial SCT de ida y vuelta: {mxn(totalIdaVuelta)}. Incluye solo tramos con resultado oficial.
+                          </p>
+                        ) : null}
+                        {tramo.esRegreso && totalIdaVuelta === null ? (
+                          <p className="text-sm leading-relaxed text-foreground">
+                            No hay un total oficial de ida y vuelta: falta detalle oficial en al menos un tramo.
+                          </p>
+                        ) : null}
+                      </section>
+                    ) : null}
                   </>
                 ) : null}
               </div>

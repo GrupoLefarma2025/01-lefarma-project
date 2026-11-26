@@ -66,7 +66,7 @@ const respuesta = (): CostosRutaResponse => ({
       ],
       rutaArmada: {
         tramos: [],
-        totales: { km: 250, litros: 20, casetas: 300, subtotalMagna: 2600, subtotalPremium: 2800 },
+        totales: { km: 250, litros: 20, subtotalMagna: 2600, subtotalPremium: 2800 },
       },
       hotelesPropuestos: [],
       incumplimientos: [],

@@ -75,7 +75,7 @@ const response: CostosRutaResponse = {
     comida: 0, taxi: 0, hospedaje: 0,
     tramos: [], hotelesPropuestos: [], incumplimientos: ['No viable fixture'], fuentes: ['mock only'] }],
   resultados: [{ nombre: 'Ana', gasolina: 'magna', propuesta: { razones: [], lugares: [] }, tramos: [],
-    rutaArmada: { tramos: [], totales: { km: 120, litros: 10, casetas: 30, subtotalMagna: 300, subtotalPremium: 330 } },
+    rutaArmada: { tramos: [], totales: { km: 120, litros: 10, subtotalMagna: 300, subtotalPremium: 330 } },
     hotelesPropuestos: [{ lugar: 'Hotel fixture', ciudad: 'Puebla', checkIn: '2026-10-14', checkOut: '2026-10-15',
       noches: 1, habitaciones: 1, motivo: 'fixture', fuente: 'mock', link: 'https://example.test' }], incumplimientos: [] }],
   compartidos: [{ de: 'Base', a: 'Puebla', personas: ['Ana', 'Beto'], conductor: 'Ana', ahorroEstimadoMxn: 20, nota: 'mock sharing' }],

@@ -274,7 +274,7 @@ describe('wizard de costos de ruta', () => {
     expect(solicitudes.guardarOpciones).toHaveBeenLastCalledWith(42, expect.anything());
   });
 
-  it('el desglose persistido lleva gasolina, casetas, comida y taxi del motor mas las opciones elegidas de pi', async () => {
+  it('el desglose persistido lleva gasolina, comida y taxi del motor mas las opciones elegidas de pi', async () => {
     mocks.calculate.mockResolvedValue({
       data: {
         success: true,
@@ -282,9 +282,9 @@ describe('wizard de costos de ruta', () => {
           propuestas: [
             {
               persona: 'Ana', clave: 'tipo1-carro', titulo: 'Carro', cumpleTodos: true,
-              salidaOrigen: '', llegadaFinal: '', margenMinimoMinutos: 0, costoTotalMxn: 300,
+              salidaOrigen: '', llegadaFinal: '', margenMinimoMinutos: 0, costoTotalMxn: 250,
               comida: 600, taxi: 120, hospedaje: 1500,
-              tramos: [{ tramo: 1, de: 'Hospital Puebla', a: 'Hospital Base', modo: 'auto', linea: 'Auto', salida: '', llegada: '', costo: 300 }],
+              tramos: [{ tramo: 1, de: 'Hospital Puebla', a: 'Hospital Base', modo: 'auto', linea: 'Auto', salida: '', llegada: '', costo: 250 }],
               hotelesPropuestos: [], incumplimientos: [], fuentes: ['fixture'],
             },
           ],
@@ -296,10 +296,10 @@ describe('wizard de costos de ruta', () => {
                   {
                     de: 'Hospital Puebla', a: 'Hospital Base', km: 120, litros: 10,
                     gasolina: { magna: { precioL: 25, costo: 250, fuente: 'fixture' }, premium: { precioL: 30, costo: 300, fuente: 'fixture' } },
-                    casetas: { costo: 50, fuente: 'fixture' }, subtotalMagna: 300, subtotalPremium: 350,
+                    subtotalMagna: 250, subtotalPremium: 300,
                   },
                 ],
-                totales: { km: 120, litros: 10, casetas: 50, subtotalMagna: 300, subtotalPremium: 350 },
+                totales: { km: 120, litros: 10, subtotalMagna: 250, subtotalPremium: 300 },
               },
               hotelesPropuestos: [], incumplimientos: [],
             },
@@ -335,10 +335,10 @@ describe('wizard de costos de ruta', () => {
       autobus: null,
       hospedaje: 3180,
       gasolina: 250,
-      casetas: 50,
+      casetas: null,
       comida: 600,
       taxi: 120,
-      total: 3180 + 250 + 50 + 600 + 120,
+      total: 3180 + 250 + 600 + 120,
     });
   });
 

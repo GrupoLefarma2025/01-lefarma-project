@@ -13,23 +13,21 @@ export function selectedCosts(response: CostosRutaResponse, proposal: CostosRuta
   };
   const carLegs = proposal.tramos.filter(t => t.modo === 'auto');
   let gasoline: number | null = null;
-  let tolls: number | null = null;
   if (carLegs.length && result) {
     const references = carLegs.map(t => result.rutaArmada.tramos[t.tramo - 1]);
     const matches = references.every((r, i) => r && r.de === carLegs[i].de && r.a === carLegs[i].a);
     if (matches) {
       const fuel = result.gasolina === 'premium' ? 'premium' : 'magna';
       const fuelCost = references.reduce((sum, r) => sum + r.gasolina[fuel].costo, 0);
-      const tollCost = references.reduce((sum, r) => sum + r.casetas.costo, 0);
       const selected = carLegs.reduce((sum, t) => sum + t.costo, 0);
-      if (Math.abs(selected - fuelCost - tollCost) < 0.02) { gasoline = fuelCost; tolls = tollCost; }
+      if (Math.abs(selected - fuelCost) < 0.02) { gasoline = fuelCost; }
     }
   }
   return {
     autobus: modeCost('bus'),
     avion: modeCost('avion'),
     gasolina: gasoline,
-    casetas: tolls,
+    casetas: null,
     hospedaje: proposal.hospedaje,
     comida: proposal.comida,
     taxi: proposal.taxi,

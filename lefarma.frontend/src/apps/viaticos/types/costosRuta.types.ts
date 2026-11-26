@@ -108,7 +108,6 @@ export interface CostosRutaOferta {
   disponibilidad?: string;
   disponibilidadDetalle?: string;
   combustible?: number | null;
-  casetasEstimadas?: number | null;
   comprar: CostosRutaCompra;
   rutaCaptura?: string;
   capturas?: string[];
@@ -182,7 +181,6 @@ export interface CostosRutaRutaTramo {
     magna: { precioL: number; costo: number; fuente: string };
     premium: { precioL: number; costo: number; fuente: string };
   };
-  casetas: { costo: number; fuente: string };
   subtotalMagna: number;
   subtotalPremium: number;
 }
@@ -226,7 +224,6 @@ export interface CostosRutaResultado {
     totales: {
       km: number;
       litros: number;
-      casetas: number;
       subtotalMagna: number;
       subtotalPremium: number;
     };

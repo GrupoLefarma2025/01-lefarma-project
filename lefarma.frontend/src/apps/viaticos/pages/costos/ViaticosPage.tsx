@@ -707,7 +707,6 @@ export function ViaticosPage() {
                             <TableHead className="text-right">Litros</TableHead>
                             <TableHead className="text-right">Magna</TableHead>
                             <TableHead className="text-right">Premium</TableHead>
-                            <TableHead className="text-right">Casetas</TableHead>
                             <TableHead className="text-right">Subt. magna</TableHead>
                             <TableHead className="text-right">Subt. premium</TableHead>
                           </TableRow>
@@ -726,7 +725,6 @@ export function ViaticosPage() {
                               <TableCell className="text-right">
                                 ${t.gasolina.premium.precioL}/L · {mxn(t.gasolina.premium.costo)}
                               </TableCell>
-                              <TableCell className="text-right">{mxn(t.casetas.costo)}</TableCell>
                               <TableCell className="text-right">{mxn(t.subtotalMagna)}</TableCell>
                               <TableCell className="text-right">{mxn(t.subtotalPremium)}</TableCell>
                             </TableRow>
@@ -739,9 +737,6 @@ export function ViaticosPage() {
                             </TableCell>
                             <TableCell className="text-right">—</TableCell>
                             <TableCell className="text-right">—</TableCell>
-                            <TableCell className="text-right font-semibold">
-                              {mxn(r.rutaArmada.totales.casetas)}
-                            </TableCell>
                             <TableCell className="text-right font-semibold">
                               {mxn(r.rutaArmada.totales.subtotalMagna)}
                             </TableCell>

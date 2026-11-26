@@ -42,8 +42,8 @@ export interface HospedajeV2 {
 export interface CotizacionTramoV2 {
   ofertas: CostosRutaOferta[];
   rutaArmada: {
-    tramos: { de: string; a: string; km: number; litros: number; casetas: number; subtotalMagna: number }[];
-    totales: { km: number; litros: number; casetas: number; subtotalMagna: number };
+    tramos: { de: string; a: string; km: number; litros: number; subtotalMagna: number }[];
+    totales: { km: number; litros: number; subtotalMagna: number };
   } | null;
   hoteles: CostosRutaHotel[];
   cotizadoEn: string;

@@ -153,7 +153,7 @@ const respuestaMotor = (): CostosRutaResponse => ({
       ],
       rutaArmada: {
         tramos: [],
-        totales: { km: 120, litros: 10, casetas: 0, subtotalMagna: 900, subtotalPremium: 1000 },
+        totales: { km: 120, litros: 10, subtotalMagna: 900, subtotalPremium: 1000 },
       },
       hotelesPropuestos: [],
       incumplimientos: [],
@@ -256,7 +256,6 @@ const carEngineResponse = (
           modo: 'auto',
           duracion: duration,
           combustible: 780,
-          casetasEstimadas: 120,
           fuente: 'OSRM + CNE (fixture)',
         },
       ],
@@ -465,8 +464,12 @@ describe('CalculosViajeModal presentation layout', () => {
     expect(metrics).toHaveTextContent('120 km');
     expect(metrics).toHaveTextContent('2h 00m base');
     expect(metrics).toHaveTextContent('+10% = 2h 12m');
-    expect(within(detail).getByRole('note', { name: 'Fuente de la estimación del auto' })).toHaveTextContent(
-      'Fuente de la estimación: OSRM + CNE (fixture). Ya está incluida en el precio seleccionado.',
+    const fuel = screen.getByRole('region', { name: 'Combustible del recorrido' });
+    expect(costColumn).toContainElement(fuel);
+    expect(fuel).toHaveTextContent('120 km × $6.50/km = $780.');
+    expect(within(fuel).getByRole('heading', { name: 'Gasolina Magna (verde)' })).toBeInTheDocument();
+    expect(fuel).toHaveTextContent(
+      'Auto de referencia: 1.6 L (1,600 cc) · rendimiento 12 km/L · precio CNE · solo combustible, casetas aparte.',
     );
 
     const table = within(detail).getByRole('table');
@@ -486,7 +489,7 @@ describe('CalculosViajeModal presentation layout', () => {
 });
 
 describe('CalculosViajeModal SCT availability and source labels', () => {
-  it('shows official detail as reference and the estimated components already included in the auto price', async () => {
+  it('shows official detail as reference without adding it to the selected auto price', async () => {
     const response = carEngineResponse('2h 00m', 'disponible');
     response.resultados[0].casetas = [
       {
@@ -512,26 +515,26 @@ describe('CalculosViajeModal SCT availability and source labels', () => {
     expect(detail).toHaveTextContent('Fuente oficial: SCT · Rutas Punto a Punto');
     expect(detail).toHaveTextContent('Referencia: 97.350 km · 01:15');
     expect(detail).toHaveTextContent('No se suma al precio seleccionado.');
-    expect(detail).toHaveTextContent('combustible $780 + casetas estimadas $120 = $900');
-    expect(detail).toHaveTextContent('Fuente de la estimación: OSRM + CNE (fixture).');
+    const fuel = screen.getByRole('region', { name: 'Combustible del recorrido' });
+    expect(fuel).toHaveTextContent('120 km × $6.50/km = $780.');
+    expect(fuel).not.toHaveTextContent('Casetas estimadas');
+    expect(detail).not.toHaveTextContent('Fuente de la estimación');
     expect(screen.getByRole('region', { name: 'Resumen calculado del viaje' }))
       .toHaveTextContent('Duración ajustada: 2h 12m · Incluye 10% de margen.');
   });
 
-  it('distinguishes a valid official zero-plaza result from unavailable detail', async () => {
+  it('hides the official detail when the SCT has no toll plazas for the route', async () => {
     const response = carEngineResponse('2h 00m', 'disponible');
     response.resultados[0].casetasDisponibilidad = [disponibilidadSct('disponible', 0)];
     mocks.calcular.mockResolvedValue({ data: { success: true, data: response } });
 
     await renderCarSummary(carTrip());
-    const detail = await screen.findByRole('region', { name: 'Detalle de casetas SCT' });
-    expect(detail).toHaveTextContent('La SCT no reporta plazas de cobro para este tramo.');
-    expect(within(detail).queryByRole('table')).not.toBeInTheDocument();
-    expect(detail).not.toHaveTextContent('Sin desglose de plazas para esta ruta.');
+    expect(screen.queryByRole('region', { name: 'Detalle de casetas SCT' })).not.toBeInTheDocument();
+    expect(screen.queryByText('La SCT no reporta plazas de cobro para este tramo.')).not.toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Combustible del recorrido' })).toBeInTheDocument();
   });
 
   it.each([
-    ['destino_no_soportado', 'La SCT no tiene este origen o destino en su catálogo; no hay desglose oficial disponible.'],
     ['proveedor_no_disponible', 'No fue posible consultar la SCT. Intenta nuevamente.'],
     ['respuesta_invalida', 'No fue posible interpretar el desglose oficial de casetas.'],
   ] as const)('shows the exact message for %s without a false zero or reference table', async (estado, mensaje) => {
@@ -544,6 +547,19 @@ describe('CalculosViajeModal SCT availability and source labels', () => {
     expect(detail).toHaveTextContent(mensaje);
     expect(within(detail).queryByRole('table')).not.toBeInTheDocument();
     expect(detail).not.toHaveTextContent('$0');
+  });
+
+  it('hides the official detail when the SCT does not support the destination', async () => {
+    mocks.calcular.mockResolvedValue({
+      data: { success: true, data: carEngineResponse('2h 00m', 'destino_no_soportado') },
+    });
+
+    await renderCarSummary(carTrip());
+    expect(screen.queryByRole('region', { name: 'Detalle de casetas SCT' })).not.toBeInTheDocument();
+    expect(screen.queryByText(
+      'La SCT no tiene este origen o destino en su catálogo; no hay desglose oficial disponible.',
+    )).not.toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Combustible del recorrido' })).toBeInTheDocument();
   });
 
   it('does not present a complete official round-trip total when the return leg is unavailable', async () => {
@@ -593,6 +609,28 @@ describe('CalculosViajeModal SCT availability and source labels', () => {
     expect(detail).toHaveTextContent('Total oficial SCT de ida y vuelta: $144');
     expect(screen.getByRole('region', { name: 'Resumen calculado del viaje' }))
       .toHaveTextContent('Duración ajustada: 2h 12m · Incluye 10% de margen.');
+  });
+
+  it('hides the official detail on a toll-free round trip', async () => {
+    const user = userEvent.setup();
+    let calls = 0;
+    mocks.calcular.mockImplementation(async () => {
+      calls += 1;
+      const response = carEngineResponse('2h 00m', 'disponible', calls === 2);
+      response.resultados[0].casetasDisponibilidad = [disponibilidadSct('disponible', 0, calls === 2)];
+      return { data: { success: true, data: response } };
+    });
+    render(
+      <CalculosViajeModal solicitud={carTrip()} open onOpenChange={vi.fn()} onEnviado={vi.fn()} />,
+    );
+
+    const next = await screen.findByRole('button', { name: /siguiente/i });
+    await waitFor(() => expect(next).toBeEnabled());
+    await user.click(next);
+
+    expect(await screen.findByRole('region', { name: 'Combustible del recorrido' })).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Detalle de casetas SCT' })).not.toBeInTheDocument();
+    expect(screen.queryByText(/Total oficial SCT de ida y vuelta/)).not.toBeInTheDocument();
   });
 });
 
@@ -1227,6 +1265,161 @@ describe('CalculosViajeModal vista previa de precio', () => {
     await screen.findByText('Aeromexico');    expect(screen.getByText(/4,100/)).toBeInTheDocument();
     expect(screen.queryByText('$1729 MXN /persona')).not.toBeInTheDocument();
     expect(screen.getByRole('tab', { name: /Avión/ })).toHaveAttribute('aria-selected', 'true');
+  });
+
+  it('conserva el avión elegido cuando llegan los precios reales', async () => {
+    const usuario = userEvent.setup();
+    const base = respuestaMotor();
+    const vueloEstimado: CostosRutaOferta = {
+      ...oferta('vuelo-estimado', 'Vuelo (estimado)', 1729),
+      modo: 'avion',
+      precioTxt: '$1729 MXN /persona',
+      estimado: true,
+      tipoPrecio: 'estimado',
+      salidaTxt: '23/11 06:00',
+      llegadaTxt: '23/11 07:30',
+      comprar: compra('https://www.kayak.com.mx/flights/MEX-MTY/2026-11-23'),
+    };
+    const respuestaVuelo: CostosRutaResponse = {
+      ...base,
+      resultados: [{
+        ...base.resultados[0],
+        tramos: [{ from: 'CDMX', to: 'Monterrey', km: 700, opciones: [vueloEstimado] }],
+      }],
+    };
+    const solicitudLarga: Solicitud = {
+      ...solicitud,
+      id_solicitud: 78,
+      datos: {
+        ...(solicitud.datos as Record<string, unknown>),
+        origen: {
+          punto: {
+            nombre: 'Ciudad de México',
+            latitud: 19.43,
+            longitud: -99.13,
+            municipio: 'Ciudad de México',
+            estado: 'Ciudad de México',
+          },
+          fechaSalida: '2026-11-23',
+          horaSalida: '08:00',
+        },
+        destinos: [{
+          punto: {
+            nombre: 'Monterrey',
+            latitud: 25.68,
+            longitud: -100.31,
+            municipio: 'Monterrey',
+            estado: 'Nuevo León',
+          },
+          debeEstarFecha: '2026-11-23',
+          debeEstarHora: '15:52',
+        }],
+        retorno: { destino: 'origen', punto: null },
+      },
+    };
+
+    mocks.calcular.mockResolvedValue({ data: { success: true, data: respuestaVuelo } });
+    mocks.detectarPrecioPreview.mockResolvedValue({
+      data: {
+        success: true,
+        data: {
+          detectado: true,
+          fuente: 'playwright',
+          ruta_captura: 'capturas-viaticos/real.png',
+          opciones: [
+            {
+              tipo: 'vuelo',
+              linea: 'Aeromexico 06:10–07:45',
+              precio: 4100,
+              moneda: 'MXN',
+              fuente: 'kayak.com.mx',
+              url_compra: 'https://www.kayak.com.mx/book/flight?code=real',
+              salida: '06:10',
+              llegada: '07:45',
+              dias_llegada: 0,
+              duracion_min: 95,
+              patrocinado: false,
+            },
+            {
+              tipo: 'vuelo',
+              linea: 'VivaAerobus 08:20–10:05',
+              precio: 3890,
+              moneda: 'MXN',
+              fuente: 'kayak.com.mx',
+              url_compra: 'https://www.kayak.com.mx/book/flight?code=viva',
+              salida: '08:20',
+              llegada: '10:05',
+              dias_llegada: 0,
+              duracion_min: 105,
+              patrocinado: false,
+            },
+          ],
+        },
+      },
+    });
+
+    render(
+      <CalculosViajeModal
+        solicitud={solicitudLarga}
+        open
+        onOpenChange={vi.fn()}
+        onEnviado={vi.fn()}
+        modo="autorizar"
+        onPropuesta={vi.fn()}
+      />,
+    );
+
+    const elegido = await screen.findByRole('button', { name: /Elegir Aeromexico 23\/11 06:10/ });
+    await usuario.click(elegido);
+    expect(elegido).toHaveAttribute('aria-pressed', 'true');
+
+    mocks.detectarPrecioPreview.mockResolvedValue({
+      data: {
+        success: true,
+        data: {
+          detectado: true,
+          fuente: 'playwright',
+          ruta_captura: 'capturas-viaticos/real-2.png',
+          opciones: [
+            {
+              tipo: 'vuelo',
+              linea: 'Volaris 09:00–10:30',
+              precio: 4200,
+              moneda: 'MXN',
+              fuente: 'kayak.com.mx',
+              url_compra: 'https://www.kayak.com.mx/book/flight?code=volaris',
+              salida: '09:00',
+              llegada: '10:30',
+              dias_llegada: 0,
+              duracion_min: 90,
+              patrocinado: false,
+            },
+            {
+              tipo: 'vuelo',
+              linea: 'Aeromexico 09:30–11:00',
+              precio: 4300,
+              moneda: 'MXN',
+              fuente: 'kayak.com.mx',
+              url_compra: 'https://www.kayak.com.mx/book/flight?code=real-2',
+              salida: '09:30',
+              llegada: '11:00',
+              dias_llegada: 0,
+              duracion_min: 90,
+              patrocinado: false,
+            },
+          ],
+        },
+      },
+    });
+
+    await usuario.click(screen.getByRole('button', { name: /Actualizar/ }));
+
+    const elegidoFinal = await screen.findByRole('button', { name: /Elegir Aeromexico 23\/11 09:30/ });
+    expect(elegidoFinal).toHaveAttribute('aria-pressed', 'true');
+    expect(elegidoFinal).toHaveTextContent('Elegida');
+    expect(screen.queryByRole('button', { name: /Elegir Aeromexico 23\/11 06:10/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Elegir Volaris 23\/11 09:00/ }))
+      .toHaveAttribute('aria-pressed', 'false');
   });
 
   it('al elegir una opción pide la vista previa y usa el precio real', async () => {
