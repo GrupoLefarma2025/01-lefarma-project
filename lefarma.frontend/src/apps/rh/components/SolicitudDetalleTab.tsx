@@ -1,5 +1,6 @@
 import type { SolicitudPersonalResponse } from '@/types/solicitudPersonal.types';
 import { getCategoriaNombre } from '@/types/solicitudPersonal.types';
+import { Badge } from '@/components/ui/badge';
 
 const fmtFecha = (dateStr?: string | null) => {
   if (!dateStr) return '-';
@@ -28,6 +29,10 @@ interface SolicitudDetalleTabProps {
 
 export function SolicitudDetalleTab({ solicitud }: SolicitudDetalleTabProps) {
   const esIncidencia = solicitud.categoria === '1' || solicitud.categoria === 'Incidencia';
+  const estadoSaldo = (solicitud.estadoNombre ?? '').toUpperCase();
+  const saldoAplicado = estadoSaldo === 'CERRADA';
+  const saldoNoAplicado = estadoSaldo === 'CANCELADA' || estadoSaldo === 'RECHAZADA';
+  const saldoTerminal = saldoAplicado || saldoNoAplicado;
 
   return (
     <div className="space-y-4">
@@ -135,7 +140,6 @@ export function SolicitudDetalleTab({ solicitud }: SolicitudDetalleTabProps) {
                       <th className="px-3 py-2 text-left font-medium">Salida real</th>
                     </>
                   )}
-                  <th className="px-3 py-2 text-left font-medium">Comentario</th>
                 </tr>
               </thead>
               <tbody>
@@ -151,7 +155,6 @@ export function SolicitudDetalleTab({ solicitud }: SolicitudDetalleTabProps) {
                         <td className="px-3 py-2">{fmtChecada(d.salio)}</td>
                       </>
                     )}
-                    <td className="px-3 py-2">{d.comentario || '-'}</td>
                   </tr>
                 ))}
               </tbody>
@@ -161,24 +164,90 @@ export function SolicitudDetalleTab({ solicitud }: SolicitudDetalleTabProps) {
       )}
       {solicitud.saldoVacaciones && (
         <div className="rounded-lg border">
-          <div className="border-b px-3 py-2">
-            <p className="text-sm font-medium">Saldo de vacaciones {solicitud.saldoVacaciones.anio}</p>
+          <div className="flex items-center justify-between gap-2 border-b px-3 py-2">
+            <p className="text-sm font-medium">Saldo de vacaciones</p>
+            {saldoTerminal && (
+              <Badge
+                variant="outline"
+                className={
+                  saldoAplicado
+                    ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300'
+                    : 'border-slate-200 bg-slate-50 text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300'
+                }
+              >
+                {saldoAplicado ? 'Aplicado' : 'No aplicado'}
+              </Badge>
+            )}
           </div>
-          <div className="grid grid-cols-1 gap-2 p-3 text-xs sm:grid-cols-3">
+          <div className="grid grid-cols-1 gap-2 p-3 text-xs sm:grid-cols-4">
             <div className="rounded-md border bg-background px-2 py-1.5">
-              <p className="text-muted-foreground">Días que se descontarán</p>
+              <p className="text-muted-foreground">
+                {saldoAplicado
+                  ? 'Días descontados'
+                  : saldoNoAplicado
+                    ? 'Días solicitados'
+                    : 'Días que se descontarán'}
+              </p>
               <p className="font-medium">{solicitud.saldoVacaciones.diasQueDescuentan}</p>
             </div>
             <div className="rounded-md border bg-background px-2 py-1.5">
-              <p className="text-muted-foreground">Saldo disponible</p>
+              <p className="text-muted-foreground">
+                {saldoTerminal ? 'Saldo actual' : 'Saldo disponible'}
+              </p>
               <p className="font-medium">{solicitud.saldoVacaciones.diasPendientes}</p>
             </div>
-            <div className="rounded-md border bg-background px-2 py-1.5">
-              <p className="text-muted-foreground">Saldo resultante</p>
-              <p className="font-medium">{solicitud.saldoVacaciones.saldoResultante}</p>
-            </div>
+            {solicitud.saldoVacaciones.diasArrastre > 0 && (
+              <div className="rounded-md border bg-background px-2 py-1.5">
+                <p className="text-muted-foreground">Arrastre</p>
+                <p className="font-medium">{solicitud.saldoVacaciones.diasArrastre}</p>
+              </div>
+            )}
+            {!saldoTerminal && (
+              <div className="rounded-md border bg-background px-2 py-1.5">
+                <p className="text-muted-foreground">Saldo resultante</p>
+                <p className="font-medium">{solicitud.saldoVacaciones.saldoResultante}</p>
+              </div>
+            )}
           </div>
-          {solicitud.saldoVacaciones.quedaNegativo && (
+          {solicitud.saldoVacaciones.periodos.length > 0 && (
+            <div className="border-t px-3 py-2 text-xs">
+              <p className="mb-1 text-muted-foreground">
+                {saldoTerminal ? 'Períodos de la solicitud' : 'Desglose por período'}
+              </p>
+              <ul className="space-y-1">
+                {solicitud.saldoVacaciones.periodos.map((periodo) => (
+                  <li key={periodo.fechaInicioPeriodo} className="flex flex-wrap gap-x-3">
+                    <span className="font-medium">Período {periodo.numeroPeriodo}</span>
+                    <span className="text-muted-foreground">{periodo.periodo}</span>
+                    <span>
+                      {saldoTerminal ? 'Disponibles actuales' : 'Disponibles'}:{' '}
+                      {periodo.diasPendientes}
+                    </span>
+                    <span>
+                      {saldoAplicado
+                        ? 'Descontados'
+                        : saldoNoAplicado
+                          ? 'Solicitados'
+                          : 'A descontar'}
+                      : {periodo.diasQueDescuentan}
+                    </span>
+                    {!saldoTerminal && <span>Resultante: {periodo.saldoResultante}</span>}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {saldoAplicado && solicitud.saldoVacaciones.diasPendientes < 0 && (
+            <div className="border-t bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:bg-amber-950/20 dark:text-amber-200">
+              El saldo actual del empleado está en negativo.
+            </div>
+          )}
+          {saldoNoAplicado && (
+            <div className="border-t bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+              La solicitud no se cerró; no se descontaron días del saldo.
+            </div>
+          )}
+          {!saldoTerminal && solicitud.saldoVacaciones.quedaNegativo && (
             <div className="border-t bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:bg-amber-950/20 dark:text-amber-200">
               Si se aprueba, el saldo quedará en negativo. Recursos Humanos decide su aceptación en el flujo.
             </div>

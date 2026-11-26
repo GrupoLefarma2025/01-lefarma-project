@@ -149,20 +149,5 @@ namespace Lefarma.API.Features.Rh.Vacaciones
                 Data = data
             }));
         }
-
-        [HttpPost("saldos/sincronizar")]
-        [HasPermission(Permissions.Vacaciones.SaldosCargar)]
-        [SwaggerOperation(Summary = "Sincronizar saldos de vacaciones desde vwEmpleados")]
-        public async Task<IActionResult> SincronizarSaldos([FromBody] SincronizarSaldosRequest request)
-        {
-            var idUsuario = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
-            var result = await _service.SincronizarSaldosAsync(request, idUsuario);
-            return result.ToActionResult(this, data => Ok(new ApiResponse<SincronizarSaldosResponse>
-            {
-                Success = true,
-                Message = $"Sincronización completada: {data.Creados} creados, {data.Actualizados} actualizados, {data.Omitidos} omitidos.",
-                Data = data
-            }));
-        }
     }
 }

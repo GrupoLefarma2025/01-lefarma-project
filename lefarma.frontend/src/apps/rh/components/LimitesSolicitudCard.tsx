@@ -188,9 +188,11 @@ function SaldoVacacionesStrip({ saldo }: { saldo: SaldoVacacionesResponse }) {
           </div>
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold text-foreground">
-              Vacaciones {saldo.anio}
+              Vacaciones
             </p>
-            <p className="text-xs text-muted-foreground">Saldo anual</p>
+            <p className="text-xs text-muted-foreground" title={saldo.periodo}>
+              Período {saldo.numeroPeriodo}
+            </p>
           </div>
         </div>
 
@@ -206,7 +208,7 @@ function SaldoVacacionesStrip({ saldo }: { saldo: SaldoVacacionesResponse }) {
             </span>{' '}
             compensados ·{' '}
             <span className="font-semibold tabular-nums text-foreground">
-              {saldo.diasAjustados}
+              {saldo.diasAjustados + saldo.diasAjustadosArrastre}
             </span>{' '}
             ajustados
           </span>
@@ -476,7 +478,7 @@ export function LimitesSolicitudCard({
               )}
 
               {saldos.map((s) => (
-                <SaldoVacacionesStrip key={`${s.idUsuario}-${s.anio}`} saldo={s} />
+                <SaldoVacacionesStrip key={`${s.idUsuario}-${s.fechaInicioPeriodo}`} saldo={s} />
               ))}
 
               {hayAlerta && (

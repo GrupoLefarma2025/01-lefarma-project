@@ -303,7 +303,8 @@ namespace Lefarma.API.Features.Rh.Vacaciones
         {
             try
             {
-                var query = _context.SaldosVacacionesAnuales
+                var hoy = DateTime.Today;
+                var query = _context.SaldosVacacionesPeriodos
                     .AsNoTracking()
                     .Where(s => s.Activo)
                     .AsQueryable();
@@ -314,11 +315,17 @@ namespace Lefarma.API.Features.Rh.Vacaciones
                 if (request.IdUsuario.HasValue)
                     query = query.Where(s => s.IdUsuario == request.IdUsuario.Value);
 
-                if (request.Anio.HasValue)
-                    query = query.Where(s => s.Anio == request.Anio.Value);
+                if (request.SoloVigentes)
+                    query = query.Where(s => s.FechaInicioPeriodo <= hoy && s.FechaFinPeriodo >= hoy);
+
+                if (request.FechaInicioPeriodo.HasValue)
+                    query = query.Where(s => s.FechaFinPeriodo >= request.FechaInicioPeriodo.Value);
+
+                if (request.FechaFinPeriodo.HasValue)
+                    query = query.Where(s => s.FechaInicioPeriodo <= request.FechaFinPeriodo.Value);
 
                 var saldos = await query
-                    .OrderBy(s => s.Anio)
+                    .OrderBy(s => s.FechaInicioPeriodo)
                     .ThenBy(s => s.IdUsuario)
                     .ToListAsync();
 
@@ -364,13 +371,19 @@ namespace Lefarma.API.Features.Rh.Vacaciones
                         UsuarioNombre = usuario?.NombreCompleto,
                         Nomina = nomina,
                         IdEmpresa = s.IdEmpresa,
-                        Anio = s.Anio,
+                        FechaInicioPeriodo = s.FechaInicioPeriodo,
+                        FechaFinPeriodo = s.FechaFinPeriodo,
+                        FechaLimiteDisfrute = s.FechaLimiteDisfrute,
+                        NumeroPeriodo = s.NumeroPeriodo,
+                        Periodo = VacacionesPeriodoHelper.EtiquetaPeriodo(s.FechaInicioPeriodo, s.FechaFinPeriodo),
                         DiasGenerados = s.DiasGenerados,
                         DiasVencidos = s.DiasVencidos,
                         DiasCompensados = s.DiasCompensados,
                         DiasAjustados = s.DiasAjustados,
+                        DiasAjustadosArrastre = s.DiasAjustadosArrastre,
                         DiasTomados = s.DiasTomados,
                         DiasPendientes = s.DiasPendientes,
+                        DiasPendientesTotal = s.DiasPendientes,
                         Activo = s.Activo
                     };
                 }).ToList();
@@ -388,12 +401,12 @@ namespace Lefarma.API.Features.Rh.Vacaciones
         {
             try
             {
-                var saldo = await _context.SaldosVacacionesAnuales
+                var saldo = await _context.SaldosVacacionesPeriodos
                     .AsNoTracking()
                     .FirstOrDefaultAsync(s => s.IdSaldo == idSaldo && s.Activo);
 
                 if (saldo is null)
-                    return CommonErrors.NotFound("SaldoVacacionesAnual", idSaldo.ToString());
+                    return CommonErrors.NotFound("SaldoVacacionesPeriodo", idSaldo.ToString());
 
                 var usuario = await _asokamContext.Usuarios
                     .AsNoTracking()
@@ -414,7 +427,8 @@ namespace Lefarma.API.Features.Rh.Vacaciones
                             e.Empresa,
                             e.Fechaingreso,
                             e.Antiguedad,
-                            e.Vacacionesxantiguedad
+                            e.Vacacionesxantiguedad,
+                            e.VacacionesxantiguedadASumar
                         })
                         .FirstOrDefaultAsync();
 
@@ -462,7 +476,8 @@ namespace Lefarma.API.Features.Rh.Vacaciones
                     .AsNoTracking()
                     .Where(s => (s.IdUsuarioSolicitante ?? s.IdUsuarioCreador) == saldo.IdUsuario
                         && s.FechaInicio.HasValue && s.FechaFin.HasValue
-                        && s.FechaInicio.Value.Year == saldo.Anio
+                        && s.FechaInicio.Value <= saldo.FechaFinPeriodo
+                        && s.FechaFin.Value >= saldo.FechaInicioPeriodo
                         && idsTipoVacaciones.Contains(s.IdTipoSolicitud))
                     .OrderByDescending(s => s.FechaInicio)
                     .Select(s => new { s.IdSolicitud, s.Folio, s.FechaInicio, s.FechaFin, s.IdEmpresa, s.IdEstado })
@@ -484,8 +499,15 @@ namespace Lefarma.API.Features.Rh.Vacaciones
                     var fechas = await SolicitudPersonalService.ObtenerFechasQueConsumenSaldoAsync(
                         _context, solicitud.IdEmpresa, solicitud.FechaInicio!.Value, solicitud.FechaFin!.Value);
 
+                    var fechasPeriodo = fechas
+                        .Where(f => f >= saldo.FechaInicioPeriodo && f <= saldo.FechaFinPeriodo)
+                        .ToList();
+
+                    if (fechasPeriodo.Count == 0)
+                        continue;
+
                     if (!esCerrada)
-                        diasEnTramite += fechas.Count;
+                        diasEnTramite += fechasPeriodo.Count;
 
                     solicitudesDetalle.Add(new SolicitudVacacionesDetalleDto
                     {
@@ -496,25 +518,45 @@ namespace Lefarma.API.Features.Rh.Vacaciones
                         EnTramite = !esCerrada,
                         FechaInicio = solicitud.FechaInicio!.Value,
                         FechaFin = solicitud.FechaFin!.Value,
-                        Dias = fechas.Count,
-                        Fechas = fechas
+                        Dias = fechasPeriodo.Count,
+                        Fechas = fechasPeriodo
                     });
                 }
 
-                var historial = await _context.SaldosVacacionesAnuales
+                var historial = await _context.SaldosVacacionesPeriodos
                     .AsNoTracking()
                     .Where(s => s.IdUsuario == saldo.IdUsuario && s.Activo)
-                    .OrderByDescending(s => s.Anio)
+                    .OrderByDescending(s => s.FechaInicioPeriodo)
                     .Select(s => new SaldoVacacionesHistorialDto
                     {
                         IdSaldo = s.IdSaldo,
-                        Anio = s.Anio,
+                        NumeroPeriodo = s.NumeroPeriodo,
+                        FechaInicioPeriodo = s.FechaInicioPeriodo,
+                        FechaFinPeriodo = s.FechaFinPeriodo,
+                        Periodo = VacacionesPeriodoHelper.EtiquetaPeriodo(s.FechaInicioPeriodo, s.FechaFinPeriodo),
                         DiasGenerados = s.DiasGenerados,
                         DiasVencidos = s.DiasVencidos,
                         DiasCompensados = s.DiasCompensados,
                         DiasAjustados = s.DiasAjustados,
+                        DiasAjustadosArrastre = s.DiasAjustadosArrastre,
                         DiasTomados = s.DiasTomados,
                         DiasPendientes = s.DiasPendientes
+                    })
+                    .ToListAsync();
+
+                var arrastres = await _context.SaldosVacacionesArrastres
+                    .AsNoTracking()
+                    .Where(h => h.IdUsuario == saldo.IdUsuario && h.Activo)
+                    .OrderBy(h => h.FechaCorte)
+                    .ThenBy(h => h.IdArrastre)
+                    .Select(h => new SaldoVacacionesArrastreDto
+                    {
+                        IdArrastre = h.IdArrastre,
+                        Descripcion = h.Descripcion,
+                        FechaCorte = h.FechaCorte,
+                        DiasTotal = h.DiasTotal,
+                        DiasAplicados = h.DiasAplicados,
+                        DiasRestante = h.DiasRestante
                     })
                     .ToListAsync();
 
@@ -526,25 +568,32 @@ namespace Lefarma.API.Features.Rh.Vacaciones
                     Correo = usuario?.Correo,
                     Nomina = empleado?.Nomina,
                     IdEmpresa = saldo.IdEmpresa,
-                    Anio = saldo.Anio,
+                    FechaInicioPeriodo = saldo.FechaInicioPeriodo,
+                    FechaFinPeriodo = saldo.FechaFinPeriodo,
+                    FechaLimiteDisfrute = saldo.FechaLimiteDisfrute,
+                    NumeroPeriodo = saldo.NumeroPeriodo,
+                    Periodo = VacacionesPeriodoHelper.EtiquetaPeriodo(saldo.FechaInicioPeriodo, saldo.FechaFinPeriodo),
                     Puesto = empleado?.Puesto,
                     Departamento = empleado?.Departamento,
                     EmpleadoEmpresa = empleado?.Empresa,
                     FechaIngreso = empleado?.Fechaingreso,
                     Antiguedad = empleado?.Antiguedad,
-                    VacacionesPorAntiguedad = empleado?.Vacacionesxantiguedad,
+                    VacacionesPorAntiguedad = empleado?.VacacionesxantiguedadASumar ?? empleado?.Vacacionesxantiguedad,
                     DiasGenerados = saldo.DiasGenerados,
                     DiasVencidos = saldo.DiasVencidos,
                     DiasCompensados = saldo.DiasCompensados,
                     DiasAjustados = saldo.DiasAjustados,
+                    DiasAjustadosArrastre = saldo.DiasAjustadosArrastre,
                     DiasTomados = saldo.DiasTomados,
                     DiasPendientes = saldo.DiasPendientes,
+                    DiasPendientesTotal = saldo.DiasPendientes,
                     FechaModificacion = saldo.FechaModificacion,
                     AjustadoPor = ajustadoPor,
                     DiasEnTramite = diasEnTramite,
                     DiasPendientesProyectado = saldo.DiasPendientes - diasEnTramite,
                     Solicitudes = solicitudesDetalle,
                     Historial = historial,
+                    Arrastres = arrastres,
                     HistorialAjustes = historialAjustes
                 };
             }
@@ -559,11 +608,11 @@ namespace Lefarma.API.Features.Rh.Vacaciones
         {
             try
             {
-                var saldo = await _context.SaldosVacacionesAnuales
+                var saldo = await _context.SaldosVacacionesPeriodos
                     .FirstOrDefaultAsync(s => s.IdSaldo == idSaldo && s.Activo);
 
                 if (saldo is null)
-                    return CommonErrors.NotFound("SaldoVacacionesAnual", idSaldo.ToString());
+                    return CommonErrors.NotFound("SaldoVacacionesPeriodo", idSaldo.ToString());
 
                 var motivo = request.Motivo?.Trim();
                 if (string.IsNullOrWhiteSpace(motivo))
@@ -625,13 +674,19 @@ namespace Lefarma.API.Features.Rh.Vacaciones
                     IdSaldo = saldo.IdSaldo,
                     IdUsuario = saldo.IdUsuario,
                     IdEmpresa = saldo.IdEmpresa,
-                    Anio = saldo.Anio,
+                    FechaInicioPeriodo = saldo.FechaInicioPeriodo,
+                    FechaFinPeriodo = saldo.FechaFinPeriodo,
+                    FechaLimiteDisfrute = saldo.FechaLimiteDisfrute,
+                    NumeroPeriodo = saldo.NumeroPeriodo,
+                    Periodo = VacacionesPeriodoHelper.EtiquetaPeriodo(saldo.FechaInicioPeriodo, saldo.FechaFinPeriodo),
                     DiasGenerados = saldo.DiasGenerados,
                     DiasVencidos = saldo.DiasVencidos,
                     DiasCompensados = saldo.DiasCompensados,
                     DiasAjustados = saldo.DiasAjustados,
+                    DiasAjustadosArrastre = saldo.DiasAjustadosArrastre,
                     DiasTomados = saldo.DiasTomados,
                     DiasPendientes = saldo.DiasPendientes,
+                    DiasPendientesTotal = saldo.DiasPendientes,
                     Activo = saldo.Activo
                 };
             }
@@ -654,12 +709,6 @@ namespace Lefarma.API.Features.Rh.Vacaciones
                 if (empresa == null)
                     return CommonErrors.NotFound("Empresa", request.IdEmpresa.ToString());
 
-                var existing = await _context.SaldosVacacionesAnuales
-                    .FirstOrDefaultAsync(s => s.IdUsuario == request.IdUsuario && s.Anio == request.Anio && s.Activo);
-
-                if (existing != null)
-                    return CommonErrors.AlreadyExists("SaldoVacacionesAnual", "usuario/año", $"{request.IdUsuario}/{request.Anio}");
-
                 var correo = await _asokamContext.Usuarios
                     .AsNoTracking()
                     .Where(u => u.IdUsuario == request.IdUsuario)
@@ -669,28 +718,40 @@ namespace Lefarma.API.Features.Rh.Vacaciones
                 if (string.IsNullOrWhiteSpace(correo))
                     return CommonErrors.NotFound("CorreoUsuario", request.IdUsuario.ToString());
 
-                var vacacionesPorAntiguedad = await _asistenciasContext.VwEmpleados
+                var empleado = await _asistenciasContext.VwEmpleados
                     .AsNoTracking()
                     .Where(e => e.Correo == correo)
-                    .Select(e => (decimal?)e.Vacacionesxantiguedad)
+                    .Select(e => new { e.Fechaingreso })
                     .FirstOrDefaultAsync();
 
-                if (!vacacionesPorAntiguedad.HasValue)
+                if (empleado?.Fechaingreso is null)
                     return CommonErrors.NotFound("EmpleadoAsistencias", correo);
 
-                var saldo = new SaldoVacacionesAnual
+                var fechaReferencia = request.FechaInicioPeriodo ?? DateTime.Today;
+                var (inicio, fin, limite, numero) = VacacionesPeriodoHelper.CalcularPeriodo(empleado.Fechaingreso.Value, fechaReferencia);
+
+                var existing = await _context.SaldosVacacionesPeriodos
+                    .FirstOrDefaultAsync(s => s.IdUsuario == request.IdUsuario && s.FechaInicioPeriodo == inicio && s.Activo);
+
+                if (existing != null)
+                    return CommonErrors.AlreadyExists("SaldoVacacionesPeriodo", "usuario/período", $"{request.IdUsuario}/{inicio:yyyy-MM-dd}");
+
+                var saldo = new SaldoVacacionesPeriodo
                 {
                     IdUsuario = request.IdUsuario,
                     IdEmpresa = request.IdEmpresa,
-                    Anio = request.Anio,
-                    DiasGenerados = vacacionesPorAntiguedad.Value,
+                    FechaInicioPeriodo = inicio,
+                    FechaFinPeriodo = fin,
+                    FechaLimiteDisfrute = limite,
+                    NumeroPeriodo = numero,
+                    DiasGenerados = request.DiasGenerados ?? VacacionesPeriodoHelper.CalcularDiasGenerados(numero),
                     DiasVencidos = request.DiasVencidos,
                     DiasCompensados = request.DiasCompensados,
                     DiasAjustados = request.DiasAjustados,
                     DiasTomados = request.DiasTomados
                 };
 
-                _context.SaldosVacacionesAnuales.Add(saldo);
+                _context.SaldosVacacionesPeriodos.Add(saldo);
                 await _context.SaveChangesAsync();
 
                 return new SaldoVacacionesResponse
@@ -698,13 +759,19 @@ namespace Lefarma.API.Features.Rh.Vacaciones
                     IdSaldo = saldo.IdSaldo,
                     IdUsuario = saldo.IdUsuario,
                     IdEmpresa = saldo.IdEmpresa,
-                    Anio = saldo.Anio,
+                    FechaInicioPeriodo = saldo.FechaInicioPeriodo,
+                    FechaFinPeriodo = saldo.FechaFinPeriodo,
+                    FechaLimiteDisfrute = saldo.FechaLimiteDisfrute,
+                    NumeroPeriodo = saldo.NumeroPeriodo,
+                    Periodo = VacacionesPeriodoHelper.EtiquetaPeriodo(saldo.FechaInicioPeriodo, saldo.FechaFinPeriodo),
                     DiasGenerados = saldo.DiasGenerados,
                     DiasVencidos = saldo.DiasVencidos,
                     DiasCompensados = saldo.DiasCompensados,
                     DiasAjustados = saldo.DiasAjustados,
+                    DiasAjustadosArrastre = saldo.DiasAjustadosArrastre,
                     DiasTomados = saldo.DiasTomados,
                     DiasPendientes = saldo.DiasPendientes,
+                    DiasPendientesTotal = saldo.DiasPendientes,
                     Activo = saldo.Activo
                 };
             }
@@ -714,125 +781,6 @@ namespace Lefarma.API.Features.Rh.Vacaciones
                 return CommonErrors.InternalServerError("Error al cargar saldo de vacaciones");
             }
         }
-        public async Task<ErrorOr<SincronizarSaldosResponse>> SincronizarSaldosAsync(SincronizarSaldosRequest request, int idUsuario)
-        {
-            try
-            {
-                var anio = request.Anio ?? DateTime.Now.Year;
-
-                var empleados = await _asistenciasContext.VwEmpleados
-                    .AsNoTracking()
-                    .ToListAsync();
-
-                var correos = empleados
-                    .Select(e => e.Correo)
-                    .Where(c => !string.IsNullOrWhiteSpace(c))
-                    .Distinct()
-                    .ToList();
-
-                var usuarios = await _asokamContext.Usuarios
-                    .AsNoTracking()
-                    .Where(u => u.Correo != null && correos.Contains(u.Correo))
-                    .Select(u => new { u.IdUsuario, u.Correo })
-                    .ToListAsync();
-
-                var usuarioPorCorreo = usuarios
-                    .GroupBy(u => u.Correo, StringComparer.OrdinalIgnoreCase)
-                    .ToDictionary(
-                        g => g.Key!,
-                        g => g.First().IdUsuario,
-                        StringComparer.OrdinalIgnoreCase);
-
-                var idsUsuarios = usuarios.Select(u => u.IdUsuario).ToList();
-
-                var detalles = await _context.UsuariosDetalle
-                    .AsNoTracking()
-                    .Where(d => idsUsuarios.Contains(d.IdUsuario) && d.Activo)
-                    .Select(d => new { d.IdUsuario, d.IdEmpresa })
-                    .ToListAsync();
-
-                var detallePorUsuario = detalles.ToDictionary(d => d.IdUsuario);
-
-                var existentes = await _context.SaldosVacacionesAnuales
-                    .Where(s => s.Anio == anio && s.Activo)
-                    .ToListAsync();
-
-                var saldoPorUsuario = existentes.ToDictionary(s => s.IdUsuario);
-
-                var resultado = new SincronizarSaldosResponse { Anio = anio };
-
-                using var transaction = await _context.Database.BeginTransactionAsync();
-
-                try
-                {
-                    foreach (var empleado in empleados)
-                    {
-                        resultado.Total++;
-
-                        if (string.IsNullOrWhiteSpace(empleado.Correo)
-                            || !empleado.Vacacionesxantiguedad.HasValue)
-                        {
-                            resultado.Omitidos++;
-                            continue;
-                        }
-
-                        if (!usuarioPorCorreo.TryGetValue(empleado.Correo, out var idUsuarioEmpleado))
-                        {
-                            resultado.Omitidos++;
-                            continue;
-                        }
-
-                        if (!detallePorUsuario.TryGetValue(idUsuarioEmpleado, out var detalle))
-                        {
-                            resultado.Omitidos++;
-                            continue;
-                        }
-
-                        if (saldoPorUsuario.TryGetValue(idUsuarioEmpleado, out var saldo))
-                        {
-                            saldo.DiasGenerados = empleado.Vacacionesxantiguedad.Value;
-                            resultado.Actualizados++;
-                        }
-                        else
-                        {
-                            var nuevoSaldo = new SaldoVacacionesAnual
-                            {
-                                IdUsuario = idUsuarioEmpleado,
-                                IdEmpresa = detalle.IdEmpresa,
-                                Anio = anio,
-                                DiasGenerados = empleado.Vacacionesxantiguedad.Value
-                            };
-                            _context.SaldosVacacionesAnuales.Add(nuevoSaldo);
-                            resultado.Creados++;
-                        }
-                    }
-
-                    await _context.SaveChangesAsync();
-                    await transaction.CommitAsync();
-                }
-                catch
-                {
-                    await transaction.RollbackAsync();
-                    throw;
-                }
-
-                EnrichWideEvent("SincronizarSaldos", count: resultado.Creados + resultado.Actualizados, additionalContext: new Dictionary<string, object>
-                {
-                    ["anio"] = anio,
-                    ["creados"] = resultado.Creados,
-                    ["actualizados"] = resultado.Actualizados,
-                    ["omitidos"] = resultado.Omitidos
-                });
-
-                return resultado;
-            }
-            catch (Exception ex)
-            {
-                EnrichWideEvent("SincronizarSaldos", exception: ex);
-                return CommonErrors.InternalServerError("Error al sincronizar saldos de vacaciones");
-            }
-        }
-
         public async Task<ErrorOr<List<UsuarioAfectadoResponse>>> ObtenerUsuariosAfectadosAsync(int idDiaHabil)
         {
             var dia = await _context.DiasHabiles

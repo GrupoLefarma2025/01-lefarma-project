@@ -247,11 +247,14 @@ public class SolicitudPersonalServiceTests
         var idUsuario = 123;
         var anio = DateTime.Now.Year;
 
-        context.SaldosVacacionesAnuales.Add(new SaldoVacacionesAnual
+        context.SaldosVacacionesPeriodos.Add(new SaldoVacacionesPeriodo
         {
             IdUsuario = idUsuario,
             IdEmpresa = 1,
-            Anio = anio,
+            FechaInicioPeriodo = new DateTime(anio, 1, 1),
+            FechaFinPeriodo = new DateTime(anio, 12, 31),
+            FechaLimiteDisfrute = new DateTime(anio + 1, 7, 1),
+            NumeroPeriodo = 0,
             DiasGenerados = 20,
             DiasVencidos = 0,
             DiasCompensados = 2,
@@ -273,7 +276,7 @@ public class SolicitudPersonalServiceTests
         result.IsError.Should().BeFalse();
         result.Value.SaldosVacaciones.Should().HaveCount(1);
         result.Value.SaldosVacaciones[0].DiasPendientes.Should().Be(18);
-        result.Value.SaldosVacaciones[0].Anio.Should().Be(anio);
+        result.Value.SaldosVacaciones[0].FechaInicioPeriodo.Year.Should().Be(anio);
     }
 
     [Fact]
@@ -540,11 +543,14 @@ public class SolicitudPersonalServiceTests
         var context = CreateInMemoryContext();
         var anio = DateTime.Now.Year;
 
-        context.SaldosVacacionesAnuales.Add(new SaldoVacacionesAnual
+        context.SaldosVacacionesPeriodos.Add(new SaldoVacacionesPeriodo
         {
             IdUsuario = 1,
             IdEmpresa = 1,
-            Anio = anio,
+            FechaInicioPeriodo = new DateTime(anio, 1, 1),
+            FechaFinPeriodo = new DateTime(anio, 12, 31),
+            FechaLimiteDisfrute = new DateTime(anio + 1, 7, 1),
+            NumeroPeriodo = 0,
             DiasGenerados = 3,
             DiasPendientes = 3,
             Activo = true
@@ -566,11 +572,14 @@ public class SolicitudPersonalServiceTests
         var context = CreateInMemoryContext();
         var anio = DateTime.Now.Year;
 
-        context.SaldosVacacionesAnuales.Add(new SaldoVacacionesAnual
+        context.SaldosVacacionesPeriodos.Add(new SaldoVacacionesPeriodo
         {
             IdUsuario = 123,
             IdEmpresa = 1,
-            Anio = anio,
+            FechaInicioPeriodo = new DateTime(anio, 1, 1),
+            FechaFinPeriodo = new DateTime(anio, 12, 31),
+            FechaLimiteDisfrute = new DateTime(anio + 1, 7, 1),
+            NumeroPeriodo = 0,
             DiasGenerados = 2,
             DiasPendientes = 2,
             Activo = true
@@ -636,11 +645,14 @@ public class SolicitudPersonalServiceTests
         var context = CreateInMemoryContext();
         var anio = DateTime.Now.Year;
 
-        context.SaldosVacacionesAnuales.Add(new SaldoVacacionesAnual
+        context.SaldosVacacionesPeriodos.Add(new SaldoVacacionesPeriodo
         {
             IdUsuario = 123,
             IdEmpresa = 1,
-            Anio = anio,
+            FechaInicioPeriodo = new DateTime(anio, 10, 9),
+            FechaFinPeriodo = new DateTime(anio + 1, 10, 8),
+            FechaLimiteDisfrute = new DateTime(anio + 2, 4, 9),
+            NumeroPeriodo = 0,
             DiasGenerados = 20,
             DiasPendientes = 20,
             Activo = true
@@ -700,11 +712,14 @@ public class SolicitudPersonalServiceTests
         var context = CreateInMemoryContext();
         var anio = DateTime.Now.Year;
 
-        context.SaldosVacacionesAnuales.Add(new SaldoVacacionesAnual
+        context.SaldosVacacionesPeriodos.Add(new SaldoVacacionesPeriodo
         {
             IdUsuario = 123,
             IdEmpresa = 1,
-            Anio = anio,
+            FechaInicioPeriodo = new DateTime(anio, 1, 1),
+            FechaFinPeriodo = new DateTime(anio, 12, 31),
+            FechaLimiteDisfrute = new DateTime(anio + 1, 7, 1),
+            NumeroPeriodo = 0,
             DiasGenerados = 20,
             DiasPendientes = 20,
             Activo = true

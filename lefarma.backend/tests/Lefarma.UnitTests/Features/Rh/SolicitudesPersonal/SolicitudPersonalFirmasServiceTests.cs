@@ -89,6 +89,7 @@ public class SolicitudPersonalFirmasServiceTests
             Mock.Of<IServiceScopeFactory>(),
             Mock.Of<IJefeInmediatoResolver>(),
             profileService,
+            Mock.Of<IEmpleadoRepository>(),
             wideEventAccessor ?? Mock.Of<IWideEventAccessor>());
 
     private static async Task<ErrorOr<bool>> ProcesarVacacionesAsync(
@@ -123,11 +124,14 @@ public class SolicitudPersonalFirmasServiceTests
         var context = CreateInMemoryContext();
         var anio = DateTime.Now.Year;
 
-        context.SaldosVacacionesAnuales.Add(new SaldoVacacionesAnual
+        context.SaldosVacacionesPeriodos.Add(new SaldoVacacionesPeriodo
         {
             IdUsuario = 123,
             IdEmpresa = 1,
-            Anio = anio,
+            FechaInicioPeriodo = new DateTime(anio, 1, 1),
+            FechaFinPeriodo = new DateTime(anio, 12, 31),
+            FechaLimiteDisfrute = new DateTime(anio + 1, 7, 1),
+            NumeroPeriodo = 0,
             DiasGenerados = 5,
             DiasPendientes = 5,
             Activo = true
@@ -139,7 +143,7 @@ public class SolicitudPersonalFirmasServiceTests
             service, SolicitudVacaciones(new DateTime(anio, 1, 1), new DateTime(anio, 1, 10)));
 
         result.IsError.Should().BeFalse();
-        var saldo = context.SaldosVacacionesAnuales.Single();
+        var saldo = context.SaldosVacacionesPeriodos.Single();
         saldo.DiasTomados.Should().Be(10);
     }
 
@@ -154,9 +158,9 @@ public class SolicitudPersonalFirmasServiceTests
             service, SolicitudVacaciones(new DateTime(anio, 1, 1), new DateTime(anio, 1, 5)));
 
         result.IsError.Should().BeFalse();
-        var saldo = context.SaldosVacacionesAnuales.Single();
+        var saldo = context.SaldosVacacionesPeriodos.Single();
         saldo.IdUsuario.Should().Be(123);
-        saldo.Anio.Should().Be(anio);
+        saldo.FechaInicioPeriodo.Year.Should().Be(anio);
         saldo.DiasGenerados.Should().Be(0);
         saldo.DiasTomados.Should().Be(5);
     }
@@ -167,11 +171,14 @@ public class SolicitudPersonalFirmasServiceTests
         var context = CreateInMemoryContext();
         var anio = DateTime.Now.Year;
 
-        context.SaldosVacacionesAnuales.Add(new SaldoVacacionesAnual
+        context.SaldosVacacionesPeriodos.Add(new SaldoVacacionesPeriodo
         {
             IdUsuario = 123,
             IdEmpresa = 1,
-            Anio = anio,
+            FechaInicioPeriodo = new DateTime(anio, 1, 1),
+            FechaFinPeriodo = new DateTime(anio, 12, 31),
+            FechaLimiteDisfrute = new DateTime(anio + 1, 7, 1),
+            NumeroPeriodo = 0,
             DiasGenerados = 10,
             DiasPendientes = 10,
             Activo = true
@@ -195,7 +202,7 @@ public class SolicitudPersonalFirmasServiceTests
             service, SolicitudVacaciones(new DateTime(anio, 1, 1), new DateTime(anio, 1, 5)));
 
         result.IsError.Should().BeFalse();
-        var saldo = context.SaldosVacacionesAnuales.Single(s => s.IdUsuario == 123);
+        var saldo = context.SaldosVacacionesPeriodos.Single(s => s.IdUsuario == 123);
         saldo.DiasTomados.Should().Be(4);
     }
 
@@ -205,11 +212,14 @@ public class SolicitudPersonalFirmasServiceTests
         var context = CreateInMemoryContext();
         var anio = DateTime.Now.Year;
 
-        context.SaldosVacacionesAnuales.Add(new SaldoVacacionesAnual
+        context.SaldosVacacionesPeriodos.Add(new SaldoVacacionesPeriodo
         {
             IdUsuario = 123,
             IdEmpresa = 1,
-            Anio = anio,
+            FechaInicioPeriodo = new DateTime(anio, 1, 1),
+            FechaFinPeriodo = new DateTime(anio, 12, 31),
+            FechaLimiteDisfrute = new DateTime(anio + 1, 7, 1),
+            NumeroPeriodo = 0,
             DiasGenerados = 20,
             DiasPendientes = 20,
             Activo = true
@@ -237,7 +247,7 @@ public class SolicitudPersonalFirmasServiceTests
             service, SolicitudVacaciones(new DateTime(anio, 10, 9), new DateTime(anio, 10, 13)));
 
         result.IsError.Should().BeFalse();
-        var saldo = context.SaldosVacacionesAnuales.Single(s => s.IdUsuario == 123);
+        var saldo = context.SaldosVacacionesPeriodos.Single(s => s.IdUsuario == 123);
         saldo.DiasTomados.Should().Be(3);
     }
 

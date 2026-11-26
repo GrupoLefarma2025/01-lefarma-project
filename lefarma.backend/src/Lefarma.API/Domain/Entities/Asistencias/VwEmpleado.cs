@@ -22,6 +22,9 @@ namespace Lefarma.API.Domain.Entities.Asistencias
         [Column("vacacionesxantiguedad")]
         public decimal? Vacacionesxantiguedad { get; set; }
 
+        [Column("vacacionesxantiguedadASumar")]
+        public decimal? VacacionesxantiguedadASumar { get; set; }
+
         public string? Cp { get; set; }
         public string? Telefonooficina { get; set; }
         public string? Celularoficina { get; set; }

@@ -45,7 +45,20 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal.DTOs
 
     public class SaldoVacacionesSolicitudDto
     {
-        public int Anio { get; set; }
+        public List<SaldoVacacionesSolicitudPeriodoDto> Periodos { get; set; } = new();
+        public decimal DiasArrastre { get; set; }
+        public decimal DiasPendientes { get; set; }
+        public int DiasQueDescuentan { get; set; }
+        public decimal SaldoResultante { get; set; }
+        public bool QuedaNegativo { get; set; }
+    }
+
+    public class SaldoVacacionesSolicitudPeriodoDto
+    {
+        public int NumeroPeriodo { get; set; }
+        public DateTime FechaInicioPeriodo { get; set; }
+        public DateTime FechaFinPeriodo { get; set; }
+        public string Periodo { get; set; } = string.Empty;
         public decimal DiasPendientes { get; set; }
         public int DiasQueDescuentan { get; set; }
         public decimal SaldoResultante { get; set; }

@@ -84,7 +84,19 @@ export interface SolicitudPersonalResponse {
 }
 
 export interface SaldoVacacionesSolicitud {
-  anio: number;
+  periodos: SaldoVacacionesSolicitudPeriodo[];
+  diasArrastre: number;
+  diasPendientes: number;
+  diasQueDescuentan: number;
+  saldoResultante: number;
+  quedaNegativo: boolean;
+}
+
+export interface SaldoVacacionesSolicitudPeriodo {
+  numeroPeriodo: number;
+  fechaInicioPeriodo: string;
+  fechaFinPeriodo: string;
+  periodo: string;
   diasPendientes: number;
   diasQueDescuentan: number;
   saldoResultante: number;

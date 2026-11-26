@@ -4,33 +4,21 @@ namespace Lefarma.API.Features.Rh.Vacaciones.DTOs
     {
         public int? IdEmpresa { get; set; }
         public int? IdUsuario { get; set; }
-        public int? Anio { get; set; }
+        public DateTime? FechaInicioPeriodo { get; set; }
+        public DateTime? FechaFinPeriodo { get; set; }
+        public bool SoloVigentes { get; set; }
     }
 
     public class SaldoVacacionesCreateRequest
     {
         public int IdUsuario { get; set; }
         public int IdEmpresa { get; set; }
-        public int Anio { get; set; }
-        public decimal DiasGenerados { get; set; }
+        public DateTime? FechaInicioPeriodo { get; set; }
+        public decimal? DiasGenerados { get; set; }
         public decimal DiasVencidos { get; set; }
         public decimal DiasCompensados { get; set; }
         public decimal DiasAjustados { get; set; }
         public decimal DiasTomados { get; set; }
-    }
-
-    public class SincronizarSaldosRequest
-    {
-        public int? Anio { get; set; }
-    }
-
-    public class SincronizarSaldosResponse
-    {
-        public int Anio { get; set; }
-        public int Total { get; set; }
-        public int Creados { get; set; }
-        public int Actualizados { get; set; }
-        public int Omitidos { get; set; }
     }
 
     public class SaldoVacacionesResponse
@@ -41,45 +29,49 @@ namespace Lefarma.API.Features.Rh.Vacaciones.DTOs
         public long? Nomina { get; set; }
         public int IdEmpresa { get; set; }
         public string? EmpresaNombre { get; set; }
-        public int Anio { get; set; }
+        public DateTime FechaInicioPeriodo { get; set; }
+        public DateTime FechaFinPeriodo { get; set; }
+        public DateTime FechaLimiteDisfrute { get; set; }
+        public int NumeroPeriodo { get; set; }
+        public string Periodo { get; set; } = string.Empty;
         public decimal DiasGenerados { get; set; }
         public decimal DiasVencidos { get; set; }
         public decimal DiasCompensados { get; set; }
         public decimal DiasAjustados { get; set; }
+        public decimal DiasAjustadosArrastre { get; set; }
         public decimal DiasTomados { get; set; }
         public decimal DiasPendientes { get; set; }
+        public decimal DiasPendientesTotal { get; set; }
         public bool Activo { get; set; }
     }
 
-    public class SaldoVacacionesDetalleResponse
+    public class SaldoVacacionesDetalleResponse : SaldoVacacionesResponse
     {
-        public int IdSaldo { get; set; }
-        public int IdUsuario { get; set; }
-        public string? UsuarioNombre { get; set; }
         public string? Correo { get; set; }
-        public long? Nomina { get; set; }
-        public int IdEmpresa { get; set; }
-        public string? EmpresaNombre { get; set; }
-        public int Anio { get; set; }
         public string? Puesto { get; set; }
         public string? Departamento { get; set; }
         public string? EmpleadoEmpresa { get; set; }
         public DateTime? FechaIngreso { get; set; }
         public int? Antiguedad { get; set; }
         public decimal? VacacionesPorAntiguedad { get; set; }
-        public decimal DiasGenerados { get; set; }
-        public decimal DiasVencidos { get; set; }
-        public decimal DiasCompensados { get; set; }
-        public decimal DiasAjustados { get; set; }
-        public decimal DiasTomados { get; set; }
-        public decimal DiasPendientes { get; set; }
         public DateTime? FechaModificacion { get; set; }
         public string? AjustadoPor { get; set; }
         public int DiasEnTramite { get; set; }
         public decimal DiasPendientesProyectado { get; set; }
         public List<SolicitudVacacionesDetalleDto> Solicitudes { get; set; } = new();
         public List<SaldoVacacionesHistorialDto> Historial { get; set; } = new();
+        public List<SaldoVacacionesArrastreDto> Arrastres { get; set; } = new();
         public List<SaldoVacacionesAjusteHistorialDto> HistorialAjustes { get; set; } = new();
+    }
+
+    public class SaldoVacacionesArrastreDto
+    {
+        public int IdArrastre { get; set; }
+        public string Descripcion { get; set; } = string.Empty;
+        public DateTime FechaCorte { get; set; }
+        public decimal DiasTotal { get; set; }
+        public decimal DiasAplicados { get; set; }
+        public decimal DiasRestante { get; set; }
     }
 
     public class SaldoVacacionesAjusteHistorialDto
@@ -96,11 +88,15 @@ namespace Lefarma.API.Features.Rh.Vacaciones.DTOs
     public class SaldoVacacionesHistorialDto
     {
         public int IdSaldo { get; set; }
-        public int Anio { get; set; }
+        public int NumeroPeriodo { get; set; }
+        public DateTime FechaInicioPeriodo { get; set; }
+        public DateTime FechaFinPeriodo { get; set; }
+        public string Periodo { get; set; } = string.Empty;
         public decimal DiasGenerados { get; set; }
         public decimal DiasVencidos { get; set; }
         public decimal DiasCompensados { get; set; }
         public decimal DiasAjustados { get; set; }
+        public decimal DiasAjustadosArrastre { get; set; }
         public decimal DiasTomados { get; set; }
         public decimal DiasPendientes { get; set; }
     }
