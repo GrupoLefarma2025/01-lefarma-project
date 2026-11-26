@@ -954,7 +954,7 @@ public class AprobacionesControllerTests
     }
 
     [Fact]
-    public async Task Authorize_NewAuto_SplitsComponentsAndMatchesPreviewWithoutSct()
+    public async Task Authorize_NewAuto_ChargesFullPriceToFuelAndMatchesPreviewWithoutSct()
     {
         using var ctx = new TestContext();
         const int adminId = 7160;
@@ -983,7 +983,7 @@ public class AprobacionesControllerTests
                     moneda = "MXN",
                     fuente = "OSRM + CNE (fixture)",
                     fue_elegida = true,
-                    datos = new { combustible = 180m, casetas_estimadas = 120m, source = "OSRM + CNE (fixture)" },
+                    datos = new { combustible = 300m, source = "OSRM + CNE (fixture)" },
                 },
             },
         });
@@ -991,10 +991,10 @@ public class AprobacionesControllerTests
         resp.StatusCode.Should().Be(HttpStatusCode.OK);
         var opcion = ctx.LeeOpciones(id).Single();
         opcion.Precio.Should().Be(300m);
-        opcion.DatosJson.Should().Contain("combustible").And.Contain("casetas_estimadas").And.Contain("source");
+        opcion.DatosJson.Should().Contain("combustible").And.Contain("source");
         var resumen = ctx.LeeResumenAutorizado(id);
-        resumen.GetProperty("gasolina").GetDecimal().Should().Be(180m);
-        resumen.GetProperty("casetas").GetDecimal().Should().Be(120m);
+        resumen.GetProperty("gasolina").GetDecimal().Should().Be(300m);
+        resumen.GetProperty("casetas").ValueKind.Should().Be(JsonValueKind.Null);
         resumen.GetProperty("comida").GetDecimal().Should().Be(350m);
         resumen.GetProperty("total").GetDecimal().Should().Be(650m);
     }
@@ -1019,7 +1019,7 @@ public class AprobacionesControllerTests
             opciones = new object[]
             {
                 new { tipo = "auto", linea = "Nuevo", precio = 300m, moneda = "MXN", fuente = "motor", fue_elegida = true,
-                    datos = new { combustible = 180m, casetas_estimadas = 120m, source = "motor" } },
+                    datos = new { combustible = 300m, source = "motor" } },
                 new { tipo = "auto", linea = "Legado", precio = 500m, moneda = "MXN", fuente = "motor", fue_elegida = true },
                 new { tipo = "renta", linea = "Renta", precio = 900m, moneda = "MXN", fuente = "seed renta", fue_elegida = true },
             },
@@ -1027,8 +1027,8 @@ public class AprobacionesControllerTests
 
         resp.StatusCode.Should().Be(HttpStatusCode.OK);
         var resumen = ctx.LeeResumenAutorizado(id);
-        resumen.GetProperty("gasolina").GetDecimal().Should().Be(1580m);
-        resumen.GetProperty("casetas").GetDecimal().Should().Be(120m);
+        resumen.GetProperty("gasolina").GetDecimal().Should().Be(1700m);
+        resumen.GetProperty("casetas").ValueKind.Should().Be(JsonValueKind.Null);
         resumen.GetProperty("total").GetDecimal().Should().Be(1700m);
     }
 
@@ -1048,7 +1048,7 @@ public class AprobacionesControllerTests
             opciones = new[]
             {
                 new { tipo = "auto", linea = "Metadata inconsistente", precio = 300m, moneda = "MXN", fuente = "motor", fue_elegida = true,
-                    datos = new { combustible = 180m, casetas_estimadas = 60m, source = "motor" } },
+                    datos = new { combustible = 180m, source = "motor" } },
             },
         });
 
@@ -1186,6 +1186,150 @@ public class AprobacionesControllerTests
         var body = await resp.Content.ReadAsStringAsync();
         body.Should().Contain("motivo");
         ctx.LeeEstado(id).Should().Be("enviada");
+    }
+
+    [Fact]
+    public async Task Rechazar_ConMotivo_DejaLaSolicitudEnBorradorYRegistraElMotivo()
+    {
+        using var ctx = new TestContext();
+        var id = ctx.SembrarSolicitud(7008, "enviada");
+
+        using var cliente = ctx.Servidor.CreateClient();
+        cliente.DefaultRequestHeaders.Add("X-Test-UserId", "7008");
+        cliente.DefaultRequestHeaders.Add("X-Test-Permissions", Permissions.Viaticos.Autorizar);
+
+        var resp = await cliente.PostAsJsonAsync($"/api/viaticos/solicitudes/{id}/rechazar", new
+        {
+            motivo = "falta la factura del hospedaje"
+        });
+
+        resp.StatusCode.Should().Be(HttpStatusCode.OK);
+        ctx.LeeEstado(id).Should().Be("borrador");
+
+        var eventos = ctx.LeeEventos(id);
+        var rechazo = eventos.Should().ContainSingle(e => e.Tipo == "rechazada").Which;
+        rechazo.PayloadJson.Should().Contain("falta la factura del hospedaje");
+        rechazo.PayloadJson.Should().Contain("borrador");
+    }
+
+    [Fact]
+    public async Task Rechazar_SolicitudQueNoEstaEnviada_Retorna409YNoCambiaElEstado()
+    {
+        using var ctx = new TestContext();
+        var id = ctx.SembrarSolicitud(7009, "autorizada");
+
+        using var cliente = ctx.Servidor.CreateClient();
+        cliente.DefaultRequestHeaders.Add("X-Test-UserId", "7009");
+        cliente.DefaultRequestHeaders.Add("X-Test-Permissions", Permissions.Viaticos.Autorizar);
+
+        var resp = await cliente.PostAsJsonAsync($"/api/viaticos/solicitudes/{id}/rechazar", new
+        {
+            motivo = "ya no procede"
+        });
+
+        resp.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        ctx.LeeEstado(id).Should().Be("autorizada");
+        ctx.LeeEventos(id).Should().NotContain(e => e.Tipo == "rechazada");
+    }
+
+    [Fact]
+    public async Task Devolver_DeAutorizadaAEnviada_RegistraElMotivo()
+    {
+        using var ctx = new TestContext();
+        var id = ctx.SembrarSolicitud(7010, "autorizada");
+
+        using var cliente = ctx.Servidor.CreateClient();
+        cliente.DefaultRequestHeaders.Add("X-Test-UserId", "7010");
+        cliente.DefaultRequestHeaders.Add("X-Test-Permissions", Permissions.Viaticos.Autorizar);
+
+        var resp = await cliente.PostAsJsonAsync($"/api/viaticos/solicitudes/{id}/devolver", new
+        {
+            motivo = "el total no coincide con las facturas"
+        });
+
+        resp.StatusCode.Should().Be(HttpStatusCode.OK);
+        ctx.LeeEstado(id).Should().Be("enviada");
+
+        var devolucion = ctx.LeeEventos(id).Should().ContainSingle(e => e.Tipo == "devuelta").Which;
+        devolucion.PayloadJson.Should().Contain("el total no coincide con las facturas");
+        devolucion.PayloadJson.Should().Contain("autorizada");
+    }
+
+    [Fact]
+    public async Task Devolver_ConAjustes_DejaLaSolicitudEnviada()
+    {
+        using var ctx = new TestContext();
+        var id = ctx.SembrarSolicitud(7011, "autorizada_con_ajustes");
+
+        using var cliente = ctx.Servidor.CreateClient();
+        cliente.DefaultRequestHeaders.Add("X-Test-UserId", "7011");
+        cliente.DefaultRequestHeaders.Add("X-Test-Permissions", Permissions.Viaticos.Autorizar);
+
+        var resp = await cliente.PostAsJsonAsync($"/api/viaticos/solicitudes/{id}/devolver", new
+        {
+            motivo = "se corrige el ajuste"
+        });
+
+        resp.StatusCode.Should().Be(HttpStatusCode.OK);
+        ctx.LeeEstado(id).Should().Be("enviada");
+    }
+
+    [Fact]
+    public async Task Devolver_SinMotivo_Retorna400YNoCambiaElEstado()
+    {
+        using var ctx = new TestContext();
+        var id = ctx.SembrarSolicitud(7012, "autorizada");
+
+        using var cliente = ctx.Servidor.CreateClient();
+        cliente.DefaultRequestHeaders.Add("X-Test-UserId", "7012");
+        cliente.DefaultRequestHeaders.Add("X-Test-Permissions", Permissions.Viaticos.Autorizar);
+
+        var resp = await cliente.PostAsJsonAsync($"/api/viaticos/solicitudes/{id}/devolver", new
+        {
+            motivo = "   "
+        });
+
+        resp.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        var body = await resp.Content.ReadAsStringAsync();
+        body.Should().Contain("motivo");
+        ctx.LeeEstado(id).Should().Be("autorizada");
+    }
+
+    [Fact]
+    public async Task Devolver_SolicitudEnviada_Retorna409()
+    {
+        using var ctx = new TestContext();
+        var id = ctx.SembrarSolicitud(7013, "enviada");
+
+        using var cliente = ctx.Servidor.CreateClient();
+        cliente.DefaultRequestHeaders.Add("X-Test-UserId", "7013");
+        cliente.DefaultRequestHeaders.Add("X-Test-Permissions", Permissions.Viaticos.Autorizar);
+
+        var resp = await cliente.PostAsJsonAsync($"/api/viaticos/solicitudes/{id}/devolver", new
+        {
+            motivo = "no aplica"
+        });
+
+        resp.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        ctx.LeeEstado(id).Should().Be("enviada");
+    }
+
+    [Fact]
+    public async Task Devolver_SinPermisoAutorizar_Retorna403()
+    {
+        using var ctx = new TestContext();
+        var id = ctx.SembrarSolicitud(7014, "autorizada");
+
+        using var cliente = ctx.Servidor.CreateClient();
+        cliente.DefaultRequestHeaders.Add("X-Test-UserId", "7014");
+
+        var resp = await cliente.PostAsJsonAsync($"/api/viaticos/solicitudes/{id}/devolver", new
+        {
+            motivo = "sin permiso"
+        });
+
+        resp.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        ctx.LeeEstado(id).Should().Be("autorizada");
     }
 
     [Fact]

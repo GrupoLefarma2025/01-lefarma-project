@@ -359,7 +359,7 @@ public class AprobacionesController : ControllerBase
             _context.SolicitudOpciones.AddRange(nuevasOpciones);
         }
 
-        var calculoAutorizado = AplicarCalculoAutorizado(solicitud, body?.Calculo);
+        AplicarCalculoAutorizado(solicitud, body?.Calculo);
 
         var opcionesAutorizadas = nuevasOpciones ?? solicitud.Opciones;
         var totalesAutorizados = TotalesCotizacion.Calcular(opcionesAutorizadas);
@@ -368,7 +368,7 @@ public class AprobacionesController : ControllerBase
             totalesAutorizados.Cotizado,
             totalesAutorizados.Estimado);
 
-        GuardarResumenAutorizado(solicitud, opcionesAutorizadas, calculoAutorizado);
+        GuardarResumenAutorizado(solicitud, opcionesAutorizadas);
 
         solicitud.Estado = "autorizada";
         solicitud.FechaModificacion = ahora;
@@ -395,10 +395,127 @@ public class AprobacionesController : ControllerBase
         });
     }
 
+    [HttpPost("solicitudes/{id:int}/propuestas")]
+    [SwaggerOperation(
+        Summary = "Guardar una version de la ruta propuesta",
+        Description = "Añade al historial de la solicitud una instantanea de la ruta propuesta (calculo, opciones y resumen) para conservar cada recalculo o edicion de costos. Requiere viaticos.autorizar y que la solicitud este en estado 'enviada'.")]
+    [SwaggerResponse(200, "Propuesta guardada", typeof(ApiResponse<object>))]
+    [SwaggerResponse(400, "Calculo u opciones invalidas.")]
+    [SwaggerResponse(403, "Sin permiso viaticos.autorizar.")]
+    [SwaggerResponse(404, "Solicitud no encontrada.")]
+    [SwaggerResponse(409, "La solicitud no esta en estado 'enviada'.")]
+    public async Task<IActionResult> GuardarPropuesta(
+        int id,
+        [FromBody] GuardarPropuestaRequest? body,
+        CancellationToken ct)
+    {
+        if (!User.TienePermiso(Permissions.Viaticos.Autorizar))
+        {
+            return StatusCode(403, new ApiResponse<object>
+            {
+                Success = false,
+                Message = $"No tiene permiso para revisar solicitudes de viáticos ({Permissions.Viaticos.Autorizar}).",
+                Data = null
+            });
+        }
+
+        if (body?.Calculo is not { ValueKind: JsonValueKind.Object } calculo)
+        {
+            return BadRequest(new ApiResponse<object>
+            {
+                Success = false,
+                Message = "El cálculo de la propuesta es obligatorio.",
+                Data = null
+            });
+        }
+
+        if (body.Opciones is not { ValueKind: JsonValueKind.Array } opciones)
+        {
+            return BadRequest(new ApiResponse<object>
+            {
+                Success = false,
+                Message = "Las opciones de la propuesta son obligatorias.",
+                Data = null
+            });
+        }
+
+        var ahora = DateTime.UtcNow;
+        var (_, errorOpciones) = SolicitudOpcionesParser.Parsear(id, opciones, ahora);
+        if (errorOpciones is not null)
+        {
+            return BadRequest(new ApiResponse<object>
+            {
+                Success = false,
+                Message = errorOpciones,
+                Data = null
+            });
+        }
+
+        var solicitud = await _context.Solicitudes
+            .FirstOrDefaultAsync(s => s.IdSolicitud == id, ct);
+        if (solicitud is null)
+        {
+            return NotFound(new ApiResponse<object>
+            {
+                Success = false,
+                Message = "Solicitud no encontrada.",
+                Data = null
+            });
+        }
+
+        if (!string.Equals(solicitud.Estado, "enviada", StringComparison.OrdinalIgnoreCase))
+        {
+            return Conflict(new ApiResponse<object>
+            {
+                Success = false,
+                Message = "Solo se guardan propuestas de solicitudes en estado enviada.",
+                Data = null
+            });
+        }
+
+        var existentes = LeerPropuestasRevision(solicitud.DatosJson).ToList();
+        var numero = existentes.Count + 2;
+        var origen = string.IsNullOrWhiteSpace(body.Origen) ? "recalculo" : body.Origen.Trim();
+
+        existentes.Add(JsonSerializer.SerializeToElement(new Dictionary<string, JsonElement?>
+        {
+            ["numero"] = JsonSerializer.SerializeToElement(numero),
+            ["origen"] = JsonSerializer.SerializeToElement(origen),
+            ["creado_en"] = JsonSerializer.SerializeToElement(ahora.ToString("O")),
+            ["id_usuario"] = JsonSerializer.SerializeToElement(User.GetUserId()),
+            ["calculo"] = calculo,
+            ["opciones"] = opciones,
+            ["resumen"] = body.Resumen is { ValueKind: JsonValueKind.Object } resumen ? resumen : null,
+        }));
+
+        if (existentes.Count > MaxPropuestasRevision)
+        {
+            existentes.RemoveRange(0, existentes.Count - MaxPropuestasRevision);
+        }
+
+        EscribirPropiedadSnapshot(solicitud, "propuestas_revision", JsonSerializer.SerializeToElement(existentes));
+        solicitud.FechaModificacion = ahora;
+        _context.SolicitudEventos.Add(NuevoEvento(
+            id,
+            "propuesta_guardada",
+            JsonSerializer.Serialize(new { numero, origen }),
+            User.GetUserId(),
+            ahora));
+
+        await _context.SaveChangesAsync(ct);
+
+        return Ok(new ApiResponse<object>
+        {
+            Success = true,
+            Message = $"Propuesta {numero} guardada.",
+            Data = new { numero, creado_en = ahora }
+        });
+    }
+
     [HttpPost("solicitudes/{id:int}/rechazar")]
     [SwaggerOperation(
         Summary = "Rechazar una solicitud de viaticos",
-        Description = "Transiciona la solicitud de 'enviada' a 'rechazada'. El motivo es obligatorio y se persiste como evento. Requiere viaticos.autorizar.")]
+        Description = "Transiciona la solicitud de 'enviada' a 'borrador' para que el solicitante la corrija y la vuelva a enviar. El motivo es obligatorio y se persiste como evento. Requiere viaticos.autorizar.")]
     [SwaggerResponse(200, "Solicitud rechazada", typeof(ApiResponse<object>))]
     [SwaggerResponse(400, "Motivo es obligatorio.")]
     [SwaggerResponse(403, "Sin permiso viaticos.autorizar.")]
@@ -449,7 +566,12 @@ public class AprobacionesController : ControllerBase
 
         var idUsuario = User.GetUserId();
         var ahora = DateTime.UtcNow;
-        var payload = JsonSerializer.Serialize(new { motivo });
+        var payload = JsonSerializer.Serialize(new
+        {
+            motivo,
+            estado_anterior = "enviada",
+            estado = "borrador"
+        });
 
         var solicitud = await _context.Solicitudes
             .FirstOrDefaultAsync(s => s.IdSolicitud == id && s.Estado == "enviada", ct);
@@ -463,7 +585,7 @@ public class AprobacionesController : ControllerBase
             });
         }
 
-        solicitud.Estado = "rechazada";
+        solicitud.Estado = "borrador";
         solicitud.FechaModificacion = ahora;
         _context.SolicitudEventos.Add(NuevoEvento(id, "rechazada", payload, idUsuario, ahora));
 
@@ -472,7 +594,97 @@ public class AprobacionesController : ControllerBase
         return Ok(new ApiResponse<object>
         {
             Success = true,
-            Message = "Solicitud rechazada exitosamente.",
+            Message = "Solicitud rechazada. El solicitante la vera de nuevo como borrador.",
+            Data = null
+        });
+    }
+
+    [HttpPost("solicitudes/{id:int}/devolver")]
+    [SwaggerOperation(
+        Summary = "Devolver una solicitud autorizada a la bandeja de autorizaciones",
+        Description = "Transiciona la solicitud de 'autorizada' o 'autorizada_con_ajustes' a 'enviada' para que se vuelva a revisar. El motivo es obligatorio y se persiste como evento. Requiere viaticos.autorizar.")]
+    [SwaggerResponse(200, "Solicitud devuelta", typeof(ApiResponse<object>))]
+    [SwaggerResponse(400, "Motivo es obligatorio.")]
+    [SwaggerResponse(403, "Sin permiso viaticos.autorizar.")]
+    [SwaggerResponse(404, "Solicitud no encontrada.")]
+    [SwaggerResponse(409, "La solicitud no esta en estado 'autorizada' o 'autorizada_con_ajustes'.")]
+    public async Task<IActionResult> Devolver(int id, [FromBody] RechazoSolicitudRequest? body, CancellationToken ct)
+    {
+        if (!User.TienePermiso(Permissions.Viaticos.Autorizar))
+        {
+            return StatusCode(403, new ApiResponse<object>
+            {
+                Success = false,
+                Message = $"No tiene permiso para devolver solicitudes ({Permissions.Viaticos.Autorizar}).",
+                Data = null
+            });
+        }
+
+        var motivo = body?.Motivo?.Trim();
+        if (string.IsNullOrWhiteSpace(motivo))
+        {
+            return BadRequest(new ApiResponse<object>
+            {
+                Success = false,
+                Message = "El motivo de la devolucion es obligatorio.",
+                Data = null
+            });
+        }
+
+        var estadoActual = await GetEstadoSolicitudAsync(id, ct);
+        if (estadoActual is null)
+        {
+            return NotFound(new ApiResponse<object>
+            {
+                Success = false,
+                Message = $"No existe la solicitud {id}.",
+                Data = null
+            });
+        }
+        if (estadoActual != "autorizada" && estadoActual != "autorizada_con_ajustes")
+        {
+            return Conflict(new ApiResponse<object>
+            {
+                Success = false,
+                Message = $"La solicitud {id} esta en estado '{estadoActual}'. Solo se devuelven solicitudes autorizadas.",
+                Data = null
+            });
+        }
+
+        var idUsuario = User.GetUserId();
+        var ahora = DateTime.UtcNow;
+        var payload = JsonSerializer.Serialize(new
+        {
+            motivo,
+            estado_anterior = estadoActual,
+            estado = "enviada"
+        });
+
+        var solicitud = await _context.Solicitudes
+            .FirstOrDefaultAsync(
+                s => s.IdSolicitud == id
+                    && (s.Estado == "autorizada" || s.Estado == "autorizada_con_ajustes"),
+                ct);
+        if (solicitud is null)
+        {
+            return Conflict(new ApiResponse<object>
+            {
+                Success = false,
+                Message = $"La solicitud {id} cambio de estado durante la operacion.",
+                Data = null
+            });
+        }
+
+        solicitud.Estado = "enviada";
+        solicitud.FechaModificacion = ahora;
+        _context.SolicitudEventos.Add(NuevoEvento(id, "devuelta", payload, idUsuario, ahora));
+
+        await _context.SaveChangesAsync(ct);
+
+        return Ok(new ApiResponse<object>
+        {
+            Success = true,
+            Message = "Solicitud devuelta a autorizaciones. Vuelve a estar pendiente de revisión.",
             Data = null
         });
     }
@@ -689,8 +901,7 @@ private static string ResolverGerenciaEfectiva(
 
     private static void GuardarResumenAutorizado(
         Solicitud solicitud,
-        IEnumerable<SolicitudOpcion> opciones,
-        JsonElement? calculo)
+        IEnumerable<SolicitudOpcion> opciones)
     {
         var elegidas = opciones.Where(o => o.FueElegida).ToList();
 
@@ -700,22 +911,12 @@ private static string ResolverGerenciaEfectiva(
         decimal? taxi = SumarOpciones(elegidas, "taxi");
         decimal? gasolina = null;
         decimal? casetas = null;
-        var desglosaAuto = EsModoPropio(calculo);
         foreach (var opcion in elegidas.Where(o =>
             o.Precio.HasValue
             && (string.Equals(o.Tipo, "auto", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(o.Tipo, "renta", StringComparison.OrdinalIgnoreCase))))
         {
-            var componentes = desglosaAuto ? LeerComponentesAuto(opcion) : null;
-            if (componentes is null)
-            {
-                gasolina = (gasolina ?? 0m) + opcion.Precio!.Value;
-            }
-            else
-            {
-                gasolina = (gasolina ?? 0m) + componentes.Combustible;
-                casetas = (casetas ?? 0m) + componentes.Casetas;
-            }
+            gasolina = (gasolina ?? 0m) + opcion.Precio!.Value;
         }
 
         decimal? comida = LeerDecimal(ParsearDatosJson(solicitud.DatosJson), "comida");
@@ -740,45 +941,6 @@ private static string ResolverGerenciaEfectiva(
             }));
     }
 
-    private sealed record ComponentesAuto(decimal Combustible, decimal Casetas);
-
-    private static ComponentesAuto? LeerComponentesAuto(SolicitudOpcion opcion)
-    {
-        if (!string.Equals(opcion.Tipo, "auto", StringComparison.OrdinalIgnoreCase)
-            || opcion.Precio is not { } precio
-            || string.IsNullOrWhiteSpace(opcion.DatosJson))
-        {
-            return null;
-        }
-
-        try
-        {
-            using var doc = JsonDocument.Parse(opcion.DatosJson);
-            var datos = doc.RootElement;
-            if (datos.ValueKind != JsonValueKind.Object
-                || !datos.TryGetProperty("combustible", out var combustibleEl)
-                || combustibleEl.ValueKind != JsonValueKind.Number
-                || !combustibleEl.TryGetDecimal(out var combustible)
-                || !datos.TryGetProperty("casetas_estimadas", out var casetasEl)
-                || casetasEl.ValueKind != JsonValueKind.Number
-                || !casetasEl.TryGetDecimal(out var casetas)
-                || !datos.TryGetProperty("source", out var sourceEl)
-                || sourceEl.ValueKind != JsonValueKind.String
-                || string.IsNullOrWhiteSpace(sourceEl.GetString())
-                || combustible < 0
-                || casetas < 0
-                || Math.Abs(combustible + casetas - precio) > 0.02m)
-            {
-                return null;
-            }
-            return new ComponentesAuto(combustible, casetas);
-        }
-        catch (JsonException)
-        {
-            return null;
-        }
-    }
-
     private static decimal? SumarOpciones(IEnumerable<SolicitudOpcion> opciones, params string[] tipos)
     {
         decimal? total = null;
@@ -800,11 +962,6 @@ private static string ResolverGerenciaEfectiva(
 
         return total;
     }
-
-    private static bool EsModoPropio(JsonElement? calculo)
-        => calculo is { ValueKind: JsonValueKind.Object } raiz
-           && LeerTextoDesdeJson(raiz, "modo_transporte") is { } modo
-           && string.Equals(modo, "propio", StringComparison.OrdinalIgnoreCase);
 
     private static JsonElement? LeerPropiedadSnapshot(string? datosJson, string clave)
     {
@@ -875,6 +1032,18 @@ private static string ResolverGerenciaEfectiva(
         {
             return null;
         }
+    }
+
+    private const int MaxPropuestasRevision = 50;
+
+    private static List<JsonElement> LeerPropuestasRevision(string? datosJson)
+    {
+        if (LeerPropiedadSnapshot(datosJson, "propuestas_revision") is not { ValueKind: JsonValueKind.Array } arreglo)
+        {
+            return [];
+        }
+
+        return arreglo.EnumerateArray().Select(item => item.Clone()).ToList();
     }
 
     private static decimal? LeerDecimal(JsonElement? snapshot, string clave)

@@ -12,6 +12,21 @@ public class AutorizarSolicitudRequest
     public JsonElement? Opciones { get; set; }
 }
 
+public class GuardarPropuestaRequest
+{
+    [JsonPropertyName("origen")]
+    public string? Origen { get; set; }
+
+    [JsonPropertyName("calculo")]
+    public JsonElement? Calculo { get; set; }
+
+    [JsonPropertyName("opciones")]
+    public JsonElement? Opciones { get; set; }
+
+    [JsonPropertyName("resumen")]
+    public JsonElement? Resumen { get; set; }
+}
+
 public class AjusteSolicitudRequest
 {
     [JsonPropertyName("id_opcion")]
