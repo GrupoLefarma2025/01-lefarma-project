@@ -7,7 +7,7 @@ import {
   AGRUPACION_VIATICO_LABELS,
   buildHeader,
   claveGrupoViatico,
-  fmtFechaLarga,
+  fmtFechaCorta,
   fmtMoney,
   ordenarViaticos,
   sumarCostos,
@@ -163,6 +163,12 @@ export default function EnvioConcentradoViaticos({
   const filasOrdenadas = useMemo(
     () => ordenarViaticos(filas, agrupacion),
     [filas, agrupacion],
+  );
+
+  const numeroPorFolio = useMemo(
+    () =>
+      new Map(filasOrdenadas.map((fila, indice) => [fila.folio, indice + 1])),
+    [filasOrdenadas],
   );
 
   const seleccionadas = useMemo(
@@ -490,7 +496,7 @@ export default function EnvioConcentradoViaticos({
                               />
                             </TableCell>
                             <TableCell className="text-xs text-right tabular-nums text-muted-foreground">
-                              {fila.renglon ?? '—'}
+                              {numeroPorFolio.get(fila.folio) ?? '—'}
                             </TableCell>
                             <TableCell className="text-xs font-mono font-medium">
                               {fila.folio}
@@ -502,7 +508,7 @@ export default function EnvioConcentradoViaticos({
                               {texto(fila.solicitante)}
                             </TableCell>
                             <TableCell className="text-xs text-right text-muted-foreground">
-                              {fmtFechaLarga(fila.fechInicio)}
+                              {fmtFechaCorta(fila.fechInicio, fila.fechaFin)}
                             </TableCell>
                             <TableCell className="text-xs text-right font-medium">
                               {fmtMoney(totalViatico(fila))}
