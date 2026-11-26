@@ -5,13 +5,25 @@ import type {
   FiltrosBandeja,
   SolicitudBandeja,
 } from '../types/aprobaciones.types';
-import type { CalculoViaje, OpcionCotizacion } from '../types/solicitud.types';
+import type {
+  CalculoViaje,
+  OpcionCotizacion,
+  OrigenPropuesta,
+  ResumenCostosRuta,
+} from '../types/solicitud.types';
 
 const BASE = '/viaticos/solicitudes';
 
 export interface AutorizarSolicitudPayload {
   calculo?: CalculoViaje;
   opciones?: OpcionCotizacion[];
+}
+
+export interface GuardarPropuestaPayload {
+  origen: Exclude<OrigenPropuesta, 'calculo'>;
+  calculo: CalculoViaje;
+  opciones: OpcionCotizacion[];
+  resumen: ResumenCostosRuta;
 }
 
 function query(filtros: FiltrosBandeja): string {
@@ -32,6 +44,13 @@ export const aprobacionesApi = {
       : API.post<ApiResponse<object>>(`${BASE}/${id}/autorizar`),
   rechazar: (id: number, motivo: string) =>
     API.post<ApiResponse<object>>(`${BASE}/${id}/rechazar`, { motivo }),
+  devolver: (id: number, motivo: string) =>
+    API.post<ApiResponse<object>>(`${BASE}/${id}/devolver`, { motivo }),
   registrarAjuste: (id: number, payload: AjusteSolicitudPayload) =>
     API.post<ApiResponse<object>>(`${BASE}/${id}/ajustes`, payload),
+  guardarPropuesta: (id: number, payload: GuardarPropuestaPayload) =>
+    API.post<ApiResponse<{ numero: number; creado_en: string }>>(
+      `${BASE}/${id}/propuestas`,
+      payload,
+    ),
 };
