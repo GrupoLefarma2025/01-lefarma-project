@@ -641,6 +641,51 @@ public class SolicitudesController : ControllerBase
         });
     }
 
+    [HttpGet("solicitudes/autorizadas")]
+    [SwaggerOperation(
+        Summary = "Solicitudes autorizadas",
+        Description = "Lista las solicitudes que ya se autorizaron y pasaron al concentrado. Es la pestana " +
+                      "'Autorizados' de la pantalla de autorizaciones y exige viaticos.autorizar.")]
+    [SwaggerResponse(200, "Solicitudes autorizadas", typeof(ApiResponse<List<SolicitudDto>>))]
+    [SwaggerResponse(401, "Sin token")]
+    [SwaggerResponse(403, "Sin permiso viaticos.autorizar")]
+    public async Task<IActionResult> Autorizadas(CancellationToken ct)
+    {
+        if (!User.TienePermiso(Permissions.Viaticos.Autorizar))
+        {
+            return StatusCode(403, new ApiResponse<object>
+            {
+                Success = false,
+                Message = $"No tiene permiso para consultar solicitudes autorizadas de viáticos ({Permissions.Viaticos.Autorizar}).",
+                Data = null
+            });
+        }
+
+        var rows = await _context.Solicitudes
+            .AsNoTracking()
+            .Include(s => s.Opciones)
+            .Where(s => s.Activo && (s.Estado == "autorizada" || s.Estado == "autorizada_con_ajustes"))
+            .OrderByDescending(s => s.FechaModificacion)
+            .ToListAsync(ct);
+
+        var directorio = await DirectorioDeCreadoresAsync(rows, ct);
+
+        var data = rows
+            .Select(s => MapearDto(
+                s,
+                opciones: true,
+                eventos: false,
+                nombreCreador: NombreDesdeDirectorio(directorio, s.IdUsuarioCreacion)))
+            .ToList();
+
+        return Ok(new ApiResponse<List<SolicitudDto>>
+        {
+            Success = true,
+            Message = "Solicitudes autorizadas obtenidas.",
+            Data = data
+        });
+    }
+
     [HttpGet("solicitudes/gerencia-sugerida")]
     [SwaggerOperation(
         Summary = "Gerencia sugerida para el wizard",
