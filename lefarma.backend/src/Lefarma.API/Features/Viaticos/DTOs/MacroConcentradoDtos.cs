@@ -41,4 +41,12 @@ public class MacroConcentradoEnvioResponse
     public Guid IdDocumento { get; set; }
     public string NombreArchivo { get; set; } = string.Empty;
     public int TotalFolios { get; set; }
+    public IReadOnlyList<MacroConcentradoEnvioItemResult> Resultados { get; set; } = Array.Empty<MacroConcentradoEnvioItemResult>();
+}
+
+public class MacroConcentradoEnvioItemResult
+{
+    public string Folio { get; set; } = string.Empty;
+    public bool Exitoso { get; set; }
+    public string? Motivo { get; set; }
 }

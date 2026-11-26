@@ -81,6 +81,13 @@ export function fechaViajeLineas(
   return [fmtFecha(fInicio), `AL ${fmtFecha(fFin)}`];
 }
 
+export function fmtFechaCorta(
+  inicio?: string | null,
+  fin?: string | null,
+): string {
+  return fechaViajeLineas(inicio, fin).join(' ');
+}
+
 export function fmtMoney(n: number): string {
   return n.toLocaleString('es-MX', {
     style: 'currency',
