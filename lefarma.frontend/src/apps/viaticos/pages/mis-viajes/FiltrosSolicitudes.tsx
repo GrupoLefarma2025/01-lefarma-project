@@ -15,6 +15,7 @@ export interface FiltrosSolicitudesProps {
   rango: { inicio: string; fin: string } | null;
   filtrosAplicados: number;
   idPrefijo?: string;
+  descripcionRango?: string;
 }
 
 export function FiltrosSolicitudes({
@@ -29,6 +30,7 @@ export function FiltrosSolicitudes({
   rango,
   filtrosAplicados,
   idPrefijo = '',
+  descripcionRango = 'Mostrando por fecha de creación (provisional)',
 }: FiltrosSolicitudesProps) {
   const id = (sufijo: string) => `${idPrefijo}${sufijo}`;
 
@@ -79,7 +81,7 @@ export function FiltrosSolicitudes({
       {rango ? (
         <div className="space-y-1 px-4 pb-3">
           <p data-testid="rango-visible" className="text-xs text-muted-foreground">
-            Mostrando por fecha de creación (provisional): {rango.inicio} al {rango.fin}.
+            {descripcionRango}: {rango.inicio} al {rango.fin}.
           </p>
         </div>
       ) : null}

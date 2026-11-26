@@ -100,6 +100,7 @@ export const solicitudesApi = {
   misSolicitudes: (opciones?: { todas?: boolean }) =>
     API.get<ApiResponse<Solicitud[]>>(`${BASE}/mis${opciones?.todas ? '?todas=true' : ''}`),
   porAutorizar: () => API.get<ApiResponse<Solicitud[]>>(`${BASE}/por-autorizar`),
+  autorizadas: () => API.get<ApiResponse<Solicitud[]>>(`${BASE}/autorizadas`),
   gerenciaSugerida: () =>
     API.get<ApiResponse<{ gerencia: string | null }>>(`${BASE}/gerencia-sugerida`),
   detalle: (id: number) => API.get<ApiResponse<Solicitud>>(`${BASE}/${id}`),
