@@ -1,17 +1,16 @@
-import { Activity, LayoutDashboard, Settings, User } from 'lucide-react';
+import { Activity, LayoutDashboard, Settings } from 'lucide-react';
 import type { SidebarMenuItemConfig } from '@/components/layout/sidebar-types';
 
-export const shellMenuItems: SidebarMenuItemConfig[] = [
-  {
-    title: 'Inicio',
-    icon: LayoutDashboard,
-    path: '/hub',
-  },
-  {
-    title: 'Perfil',
-    icon: User,
-    path: '/perfil',
-  },
+const inicioItem: SidebarMenuItemConfig = {
+  title: 'Inicio',
+  icon: LayoutDashboard,
+  path: '/hub',
+};
+
+export const shellMenuItems: SidebarMenuItemConfig[] = [inicioItem];
+
+export const configuracionMenuItems: SidebarMenuItemConfig[] = [
+  inicioItem,
   {
     title: 'Configuración',
     icon: Settings,
@@ -25,7 +24,3 @@ export const shellMenuItems: SidebarMenuItemConfig[] = [
     permission: { require: 'telemetria.ver' },
   },
 ];
-
-export const configuracionMenuItems: SidebarMenuItemConfig[] = shellMenuItems.filter(
-  (item) => !('path' in item) || item.path !== '/perfil',
-);
