@@ -5,9 +5,9 @@ import { ConcentradoPage } from './ConcentradoPage';
 import type { SolicitudBandeja } from '../../types/aprobaciones.types';
 
 const flags = vi.hoisted(() => ({ verTodos: true, autorizar: true }));
-const mocks = vi.hoisted(() => ({ bandeja: vi.fn(), detalle: vi.fn(), autorizar: vi.fn(), rechazar: vi.fn() }));
+const mocks = vi.hoisted(() => ({ bandeja: vi.fn(), detalle: vi.fn(), autorizar: vi.fn(), rechazar: vi.fn(), devolver: vi.fn() }));
 vi.mock('../../services/aprobaciones.api', () => ({
-  aprobacionesApi: { bandeja: mocks.bandeja, autorizar: mocks.autorizar, rechazar: mocks.rechazar, registrarAjuste: vi.fn() },
+  aprobacionesApi: { bandeja: mocks.bandeja, autorizar: mocks.autorizar, rechazar: mocks.rechazar, devolver: mocks.devolver, registrarAjuste: vi.fn() },
 }));
 vi.mock('../../services/solicitudes.api', () => ({
   solicitudesApi: { detalle: mocks.detalle, crear: vi.fn(), guardarOpciones: vi.fn(), misSolicitudes: vi.fn(), detectarPrecioPreview: vi.fn() },
@@ -108,6 +108,7 @@ beforeEach(() => {
   mocks.bandeja.mockResolvedValue({ data: { success: true, data: [fila] } });
   mocks.detalle.mockResolvedValue(detalleOk);
   mocks.autorizar.mockResolvedValue({ data: { success: true, message: 'Autorizada', data: {} } });
+  mocks.devolver.mockResolvedValue({ data: { success: true, message: 'Devuelta', data: {} } });
 });
 
 describe('ConcentradoPage', () => {
@@ -214,15 +215,38 @@ describe('ConcentradoPage', () => {
     expect(generar).toBeEnabled();
     await usuario.click(generar);
 
-    expect(screen.getByTestId('documento-toolbar')).toBeInTheDocument();
-    const documento = document.querySelector('#concentrado-viaticos-print');
-    expect(documento).not.toBeNull();
+    const dialogo = await screen.findByRole('dialog', { name: /enviar a concentrado/i });
+    const documento = within(dialogo).getByLabelText('Concentrado de viáticos FOR-008');
     expect(documento).toHaveTextContent('Concentrado de Viáticos');
     expect(documento).toHaveTextContent('Destino Uno');
     expect(documento).toHaveTextContent('Persona Solicitante');
+    expect(within(dialogo).getByRole('button', { name: /^enviar$/i })).toBeEnabled();
+    expect(within(dialogo).getByRole('button', { name: /cancelar/i })).toBeEnabled();
   });
 
-  it('permite marcar una solicitud autorizada y el documento la imprime', async () => {
+  it('el botón Enviar del modal avisa que la función sigue en desarrollo', async () => {
+    const usuario = userEvent.setup();
+    const aviso = vi.spyOn(window, 'alert').mockImplementation(() => {});
+    render(<ConcentradoPage />);
+    await waitFor(() => expect(screen.getByTestId('concentrado-5')).toBeInTheDocument());
+
+    await usuario.click(screen.getByRole('checkbox', { name: /incluir VIA-TEST-0005 en el concentrado/i }));
+    await usuario.click(screen.getByRole('button', { name: /generar concentrado \(1\)/i }));
+
+    const dialogo = await screen.findByRole('dialog', { name: /enviar a concentrado/i });
+    await usuario.click(within(dialogo).getByRole('button', { name: /^enviar$/i }));
+
+    expect(aviso).toHaveBeenCalledWith('Función aún en desarrollo');
+    expect(screen.getByRole('dialog', { name: /enviar a concentrado/i })).toBeInTheDocument();
+
+    await usuario.click(within(dialogo).getByRole('button', { name: /cancelar/i }));
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog', { name: /enviar a concentrado/i })).not.toBeInTheDocument(),
+    );
+    aviso.mockRestore();
+  });
+
+  it('permite marcar una solicitud autorizada y el modal muestra el documento', async () => {
     const usuario = userEvent.setup();
     render(<ConcentradoPage />);
     await waitFor(() => expect(screen.getByTestId('concentrado-5')).toBeInTheDocument());
@@ -237,20 +261,29 @@ describe('ConcentradoPage', () => {
     expect(screen.queryByText(/documento de revisión/i)).toBeNull();
 
     await usuario.click(screen.getByRole('button', { name: /generar concentrado \(1\)/i }));
-    const documento = document.querySelector('#concentrado-viaticos-print');
-    expect(documento).not.toBeNull();
+    const dialogo = await screen.findByRole('dialog', { name: /enviar a concentrado/i });
+    const documento = within(dialogo).getByLabelText('Concentrado de viáticos FOR-008');
     expect(documento).toHaveTextContent('Destino Uno');
     expect(documento).toHaveTextContent('Persona Solicitante');
   });
 
-  it('el botón Vista previa manda directo al diálogo de impresión', async () => {
+  it('el botón Vista previa manda el concentrado al diálogo de impresión sin abrir la pantalla previa', async () => {
     const usuario = userEvent.setup();
-    const imprimir = vi.spyOn(window, 'print').mockImplementation(() => {});
-    Object.defineProperty(HTMLImageElement.prototype, 'decode', {
-      configurable: true,
-      writable: true,
-      value: () => Promise.resolve(),
+    let pantallaAbierta = false;
+    const imprimir = vi.fn(() => {
+      pantallaAbierta =
+        document.querySelector('.concentrado-print-preview') !== null ||
+        document.querySelector('[data-testid="documento-toolbar"]') !== null;
     });
+    const ventanaHoja = {
+      print: imprimir,
+      focus: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    };
+    const contentWindowOriginal = vi
+      .spyOn(HTMLIFrameElement.prototype, 'contentWindow', 'get')
+      .mockReturnValue(ventanaHoja as unknown as Window);
 
     render(<ConcentradoPage />);
     await waitFor(() => expect(screen.getByTestId('concentrado-5')).toBeInTheDocument());
@@ -259,10 +292,19 @@ describe('ConcentradoPage', () => {
     await usuario.click(screen.getByRole('button', { name: /^vista previa$/i }));
 
     await waitFor(() => expect(imprimir).toHaveBeenCalled());
-    expect(document.querySelector('#concentrado-viaticos-print')).not.toBeNull();
+    expect(pantallaAbierta).toBe(false);
 
-    imprimir.mockRestore();
-    delete (HTMLImageElement.prototype as { decode?: unknown }).decode;
+    const hoja = document.querySelector('iframe') as HTMLIFrameElement;
+    expect(hoja.contentDocument?.head.textContent).toContain('size: A4 landscape');
+    expect(hoja.contentDocument?.body.textContent).toContain('Persona Solicitante');
+    expect(hoja.contentDocument?.body.textContent).toContain('Destino Uno');
+    expect(hoja.contentDocument?.body.innerHTML).not.toContain('position: fixed; inset: 0');
+
+    await waitFor(() => expect(document.querySelector('.concentrado-print-preview')).toBeNull());
+    expect(screen.queryByTestId('documento-toolbar')).toBeNull();
+
+    hoja.remove();
+    contentWindowOriginal.mockRestore();
   });
 
   it('el rango personalizado se aplica solo cuando hay fecha inicial y final', async () => {
@@ -302,7 +344,8 @@ describe('ConcentradoPage', () => {
 
     await usuario.click(screen.getByRole('button', { name: /seleccionar todas las solicitudes/i }));
     await usuario.click(screen.getByRole('button', { name: /generar concentrado \(3\)/i }));
-    const documento = document.querySelector('#concentrado-viaticos-print') as HTMLElement;
+    const dialogo = await screen.findByRole('dialog', { name: /enviar a concentrado/i });
+    const documento = within(dialogo).getByLabelText('Concentrado de viáticos FOR-008') as HTMLElement;
     expect(documento).toHaveTextContent(/Gerencia: Descentralizado/i);
     expect(documento).toHaveTextContent(/Gerencia: IMSS/i);
     expect(documento.querySelectorAll('.concentrado-subtotal-grupo')).toHaveLength(2);
@@ -327,43 +370,63 @@ describe('ConcentradoPage', () => {
     expect(within(screen.getByTestId('concentrado-33')).getByText('Sin clasificar')).toBeInTheDocument();
   });
 
-  it('la solicitud de avión incluye una autorizada y arma su documento', async () => {
+  it('devuelve una solicitud autorizada a autorizaciones con el motivo que se escribe', async () => {
+    const usuario = userEvent.setup();
+    render(<ConcentradoPage />);
+    await waitFor(() => expect(screen.getByTestId('concentrado-5')).toBeInTheDocument());
+
+    await usuario.click(
+      within(screen.getByTestId('concentrado-5')).getByRole('button', {
+        name: /rechazar y devolver a autorizaciones/i,
+      }),
+    );
+
+    const dialogo = await screen.findByRole('dialog', { name: /¿rechazar la solicitud VIA-TEST-0005\?/i });
+    const confirmar = within(dialogo).getByRole('button', { name: /devolver a autorizaciones/i });
+    expect(confirmar).toBeDisabled();
+
+    await usuario.type(
+      within(dialogo).getByLabelText(/motivo por el que vuelve a autorizaciones/i),
+      'no coincide el total',
+    );
+    await usuario.click(confirmar);
+
+    await waitFor(() => expect(mocks.devolver).toHaveBeenCalledWith(5, 'no coincide el total'));
+    await waitFor(() => expect(screen.queryByTestId('rechazar-solicitud')).not.toBeInTheDocument());
+    expect(mocks.bandeja.mock.calls.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('solo ofrece devolver las solicitudes autorizadas o autorizadas con ajustes', async () => {
     const usuario = userEvent.setup();
     mocks.bandeja.mockResolvedValue({
       data: {
         success: true,
         data: [
-          {
-            ...fila,
-            persona_nombre: 'Persona Viajera',
-            puesto: 'Coordinadora',
-            fecha_nacimiento: '1990-05-17',
-            motivo: 'Impartición de talleres',
-            trayectos: [
-              { fecha: '2026-11-10', hora: '08:00', origen: 'CDMX', destino: 'Puebla' },
-            ],
-          },
+          { ...fila, id_solicitud: 5, folio: 'VIA-AUT-0005', estado: 'autorizada' },
+          { ...fila, id_solicitud: 6, folio: 'VIA-ENV-0006', estado: 'enviada' },
+          { ...fila, id_solicitud: 7, folio: 'VIA-AJU-0007', estado: 'autorizada_con_ajustes' },
         ],
       },
     });
     render(<ConcentradoPage />);
     await waitFor(() => expect(screen.getByTestId('concentrado-5')).toBeInTheDocument());
 
-    const casilla = screen.getByRole('checkbox', { name: /incluir VIA-TEST-0005 en el concentrado/i });
-    expect(casilla).not.toBeDisabled();
-    await usuario.click(casilla);
+    await usuario.selectOptions(screen.getByLabelText(/activo/i), 'todas');
+    expect(screen.getByTestId('concentrado-6')).toBeInTheDocument();
+    expect(screen.getByTestId('concentrado-7')).toBeInTheDocument();
 
-    await usuario.click(screen.getByRole('button', { name: /solicitud de avión/i }));
-
-    const documento = document.querySelector('#concentrado-vuelos-print') as HTMLElement;
-    expect(documento).not.toBeNull();
-    expect(documento).toHaveTextContent('Solicitud de avión');
-    expect(documento).toHaveTextContent('Persona Viajera');
-    expect(documento).toHaveTextContent('Coordinadora');
-    expect(documento).toHaveTextContent('17/05/1990');
-    expect(documento).toHaveTextContent('10/11/2026');
-    expect(documento).toHaveTextContent('Puebla');
-    expect(documento).toHaveTextContent('Impartición de talleres');
-    expect(document.querySelector('#concentrado-viaticos-print')).toBeNull();
+    expect(
+      within(screen.getByTestId('concentrado-5')).getByRole('button', {
+        name: /rechazar y devolver a autorizaciones/i,
+      }),
+    ).toBeInTheDocument();
+    expect(
+      within(screen.getByTestId('concentrado-7')).getByRole('button', {
+        name: /rechazar y devolver a autorizaciones/i,
+      }),
+    ).toBeInTheDocument();
+    expect(
+      within(screen.getByTestId('concentrado-6')).queryByRole('button', { name: /rechazar y devolver/i }),
+    ).not.toBeInTheDocument();
   });
 });

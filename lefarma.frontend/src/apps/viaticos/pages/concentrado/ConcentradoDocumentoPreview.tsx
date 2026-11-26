@@ -3,7 +3,6 @@ import { createPortal } from 'react-dom';
 import { Loader2, Printer, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
-import { waitForPrintImages } from '@/utils/waitForPrintImages';
 import {
   ConcentradoViaticosPrint,
   type SolicitudConcentrado,
@@ -13,6 +12,7 @@ import {
   type SolicitudVuelo,
 } from '../costos/ConcentradoVuelosPrint';
 import type { GrupoConcentrado } from '../../constants/grupos';
+import { imprimirDocumentoEnIframe, type OrientacionHoja } from './imprimirDocumento';
 
 const ESTADOS_AUTORIZADOS = ['autorizada', 'autorizada_con_ajustes'] as const;
 
@@ -20,16 +20,16 @@ export type FormatoConcentrado = 'for-008' | 'vuelos';
 
 const IMPRESION: Record<
   FormatoConcentrado,
-  { id: string; claseCuerpo: string; etiqueta: string }
+  { id: string; orientacion: OrientacionHoja; etiqueta: string }
 > = {
   'for-008': {
     id: 'concentrado-viaticos-print',
-    claseCuerpo: 'concentrado-print-active',
+    orientacion: 'landscape',
     etiqueta: 'Concentrado de viáticos FOR-008',
   },
   vuelos: {
     id: 'concentrado-vuelos-print',
-    claseCuerpo: 'concentrado-vuelos-print-active',
+    orientacion: 'portrait',
     etiqueta: 'Concentrado de vuelos',
   },
 };
@@ -47,11 +47,6 @@ function cssPantalla(id: string): string {
   padding: 12px 16px; background: #fff; border-bottom: 1px solid #ddd;
 }
 .concentrado-toolbar-title { flex: 1; font-weight: 600; }
-@media print {
-  #${id}.concentrado-print-preview {
-    position: static; padding: 0; overflow: visible;
-  }
-  .concentrado-toolbar { display: none !important; }
 }`;
 }
 
@@ -83,44 +78,35 @@ export function ConcentradoDocumentoPreview({
   const [imprimiendo, setImprimiendo] = useState(false);
   const mounted = useRef(true);
   const autoImpreso = useRef(false);
+  const documentoRef = useRef<HTMLDivElement>(null);
   const filasFor008 = soloAutorizadas
     ? solicitudes.filter(s => (ESTADOS_AUTORIZADOS as readonly string[]).includes(s.estado))
     : solicitudes;
   const filasVuelos = vuelos;
   const hayFilas = formato === 'vuelos' ? filasVuelos.length > 0 : filasFor008.length > 0;
 
-  const { id, claseCuerpo, etiqueta } = IMPRESION[formato];
+  const { id, orientacion, etiqueta } = IMPRESION[formato];
 
   useEffect(() => {
     mounted.current = true;
     return () => {
       mounted.current = false;
-      document.body.classList.remove('concentrado-print-active');
-      document.body.classList.remove('concentrado-vuelos-print-active');
     };
   }, []);
 
-  const quitarClase = useCallback(() => {
-    document.body.classList.remove(claseCuerpo);
-  }, [claseCuerpo]);
-
   const imprimir = useCallback(async () => {
     if (imprimiendo || !hayFilas) return;
+    const documento = documentoRef.current;
+    if (!documento) return;
     setImprimiendo(true);
     try {
-      await waitForPrintImages(`#${id}`);
-      if (!mounted.current) return;
-      window.addEventListener('afterprint', quitarClase, { once: true });
-      document.body.classList.add(claseCuerpo);
-      window.print();
+      await imprimirDocumentoEnIframe(documento, orientacion);
     } catch {
       toast.error('No se pudo preparar la impresión del concentrado. Intenta de nuevo.');
     } finally {
-      quitarClase();
-      window.removeEventListener('afterprint', quitarClase);
       if (mounted.current) setImprimiendo(false);
     }
-  }, [imprimiendo, hayFilas, id, claseCuerpo, quitarClase]);
+  }, [imprimiendo, hayFilas, orientacion]);
 
   useEffect(() => {
     if (!abierto) {
@@ -129,10 +115,41 @@ export function ConcentradoDocumentoPreview({
     }
     if (!imprimirAlAbrir || autoImpreso.current || !hayFilas) return;
     autoImpreso.current = true;
-    void imprimir();
-  }, [abierto, imprimirAlAbrir, hayFilas, imprimir]);
+    void (async () => {
+      await imprimir();
+      onCerrar();
+    })();
+  }, [abierto, imprimirAlAbrir, hayFilas, imprimir, onCerrar]);
+
+  const documento = !hayFilas ? (
+    <p className="mx-auto max-w-lg rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+      No hay solicitudes con los filtros actuales. Elige otro periodo o definición de «activo» para
+      generar el documento.
+    </p>
+  ) : formato === 'vuelos' ? (
+    <ConcentradoVuelosPrint solicitudes={filasVuelos} gerencia={gerencia} />
+  ) : (
+    <ConcentradoViaticosPrint
+      solicitudes={solicitudes}
+      gerencia={gerencia}
+      grupoPor={grupoPor}
+      soloAutorizadas={soloAutorizadas}
+    />
+  );
 
   if (!abierto) return null;
+
+  if (imprimirAlAbrir) {
+    return createPortal(
+      <div
+        aria-hidden="true"
+        style={{ position: 'fixed', left: '-100000px', top: 0, width: '1024px' }}
+      >
+        <div ref={documentoRef}>{documento}</div>
+      </div>,
+      document.body,
+    );
+  }
 
   return createPortal(
     <>
@@ -166,24 +183,7 @@ export function ConcentradoDocumentoPreview({
         aria-label={etiqueta}
       >
         <style>{cssPantalla(id)}</style>
-        {!hayFilas ? (
-          <p className="mx-auto max-w-lg rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-            No hay solicitudes con los filtros actuales. Elige otro periodo o definición de «activo»
-            para generar el documento.
-          </p>
-        ) : formato === 'vuelos' ? (
-          <ConcentradoVuelosPrint
-            solicitudes={filasVuelos}
-            gerencia={gerencia}
-          />
-        ) : (
-          <ConcentradoViaticosPrint
-            solicitudes={solicitudes}
-            gerencia={gerencia}
-            grupoPor={grupoPor}
-            soloAutorizadas={soloAutorizadas}
-          />
-        )}
+        <div ref={documentoRef}>{documento}</div>
       </div>
     </>,
     document.body,

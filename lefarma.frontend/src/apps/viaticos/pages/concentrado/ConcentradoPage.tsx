@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Check, CheckSquare, ChevronDown, Eye, Plane, Printer, SlidersHorizontal, Square } from 'lucide-react';
+import { Check, CheckSquare, ChevronDown, Eye, Printer, SlidersHorizontal, Square, XCircle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -28,6 +28,7 @@ import type { Solicitud } from '../../types/solicitud.types';
 import { filaConcentrado } from '../aprobaciones/ConcentradoViaticosView';
 import { esEstadoConcentrable, filaVuelos } from './filaVuelos';
 import { VistaDetalle } from '../mis-viajes/MisViajesPage';
+import { RechazarSolicitudDialog } from '../autorizaciones/RechazarSolicitudDialog';
 import {
   ConcentradoDocumentoPreview,
   type FormatoConcentrado,
@@ -83,6 +84,12 @@ function colorEstado(estado: string): string {
   return COLOR_POR_ESTADO[estado] ?? '#64748b';
 }
 
+const ESTADOS_DEVOLUBLES = ['autorizada', 'autorizada_con_ajustes'];
+
+function sePuedeDevolver(estado: string): boolean {
+  return ESTADOS_DEVOLUBLES.includes(estado);
+}
+
 function fechaCreadaCorta(fecha: string): string {
   const dia = fecha.slice(0, 10);
   return /^\d{4}-\d{2}-\d{2}$/.test(dia) ? fechaCorta(dia) : fecha;
@@ -115,8 +122,12 @@ export function ConcentradoPage() {
   const [revisandoId, setRevisandoId] = useState<number | null>(null);
   const [detalle, setDetalle] = useState<Solicitud | null>(null);
   const [cargandoDetalle, setCargandoDetalle] = useState(false);
+  const [devolviendo, setDevolviendo] = useState<SolicitudBandeja | null>(null);
+  const [motivoDevolucion, setMotivoDevolucion] = useState('');
+  const [procesandoDevolucion, setProcesandoDevolucion] = useState(false);
   const [documentoAbierto, setDocumentoAbierto] = useState(false);
   const [imprimirAlAbrir, setImprimirAlAbrir] = useState(false);
+  const [enviarConcentradoAbierto, setEnviarConcentradoAbierto] = useState(false);
   const [seleccionadasIds, setSeleccionadasIds] = useState<Set<number>>(() => new Set());
   const [formato, setFormato] = useState<FormatoConcentrado>('for-008');
 
@@ -204,6 +215,48 @@ export function ConcentradoPage() {
     setDetalle(null);
   }, []);
 
+  const abrirDevolucion = useCallback((fila: SolicitudBandeja) => {
+    setMotivoDevolucion('');
+    setDevolviendo(fila);
+  }, []);
+
+  const cerrarDevolucion = useCallback(() => {
+    if (procesandoDevolucion) return;
+    setDevolviendo(null);
+    setMotivoDevolucion('');
+  }, [procesandoDevolucion]);
+
+  const devolver = useCallback(async () => {
+    if (devolviendo === null) return;
+    const idSolicitud = devolviendo.id_solicitud;
+    const motivo = motivoDevolucion.trim();
+    if (motivo === '') {
+      toast.error('Escribe el motivo de la devolución.');
+      return;
+    }
+    setProcesandoDevolucion(true);
+    try {
+      const res = await aprobacionesApi.devolver(idSolicitud, motivo);
+      if (!res.data.success) {
+        toast.error(res.data.message ?? 'No se pudo devolver la solicitud.');
+        return;
+      }
+      toast.success('Solicitud devuelta a autorizaciones. Vuelve a estar pendiente de revisión.');
+      setDevolviendo(null);
+      setMotivoDevolucion('');
+      setSeleccionadasIds((previas) => {
+        const siguientes = new Set(previas);
+        siguientes.delete(idSolicitud);
+        return siguientes;
+      });
+      await cargar();
+    } catch (falla: unknown) {
+      toast.error(toApiError(falla).message || 'No se pudo devolver la solicitud.');
+    } finally {
+      setProcesandoDevolucion(false);
+    }
+  }, [cargar, devolviendo, motivoDevolucion]);
+
   const seleccionables = filasOrdenadas.filter((fila) => esEstadoConcentrable(fila.estado));
   const seleccionadas = filas.filter(
     (fila) => seleccionadasIds.has(fila.id_solicitud) && esEstadoConcentrable(fila.estado),
@@ -250,6 +303,8 @@ export function ConcentradoPage() {
   const tituloDocumento = `${ETIQUETA_FILTRO_FECHA[filtroFecha]} · ${seleccionadas.length} ${
     seleccionadas.length === 1 ? 'solicitud' : 'solicitudes'
   }${agruparPor === 'ninguna' ? '' : ` · agrupado por ${GRUPO_LABELS[agruparPor].toLowerCase()}`}`;
+  const folioDevolucion =
+    devolviendo?.folio ?? (devolviendo !== null ? `#${devolviendo.id_solicitud}` : '');
 
   const columnas = useMemo<ColumnDef<SolicitudBandeja>[]>(
     () => [
@@ -385,29 +440,48 @@ export function ConcentradoPage() {
         id: 'acciones',
         header: () => <div className="text-right">Acción</div>,
         enableSorting: false,
-        cell: ({ row }) => (
-          <div className="flex items-center justify-end">
-            {}
-            <Button
-              type="button"
-              variant="outline"
-              size="icon"
-              className="h-8 w-8"
-              aria-label={`Ver detalle ${row.original.folio ?? `#${row.original.id_solicitud}`}`}
-              title={`Ver detalle ${row.original.folio ?? `#${row.original.id_solicitud}`}`}
-              onClick={(evento) => {
-                evento.stopPropagation();
-                void revisar(row.original.id_solicitud);
-              }}
-            >
-              <Eye className="h-4 w-4" aria-hidden />
-            </Button>
-          </div>
-        ),
+        cell: ({ row }) => {
+          const folio = row.original.folio ?? `#${row.original.id_solicitud}`;
+          return (
+            <div className="flex items-center justify-end gap-1.5">
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className="h-8 w-8"
+                aria-label={`Ver detalle ${folio}`}
+                title={`Ver detalle ${folio}`}
+                onClick={(evento) => {
+                  evento.stopPropagation();
+                  void revisar(row.original.id_solicitud);
+                }}
+              >
+                <Eye className="h-4 w-4" aria-hidden />
+              </Button>
+              {sePuedeDevolver(row.original.estado) ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className="h-8 w-8 text-destructive hover:text-destructive"
+                  aria-label={`Rechazar y devolver a autorizaciones ${folio}`}
+                  title="Rechazar y devolver a autorizaciones"
+                  onClick={(evento) => {
+                    evento.stopPropagation();
+                    abrirDevolucion(row.original);
+                  }}
+                >
+                  <XCircle className="h-4 w-4" aria-hidden />
+                </Button>
+              ) : null}
+            </div>
+          );
+        },
       },
     ],
     [
       revisar,
+      abrirDevolucion,
       seleccionadasIds,
       todasSeleccionadas,
       seleccionables,
@@ -671,20 +745,9 @@ export function ConcentradoPage() {
               </Button>
               <Button
                 type="button"
-                variant="outline"
                 size="sm"
                 className="gap-1.5"
-                onClick={() => abrirDocumento('vuelos')}
-                disabled={seleccionadas.length === 0}
-              >
-                <Plane className="h-3.5 w-3.5" aria-hidden />
-                Solicitud de avión
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                className="gap-1.5"
-                onClick={() => abrirDocumento('for-008')}
+                onClick={() => setEnviarConcentradoAbierto(true)}
                 disabled={seleccionadas.length === 0}
               >
                 <Check className="h-3.5 w-3.5" aria-hidden />
@@ -735,13 +798,52 @@ export function ConcentradoPage() {
         }}
       />
 
+      <Dialog open={enviarConcentradoAbierto} onOpenChange={setEnviarConcentradoAbierto}>
+        <DialogContent
+          data-testid="enviar-concentrado"
+          className="h-[92vh] w-[94vw] max-w-[1400px] overflow-hidden p-4 sm:p-6"
+        >
+          <DialogHeader>
+            <DialogTitle>Enviar a concentrado</DialogTitle>
+            <DialogDescription>
+              Revisa el concentrado antes de enviarlo. Incluye{' '}
+              {seleccionadas.length} {seleccionadas.length === 1 ? 'solicitud' : 'solicitudes'}.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="min-h-0 flex-1 overflow-auto rounded-lg border bg-zinc-100 p-3 dark:bg-zinc-900">
+            <div className="min-w-[820px] bg-white shadow-sm">
+              <ConcentradoViaticosPrint
+                solicitudes={seleccionadas.map(filaConcentrado)}
+                gerencia={gerenciaDocumento}
+                grupoPor={agruparPor}
+                soloAutorizadas={false}
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setEnviarConcentradoAbierto(false)}
+            >
+              Cancelar
+            </Button>
+            <Button type="button" onClick={() => window.alert('Función aún en desarrollo')}>
+              Enviar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog
         open={revisandoId !== null}
         onOpenChange={(abierto) => {
           if (!abierto) cerrarRevision();
         }}
       >
-        <DialogContent data-testid="revision-solicitud" className="max-h-[92vh] w-[94vw] max-w-[1500px] overflow-y-auto bg-slate-50/70 p-4 dark:bg-background sm:p-6">
+        <DialogContent data-testid="revision-solicitud" className="max-h-[92vh] w-[94vw] max-w-[1500px] overflow-y-auto p-4 sm:p-6">
           <DialogHeader>
             <DialogTitle>Detalle de la solicitud {detalle?.folio ?? (revisandoId !== null ? `#${revisandoId}` : '')}</DialogTitle>
             <DialogDescription>
@@ -762,6 +864,22 @@ export function ConcentradoPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <RechazarSolicitudDialog
+        abierto={devolviendo !== null}
+        folio={folioDevolucion}
+        motivo={motivoDevolucion}
+        procesando={procesandoDevolucion}
+        titulo={`¿Rechazar la solicitud ${folioDevolucion}?`}
+        descripcion="Saldrá del concentrado y volverá a Autorizaciones como pendiente de revisión. El motivo queda registrado en la solicitud."
+        etiquetaMotivo="Motivo por el que vuelve a autorizaciones"
+        etiquetaConfirmar="Devolver a autorizaciones"
+        etiquetaProcesando="Devolviendo…"
+        onMotivo={setMotivoDevolucion}
+        onCancelar={cerrarDevolucion}
+        onConfirmar={() => {
+          void devolver();
+        }}
+      />
     </div>
   );
 }
