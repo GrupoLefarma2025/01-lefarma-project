@@ -1,3 +1,4 @@
+import { lazy } from 'react';
 import { Route } from 'react-router-dom';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { PermissionGuard } from '@/components/auth/PermissionGuard';
@@ -5,20 +6,26 @@ import { createAppRoutes } from '@/shared/router/createAppRoutes';
 import type { SubtreeRoutesProps } from '@/shared/router/types';
 import { rhMenuItems } from './menuItems';
 
-import { RhDashboard } from './pages/RhDashboard';
-
-import SolicitudesPersonal from './pages/SolicitudesPersonal';
-import GestionSolicitudes from './pages/GestionSolicitudes';
-import TiposSolicitudList from './pages/TiposSolicitudList';
-import IncidenciasChecadoConfigList from './pages/IncidenciasChecadoConfigList';
-import IncidenciasChecadoList from './pages/IncidenciasChecadoList';
-import MisIncidenciasPage from './pages/MisIncidenciasPage';
-import { DiasHabilesPage } from './pages/Vacaciones/DiasHabilesPage';
-import { SaldosVacacionesPage } from './pages/Vacaciones/SaldosVacacionesPage';
-import JefesNivelesList from './pages/JefesNivelesList';
-import FirmasUsuariosPage from './pages/FirmasUsuariosPage';
-import { PerfilConfig } from '@/pages/configuracion/PerfilConfig';
-import Perfil from '@/pages/Perfil';
+// Rutas con carga diferida: cada página viaja en su propio chunk.
+const RhDashboard = lazy(() => import('./pages/RhDashboard'));
+const SolicitudesPersonal = lazy(() => import('./pages/SolicitudesPersonal'));
+const GestionSolicitudes = lazy(() => import('./pages/GestionSolicitudes'));
+const TiposSolicitudList = lazy(() => import('./pages/TiposSolicitudList'));
+const IncidenciasChecadoConfigList = lazy(() => import('./pages/IncidenciasChecadoConfigList'));
+const IncidenciasChecadoList = lazy(() => import('./pages/IncidenciasChecadoList'));
+const MisIncidenciasPage = lazy(() => import('./pages/MisIncidenciasPage'));
+const DiasHabilesPage = lazy(() =>
+  import('./pages/Vacaciones/DiasHabilesPage').then((m) => ({ default: m.DiasHabilesPage }))
+);
+const SaldosVacacionesPage = lazy(() =>
+  import('./pages/Vacaciones/SaldosVacacionesPage').then((m) => ({ default: m.SaldosVacacionesPage }))
+);
+const JefesNivelesList = lazy(() => import('./pages/JefesNivelesList'));
+const FirmasUsuariosPage = lazy(() => import('./pages/FirmasUsuariosPage'));
+const PerfilConfig = lazy(() =>
+  import('@/pages/configuracion/PerfilConfig').then((m) => ({ default: m.PerfilConfig }))
+);
+const Perfil = lazy(() => import('@/pages/Perfil'));
 
 export function RhRoutes({ variant, loginPath }: SubtreeRoutesProps) {
   const resolvedBlockedPath = variant === 'root' ? undefined : '/rh/bloqueado';

@@ -1,3 +1,4 @@
+import { lazy } from 'react';
 import { Route } from 'react-router-dom';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { PermissionGuard } from '@/components/auth/PermissionGuard';
@@ -5,13 +6,26 @@ import { createAppRoutes } from '@/shared/router/createAppRoutes';
 import type { SubtreeRoutesProps } from '@/shared/router/types';
 import { viaticosMenuItems } from './menuItems';
 
-import { SolicitudPage } from './pages/solicitud/SolicitudPage';
-import { MisViajesPage } from './pages/mis-viajes/MisViajesPage';
-import { AutorizacionesPage } from './pages/autorizaciones/AutorizacionesPage';
-import { ConcentradoPage } from './pages/concentrado/ConcentradoPage';
-import { ConfiguracionPage } from './pages/configuracion/ConfiguracionPage';
-import BandejaAprobacionesConDetalle from './pages/aprobaciones/BandejaAprobacionesConDetalle';
-import Perfil from '@/pages/Perfil';
+// Rutas con carga diferida: cada página viaja en su propio chunk.
+const SolicitudPage = lazy(() =>
+  import('./pages/solicitud/SolicitudPage').then((m) => ({ default: m.SolicitudPage }))
+);
+const MisViajesPage = lazy(() =>
+  import('./pages/mis-viajes/MisViajesPage').then((m) => ({ default: m.MisViajesPage }))
+);
+const AutorizacionesPage = lazy(() =>
+  import('./pages/autorizaciones/AutorizacionesPage').then((m) => ({ default: m.AutorizacionesPage }))
+);
+const ConcentradoPage = lazy(() =>
+  import('./pages/concentrado/ConcentradoPage').then((m) => ({ default: m.ConcentradoPage }))
+);
+const ConfiguracionPage = lazy(() =>
+  import('./pages/configuracion/ConfiguracionPage').then((m) => ({ default: m.ConfiguracionPage }))
+);
+const BandejaAprobacionesConDetalle = lazy(() =>
+  import('./pages/aprobaciones/BandejaAprobacionesConDetalle')
+);
+const Perfil = lazy(() => import('@/pages/Perfil'));
 
 export function ViaticosRoutes({ variant, loginPath }: SubtreeRoutesProps) {
   const bloqueado = variant === 'root' ? undefined : '/viaticos/bloqueado';

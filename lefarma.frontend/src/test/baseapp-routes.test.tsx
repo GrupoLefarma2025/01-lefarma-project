@@ -84,10 +84,10 @@ describe('BaseAppRoutes — corrected shell navigation (nav-reorg)', () => {
       expect(screen.queryByText('CxP')).not.toBeInTheDocument();
     });
 
-    it('authenticated "/" redirects to /hub with no home content at the index', () => {
+    it('authenticated "/" redirects to /hub with no home content at the index', async () => {
       useAuthStore.setState({ isInitialized: true, isAuthenticated: true });
       renderAt('/');
-      expect(screen.getByText('CxP')).toBeInTheDocument();
+      expect(await screen.findByText('CxP')).toBeInTheDocument();
     });
   });
 
@@ -107,20 +107,20 @@ describe('BaseAppRoutes — corrected shell navigation (nav-reorg)', () => {
       expect(screen.queryByLabelText('CxP')).not.toBeInTheDocument();
     });
 
-    it('authenticated /hub renders the launcher with the enabled CxP entry', () => {
+    it('authenticated /hub renders the launcher with the enabled CxP entry', async () => {
       useAuthStore.setState({ isInitialized: true, isAuthenticated: true });
       renderAt('/hub');
-      const cxpTile = screen.getByLabelText('CxP');
+      const cxpTile = await screen.findByLabelText('CxP');
       expect(cxpTile).toBeInTheDocument();
       expect(cxpTile).toHaveAttribute('href', '/cxp/');
     });
   });
 
   describe('Profile route (base-app spec)', () => {
-    it('authenticated /perfil renders Profile inside the shell', () => {
+    it('authenticated /perfil renders Profile inside the shell', async () => {
       useAuthStore.setState({ isInitialized: true, isAuthenticated: true });
       renderAt('/perfil');
-      expect(screen.getByRole('heading', { name: /perfil/i })).toBeInTheDocument();
+      expect(await screen.findByRole('heading', { name: /perfil/i })).toBeInTheDocument();
     });
 
     it('unauthenticated /perfil redirects to /login', () => {
@@ -131,7 +131,7 @@ describe('BaseAppRoutes — corrected shell navigation (nav-reorg)', () => {
   });
 
   describe('App Subtree Mounting — CxP at /cxp/ (cxp-app spec)', () => {
-    it('authenticated /cxp index redirects to the Dashboard (no launcher, no prompt)', () => {
+    it('authenticated /cxp index redirects to the Dashboard (no launcher, no prompt)', async () => {
       authService.setEmpresa({
         idEmpresa: 1,
         nombre: 'Empresa Test',
@@ -148,13 +148,13 @@ describe('BaseAppRoutes — corrected shell navigation (nav-reorg)', () => {
       });
       useAuthStore.setState({ isInitialized: true, isAuthenticated: true });
       renderAt('/cxp');
-      expect(screen.getByText('DASHBOARD_MARK')).toBeInTheDocument();
+      expect(await screen.findByText('DASHBOARD_MARK')).toBeInTheDocument();
     });
 
-    it('authenticated /cxp index without empresa/sucursal redirects to select-empresa', () => {
+    it('authenticated /cxp index without empresa/sucursal redirects to select-empresa', async () => {
       useAuthStore.setState({ isInitialized: true, isAuthenticated: true });
       renderAt('/cxp');
-      expect(screen.getByText('SELECT_EMPRESA_MARK')).toBeInTheDocument();
+      expect(await screen.findByText('SELECT_EMPRESA_MARK')).toBeInTheDocument();
       expect(screen.queryByText('DASHBOARD_MARK')).not.toBeInTheDocument();
     });
 
@@ -165,10 +165,10 @@ describe('BaseAppRoutes — corrected shell navigation (nav-reorg)', () => {
       expect(screen.queryByText('DASHBOARD_MARK')).not.toBeInTheDocument();
     });
 
-    it('authenticated /cxp/dashboard resolves within the subtree (no shell layout)', () => {
+    it('authenticated /cxp/dashboard resolves within the subtree (no shell layout)', async () => {
       useAuthStore.setState({ isInitialized: true, isAuthenticated: true });
       renderAt('/cxp/dashboard');
-      expect(screen.getByText('DASHBOARD_MARK')).toBeInTheDocument();
+      expect(await screen.findByText('DASHBOARD_MARK')).toBeInTheDocument();
       expect(screen.queryByRole('link', { name: 'Lefarma' })).not.toBeInTheDocument();
     });
 
@@ -181,10 +181,10 @@ describe('BaseAppRoutes — corrected shell navigation (nav-reorg)', () => {
   });
 
   describe('Cross-App Single Sign-On (cxp-app spec)', () => {
-    it('authenticated session reaches /cxp/dashboard from the hub with no re-login', () => {
+    it('authenticated session reaches /cxp/dashboard from the hub with no re-login', async () => {
       useAuthStore.setState({ isInitialized: true, isAuthenticated: true });
       renderAt('/cxp/dashboard');
-      expect(screen.getByText('DASHBOARD_MARK')).toBeInTheDocument();
+      expect(await screen.findByText('DASHBOARD_MARK')).toBeInTheDocument();
       expect(screen.queryByText('LOGIN_MARK')).not.toBeInTheDocument();
     });
   });

@@ -38,6 +38,11 @@ function normalizeCodes(codes: string | string[]): string[] {
 
 let pollHandle: ReturnType<typeof setInterval> | null = null;
 
+export function applyPermissionCodes(codes: string[]): void {
+  usePermissionStore.getState()._setCodes(new Set(codes.map((p) => p.toLowerCase())));
+  usePermissionStore.getState()._setLoaded(true);
+}
+
 export async function refreshPermissions(): Promise<void> {
   try {
     const response = await API.get<
@@ -48,8 +53,7 @@ export async function refreshPermissions(): Promise<void> {
     const perms =
       ('data' in payload ? payload.data?.permissions : payload.permissions) ?? [];
 
-    usePermissionStore.getState()._setCodes(new Set(perms.map((p) => p.toLowerCase())));
-    usePermissionStore.getState()._setLoaded(true);
+    applyPermissionCodes(perms);
   } catch (err) {
     console.error('[permissions] Error al refrescar permisos desde /profile:', err);
   }

@@ -14,7 +14,7 @@ import type { ApiResponse } from '@/types/api.types';
 import { useConfigStore } from '@/store/configStore';
 import { toast } from 'sonner';
 import {
-  refreshPermissions,
+  applyPermissionCodes,
   startPermissionsPolling,
   stopPermissionsPolling,
 } from '@/utils/permissions';
@@ -138,7 +138,6 @@ loginStepOne: async (username: string) => {
           displayName: null,
           pendingUsername: null,
         });
-        void refreshPermissions();
         startPermissionsPolling();
         void get().fetchProfileSignature();
         return;
@@ -287,7 +286,6 @@ loginStepOne: async (username: string) => {
         });
       }
 
-      void refreshPermissions();
       startPermissionsPolling();
     } catch (error) {
       set({ isLoading: false });
@@ -411,11 +409,14 @@ loginStepOne: async (username: string) => {
     if (profileInflight) return profileInflight;
     profileInflight = (async () => {
       try {
-        const response = await API.get<ApiResponse<{ puedeSeleccionarEmpresas: boolean; areaEmpleado?: string | null; puestoEmpleado?: string | null; detalle?: { firmaPath?: string; firmaPathCifrada?: string; firmaEnComprobacion?: boolean } }>>('/profile');
+        const response = await API.get<ApiResponse<{ puedeSeleccionarEmpresas: boolean; areaEmpleado?: string | null; puestoEmpleado?: string | null; permissions?: string[]; detalle?: { firmaPath?: string; firmaPathCifrada?: string; firmaEnComprobacion?: boolean } }>>('/profile');
         const data = response.data.data;
         const detalle = data?.detalle;
         const firmaCifrada = detalle?.firmaPathCifrada;
         const puedeSeleccionar = data?.puedeSeleccionarEmpresas ?? false;
+        if (Array.isArray(data?.permissions)) {
+          applyPermissionCodes(data.permissions);
+        }
         set({
           hasFirma: !!firmaCifrada,
           hasFirmaLegacy: !!detalle?.firmaPath,
@@ -440,9 +441,12 @@ loginStepOne: async (username: string) => {
 
   loadProfile: async () => {
     try {
-      const response = await API.get<ApiResponse<{ puedeSeleccionarEmpresas: boolean; areaEmpleado?: string | null; puestoEmpleado?: string | null; detalle?: { idEmpresa?: number; idSucursal?: number; idArea?: number; firmaPath?: string; firmaPathCifrada?: string; firmaEnComprobacion?: boolean } }>>('/profile');
+      const response = await API.get<ApiResponse<{ puedeSeleccionarEmpresas: boolean; areaEmpleado?: string | null; puestoEmpleado?: string | null; permissions?: string[]; detalle?: { idEmpresa?: number; idSucursal?: number; idArea?: number; firmaPath?: string; firmaPathCifrada?: string; firmaEnComprobacion?: boolean } }>>('/profile');
       const data = response.data.data;
       const detalle = data?.detalle;
+      if (Array.isArray(data?.permissions)) {
+        applyPermissionCodes(data.permissions);
+      }
       set({
         usuarioDetalle: detalle
           ? {
@@ -511,9 +515,8 @@ loginStepOne: async (username: string) => {
         correo: user.correo || '',
       });
 
+      // Una sola petición a /profile al arrancar: trae detalle, firma y permisos.
       void get().loadProfile();
-      get().fetchProfileSignature();
-      void refreshPermissions();
       startPermissionsPolling();
     } else {
       set({

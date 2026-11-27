@@ -1,3 +1,4 @@
+import { lazy } from 'react';
 import { Navigate, Route, useLocation, useParams } from 'react-router-dom';
 import { PermissionGuard } from '@/components/auth/PermissionGuard';
 import { MainLayout } from '@/components/layout/MainLayout';
@@ -5,21 +6,22 @@ import { createAppRoutes } from '@/shared/router/createAppRoutes';
 import type { SubtreeRoutesProps } from '@/shared/router/types';
 import { educacionMedicaMenuItems } from './menuItems';
 
-import { EducacionMedicaDashboard } from './pages/dashboard/EducacionMedicaDashboard';
-import ColaboradoresPage from './pages/personas/PersonasPage';
-import Perfil from '@/pages/Perfil';
-import HospitalesPage from './pages/catalogos/HospitalesPage';
-import ProductosPage from './pages/catalogos/ProductosPage';
-import RegionesPage from './pages/catalogos/RegionesPage';
-import ParametrosPage from './pages/catalogos/ParametrosPage';
-import ConfigRankingPage from './pages/catalogos/ConfigRankingPage';
-import ProgramaAnualPage from './pages/planificacion/ProgramaAnualPage';
-import SeleccionMensualPage from './pages/planificacion/SeleccionMensualPage';
-import CalendarioPage from './pages/calendario/CalendarioPage';
-import BandejaAprobacionesPage from './pages/taller/BandejaAprobacionesPage';
-import MisAsignacionesPage from './pages/taller/MisAsignacionesPage';
-import IndicadoresPage from './pages/seguimiento/IndicadoresPage';
-import PanelMesPage from './pages/seguimiento/PanelMesPage';
+// Rutas con carga diferida: cada página viaja en su propio chunk.
+const EducacionMedicaDashboard = lazy(() => import('./pages/dashboard/EducacionMedicaDashboard'));
+const ColaboradoresPage = lazy(() => import('./pages/personas/PersonasPage'));
+const Perfil = lazy(() => import('@/pages/Perfil'));
+const HospitalesPage = lazy(() => import('./pages/catalogos/HospitalesPage'));
+const ProductosPage = lazy(() => import('./pages/catalogos/ProductosPage'));
+const RegionesPage = lazy(() => import('./pages/catalogos/RegionesPage'));
+const ParametrosPage = lazy(() => import('./pages/catalogos/ParametrosPage'));
+const ConfigRankingPage = lazy(() => import('./pages/catalogos/ConfigRankingPage'));
+const ProgramaAnualPage = lazy(() => import('./pages/planificacion/ProgramaAnualPage'));
+const SeleccionMensualPage = lazy(() => import('./pages/planificacion/SeleccionMensualPage'));
+const CalendarioPage = lazy(() => import('./pages/calendario/CalendarioPage'));
+const BandejaAprobacionesPage = lazy(() => import('./pages/taller/BandejaAprobacionesPage'));
+const MisAsignacionesPage = lazy(() => import('./pages/taller/MisAsignacionesPage'));
+const IndicadoresPage = lazy(() => import('./pages/seguimiento/IndicadoresPage'));
+const PanelMesPage = lazy(() => import('./pages/seguimiento/PanelMesPage'));
 
 const PERMISOS = {
   hub: 'baseapp.hub.puede_ver_educacion_medica',

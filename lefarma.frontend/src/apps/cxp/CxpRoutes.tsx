@@ -1,3 +1,4 @@
+import { lazy } from 'react';
 import { Route } from 'react-router-dom';
 import { LandingRoute } from '@/routes/LandingRoute';
 import { PermissionGuard } from '@/components/auth/PermissionGuard';
@@ -5,43 +6,61 @@ import { MainLayout } from '@/components/layout/MainLayout';
 import { createAppRoutes } from '@/shared/router/createAppRoutes';
 import type { SubtreeRoutesProps } from '@/shared/router/types';
 import { cxpMenuItems } from './menuItems';
-import { CxpContextSelection } from './CxpContextSelection';
 
-import HandoffLogin from '@/pages/auth/HandoffLogin';
-import SelectEmpresaSucursal from '@/pages/auth/SelectEmpresaSucursal';
-import Dashboard from '@/pages/Dashboard';
-import RolesList from '@/pages/admin/Roles/RolesList';
-import PermisosList from '@/pages/admin/Permisos/PermisosList';
-import EmpresasList from '@/pages/catalogos/generales/Empresas/EmpresasList';
-import SucursalesList from '@/pages/catalogos/generales/Sucursales/SucursalesList';
+// Rutas con carga diferida: cada página viaja en su propio chunk y solo se
+// descarga cuando el usuario entra a ella.
+const CxpContextSelection = lazy(() =>
+  import('./CxpContextSelection').then((m) => ({ default: m.CxpContextSelection }))
+);
+const CxpFirmaLegacyCard = lazy(() =>
+  import('@/apps/cxp/components/CxpFirmaLegacyCard').then((m) => ({
+    default: m.CxpFirmaLegacyCard,
+  }))
+);
+const HandoffLogin = lazy(() => import('@/pages/auth/HandoffLogin'));
+const SelectEmpresaSucursal = lazy(() => import('@/pages/auth/SelectEmpresaSucursal'));
+const Dashboard = lazy(() => import('@/pages/Dashboard'));
+const RolesList = lazy(() => import('@/pages/admin/Roles/RolesList'));
+const PermisosList = lazy(() => import('@/pages/admin/Permisos/PermisosList'));
+const EmpresasList = lazy(() => import('@/pages/catalogos/generales/Empresas/EmpresasList'));
+const SucursalesList = lazy(() => import('@/pages/catalogos/generales/Sucursales/SucursalesList'));
+const MedidasList = lazy(() => import('@/pages/catalogos/generales/Medidas/MedidasList'));
+const TiposGastoList = lazy(() => import('@/pages/catalogos/generales/TiposGasto/TiposGastoList'));
+const AreasList = lazy(() => import('@/pages/catalogos/generales/Areas/AreasList'));
+const FormasPagoList = lazy(() => import('@/pages/catalogos/generales/FormasPago/FormasPagoList'));
+const TiposImpuestoList = lazy(() => import('@/pages/catalogos/generales/TiposImpuesto/TiposImpuestoList'));
+const CentrosCostoList = lazy(() => import('@/pages/catalogos/generales/CentrosCosto/CentrosCostoList'));
+const CuentasContablesList = lazy(() => import('@/pages/catalogos/generales/CuentasContables/CuentasContablesList'));
+const EstatusOrdenList = lazy(() => import('@/pages/catalogos/generales/EstatusOrden/EstatusOrdenList'));
+const RegimenesFiscalesList = lazy(() => import('@/pages/catalogos/generales/RegimenesFiscales/RegimenesFiscalesList'));
+const ProveedoresList = lazy(() => import('@/pages/catalogos/generales/Proveedores/ProveedoresList'));
+const ConfiguracionGeneral = lazy(() => import('@/pages/configuracion/ConfiguracionGeneral'));
+const WorkflowsList = lazy(() =>
+  import('@/pages/workflows').then((m) => ({ default: m.WorkflowsList }))
+);
+const WorkflowDiagram = lazy(() =>
+  import('@/pages/workflows').then((m) => ({ default: m.WorkflowDiagram }))
+);
+const AutorizacionesOC = lazy(() => import('@/pages/ordenes/AutorizacionesOC'));
+const CrearOrdenCompra = lazy(() => import('@/pages/ordenes/CrearOrdenCompra'));
+const EnvioConcentrado = lazy(() => import('@/pages/ordenes/EnvioConcentrado'));
+const Perfil = lazy(() => import('@/pages/Perfil'));
+const PerfilConfig = lazy(() =>
+  import('@/pages/configuracion/PerfilConfig').then((m) => ({ default: m.PerfilConfig }))
+);
+const NotificationsPage = lazy(() => import('@/pages/Notifications'));
+const HelpList = lazy(() => import('@/pages/help/HelpList'));
+const PublicHelpList = lazy(() => import('@/pages/help/PublicHelpList'));
+const HelpView = lazy(() => import('@/pages/help/HelpView'));
+const HelpEditor = lazy(() => import('@/pages/help/HelpEditor'));
+const UsuariosList = lazy(() => import('@/pages/admin/Usuarios/UsuariosList'));
 
-import MedidasList from '@/pages/catalogos/generales/Medidas/MedidasList';
-import TiposGastoList from '@/pages/catalogos/generales/TiposGasto/TiposGastoList';
-
-import AreasList from '@/pages/catalogos/generales/Areas/AreasList';
-import FormasPagoList from '@/pages/catalogos/generales/FormasPago/FormasPagoList';
-import TiposImpuestoList from '@/pages/catalogos/generales/TiposImpuesto/TiposImpuestoList';
-import CentrosCostoList from '@/pages/catalogos/generales/CentrosCosto/CentrosCostoList';
-import CuentasContablesList from '@/pages/catalogos/generales/CuentasContables/CuentasContablesList';
-import EstatusOrdenList from '@/pages/catalogos/generales/EstatusOrden/EstatusOrdenList';
-import RegimenesFiscalesList from '@/pages/catalogos/generales/RegimenesFiscales/RegimenesFiscalesList';
-import ProveedoresList from '@/pages/catalogos/generales/Proveedores/ProveedoresList';
-import ConfiguracionGeneral from '@/pages/configuracion/ConfiguracionGeneral';
-import { CxpFirmaLegacyCard } from '@/apps/cxp/components/CxpFirmaLegacyCard';
-import { WorkflowsList, WorkflowDiagram } from '@/pages/workflows';
-import AutorizacionesOC from '@/pages/ordenes/AutorizacionesOC';
-import CrearOrdenCompra from '@/pages/ordenes/CrearOrdenCompra';
-import EnvioConcentrado from '@/pages/ordenes/EnvioConcentrado';
-import Perfil from '@/pages/Perfil';
-import { PerfilConfig } from '@/pages/configuracion/PerfilConfig';
-import Roadmap from '@/pages/Roadmap';
-import DemoComponents from '@/pages/DemoComponents';
-import NotificationsPage from '@/pages/Notifications';
-import HelpList from '@/pages/help/HelpList';
-import PublicHelpList from '@/pages/help/PublicHelpList';
-import HelpView from '@/pages/help/HelpView';
-import HelpEditor from '@/pages/help/HelpEditor';
-import UsuariosList from '@/pages/admin/Usuarios/UsuariosList';
+// Páginas de demostración: solo existen en desarrollo; en el build de
+// producción ni siquiera se genera su chunk.
+const Roadmap = import.meta.env.DEV ? lazy(() => import('@/pages/Roadmap')) : null;
+const DemoComponents = import.meta.env.DEV
+  ? lazy(() => import('@/pages/DemoComponents'))
+  : null;
 
 export function CxpRoutes({ variant, loginPath }: SubtreeRoutesProps) {
   const resolvedBlockedPath = variant === 'root' ? undefined : '/cxp/bloqueado';
@@ -208,8 +227,12 @@ export function CxpRoutes({ variant, loginPath }: SubtreeRoutesProps) {
         <Route path="help/new" element={<HelpEditor />} />
         <Route path="help/edit/:id" element={<HelpEditor />} />
         <Route path="help/:id" element={<HelpView />} />
-        <Route path="roadmap" element={<Roadmap />} />
-        <Route path="demo-components" element={<DemoComponents />} />
+        {import.meta.env.DEV && Roadmap && DemoComponents && (
+          <>
+            <Route path="roadmap" element={<Roadmap />} />
+            <Route path="demo-components" element={<DemoComponents />} />
+          </>
+        )}
       </>
     ),
   });

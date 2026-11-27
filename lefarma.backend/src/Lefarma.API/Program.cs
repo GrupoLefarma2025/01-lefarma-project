@@ -68,6 +68,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.AspNetCore.ResponseCompression;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.IdentityModel.Tokens;
@@ -75,6 +76,7 @@ using Microsoft.OpenApi;
 using Serilog;
 using Serilog.Events;
 using Serilog.Formatting.Json;
+using System.IO.Compression;
 using System.Reflection;
 using System.Text;
 using System.Threading.RateLimiting;
@@ -506,6 +508,30 @@ builder.Services.AddRateLimiter(options =>
             }));
 });
 
+// Compresión de respuestas (JSON de API, JS, CSS, HTML, SVG). Reduce el tiempo
+// de descarga del bundle y de las respuestas de datos en redes lentas o VPN.
+builder.Services.AddResponseCompression(options =>
+{
+    options.EnableForHttps = true;
+    options.Providers.Add<BrotliCompressionProvider>();
+    options.Providers.Add<GzipCompressionProvider>();
+    options.MimeTypes = ResponseCompressionDefaults.MimeTypes.Concat(new[]
+    {
+        "application/json",
+        "application/manifest+json",
+        "image/svg+xml",
+        "application/wasm",
+    });
+});
+builder.Services.Configure<BrotliCompressionProviderOptions>(options =>
+{
+    options.Level = CompressionLevel.Fastest;
+});
+builder.Services.Configure<GzipCompressionProviderOptions>(options =>
+{
+    options.Level = CompressionLevel.Fastest;
+});
+
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<IWideEventAccessor>(sp =>
 {
@@ -543,6 +569,8 @@ app.UseSwaggerUI(c =>
 
 app.UseHttpsRedirection();
 
+app.UseResponseCompression();
+
 app.Use(async (context, next) =>
 {
     var ruta = context.Request.Path;
@@ -557,7 +585,23 @@ app.Use(async (context, next) =>
 });
 
 app.UseDefaultFiles();
-app.UseStaticFiles();
+app.UseStaticFiles(new StaticFileOptions
+{
+    OnPrepareResponse = ctx =>
+    {
+        var path = ctx.Context.Request.Path.Value ?? string.Empty;
+        // Los assets de Vite llevan hash en el nombre: se pueden cachear un año.
+        if (path.Contains("/assets/", StringComparison.OrdinalIgnoreCase))
+        {
+            ctx.Context.Response.Headers.CacheControl = "public,max-age=31536000,immutable";
+        }
+        else
+        {
+            // index.html y el resto deben revalidarse para recibir versiones nuevas.
+            ctx.Context.Response.Headers.CacheControl = "no-cache";
+        }
+    }
+});
 
 app.UseSerilogRequestLogging(options =>
 {
@@ -654,7 +698,14 @@ app.MapGet("/api/version", () => Results.Ok(new { version = appVersion }))
 
 app.MapControllers();
 
-app.MapFallbackToFile("/index.html");
+app.MapFallbackToFile("/index.html", new StaticFileOptions
+{
+    OnPrepareResponse = ctx =>
+    {
+        // El HTML de entrada nunca se cachea: así el siguiente despliegue se ve al instante.
+        ctx.Context.Response.Headers.CacheControl = "no-cache";
+    }
+});
 
 app.Lifetime.ApplicationStarted.Register(() =>
 {
