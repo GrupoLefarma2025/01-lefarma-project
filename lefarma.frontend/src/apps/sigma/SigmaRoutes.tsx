@@ -1,15 +1,19 @@
+import { lazy } from 'react';
 import { Navigate, Route } from 'react-router-dom';
 import { ProtectedRoute } from '@/routes/LandingRoute';
 import { SigmaLayout } from './SigmaLayout';
 
-import EntradaSigma from '@/apps/sigma/routes/entrada';
-import Home from '@/apps/sigma/routes/home';
-import SubidaDocumentos from '@/apps/sigma/routes/subida-documentos';
-import Bandeja from '@/apps/sigma/routes/bandeja';
-import DocumentosFlujo from '@/apps/sigma/routes/documentos.flujo';
-import BandejaAutorizadosRechazados from '@/apps/sigma/routes/bandeja.autorizados-rechazados';
-import ValidarFirma from '@/apps/sigma/routes/validar-firma';
-import AccesoExterno from '@/apps/sigma/routes/acceso-externo';
+// Rutas con carga diferida: cada página viaja en su propio chunk.
+const EntradaSigma = lazy(() => import('@/apps/sigma/routes/entrada'));
+const Home = lazy(() => import('@/apps/sigma/routes/home'));
+const SubidaDocumentos = lazy(() => import('@/apps/sigma/routes/subida-documentos'));
+const Bandeja = lazy(() => import('@/apps/sigma/routes/bandeja'));
+const DocumentosFlujo = lazy(() => import('@/apps/sigma/routes/documentos.flujo'));
+const BandejaAutorizadosRechazados = lazy(() =>
+  import('@/apps/sigma/routes/bandeja.autorizados-rechazados')
+);
+const ValidarFirma = lazy(() => import('@/apps/sigma/routes/validar-firma'));
+const AccesoExterno = lazy(() => import('@/apps/sigma/routes/acceso-externo'));
 
 export interface SigmaRoutesProps {
   variant: 'root' | 'subtree';

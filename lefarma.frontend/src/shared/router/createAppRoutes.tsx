@@ -1,5 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
-import { type ReactNode, type ReactElement } from 'react';
+import { Suspense, type ReactNode, type ReactElement } from 'react';
 import { Navigate, Route, useLocation } from 'react-router-dom';
 import { ProtectedRoute, PublicOnlyRoute } from '@/routes/LandingRoute';
 import { useAuthStore } from '@/shared/auth/authStore';
@@ -119,7 +119,11 @@ export function createAppRoutes(config: AppRoutesConfig): ReactNode {
 
       <Route element={protectedRoute}>
         {preLayoutRoutes}
-        <Route element={layout}>{routes}</Route>
+        <Route
+          element={<Suspense fallback={<PageLoader />}>{layout}</Suspense>}
+        >
+          {routes}
+        </Route>
       </Route>
 
       <Route path="bloqueado" element={<BlockedPage />} />

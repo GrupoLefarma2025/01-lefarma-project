@@ -109,10 +109,10 @@ describe('BaseAppRoutes — RH (Recursos Humanos) subtree scaffold', () => {
       );
     });
 
-    it('authenticated /rh index lands on the RH Dashboard (auth-only gate, no prompt)', () => {
+    it('authenticated /rh index lands on the RH Dashboard (auth-only gate, no prompt)', async () => {
       useAuthStore.setState({ isInitialized: true, isAuthenticated: true });
       renderAt('/rh');
-      expect(screen.getByText('RH_DASHBOARD_MARK')).toBeInTheDocument();
+      expect(await screen.findByText('RH_DASHBOARD_MARK')).toBeInTheDocument();
       expect(screen.queryByTestId('login-probe')).not.toBeInTheDocument();
     });
   });
@@ -135,10 +135,10 @@ describe('BaseAppRoutes — RH (Recursos Humanos) subtree scaffold', () => {
   });
 
   describe('RH dashboard route', () => {
-    it('authenticated /rh/dashboard resolves within the subtree', () => {
+    it('authenticated /rh/dashboard resolves within the subtree', async () => {
       useAuthStore.setState({ isInitialized: true, isAuthenticated: true });
       renderAt('/rh/dashboard');
-      expect(screen.getByText('RH_DASHBOARD_MARK')).toBeInTheDocument();
+      expect(await screen.findByText('RH_DASHBOARD_MARK')).toBeInTheDocument();
       expect(screen.queryByTestId('login-probe')).not.toBeInTheDocument();
     });
 
@@ -155,19 +155,19 @@ describe('BaseAppRoutes — RH (Recursos Humanos) subtree scaffold', () => {
   });
 
   describe('RH mis incidencias route (self-service, no permission guard)', () => {
-    it('authenticated /rh/mis-incidencias resolves within the subtree', () => {
+    it('authenticated /rh/mis-incidencias resolves within the subtree', async () => {
       useAuthStore.setState({ isInitialized: true, isAuthenticated: true });
       renderAt('/rh/mis-incidencias');
-      expect(screen.getByText('RH_MIS_INCIDENCIAS_MARK')).toBeInTheDocument();
+      expect(await screen.findByText('RH_MIS_INCIDENCIAS_MARK')).toBeInTheDocument();
       expect(screen.queryByTestId('login-probe')).not.toBeInTheDocument();
     });
   });
 
   describe('Cross-App Single Sign-On', () => {
-    it('authenticated session reaches /rh/dashboard from the shell with no re-login', () => {
+    it('authenticated session reaches /rh/dashboard from the shell with no re-login', async () => {
       useAuthStore.setState({ isInitialized: true, isAuthenticated: true });
       renderAt('/rh/dashboard');
-      expect(screen.getByText('RH_DASHBOARD_MARK')).toBeInTheDocument();
+      expect(await screen.findByText('RH_DASHBOARD_MARK')).toBeInTheDocument();
       expect(screen.queryByTestId('login-probe')).not.toBeInTheDocument();
     });
   });

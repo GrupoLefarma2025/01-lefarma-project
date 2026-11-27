@@ -75,28 +75,28 @@ describe('ViaticosRoutes — bandeja de aprobaciones', () => {
     expect(mocks.get).not.toHaveBeenCalled();
   });
 
-  it('/viaticos/dashboard es alias temporal del asistente de solicitud', () => {
+  it('/viaticos/dashboard es alias temporal del asistente de solicitud', async () => {
     renderAt('/viaticos/dashboard');
-    expect(screen.getByText('SOLICITUD_MARK')).toBeInTheDocument();
+    expect(await screen.findByText('SOLICITUD_MARK')).toBeInTheDocument();
   });
 
-  it('/viaticos/solicitud, /viaticos/mis-viajes y /viaticos/concentrado resuelven sus páginas', () => {
+  it('/viaticos/solicitud, /viaticos/mis-viajes y /viaticos/concentrado resuelven sus páginas', async () => {
     renderAt('/viaticos/solicitud');
-    expect(screen.getByText('SOLICITUD_MARK')).toBeInTheDocument();
+    expect(await screen.findByText('SOLICITUD_MARK')).toBeInTheDocument();
   });
 
-  it('/viaticos/mis-viajes resuelve Mis viajes', () => {
+  it('/viaticos/mis-viajes resuelve Mis viajes', async () => {
     renderAt('/viaticos/mis-viajes');
-    expect(screen.getByText('MIS_VIAJES_MARK')).toBeInTheDocument();
+    expect(await screen.findByText('MIS_VIAJES_MARK')).toBeInTheDocument();
   });
 
-  it('/viaticos/autorizaciones resuelve la pantalla intermedia de autorización', () => {
+  it('/viaticos/autorizaciones resuelve la pantalla intermedia de autorización', async () => {
     renderAt('/viaticos/autorizaciones');
-    expect(screen.getByText('AUTORIZACIONES_MARK')).toBeInTheDocument();
+    expect(await screen.findByText('AUTORIZACIONES_MARK')).toBeInTheDocument();
   });
 
-  it('/viaticos/concentrado resuelve el concentrado de revisión', () => {
+  it('/viaticos/concentrado resuelve el concentrado de revisión', async () => {
     renderAt('/viaticos/concentrado');
-    expect(screen.getByText('CONCENTRADO_MARK')).toBeInTheDocument();
+    expect(await screen.findByText('CONCENTRADO_MARK')).toBeInTheDocument();
   });
 });
