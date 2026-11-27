@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
@@ -7,13 +7,13 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>Lefarma.Migrations</RootNamespace>
     <AssemblyName>lefarma-migrations</AssemblyName>
-    <!-- NO se incluye en la solución Lefarma.API. Se build-a y ejecuta independiente. -->
+    <!-- NO se incluye en la soluciÃ³n Lefarma.API. Se build-a y ejecuta independiente. -->
     <IsPackable>false</IsPackable>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="DbUp-sqlserver" Version="7.2.0" />
-    <PackageReference Include="Microsoft.Data.SqlClient" Version="7.0.2" />
+    <PackageReference Include="Microsoft.Data.SqlClient" Version="7.1.2" />
   </ItemGroup>
 
   <ItemGroup>
