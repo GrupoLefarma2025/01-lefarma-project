@@ -13,7 +13,6 @@ namespace Lefarma.API.Features.Rh.Vacaciones
         Task<ErrorOr<SaldoVacacionesDetalleResponse>> ObtenerDetalleSaldoAsync(int idSaldo);
         Task<ErrorOr<SaldoVacacionesResponse>> AjustarSaldoAsync(int idSaldo, SaldoVacacionesAjusteRequest request, int idUsuario);
         Task<ErrorOr<SaldoVacacionesResponse>> CargarSaldoAsync(SaldoVacacionesCreateRequest request, int idUsuario);
-        Task<ErrorOr<SincronizarSaldosResponse>> SincronizarSaldosAsync(SincronizarSaldosRequest request, int idUsuario);
 
         Task<ErrorOr<List<UsuarioAfectadoResponse>>> ObtenerUsuariosAfectadosAsync(int idDiaHabil);
     }

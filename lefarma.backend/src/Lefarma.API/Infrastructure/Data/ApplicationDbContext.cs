@@ -82,7 +82,8 @@ public class ApplicationDbContext : DbContext
         public DbSet<IncidenciaChecadoNotificacionHistorial> IncidenciasChecadoNotificacionesHistorial { get; set; }
         public DbSet<IncidenciaChecadoConfig> IncidenciasChecadoConfig { get; set; }
         public DbSet<DiaHabil> DiasHabiles { get; set; }
-        public DbSet<SaldoVacacionesAnual> SaldosVacacionesAnuales { get; set; }
+        public DbSet<SaldoVacacionesPeriodo> SaldosVacacionesPeriodos { get; set; }
+        public DbSet<SaldoVacacionesArrastre> SaldosVacacionesArrastres { get; set; }
 
         public DbSet<HospitalExtension> HospitalesExtension { get; set; }
         public DbSet<RegionCatalogo> RegionesCat { get; set; }

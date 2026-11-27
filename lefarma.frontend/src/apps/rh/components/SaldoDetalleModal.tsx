@@ -1,15 +1,22 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { ChangeEvent } from 'react';
-import { CalendarDays, ChevronDown, ChevronUp, History, Loader2, Pencil } from 'lucide-react';
+import {
+  CalendarDays,
+  Check,
+  ChevronDown,
+  ChevronUp,
+  Clock,
+  History,
+  Loader2,
+  Pencil,
+} from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Modal } from '@/components/ui/modal';
 import { Progress } from '@/components/ui/progress';
-import { Separator } from '@/components/ui/separator';
 import {
   Table,
   TableBody,
@@ -19,6 +26,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
+import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { usePermission } from '@/hooks/usePermission';
 import { toApiError } from '@/utils/errors';
@@ -47,21 +55,46 @@ const formatearNumero = (value: number) =>
 const formatearAntiguedad = (anios?: number) =>
   anios == null ? '—' : `${anios} ${anios === 1 ? 'año' : 'años'}`;
 
-function StatCard({
+const iniciales = (nombre?: string) =>
+  nombre
+    ? nombre
+        .split(' ')
+        .filter(Boolean)
+        .slice(0, 2)
+        .map((parte) => parte.charAt(0).toUpperCase())
+        .join('')
+    : '—';
+
+const esPeriodoVigente = (inicio: string, fin: string) => {
+  const hoy = new Date();
+  const desde = new Date(`${inicio.slice(0, 10)}T00:00:00`);
+  const hasta = new Date(`${fin.slice(0, 10)}T23:59:59`);
+  return (
+    !Number.isNaN(desde.getTime()) &&
+    !Number.isNaN(hasta.getTime()) &&
+    hoy >= desde &&
+    hoy <= hasta
+  );
+};
+
+function StatItem({
   label,
   value,
-  borderClass,
-  valueClass,
+  dotClass,
 }: {
   label: string;
   value: number;
-  borderClass: string;
-  valueClass: string;
+  dotClass: string;
 }) {
   return (
-    <div className={`rounded-lg border border-l-4 bg-muted/40 p-3 ${borderClass}`}>
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <p className={`text-xl font-semibold ${valueClass}`}>{formatearNumero(value)}</p>
+    <div className="min-w-[68px]">
+      <p className="flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+        <span className={cn('h-1.5 w-1.5 rounded-full', dotClass)} aria-hidden />
+        {label}
+      </p>
+      <p className="mt-0.5 text-base font-semibold tabular-nums leading-tight">
+        {formatearNumero(value)}
+      </p>
     </div>
   );
 }
@@ -69,9 +102,12 @@ function StatCard({
 function SolicitudCard({ solicitud }: { solicitud: SolicitudVacacionesDetalle }) {
   return (
     <div
-      className={`rounded-lg border p-3 ${
-        solicitud.enTramite ? 'border-dashed border-amber-500/60 bg-amber-500/5' : ''
-      }`}
+      className={cn(
+        'rounded-xl border p-3',
+        solicitud.enTramite
+          ? 'border-dashed border-amber-500/60 bg-amber-500/5'
+          : 'border-slate-200/80 bg-card dark:border-slate-800'
+      )}
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="text-sm">
@@ -158,7 +194,7 @@ export function SaldoDetalleModal({ saldo, onClose, onUpdated }: SaldoDetalleMod
     cargarDetalle(idSaldoActivo);
   }, [idSaldoActivo]);
 
-  const cambiarAnio = (id: number) => {
+  const cambiarPeriodo = (id: number) => {
     if (id === idSaldoActivo) return;
     setEditando(false);
     setMostrarTodosAjustes(false);
@@ -177,7 +213,14 @@ export function SaldoDetalleModal({ saldo, onClose, onUpdated }: SaldoDetalleMod
     const ajustados = parseValor(form.ajustados) ?? detalle.diasAjustados;
     const vencidos = parseValor(form.vencidos) ?? detalle.diasVencidos;
     const compensados = parseValor(form.compensados) ?? detalle.diasCompensados;
-    return detalle.diasGenerados + compensados + ajustados - vencidos - detalle.diasTomados;
+    return (
+      detalle.diasGenerados +
+      compensados +
+      ajustados +
+      detalle.diasAjustadosArrastre -
+      vencidos -
+      detalle.diasTomados
+    );
   }, [detalle, form]);
 
   const iniciarAjuste = () => {
@@ -240,12 +283,16 @@ export function SaldoDetalleModal({ saldo, onClose, onUpdated }: SaldoDetalleMod
     }
   };
 
-  const baseDisponible = detalle
-    ? detalle.diasGenerados + detalle.diasCompensados + detalle.diasAjustados
+  const diasDisponibles = detalle
+    ? detalle.diasGenerados +
+      detalle.diasCompensados +
+      detalle.diasAjustados +
+      detalle.diasAjustadosArrastre -
+      detalle.diasVencidos
     : 0;
   const porcentajeUso = detalle
-    ? baseDisponible > 0
-      ? Math.min(100, Math.max(0, (detalle.diasTomados / baseDisponible) * 100))
+    ? diasDisponibles > 0
+      ? Math.min(100, Math.max(0, (detalle.diasTomados / diasDisponibles) * 100))
       : detalle.diasTomados > 0
         ? 100
         : 0
@@ -289,6 +336,12 @@ export function SaldoDetalleModal({ saldo, onClose, onUpdated }: SaldoDetalleMod
     </Button>
   );
 
+  const periodoLabel = detalle
+    ? `Período ${detalle.numeroPeriodo}`
+    : saldo
+      ? `Período ${saldo.numeroPeriodo}`
+      : '';
+
   return (
     <Modal
       id="saldo-detalle-modal"
@@ -296,7 +349,7 @@ export function SaldoDetalleModal({ saldo, onClose, onUpdated }: SaldoDetalleMod
       setOpen={(open: boolean) => {
         if (!open) onClose();
       }}
-      title={`Detalle de vacaciones — ${detalle?.usuarioNombre ?? saldo?.usuarioNombre ?? 'Empleado'} · ${detalle?.anio ?? saldo?.anio ?? ''}`}
+      title={`Detalle de vacaciones — ${detalle?.usuarioNombre ?? saldo?.usuarioNombre ?? 'Empleado'}${periodoLabel ? ` · ${periodoLabel}` : ''}`}
       size="w75"
       footer={footer}
     >
@@ -315,159 +368,361 @@ export function SaldoDetalleModal({ saldo, onClose, onUpdated }: SaldoDetalleMod
           )}
         </div>
       ) : detalle ? (
-        <div className="space-y-6">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div className="space-y-1">
-              <h3 className="text-lg font-semibold">{detalle.usuarioNombre ?? 'Empleado'}</h3>
-              <p className="text-sm text-muted-foreground">
-                {[detalle.puesto, detalle.departamento].filter(Boolean).join(' · ') || 'Sin puesto registrado'}
-              </p>
-              <p className="text-sm text-muted-foreground">
-                {[detalle.empleadoEmpresa, detalle.correo].filter(Boolean).join(' · ')}
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              {detalle.nomina != null && <Badge variant="secondary">Nómina {detalle.nomina}</Badge>}
-              <Badge variant="secondary">Ingreso: {formatearFecha(detalle.fechaIngreso)}</Badge>
-              <Badge variant="secondary">Antigüedad: {formatearAntiguedad(detalle.antiguedad)}</Badge>
-              {detalle.vacacionesPorAntiguedad != null && (
-                <Badge variant="secondary">
-                  Por antigüedad: {formatearNumero(detalle.vacacionesPorAntiguedad)} días
-                </Badge>
-              )}
-            </div>
-          </div>
-
-          <Separator />
-
-          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_260px]">
-            <Card>
-              <CardContent className="space-y-4 pt-6">
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                  <StatCard
-                    label="Generados"
-                    value={detalle.diasGenerados}
-                    borderClass="border-l-emerald-500"
-                    valueClass="text-emerald-600"
-                  />
-                  <StatCard
-                    label="Tomados"
-                    value={detalle.diasTomados}
-                    borderClass="border-l-amber-500"
-                    valueClass="text-amber-600"
-                  />
-                  <StatCard
-                    label="Ajustados"
-                    value={detalle.diasAjustados}
-                    borderClass="border-l-blue-500"
-                    valueClass="text-blue-600"
-                  />
-                  <StatCard
-                    label="Compensados"
-                    value={detalle.diasCompensados}
-                    borderClass="border-l-violet-500"
-                    valueClass="text-violet-600"
-                  />
-                  <StatCard
-                    label="Vencidos"
-                    value={detalle.diasVencidos}
-                    borderClass="border-l-red-500"
-                    valueClass="text-red-600"
-                  />
+        <div className="space-y-5">
+          <section className="flex flex-wrap items-start justify-between gap-3 rounded-2xl border border-slate-200/80 bg-slate-50/80 p-3.5 dark:border-slate-800 dark:bg-slate-900/40">
+            <div className="flex min-w-0 items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-card text-xs font-semibold text-slate-600 ring-1 ring-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:ring-slate-700">
+                {iniciales(detalle.usuarioNombre)}
+              </div>
+              <div className="min-w-0 space-y-0.5">
+                <p className="truncate text-sm font-semibold">
+                  {detalle.usuarioNombre ?? 'Empleado'}
+                </p>
+                <p className="truncate text-xs text-muted-foreground">
+                  {[detalle.puesto, detalle.departamento].filter(Boolean).join(' · ') ||
+                    'Sin puesto registrado'}
+                </p>
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground">
+                  <span>
+                    Nómina{' '}
+                    <span className="font-medium text-foreground">{detalle.nomina ?? '—'}</span>
+                  </span>
+                  {detalle.empleadoEmpresa && (
+                    <>
+                      <span className="text-slate-300 dark:text-slate-600">·</span>
+                      <span className="truncate">{detalle.empleadoEmpresa}</span>
+                    </>
+                  )}
+                  {detalle.correo && (
+                    <>
+                      <span className="text-slate-300 dark:text-slate-600">·</span>
+                      <span className="truncate">{detalle.correo}</span>
+                    </>
+                  )}
+                  <span className="text-slate-300 dark:text-slate-600">·</span>
+                  <span>
+                    Ingreso{' '}
+                    <span className="font-medium text-foreground">
+                      {formatearFecha(detalle.fechaIngreso)}
+                    </span>
+                  </span>
+                  <span className="text-slate-300 dark:text-slate-600">·</span>
+                  <span>
+                    Antigüedad{' '}
+                    <span className="font-medium text-foreground">
+                      {formatearAntiguedad(detalle.antiguedad)}
+                    </span>
+                  </span>
+                  {detalle.vacacionesPorAntiguedad != null && (
+                    <>
+                      <span className="text-slate-300 dark:text-slate-600">·</span>
+                      <span>
+                        <span className="font-medium text-foreground">
+                          {formatearNumero(detalle.vacacionesPorAntiguedad)} días
+                        </span>{' '}
+                        por antigüedad
+                      </span>
+                    </>
+                  )}
                 </div>
+              </div>
+            </div>
+            <div className="shrink-0 text-right">
+              <Badge
+                variant="outline"
+                className="border-slate-200 bg-card text-[11px] font-medium text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
+              >
+                {periodoLabel}
+              </Badge>
+              <p className="mt-1 whitespace-nowrap text-[10px] text-muted-foreground">
+                {detalle.periodo}
+              </p>
+            </div>
+          </section>
 
-                <div className="space-y-1">
-                  <div className="flex items-center justify-between text-xs text-muted-foreground">
-                    <span>Días usados</span>
-                    <span>{Math.round(porcentajeUso)}%</span>
-                  </div>
-                  <Progress
-                    value={porcentajeUso}
-                    className="border border-border bg-muted-foreground/30"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Pendientes = Generados + Ajustados + Compensados − Vencidos − Tomados
+          {detalle.historial.length > 1 && (
+            <section className="space-y-2">
+              <div className="flex flex-wrap items-end justify-between gap-1">
+                <div>
+                  <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Períodos
+                  </h4>
+                  <p className="text-[11px] text-muted-foreground">
+                    Haz clic en una fila para cambiar de período.
                   </p>
                 </div>
-
-                {detalle.diasEnTramite > 0 && (
-                  <div
-                    className={`rounded-md border p-3 ${
-                      detalle.diasPendientesProyectado < 0
-                        ? 'border-destructive/50 bg-destructive/5'
-                        : 'border-amber-500/50 bg-amber-500/5'
-                    }`}
-                  >
-                    <p className="text-xs font-medium text-muted-foreground">
-                      Proyección con solicitudes en trámite
-                    </p>
-                    <p className="text-sm">
-                      En trámite:{' '}
-                      <span className="font-semibold">
-                        {formatearNumero(detalle.diasEnTramite)} días
-                      </span>{' '}
-                      · Pendiente si se cierran:{' '}
-                      <span
-                        className={`font-semibold ${
-                          detalle.diasPendientesProyectado < 0 ? 'text-destructive' : ''
-                        }`}
-                      >
-                        {formatearNumero(detalle.diasPendientesProyectado)} días
-                      </span>
-                    </p>
-                    {detalle.diasPendientesProyectado < 0 && (
-                      <p className="text-xs text-destructive">
-                        Quedaría en saldo negativo si se aprueban todas.
-                      </p>
-                    )}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardContent className="flex h-full flex-col items-center justify-center gap-1 pt-6 text-center">
-                <p className="text-sm text-muted-foreground">Días pendientes</p>
-                <p
-                  className={`text-4xl font-bold ${
-                    detalle.diasPendientes < 0 ? 'text-destructive' : 'text-emerald-600'
-                  }`}
-                >
-                  {formatearNumero(detalle.diasPendientes)}
+                <p className="text-[11px] text-muted-foreground">
+                  {detalle.historial.length} períodos registrados
                 </p>
-                {detalle.diasPendientes < 0 ? (
-                  <Badge variant="destructive">Saldo en negativo</Badge>
-                ) : (
-                  <Badge variant="secondary">Disponibles para solicitar</Badge>
+              </div>
+              <div className="overflow-hidden rounded-xl border border-slate-200/80 dark:border-slate-800">
+                <Table>
+                  <TableHeader className="bg-slate-50/80 dark:bg-slate-900/40">
+                    <TableRow className="hover:bg-transparent">
+                      <TableHead className="h-8 text-[11px]">Período</TableHead>
+                      <TableHead className="h-8 text-[11px]">Fechas</TableHead>
+                      <TableHead className="h-8 text-right text-[11px]">Generados</TableHead>
+                      <TableHead className="h-8 text-right text-[11px]">Tomados</TableHead>
+                      <TableHead className="h-8 text-right text-[11px]">Ajustados</TableHead>
+                      <TableHead className="h-8 text-right text-[11px]">Pendientes</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {detalle.historial.map((fila) => {
+                      const seleccionado = fila.idSaldo === detalle.idSaldo;
+                      const vigente = esPeriodoVigente(
+                        fila.fechaInicioPeriodo,
+                        fila.fechaFinPeriodo
+                      );
+                      return (
+                        <TableRow
+                          key={fila.idSaldo}
+                          onClick={() => cambiarPeriodo(fila.idSaldo)}
+                          aria-current={seleccionado ? 'true' : undefined}
+                          className={cn(
+                            'cursor-pointer text-xs transition-colors',
+                            seleccionado
+                              ? 'bg-blue-50/70 hover:bg-blue-50/70 dark:bg-blue-950/30 dark:hover:bg-blue-950/30'
+                              : 'hover:bg-slate-50 dark:hover:bg-slate-800/50'
+                          )}
+                        >
+                          <TableCell className="py-2">
+                            <div className="flex items-center gap-2">
+                              <span
+                                className={cn(
+                                  'flex h-4 w-4 shrink-0 items-center justify-center rounded-full border',
+                                  seleccionado
+                                    ? 'border-primary bg-primary text-primary-foreground'
+                                    : 'border-slate-300 dark:border-slate-600'
+                                )}
+                                aria-hidden
+                              >
+                                {seleccionado && <Check className="h-3 w-3" />}
+                              </span>
+                              <span
+                                className={cn(
+                                  'font-medium',
+                                  seleccionado && 'text-primary'
+                                )}
+                              >
+                                Período {fila.numeroPeriodo}
+                              </span>
+                              {vigente && (
+                                <Badge
+                                  variant="outline"
+                                  className="h-4 border-emerald-200 bg-emerald-50 px-1.5 text-[10px] font-medium text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300"
+                                >
+                                  Vigente
+                                </Badge>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell className="whitespace-nowrap py-2 text-muted-foreground">
+                            {fila.periodo}
+                          </TableCell>
+                          <TableCell className="py-2 text-right tabular-nums">
+                            {formatearNumero(fila.diasGenerados)}
+                          </TableCell>
+                          <TableCell className="py-2 text-right tabular-nums">
+                            {formatearNumero(fila.diasTomados)}
+                          </TableCell>
+                          <TableCell className="py-2 text-right tabular-nums">
+                            {formatearNumero(fila.diasAjustados)}
+                          </TableCell>
+                          <TableCell
+                            className={cn(
+                              'py-2 text-right font-semibold tabular-nums',
+                              fila.diasPendientes < 0 && 'text-destructive'
+                            )}
+                          >
+                            {formatearNumero(fila.diasPendientes)}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            </section>
+          )}
+
+          <section className="rounded-2xl border border-slate-200/80 bg-card p-3.5 shadow-[0_1px_2px_rgba(15,23,42,0.03)] dark:border-slate-800">
+            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
+              <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
+                <StatItem label="Generados" value={detalle.diasGenerados} dotClass="bg-emerald-500" />
+                <StatItem label="Tomados" value={detalle.diasTomados} dotClass="bg-amber-500" />
+                <StatItem label="Ajustados" value={detalle.diasAjustados} dotClass="bg-blue-500" />
+                {detalle.diasAjustadosArrastre > 0 && (
+                  <StatItem
+                    label="Arrastre"
+                    value={detalle.diasAjustadosArrastre}
+                    dotClass="bg-cyan-500"
+                  />
                 )}
-              </CardContent>
-            </Card>
-          </div>
+                <StatItem
+                  label="Compensados"
+                  value={detalle.diasCompensados}
+                  dotClass="bg-violet-500"
+                />
+                <StatItem label="Vencidos" value={detalle.diasVencidos} dotClass="bg-red-500" />
+              </div>
+
+              <div
+                className={cn(
+                  'flex items-center gap-3 rounded-xl border px-3 py-1.5',
+                  detalle.diasPendientes < 0
+                    ? 'border-destructive/30 bg-destructive/5'
+                    : 'border-emerald-200/80 bg-emerald-50/60 dark:border-emerald-900 dark:bg-emerald-950/30'
+                )}
+              >
+                <div>
+                  <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                    Días pendientes
+                  </p>
+                  <p
+                    className={cn(
+                      'text-xl font-semibold tabular-nums leading-tight',
+                      detalle.diasPendientes < 0
+                        ? 'text-destructive'
+                        : 'text-emerald-700 dark:text-emerald-300'
+                    )}
+                  >
+                    {formatearNumero(detalle.diasPendientes)}
+                  </p>
+                </div>
+                <span
+                  className={cn(
+                    'rounded-full px-2 py-0.5 text-[10px] font-medium',
+                    detalle.diasPendientes < 0
+                      ? 'bg-destructive/10 text-destructive'
+                      : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300'
+                  )}
+                >
+                  {detalle.diasPendientes < 0 ? 'Saldo negativo' : 'Disponible'}
+                </span>
+              </div>
+            </div>
+
+            <div className="mt-3 space-y-1.5 border-t border-slate-200/70 pt-3 dark:border-slate-800">
+              <div className="flex flex-wrap items-center justify-between gap-x-2 text-[11px] text-muted-foreground">
+                <span>Días usados del período</span>
+                <span className="tabular-nums">
+                  <span className="font-medium text-foreground">
+                    {formatearNumero(detalle.diasTomados)}
+                  </span>{' '}
+                  de {formatearNumero(diasDisponibles)} disponibles ·{' '}
+                  {Math.round(porcentajeUso)}%
+                </span>
+              </div>
+              <Progress
+                value={porcentajeUso}
+                className="h-2 border-0 bg-slate-100 dark:bg-slate-800"
+              />
+              <p className="text-[10px] text-muted-foreground">
+                Pendientes = generados + ajustados + arrastre + compensados − vencidos − tomados.
+              </p>
+            </div>
+
+            {detalle.diasEnTramite > 0 && (
+              <div
+                className={cn(
+                  'mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border px-3 py-2 text-[11px]',
+                  detalle.diasPendientesProyectado < 0
+                    ? 'border-destructive/40 bg-destructive/5'
+                    : 'border-amber-500/40 bg-amber-500/5'
+                )}
+              >
+                <Clock className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                <span>
+                  <span className="font-medium">
+                    {formatearNumero(detalle.diasEnTramite)} días en trámite
+                  </span>{' '}
+                  · si se aprueban quedarían{' '}
+                  <span
+                    className={cn(
+                      'font-semibold',
+                      detalle.diasPendientesProyectado < 0 && 'text-destructive'
+                    )}
+                  >
+                    {formatearNumero(detalle.diasPendientesProyectado)} días
+                  </span>
+                </span>
+                {detalle.diasPendientesProyectado < 0 && (
+                  <span className="text-destructive">Quedaría en saldo negativo.</span>
+                )}
+              </div>
+            )}
+          </section>
+
+          {detalle.arrastres.length > 0 && (
+            <section className="space-y-2">
+              <div>
+                <h4 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  <History className="h-3.5 w-3.5" />
+                  Arrastre
+                </h4>
+                <p className="text-[11px] text-muted-foreground">
+                  Saldo del puente de carga. No vence automáticamente y se consume primero.
+                </p>
+              </div>
+              <div className="overflow-hidden rounded-xl border border-slate-200/80 dark:border-slate-800">
+                <Table>
+                  <TableHeader className="bg-slate-50/80 dark:bg-slate-900/40">
+                    <TableRow className="hover:bg-transparent">
+                      <TableHead className="h-8 text-[11px]">Concepto</TableHead>
+                      <TableHead className="h-8 text-right text-[11px]">Total</TableHead>
+                      <TableHead className="h-8 text-right text-[11px]">Aplicados</TableHead>
+                      <TableHead className="h-8 text-right text-[11px]">Restantes</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {detalle.arrastres.map((fila) => (
+                      <TableRow key={fila.idArrastre} className="text-xs">
+                        <TableCell className="py-2 font-medium">{fila.descripcion}</TableCell>
+                        <TableCell className="py-2 text-right tabular-nums">
+                          {formatearNumero(fila.diasTotal)}
+                        </TableCell>
+                        <TableCell className="py-2 text-right tabular-nums">
+                          {formatearNumero(fila.diasAplicados)}
+                        </TableCell>
+                        <TableCell className="py-2 text-right font-semibold tabular-nums text-cyan-700 dark:text-cyan-300">
+                          {formatearNumero(fila.diasRestante)}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </section>
+          )}
 
           {historialAjustesVisibles.length > 0 ? (
-            <section className="space-y-3">
-              <h4 className="flex items-center gap-2 text-sm font-semibold">
-                <History className="h-4 w-4" />
+            <section className="space-y-2">
+              <h4 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                <History className="h-3.5 w-3.5" />
                 Historial de ajustes
               </h4>
-              <div className="space-y-2">
+              <div className="overflow-hidden rounded-xl border border-slate-200/80 dark:border-slate-800">
                 {historialAjustesVisibles.map((ajuste, idx) => (
                   <div
                     key={`${ajuste.fecha}-${idx}`}
-                    className="rounded-md border bg-muted/50 p-3 text-xs text-muted-foreground"
+                    className={cn(
+                      'px-3 py-2 text-[11px]',
+                      idx > 0 && 'border-t border-slate-200/70 dark:border-slate-800'
+                    )}
                   >
-                    <div>
+                    <div className="flex flex-wrap items-center justify-between gap-x-2">
                       <span className="font-medium text-foreground">
                         {formatearFecha(ajuste.fecha)}
+                        {ajuste.usuarioNombre ? ` · ${ajuste.usuarioNombre}` : ''}
                       </span>
-                      {ajuste.usuarioNombre ? ` por ${ajuste.usuarioNombre}` : ''}
+                      <span className="text-muted-foreground tabular-nums">
+                        Ajustados {formatearNumero(ajuste.diasAjustados)} · Vencidos{' '}
+                        {formatearNumero(ajuste.diasVencidos)} · Compensados{' '}
+                        {formatearNumero(ajuste.diasCompensados)}
+                      </span>
                     </div>
-                    <p className="mt-1 text-foreground">{ajuste.motivo}</p>
-                    <p className="mt-1">
-                      Ajustados: {formatearNumero(ajuste.diasAjustados)} · Vencidos:{' '}
-                      {formatearNumero(ajuste.diasVencidos)} · Compensados:{' '}
-                      {formatearNumero(ajuste.diasCompensados)}
-                    </p>
+                    <p className="mt-0.5 text-muted-foreground">{ajuste.motivo}</p>
                   </div>
                 ))}
               </div>
@@ -476,7 +731,7 @@ export function SaldoDetalleModal({ saldo, onClose, onUpdated }: SaldoDetalleMod
                   type="button"
                   variant="ghost"
                   size="sm"
-                  className="w-full text-xs"
+                  className="h-7 w-full text-[11px] text-muted-foreground"
                   onClick={() => setMostrarTodosAjustes((prev) => !prev)}
                 >
                   {mostrarTodosAjustes ? (
@@ -495,85 +750,31 @@ export function SaldoDetalleModal({ saldo, onClose, onUpdated }: SaldoDetalleMod
             </section>
           ) : (
             detalle.fechaModificacion && (
-              <div className="rounded-md border bg-muted/50 p-3 text-xs text-muted-foreground">
+              <p className="text-[11px] text-muted-foreground">
                 <span className="font-medium text-foreground">Último ajuste:</span>{' '}
                 {formatearFecha(detalle.fechaModificacion)}
                 {detalle.ajustadoPor ? ` por ${detalle.ajustadoPor}` : ''}
-              </div>
+              </p>
             )
           )}
 
-          {detalle.historial.length > 1 && (
-            <section className="space-y-3">
-              <h4 className="flex items-center gap-2 text-sm font-semibold">
-                <History className="h-4 w-4" />
-                Historial por año
-              </h4>
-              <div className="rounded-lg border">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Año</TableHead>
-                      <TableHead className="text-right">Generados</TableHead>
-                      <TableHead className="text-right">Tomados</TableHead>
-                      <TableHead className="text-right">Ajustados</TableHead>
-                      <TableHead className="text-right">Pendientes</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {detalle.historial.map((fila) => {
-                      const esAnioActual = fila.anio === detalle.anio;
-                      return (
-                        <TableRow
-                          key={fila.idSaldo}
-                          onClick={() => cambiarAnio(fila.idSaldo)}
-                          className={`cursor-pointer ${esAnioActual ? 'bg-muted/60' : ''}`}
-                        >
-                          <TableCell className="font-medium">
-                            <span className="flex items-center gap-2">
-                              {fila.anio}
-                              {esAnioActual && <Badge variant="secondary">Actual</Badge>}
-                            </span>
-                          </TableCell>
-                          <TableCell className="text-right">
-                            {formatearNumero(fila.diasGenerados)}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            {formatearNumero(fila.diasTomados)}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            {formatearNumero(fila.diasAjustados)}
-                          </TableCell>
-                          <TableCell
-                            className={`text-right font-semibold ${
-                              fila.diasPendientes < 0 ? 'text-destructive' : ''
-                            }`}
-                          >
-                            {formatearNumero(fila.diasPendientes)}
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </div>
-            </section>
-          )}
-
           {editando && (
-            <div className="space-y-4 rounded-lg border-2 border-amber-500/60 bg-amber-500/5 p-4">
+            <div className="space-y-4 rounded-xl border border-amber-500/50 bg-amber-50/40 p-3.5 dark:bg-amber-950/10">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <h4 className="flex items-center gap-2 text-sm font-semibold">
-                  <Pencil className="h-4 w-4" />
+                <h4 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-amber-800 dark:text-amber-300">
+                  <Pencil className="h-3.5 w-3.5" />
                   Ajuste manual de saldo
                 </h4>
-                <Badge variant="outline" className="border-amber-500/60 text-amber-700">
+                <Badge
+                  variant="outline"
+                  className="border-amber-500/60 bg-card text-[10px] text-amber-700 dark:text-amber-300"
+                >
                   Editando
                 </Badge>
               </div>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-[11px] text-muted-foreground">
                 Los días se capturan en números enteros. El pendiente se recalcula solo: Generados +
-                Ajustados + Compensados − Vencidos − Tomados.
+                Ajustados + Arrastre + Compensados − Vencidos − Tomados.
               </p>
               <div className="grid gap-3 sm:grid-cols-3">
                 <div className="space-y-1">
@@ -585,9 +786,8 @@ export function SaldoDetalleModal({ saldo, onClose, onUpdated }: SaldoDetalleMod
                     value={form.ajustados}
                     onChange={handleIntegerChange('ajustados', true)}
                   />
-                  <p className="text-xs text-muted-foreground">
-                    Corrección manual del saldo. Positivo suma días (ej. 2) y negativo los resta
-                    (ej. -1). Úsalo ante errores de captura o acuerdos con el empleado.
+                  <p className="text-[10px] text-muted-foreground">
+                    Corrección manual. Positivo suma días (ej. 2) y negativo los resta (ej. -1).
                   </p>
                 </div>
                 <div className="space-y-1">
@@ -599,9 +799,9 @@ export function SaldoDetalleModal({ saldo, onClose, onUpdated }: SaldoDetalleMod
                     value={form.vencidos}
                     onChange={handleIntegerChange('vencidos', false)}
                   />
-                  <p className="text-xs text-muted-foreground">
-                    Días que caducaron por la política de la empresa y ya no se pueden disfrutar.
-                    Solo enteros positivos (ej. 3).
+                  <p className="text-[10px] text-muted-foreground">
+                    Días caducados por la política; ya no se pueden disfrutar. Solo enteros
+                    positivos.
                   </p>
                 </div>
                 <div className="space-y-1">
@@ -613,9 +813,8 @@ export function SaldoDetalleModal({ saldo, onClose, onUpdated }: SaldoDetalleMod
                     value={form.compensados}
                     onChange={handleIntegerChange('compensados', false)}
                   />
-                  <p className="text-xs text-muted-foreground">
-                    Días que se pagaron al empleado en lugar de disfrutarlos. Solo enteros positivos
-                    (ej. 2).
+                  <p className="text-[10px] text-muted-foreground">
+                    Días pagados en lugar de disfrutarse. Solo enteros positivos.
                   </p>
                 </div>
               </div>
@@ -631,46 +830,43 @@ export function SaldoDetalleModal({ saldo, onClose, onUpdated }: SaldoDetalleMod
                   value={form.motivo}
                   onChange={handleFieldChange('motivo')}
                 />
-                <p className="text-xs text-muted-foreground">
-                  Explica brevemente el porqué (ej. &quot;Corrección por antigüedad 2026&quot;).
-                  Obligatorio, máx. 300 caracteres; se guarda como el último ajuste y se muestra en
-                  este detalle.
+                <p className="text-[10px] text-muted-foreground">
+                  Obligatorio, máx. 300 caracteres; se guarda como el último ajuste del período.
                 </p>
               </div>
-              <div className="rounded-md border border-amber-500/40 bg-background/60 p-3">
-                <p className="text-sm">
-                  Pendiente resultante:{' '}
-                  <span
-                    className={
-                      previewPendiente < 0 ? 'font-semibold text-destructive' : 'font-semibold'
-                    }
-                  >
-                    {formatearNumero(previewPendiente)} días
-                  </span>
-                  {previewPendiente < 0 && ' — quedará en saldo negativo'}
-                </p>
+              <div className="rounded-lg border border-amber-500/40 bg-card/60 px-3 py-2 text-xs">
+                Pendiente resultante:{' '}
+                <span
+                  className={cn(
+                    'font-semibold',
+                    previewPendiente < 0 ? 'text-destructive' : 'text-foreground'
+                  )}
+                >
+                  {formatearNumero(previewPendiente)} días
+                </span>
+                {previewPendiente < 0 && ' — quedará en saldo negativo'}
               </div>
             </div>
           )}
 
-          <section className="space-y-3">
-            <h4 className="flex items-center gap-2 text-sm font-semibold">
-              <CalendarDays className="h-4 w-4" />
-              Días de vacaciones en {detalle.anio}
+          <section className="space-y-2">
+            <h4 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              <CalendarDays className="h-3.5 w-3.5" />
+              Días de vacaciones en {periodoLabel}
             </h4>
             {detalle.solicitudes.length === 0 ? (
               <EmptyState
                 title="Sin solicitudes de vacaciones"
-                description={`No hay solicitudes de vacaciones registradas en ${detalle.anio}.`}
+                description={`No hay solicitudes de vacaciones registradas en ${periodoLabel}.`}
               />
             ) : (
-              <div className="space-y-5">
+              <div className="space-y-4">
                 {solicitudesCerradas.length > 0 && (
                   <div className="space-y-2">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
                       Tomados ({solicitudesCerradas.length})
                     </p>
-                    <div className="space-y-3">
+                    <div className="space-y-2">
                       {solicitudesCerradas.map((solicitud) => (
                         <SolicitudCard key={solicitud.idSolicitud} solicitud={solicitud} />
                       ))}
@@ -680,10 +876,10 @@ export function SaldoDetalleModal({ saldo, onClose, onUpdated }: SaldoDetalleMod
 
                 {solicitudesEnTramite.length > 0 && (
                   <div className="space-y-2">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">
+                    <p className="text-[11px] font-medium uppercase tracking-wide text-amber-700 dark:text-amber-400">
                       En trámite ({solicitudesEnTramite.length}) · no descuentan todavía
                     </p>
-                    <div className="space-y-3">
+                    <div className="space-y-2">
                       {solicitudesEnTramite.map((solicitud) => (
                         <SolicitudCard key={solicitud.idSolicitud} solicitud={solicitud} />
                       ))}
