@@ -926,6 +926,25 @@ export function VistaDetalle({
     opcionesOriginales.length > 0 &&
     (propuesta !== null || versionVigente !== null || snapshotOriginal !== null || modoRevision);
 
+  const comparacion: {
+    calculo: CalculoViaje;
+    opciones: SolicitudOpcion[];
+    esPropuesta: boolean;
+    costos: CostosCalculo | undefined;
+  } | null = modoRevision
+    ? versionAutorizada
+      ? {
+          calculo: versionAutorizada.calculo,
+          opciones: versionAutorizada.opciones,
+          esPropuesta: versionAutorizada.esPropuesta,
+          costos: costosAutorizados,
+        }
+      : null
+    : estaAutorizada && calculo
+      ? { calculo, opciones: opcionesOriginales, esPropuesta: false, costos: undefined }
+      : null;
+  const comparacionVisible = comparacion !== null || modoRevision;
+
   const [versionSeleccionada, setVersionSeleccionada] = useState<number | 'inicial' | null>(null);
   const [mapaAbierto, setMapaAbierto] = useState<
     'calculada' | 'inicial' | 'autorizada' | 'comparada' | 'version' | null
@@ -933,6 +952,7 @@ export function VistaDetalle({
   const [boletoAbierto, setBoletoAbierto] = useState(false);
   const mapaCalculado = mapaDeCalculo(calculo);
   const mapaAutorizado = mapaDeCalculo(versionAutorizada?.calculo ?? null);
+  const mapaComparacion = modoRevision ? mapaAutorizado : mapaCalculado;
   const mapaInicial = resumen ? mapaDeInicial(resumen) : { puntos: [], segmentos: [] };
   const versionEnVista =
     versionVigente === null || versionSeleccionada === 'inicial'
@@ -954,13 +974,22 @@ export function VistaDetalle({
     : 'Ruta calculada';
   const tabPreferida =
     pestanaInicial ??
-    (modoRevision ? 'comparar' : estaAutorizada && calculoAutorizado !== null ? 'autorizada' : 'calculada');
+    (comparacionVisible
+      ? 'comparar'
+      : estaAutorizada && calculoAutorizado !== null
+        ? 'autorizada'
+        : 'calculada');
   const tabInicial: PestanaRevision =
     (modoRevision && !tabsRevision.includes(tabPreferida)) ||
     (tabPreferida === 'autorizada' && versionAutorizada === null) ||
-    (tabPreferida === 'comparar' && !modoRevision)
+    (tabPreferida === 'comparar' && !comparacionVisible)
       ? 'calculada'
       : tabPreferida;
+  const totalPestanas =
+    (comparacionVisible && tabsRevision.includes('comparar') ? 1 : 0) +
+    (tabsRevision.includes('calculada') ? 1 : 0) +
+    (!modoRevision || tabsRevision.includes('inicial') ? 1 : 0) +
+    (!modoRevision || tabsRevision.includes('autorizada') ? 1 : 0);
   const [tabActiva, setTabActiva] = useState<PestanaRevision>(tabInicial);
   const [desgloseAbierto, setDesgloseAbierto] = useState(true);
   const tienePanelLateral = tabActiva !== 'inicial' && tabActiva !== 'comparar';
@@ -1097,13 +1126,16 @@ export function VistaDetalle({
         <TabsList
           className={cn(
             'grid h-auto min-h-11 w-full gap-1 rounded-xl bg-muted/60 p-1',
-            !modoRevision && 'max-w-2xl grid-cols-3',
-            modoRevision && tabsRevision.length === 2 && 'max-w-2xl grid-cols-2',
-            modoRevision && tabsRevision.length === 3 && 'max-w-2xl grid-cols-3',
-            modoRevision && tabsRevision.length === 4 && 'max-w-3xl grid-cols-4',
+            totalPestanas === 4
+              ? 'max-w-3xl grid-cols-4'
+              : totalPestanas === 3
+                ? 'max-w-2xl grid-cols-3'
+                : totalPestanas === 2
+                  ? 'max-w-2xl grid-cols-2'
+                  : 'max-w-xl grid-cols-1',
           )}
         >
-          {modoRevision && tabsRevision.includes('comparar') ? (
+          {comparacionVisible && tabsRevision.includes('comparar') ? (
             <TabsTrigger value="comparar" className={tabRevisionTriggerClassName}>
               <Sparkles className="hidden h-3.5 w-3.5 sm:inline" aria-hidden />
               {etiquetaComparar}
@@ -1157,21 +1189,23 @@ export function VistaDetalle({
           ) : null}
         </div>
       </div>
-      {modoRevision ? (
+      {comparacionVisible ? (
         <TabsContent value="comparar" className="space-y-4">
-          {versionAutorizada && resumen ? (
+          {comparacion && resumen ? (
             <>
               <p className="text-sm text-muted-foreground">
-                {versionAutorizada.esPropuesta
+                {comparacion.esPropuesta
                   ? 'Compara lo que pidió el solicitante con la ruta propuesta. Si no te sirve, recalcula el viaje o edita los costos antes de autorizar.'
-                  : 'Compara lo que pidió el solicitante con la ruta que se calculó para el viaje.'}
+                  : modoRevision
+                    ? 'Compara lo que pidió el solicitante con la ruta que se calculó para el viaje.'
+                    : 'Compara lo que pediste con la ruta que se calculó. La ruta autorizada está en su pestaña.'}
               </p>
               <div className="grid gap-6 lg:grid-cols-2 lg:gap-0 lg:divide-x lg:divide-border">
                 <div data-testid="comparacion-viaje-inicial" className="min-w-0 space-y-3 lg:pr-6">
                   <div className="flex flex-wrap items-start justify-between gap-2">
                     <div>
                       <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                        Lo que pidió el solicitante
+                        {modoRevision ? 'Lo que pidió el solicitante' : 'Lo que pediste'}
                       </p>
                       <h3 className="text-base font-semibold">Viaje inicial</h3>
                     </div>
@@ -1186,15 +1220,15 @@ export function VistaDetalle({
                   <div className="flex flex-wrap items-start justify-between gap-2">
                     <div>
                       <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                        {versionAutorizada.esPropuesta
+                        {comparacion.esPropuesta
                           ? 'La ruta que vas a autorizar'
                           : 'Cómo se calculó el viaje'}
                       </p>
                       <div className="flex flex-wrap items-center gap-2">
                         <h3 className="text-base font-semibold">
-                          {versionAutorizada.esPropuesta ? 'Ruta propuesta' : 'Ruta calculada'}
+                          {comparacion.esPropuesta ? 'Ruta propuesta' : 'Ruta calculada'}
                         </h3>
-                        {versionAutorizada.esPropuesta ? (
+                        {comparacion.esPropuesta ? (
                           <Badge
                             data-testid="badge-propuesta"
                             variant="outline"
@@ -1205,46 +1239,46 @@ export function VistaDetalle({
                         ) : null}
                       </div>
                     </div>
-                    {mapaAutorizado.puntos.length > 0 ? (
+                    {mapaComparacion.puntos.length > 0 ? (
                       <BotonVerMapa onClick={() => setMapaAbierto('comparada')} />
                     ) : null}
                   </div>
 
                   <div className="rounded-2xl border border-slate-200/80 bg-card p-4 shadow-sm">
                     <MetricasRuta
-                      calculo={versionAutorizada.calculo}
+                      calculo={comparacion.calculo}
                       resumen={resumen}
-                      opciones={versionAutorizada.opciones}
+                      opciones={comparacion.opciones}
                     />
                     <div className="mt-3">
                       <RutaPorFases
                         nodos={nodosDesdeCalculo(
-                          versionAutorizada.calculo,
-                          versionAutorizada.opciones,
-                          costosAutorizados,
+                          comparacion.calculo,
+                          comparacion.opciones,
+                          comparacion.costos,
                         )}
                       />
                     </div>
                   </div>
 
-                  {versionAutorizada.opciones.length > 0 ? (
+                  {comparacion.opciones.length > 0 ? (
                     <div data-testid="opciones-comparacion">
                       <DetalleOpciones
                         solicitud={solicitud}
-                        opcionesVista={versionAutorizada.opciones}
+                        opcionesVista={comparacion.opciones}
                         onSolicitudActualizada={onSolicitudActualizada}
                       />
                     </div>
                   ) : null}
-                  <CasetasRuta calculo={versionAutorizada.calculo} />
+                  <CasetasRuta calculo={comparacion.calculo} />
                 </div>
               </div>
-              {mostrarComparador ? (
+              {modoRevision && mostrarComparador ? (
                 <ComparadorRutas
                   opcionesOriginales={opcionesOriginales}
-                  opcionesPropuestas={versionAutorizada.opciones}
+                  opcionesPropuestas={comparacion.opciones}
                   totalOriginal={totalDeOpcionesElegidas(opcionesOriginales).suma}
-                  totalPropuesto={totalDeOpcionesElegidas(versionAutorizada.opciones).suma}
+                  totalPropuesto={totalDeOpcionesElegidas(comparacion.opciones).suma}
                 />
               ) : null}
             </>
@@ -1518,14 +1552,14 @@ export function VistaDetalle({
       <RutaMapaDialog
         abierto={mapaAbierto === 'comparada'}
         onOpenChange={(abierto) => setMapaAbierto(abierto ? 'comparada' : null)}
-        titulo={versionAutorizada?.esPropuesta ? 'Ruta propuesta' : 'Ruta calculada'}
+        titulo={comparacion?.esPropuesta ? 'Ruta propuesta' : 'Ruta calculada'}
         descripcion={
-          versionAutorizada?.esPropuesta
+          comparacion?.esPropuesta
             ? 'La ruta que estás evaluando, con terminales, hotel y taxis.'
             : 'La ruta calculada del viaje, con terminales, hotel y taxis.'
         }
-        puntos={mapaAutorizado.puntos}
-        segmentos={mapaAutorizado.segmentos}
+        puntos={mapaComparacion.puntos}
+        segmentos={mapaComparacion.segmentos}
       />
       <RutaMapaDialog
         abierto={mapaAbierto === 'version'}

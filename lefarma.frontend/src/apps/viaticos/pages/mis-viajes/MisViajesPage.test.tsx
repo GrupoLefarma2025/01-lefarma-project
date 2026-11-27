@@ -384,7 +384,7 @@ describe('MisViajesPage', () => {
 
     render(<MisViajesPage />);
     await waitFor(() => expect(screen.getByTestId('viaje-1')).toBeInTheDocument());
-    await usuario.click(within(screen.getByTestId('viaje-1')).getByRole('button', { name: /Ver detalle/ }));
+    await usuario.click(screen.getByTestId('viaje-1'));
     await waitFor(() => expect(screen.getByTestId('detalle-viaje')).toBeInTheDocument());
 
     expect(screen.getByText('Buscando precio real…')).toBeInTheDocument();
@@ -436,6 +436,7 @@ describe('MisViajesPage', () => {
     expect(screen.getByRole('tab', { name: 'Ruta calculada' })).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByRole('tab', { name: 'Viaje inicial' })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Ruta autorizada' })).toBeDisabled();
+    expect(screen.queryByRole('tab', { name: 'Inicial vs calculada' })).not.toBeInTheDocument();
     expect(screen.getByTestId('diagrama-ruta-calculada')).toBeInTheDocument();
     expect(screen.getByTestId('detalle-viaje')).toHaveTextContent('Tultepec');
     expect(screen.getByTestId('detalle-viaje')).toHaveTextContent('489.3 km');
@@ -497,7 +498,7 @@ describe('MisViajesPage', () => {
     expect(screen.getByTestId('diagrama-ruta-autorizada')).toHaveTextContent('Ruta autorizada por el concentrado');
   });
 
-  it('abre el detalle en la ruta autorizada cuando el viaje ya se autorizó', async () => {
+  it('abre el detalle comparando el viaje inicial con la ruta calculada cuando el viaje ya se autorizó', async () => {
     const usuario = userEvent.setup();
     const datos = datosRevision({
       calculo: calculoDe('Ruta del viajero', 'Destino original'),
@@ -515,10 +516,14 @@ describe('MisViajesPage', () => {
     await usuario.click(within(screen.getByTestId('viaje-1')).getByRole('button', { name: /Ver detalle/ }));
     await waitFor(() => expect(screen.getByTestId('detalle-viaje')).toBeInTheDocument());
 
-    expect(screen.getByRole('tab', { name: 'Ruta autorizada' })).toHaveAttribute('aria-selected', 'true');
-    expect(screen.getByRole('tab', { name: 'Ruta calculada' })).toHaveAttribute('aria-selected', 'false');
+    expect(screen.getByRole('tab', { name: 'Inicial vs calculada' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tab', { name: 'Ruta autorizada' })).toHaveAttribute('aria-selected', 'false');
+    expect(screen.getByTestId('comparacion-viaje-inicial')).toHaveTextContent('Aguascalientes');
+    expect(screen.getByTestId('comparacion-ruta-calculada')).toHaveTextContent('Ruta del viajero');
+    expect(screen.queryByTestId('diagrama-ruta-autorizada')).not.toBeInTheDocument();
+
+    await usuario.click(screen.getByRole('tab', { name: 'Ruta autorizada' }));
     expect(screen.getByTestId('diagrama-ruta-autorizada')).toHaveTextContent('Ruta autorizada por el concentrado');
-    expect(screen.queryByTestId('diagrama-ruta-calculada')).not.toBeInTheDocument();
   });
 });
 
